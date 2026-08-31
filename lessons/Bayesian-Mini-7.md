@@ -1,11 +1,11 @@
 ---
 title: "Posterior predictive checks, in 5 minutes"
 slug: "Bayesian-Mini-7"
-description: "A fitted Bayesian model can look tidy and still be wrong. Make it write fake datasets, hold your real data against them, and read the misfit as a number."
-keywords: "posterior predictive check, posterior predictive check in R, posterior predictive p-value, pp_check brms, Bayesian model checking, replicated datasets, model misspecification, test statistic"
+description: "Simulate 500 datasets from a fitted Bayesian model, plot them over your own data, and turn the comparison into one number that tells you if the fit holds."
+keywords: "posterior predictive check, posterior predictive p-value, Bayesian model checking, pp_check brms, overdispersion, negative binomial in R, replicated datasets, model misfit"
 mathjax: true
 webr: true
-date: "2026-08-30"
+date: "2026-08-31"
 post_type: "LESSON"
 course_id: "bayesian-decisions"
 course_title: "Bayesian Decisions"
@@ -16,360 +16,435 @@ course_prev: "Bayesian-Mini-6"
 course_next: ""
 curriculum_id: "0.0.52"
 lesson_access: "windowed"
-catalog_blurb: "How to tell whether a fitted Bayesian model actually describes your data."
+catalog_blurb: "How to tell whether a fitted Bayesian model can reproduce your own data."
 ---
 
 === step === cover
 ::eyebrow Bayesian Decisions
 ## Posterior predictive checks, in 5 minutes
 
-Two friends run a small online shop that sells handmade leather bags. Sixty consecutive days of orders sit in one column of a spreadsheet. Most days one or two bags go out, and on fifteen of them nobody ordered anything at all.
+Let's say a small online store wrote down its order count every day for sixty days. Most days sit near twelve. Four of them went quiet at two orders, and on one day the store shipped thirty-one.
 
-Somebody fitted a Bayesian model to that column, the ordinary way. It put the shop's average day at 1.67 bags, which is what the column averages to, near enough. Both friends read that, agreed it sounded like their shop, and got back to cutting leather.
+You fit a Poisson model to those sixty days. It lands on about 12.5 orders a day, with a 95% interval from 11.6 to 13.4, and every number in it is arithmetically exact.
 
-Then we asked the fitted model to write out a day-book of its own, sixty days of orders it thinks the shop could have had. Day nine of the book it handed back says the shop sold minus one and a half bags.
+But notice what that answer is about. It tells you how fast the store sells, and it tells you narrowly. It says nothing about whether a model built on that rate could ever produce a thirty-one-order day.
 
-Nobody sells minus one and a half bags.
+So let's test that directly. Draw a rate from the posterior, deal out sixty days of orders at that rate, do it five hundred times, and hold the real sixty days against the pile.
 
-The fit never complained about it, because nobody had ever asked it to. So let's ask it now, and let the model answer on itself. There are three moves, and all three run on the shop's real numbers.
+::widget process-flow {"steps":[{"title":"Draw a rate","sub":"take one daily order rate from the fitted posterior"},{"title":"Simulate 60 days","sub":"deal out a fresh 60 days of orders at that rate"},{"title":"Compare","sub":"hold the real 60 days against the 500 simulated ones"}]}
 
-::widget process-flow {"steps":[{"title":"Draw from the posterior","sub":"a cloud of mean and spread pairs, not one answer"},{"title":"Simulate a day-book from each draw","sub":"one made-up run of sixty days per draw"},{"title":"Compare the real data with the fakes","sub":"what the real shop shows and no fake does is the misfit"}]}
-
-So we will write those day-books ourselves, turn the mismatch into a single number you can report, and work out which statistic actually catches a broken model instead of quietly letting it through.
+We are going to run that comparison twice, once on a model that fails it and once on a model that passes. By the end you will be able to turn the picture into a single number, and say out loud what that number does and does not let you claim.
 
 === step === concept
-## Sixty days of orders, and the model that was fitted to them
+## The 60 days of orders, and the Poisson model fitted to them
 
-Let's get the shop's data on the table first, because every number from here on comes out of it.
-
-There are sixty consecutive days here, one row per day, and the value is how many bags went out that day. Press Run.
+Let's get the store's sixty days on the page first, because every number from here on comes out of this one vector.
 
 ```r
-# Put the shop's sixty days of orders on the table and look at their shape
-orders <- c(0, 2, 2, 0, 4, 4, 0, 3, 1, 1, 1, 1, 2, 0, 1, 3, 4, 1, 1, 0,
-            2, 1, 3, 0, 1, 1, 0, 1, 4, 0, 0, 0, 3, 3, 1, 2, 3, 1, 2, 0,
-            5, 1, 0, 0, 4, 2, 4, 1, 1, 3, 0, 0, 2, 3, 1, 3, 2, 5, 2, 2)
+# Load the store's 60 days of order counts and summarise them
+orders <- c(12, 17, 12, 15, 21,  5, 12, 14,  5,  7,
+            22, 13, 10, 12,  8, 31, 15, 15,  7, 21,
+             2, 29,  9,  6,  8, 13,  5, 23, 10,  7,
+            19, 18, 10,  2, 10,  5, 11, 18,  9,  9,
+             9,  8, 27, 10, 15, 14, 17,  4, 14, 20,
+            13, 22,  2,  9, 17, 12,  2, 10, 15, 12)
 
-table(orders)
-#> orders
-#>  0  1  2  3  4  5
-#> 15 17 11  9  6  2
-
-round(c(days = length(orders), mean = mean(orders),
-        sd = sd(orders), busiest = max(orders)), 3)
-#>    days    mean      sd busiest
-#>  60.000   1.667   1.434   5.000
-
-barplot(table(orders), col = "grey85", border = "white",
-        main = "Sixty days at the bag shop",
-        xlab = "orders in a day", ylab = "number of days")
+c(days = length(orders), total_orders = sum(orders),
+  mean = round(mean(orders), 2), sd = round(sd(orders), 2),
+  lowest = min(orders), busiest = max(orders))
+#>         days total_orders         mean           sd       lowest      busiest
+#>        60.00       749.00        12.48         6.58         2.00        31.00
 ```
 
-The top row of the table is the number of bags and the row under it is how many days sold that many. Fifteen days sold nothing, seventeen sold a single bag, and only twice did the shop reach five. The average day is 1.667 bags with a standard deviation of 1.434.
+That is sixty days and 749 orders altogether, an average of 12.48 a day. The quietest day took 2 orders and the busiest took 31.
 
-The bar chart says the same, and two things in it are worth holding on to. The values are whole numbers with nothing in between them, and the tallest bars sit hard against the left edge, where zero is.
+Now let's come to the model. A Poisson model for counts says the store draws each day's order count from a Poisson distribution with one rate, called lambda, which is just the average number of orders in a day. Poisson is the usual choice when the question is "how many times did this happen in a fixed window". And the thing to notice is that it holds exactly one number.
 
-Now let's look at the model that was fitted to this. Whoever did it reached for the default, a Normal likelihood, which treats every day's count as a draw from a Normal distribution with some unknown mean and some unknown spread. That is what the usual Bayesian packages start you on, and for a column of numbers it is very often right.
+Fitting it the Bayesian way means this. Before seeing the data you hold a vague opinion about lambda, wide enough that it rules almost nothing out. After the sixty days you hold a much narrower one: the rates that could plausibly have produced 749 orders across 60 days, with more weight on the rates that explain them well and almost none on the rest.
 
-It does carry one property that matters here. A Normal distribution spreads its probability over every number on the line, 4.3 bags and minus one bag included, and the shop's column can hold neither.
+That weighted set of surviving rates is the **posterior**, and the vague opinion you started with is the **prior**. When the prior is a Gamma distribution, the update is one line of arithmetic: a Gamma prior with shape a and rate b becomes a Gamma posterior with shape a plus the total orders and rate b plus the number of days.
+
+We start from a deliberately weak Gamma(2, 0.1). It leaves the door open to almost any daily rate a small store could have, and it is flat enough across that range that the sixty days do all the work.
+
+```r
+# Update a weak Gamma(2, 0.1) prior with the 60 days to get the posterior for the daily rate
+shape_post <- 2 + sum(orders)       # prior shape plus every order in the 60 days
+rate_post  <- 0.1 + length(orders)  # prior rate plus the number of days
+
+c(shape = shape_post, rate = rate_post,
+  post_mean = round(shape_post / rate_post, 2),
+  lower_95  = round(qgamma(0.025, shape_post, rate_post), 2),
+  upper_95  = round(qgamma(0.975, shape_post, rate_post), 2))
+#>     shape      rate post_mean  lower_95  upper_95
+#>    751.00     60.10     12.50     11.62     13.41
+```
+
+The posterior settles on 12.50 orders a day, and 95% of its weight lies between 11.62 and 13.41. That is a tight answer to a narrow question.
+
+Rather than carry that distribution around as a formula, let's take five hundred rates out of it. Each draw is one rate that the sixty days leave standing.
+
+```r
+# Draw 500 rates from the posterior, one for each simulated stretch we are about to build
+set.seed(1)
+lambda_draws <- rgamma(500, shape = shape_post, rate = rate_post)
+
+round(head(lambda_draws, 5), 2)
+#> [1] 12.20 13.10 13.07 12.68 11.80
+```
+
+Every one of those five hundred numbers is a live candidate for the store's true daily rate. But not one of them checks whether the Poisson part was a sensible idea in the first place.
+
+=== step === concept
+## What the fitted model says a fresh 60 days should look like
+
+Here is the move that makes the check possible. A fitted model is not only an estimate, it is a recipe for producing data, and you are allowed to run the recipe forward.
+
+It runs in two stages. First pick one rate out of the posterior, because you do not know the rate exactly and pretending you do would make the simulation tidier than the truth. Then deal out sixty days from a Poisson at that rate. Do both and you have a fresh sixty days that the fitted model could genuinely have produced.
+
+The set of all sixty-day stretches you can get this way has a name: the **posterior predictive distribution**. Let's draw one and set it next to the real thing.
+
+```r
+# Take the first rate from the posterior and deal out a fresh 60 days at that rate
+one_lambda <- lambda_draws[1]
+
+set.seed(11)
+sim_orders <- rpois(60, one_lambda)
+
+round(one_lambda, 2)
+#> [1] 12.2
+
+rbind(simulated = sim_orders, real = orders)[, 1:12]
+#>           [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10] [,11] [,12]
+#> simulated   10    4    7    8   16   14   12    8   13    10    11     8
+#> real        12   17   12   15   21    5   12   14    5     7    22    13
+
+c(sim_lowest = min(sim_orders), sim_busiest = max(sim_orders),
+  real_lowest = min(orders), real_busiest = max(orders))
+#>   sim_lowest  sim_busiest  real_lowest real_busiest
+#>            4           21            2           31
+```
+
+The first twelve days of each row look like the same kind of thing. Both wander up and down from one day to the next, both have a quiet day and a busy one, and if you saw either row on its own you would call it an ordinary run of trading days.
+
+The two summaries underneath are where they differ. The simulated stretch runs from 4 orders up to 21. The real one runs from 2 up to 31, wider at both ends.
+
+One simulated stretch proves nothing, though. It could easily be a quiet draw. To say anything at all, you need the whole range of stretches the model can produce.
+
+=== step === concept
+## Five hundred simulated datasets, plotted over the real orders
+
+So let's make five hundred of them, one per posterior draw, each a full sixty days.
+
+```r
+# Simulate 500 replicated 60-day stretches, one per posterior draw
+set.seed(2)
+yrep_pois <- t(sapply(lambda_draws, function(lam) rpois(60, lam)))
+
+dim(yrep_pois)
+#> [1] 500  60
+```
+
+That is five hundred rows and sixty columns. Each row is a complete alternative history of the store, and each one has a standard name: a **replicate**, or a replicated dataset.
+
+Now let's put them on one picture. For each row, count how many of its sixty days had 0 orders, how many had 1, how many had 2, and so on up to 35, then join those counts into a line. Do that for fifty of the replicates in grey, and for the store's real orders in red.
+
+```r
+# Plot the count profile of 50 replicated stretches against the real 60 days
+count_profile <- function(y) sapply(0:35, function(k) sum(y == k))
+
+counts       <- 0:35
+rep_profiles <- sapply(1:50, function(i) count_profile(yrep_pois[i, ]))
+
+plot(counts, count_profile(orders), type = "n", ylim = c(0, max(rep_profiles)),
+     main = "50 simulated stretches in grey, the real 60 days in red",
+     xlab = "Orders in a day", ylab = "Number of days out of 60")
+
+for (i in 1:50) lines(counts, rep_profiles[, i], col = "grey80")
+lines(counts, count_profile(orders), col = "firebrick", lwd = 3)
+```
+
+Read the grey first. All fifty curves climb into the same hump between about 8 and 17 orders a day, and all fifty are pinned to the floor below 4 and above 26. The tallest of them stacks fourteen of its sixty days onto one count value.
+
+Now read the red. It peaks at 6 days, well under the grey hump, and it reaches out to both ends where the grey will not go. Four of the store's days took only 2 orders, quieter than anything grey produces. Three days took 27, 29 and 31, out where every grey line is flat at zero.
+
+That is a posterior predictive check, and you have already read the verdict off it. Whatever the store's orders are doing, the fitted Poisson model cannot do it. The real sixty days are flatter and wider than any sixty days the model produces.
 
 [NOTE]
-Nothing has gone wrong yet. A Normal likelihood on count data is not automatically a mistake, and plenty of count columns get fitted this way without any trouble at all. The question is whether it is a mistake for **this** column, and that is a question you settle with the data rather than with a rule of thumb.
-
-=== step === concept
-## How the fitted model generates one replicated dataset
-
-Here is the piece that makes everything else work, so let's go through it slowly.
-
-When you fit a Bayesian model you do not come away with one mean and one spread. You come away with a posterior, which is a whole cloud of mean-and-spread pairs the data finds plausible, and the more plausible pairs turn up more often in it. For this shop the first pair drawn is a mean of 1.94 with a spread of 1.19, and the next one is a mean of 1.73 with a spread of 1.63.
-
-Now take one of those pairs and put it to work. The likelihood is just the rule for turning a mean and a spread into data, so apply it and draw sixty numbers from a Normal distribution with that mean and that spread. What comes back is a complete made-up run of the shop, sixty days long, exactly as long as the real one. That is a **replicated dataset**, usually written y-rep.
-
-Do that two thousand times, once per pair, and you have two thousand versions of the same shop, every one of them written by the model you actually fitted.
-
-Drawing those pairs is the only part we will take as given. For a Normal likelihood with the usual uninformative prior the posterior comes out in closed form, so no sampler is needed. The squared spread comes from a scaled chi-square draw, and the mean comes from a Normal centred on the sample mean. Those two lines are the fit.
-
-```r
-# Draw 2,000 mean-and-spread pairs from the posterior, then let each pair write a day-book
-set.seed(7)
-n    <- length(orders)
-nrep <- 2000
-
-sigma2 <- (n - 1) * var(orders) / rchisq(nrep, df = n - 1)
-mu     <- rnorm(nrep, mean(orders), sqrt(sigma2 / n))
-
-round(head(data.frame(mean = mu, spread = sqrt(sigma2)), 2), 2)
-#>   mean spread
-#> 1 1.94   1.19
-#> 2 1.73   1.63
-
-yrep_norm <- matrix(0, nrow = nrep, ncol = n)
-for (i in 1:nrep) {
-  yrep_norm[i, ] <- rnorm(n, mu[i], sqrt(sigma2[i]))
-}
-
-round(yrep_norm[1, ], 2)
-#>  [1]  0.93  2.19  2.06  2.26  2.54  2.98  0.05  0.38 -1.57  1.23  1.05  0.46
-#> [13]  0.50  3.69  1.31  3.16  2.71  3.82  4.28  1.58  3.63  0.84  5.13  4.02
-#> [25]  1.98  3.72  2.97  1.11  0.00  1.49  2.92  0.63  2.80  2.22  5.33  1.34
-#> [37]  2.74  2.80  1.83  1.20  3.98  1.06  2.50  0.16  2.76  0.69  3.23  1.59
-#> [49]  2.01  1.73  1.72  3.78  1.88 -0.66  2.20  3.51  3.26  1.72  0.88  1.23
-```
-
-`sigma2` holds two thousand draws of the squared spread and `mu` holds the matching two thousand draws of the mean. The loop then walks those pairs one at a time, and each pass writes one row of sixty numbers into `yrep_norm`. By the end the matrix is two thousand rows deep and sixty days wide, and every single row is one thing the fitted model says the shop could have looked like.
-
-The row printed above is the model's first day-book, sixty days of trading. Day one sold 0.93 bags, day two sold 2.19, day nine sold minus 1.57, and day thirty five sold 5.33.
-
-Not one of those four is a possible day at a shop. And the model is not misbehaving. It is doing exactly what a Normal likelihood does, which is to spread its probability smoothly over every real number. We asked what data it would produce, and this is the data it produces.
-
-[KEY INSIGHT]
-A replicated dataset is not a prediction and not a summary. It is a full dataset, the same size and shape as yours, drawn from the model you fitted. You get to look at it the same way you would look at real data, which is the whole trick.
+Nothing about the fit had to be broken to get this picture. The posterior for lambda is fine, the arithmetic is exact, and the interval of 11.62 to 13.41 is honest. What a check like this tests is the likelihood, the assumption that daily counts are Poisson, and that is a separate question from the estimate.
 
 === step === quiz
-## Quick check: what counts as a replicate?
+## Quick check: what each simulated dataset represents
 
-`yrep_norm` holds two thousand rows and the one you just printed is the first of them. Which of these describes what that row really is?
+Each of the 500 rows in `yrep_pois` holds 60 numbers. What is one of those rows?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- Sixty of the shop's own days drawn again at random with replacement, so some real days appear twice and others not at all. ::no
-- The model's best guess for each of the sixty days, one fitted average per day. ::no
-- Sixty brand new days simulated from one mean-and-spread pair out of the posterior, so the whole row is data the fitted model could have produced. ::ok That is it. The row shares nothing with your data except its length, which is precisely why holding the two side by side tells you something.
-- The shop's real sixty days with a bit of random noise added on top of each one. ::no Only one of these builds the row out of the model alone. Resampling the real days and jittering the real days both keep your data inside the answer, and a fitted average per day is one prediction rather than a dataset. A replicate starts at a posterior draw and ends with sixty numbers the model made up by itself.
+- The model forecast of what the store will sell over the next 60 days. ::no
+- A smoothed version of the real orders, with the noise taken out. ::no
+- A whole fresh 60 days of orders that the fitted model could have produced, using one rate drawn from the posterior. ::ok Exactly. It is a complete alternative dataset, the same size and shape as the real one, and that is what makes the two comparable.
+- The average of the real 60 days, repeated 60 times. ::no A replicate is not a forecast, not a smoothing, and not a summary. It is a full dataset the same size as yours, dealt out by the fitted model itself, and it exists so you can ask whether your real data looks like it belongs in the same pile.
 
 === step === concept
-## Two hundred replicated datasets over the real data
+## The posterior predictive p-value, and how to compute it
 
-One made-up day-book on its own does not tell you much. Two thousand of them show you everything the fitted model believes the shop could be, and the quickest way to see that is to draw a couple of hundred of them on one pair of axes.
+The picture is convincing, but somebody is going to ask how far out that red line really was, and a picture cannot answer that. You need a number.
 
-So let's plot the smoothed shape of two hundred rows in grey, lay the real sixty days over the top in red, and then count how many of the made-up days came out below zero.
+Here is how you get one. Pick a statistic that matters to you, compute it on the real data, compute it on every one of the five hundred replicates, and report the share of replicates that reach or beat the real value. That share is the **posterior predictive p-value**.
 
-```r
-# Draw 200 of the fake day-books over the real one, then count the fake days that go negative
-plot(density(yrep_norm[1, ]), col = "grey80",
-     xlim = c(-5, 8), ylim = c(0, 0.5),
-     main = "200 fake shops in grey, the real one in red",
-     xlab = "orders in a day")
-for (i in 2:200) {
-  lines(density(yrep_norm[i, ]), col = "grey80")
-}
-lines(density(orders), col = "red", lwd = 3)
+$$p = \text{share of replicates whose } T(y_{\text{rep}}) \ge T(y)$$
 
-round(mean(yrep_norm < 0), 3)
-#> [1] 0.126
-```
+In that line \( y \) is the store's real sixty days, \( y_{\text{rep}} \) is one of the five hundred simulated ones, and \( T \) is whatever statistic you decided to measure.
 
-Look at the grey first. Two hundred bell shapes sit in there, their centres scattered around 1.67, and each one falls away at much the same rate on both sides. That is what a Normal likelihood is built to produce. Plenty of them spill left past zero and carry on going.
-
-Now look at the red curve. It climbs to its highest point at about 0.85 orders and then slides away to the right, piled up at the left end where the shop's quiet days are. The little bit of red that crosses below zero is the smoothing, not the data.
-
-The gap between the grey and the red is the misfit, and it has a size. Across all two thousand replicates, 12.6 percent of the days the model wrote are negative. That is roughly one made-up day in eight on which the shop sold less than nothing.
-
-What you just did has a name. Holding your own data against a crowd of replicates drawn from the fitted model is a posterior predictive check, and all that is left is to make its answer reportable.
-
-That matters, because seeing the problem is not the same as being able to state it. Somebody is going to ask how bad it is, and pointing at a plot is not an answer.
-
-=== step === concept
-## The test statistic and the posterior predictive p-value
-
-To turn that picture into a number you have to say out loud what you care about. Pick one summary of a dataset, compute it on your real data, compute it on every replicate, and see where your value lands in the crowd. That chosen summary is called the **test statistic**.
-
-For this shop the pick is what the plot was pointing at: how many days sold nothing at all. Fifteen of the real sixty did. So the statistic is a function that takes a dataset and hands back its number of no-sale days.
-
-One detail before we run it. The Normal model writes fractional days like 0.93 and 0.38, so "sold nothing" has to mean something for those too, and the plain reading is to round each day to the nearest whole bag. A made-up day of 0.38 counts as a no-sale day, and a made-up day of 0.93 counts as one bag sold.
+Let's run it on two statistics: the mean and the standard deviation.
 
 ```r
-# Count the no-sale days in the real book and in every fake book, then compare
-zero_days <- function(y) sum(round(y) == 0)
+# Compute posterior predictive p-values for the mean and for the spread
+rep_mean <- rowMeans(yrep_pois)
+rep_sd   <- apply(yrep_pois, 1, sd)
 
-T_obs  <- zero_days(orders)
-T_norm <- apply(yrep_norm, 1, zero_days)
+c(obs_mean = round(mean(orders), 2),
+  p_mean   = mean(rep_mean >= mean(orders)),
+  obs_sd   = round(sd(orders), 2),
+  p_sd     = mean(rep_sd >= sd(orders)))
+#> obs_mean   p_mean   obs_sd     p_sd
+#>   12.480    0.508    6.580    0.000
 
-hist(T_norm, breaks = 20, col = "grey85", border = "white",
-     main = "No-sale days in 2,000 fake shops",
-     xlab = "days with no order")
-abline(v = T_obs, col = "red", lwd = 3)
-
-round(c(observed = T_obs, fake_average = mean(T_norm),
-        p_value = mean(T_norm >= T_obs)), 3)
-#>     observed fake_average      p_value
-#>       15.000        8.507        0.025
+round(range(rep_sd), 2)
+#> [1] 2.36 4.53
 ```
 
-Every bar of that histogram counts how many of the two thousand fakes came out with that many no-sale days. The average fake shop has 8.507 quiet days, and the middle half of them land between six and ten. The red line at fifteen is the real shop.
+Take the mean first. The real average is 12.48 orders a day, and 254 of the 500 replicates averaged that much or more, which is a p-value of 0.508. The model reproduces the store's average traffic about as well as it possibly could.
 
-Fifteen is not off the chart. It does sit out at the thin right-hand edge, though. Exactly 51 of the two thousand fakes reached fifteen quiet days or more, and the line prints that share as 0.025.
+That one was close to guaranteed, though. The posterior for the rate was built out of this data's average, so the replicates were always going to average about the same. A statistic the model was fitted to will nearly always pass, which makes it a weak thing to check on its own.
 
-That share is the **posterior predictive p-value**: the probability that a replicate's statistic reaches your observed value or goes past it, computed inside the fitted model itself.
+Now the spread, and this is the number to stop on. The real standard deviation is 6.58 orders. Not one replicate out of five hundred got there. Their standard deviations run from 2.36 to 4.53, so the closest any of them came was still two whole orders short.
 
-\[ p = P\left( T(y^{\text{rep}}) \ge T(y) \mid y \right) \]
+That is what a failed check looks like as a single number: zero out of five hundred.
 
-Now read the number for what it is. A model that describes the shop would write fakes landing on both sides of fifteen, so a healthy check comes back somewhere in the middle, near 0.5. At 0.025 the fitted model can only just manage the shop's quiet days, and it manages them about one time in forty.
+Both p-values came out of the same fitted model, on the same sixty days, in the same run. They disagree because a posterior predictive p-value is never about the model as a whole. It is about the one feature you chose to measure.
 
 [KEY INSIGHT]
-A posterior predictive p-value is not a hypothesis test and there is no 0.05 to clear. It is a position: it says where your data sits inside the crowd of data your model would write. Near the middle is where a working model puts you, and either edge is the model telling you it cannot produce something your data plainly does.
+Read it the way you would read a percentile. A p-value in the middle of the range says your real value is the sort of value this model produces all the time, so the model reproduces that feature. A p-value near 0 or near 1 says your real value is one the model hardly ever produces, and sometimes never. There is no threshold to clear here and no null hypothesis to reject. The only question is whether your data would look out of place among the datasets your own model makes.
 
 === step === concept
-## The same check after refitting with a Poisson likelihood
+## Overdispersion: why a Poisson cannot produce spread this large
 
-So we know the fit cannot produce enough quiet days, and we know exactly what it does instead. It spends its probability on fractions and negatives, when the shop only ever writes whole bags. The repair is to fit a likelihood that can produce nothing but whole bags, zero included, and that is the Poisson.
+A p-value of zero is a strong result, so it is worth knowing exactly why it came out that way. And the reason is the single number inside a Poisson.
 
-Move the toggle below from the wrong fit to the right one and watch the observed line move. The statistic, the shop and the count of quiet days are the same in both views. Only the likelihood changes.
+A Poisson carries a single parameter, and that parameter fixes the average and the spread together. Write \( Y \) for one day's order count and \( \mu \) for its average, which is the same lambda from before, and the tie is this:
+
+\( \mathrm{Var}(Y) = \mu \)
+
+Turn the rate up and the variance rises with it, always to the same value. There is no second dial. Once the model commits to an average of 12.5 orders a day, it has also committed to a variance of 12.5, whether that suits the store or not.
+
+Compare that with the store's own numbers.
+
+```r
+# Compare the spread of the real orders with the mean a Poisson ties it to
+c(mean = round(mean(orders), 2),
+  variance = round(var(orders), 2),
+  ratio = round(var(orders) / mean(orders), 2))
+#>     mean variance    ratio
+#>    12.48    43.27     3.47
+
+c(avg_replicate_sd = round(mean(rep_sd), 2),
+  sqrt_of_the_rate = round(sqrt(12.5), 2))
+#> avg_replicate_sd sqrt_of_the_rate
+#>             3.53             3.54
+```
+
+The store's variance is 43.27 against a mean of 12.48. That is three and a half times the variance a Poisson with that mean is allowed to have.
+
+The second pair of numbers says the same thing from the replicates' side. Their standard deviations averaged 3.53, and the square root of 12.5 is 3.54. They were doing exactly what the formula demands, which is why none of them could reach 6.58.
+
+Counts with more spread than their mean allows are called **overdispersed**, and overdispersion is one of the most common ways a count model goes wrong. Real days cluster. A promotion lands, a supplier is late, a weekend runs hot, and the busy days arrive in bunches instead of at a steady rate.
+
+So the check did more than tell you the model failed. It told you which way it failed, and now the fix follows from the diagnosis instead of from guesswork.
+
+=== step === concept
+## How to refit with a negative binomial and rerun the same check
+
+The data is not the problem, so leave the sixty days alone. What has to change is the likelihood, the assumption about how a single day's count gets generated.
+
+A negative binomial is the natural replacement, because it carries a second parameter for exactly the thing a Poisson cannot express:
+
+\( \mathrm{Var}(Y) = \mu + \mu^2 / k \)
+
+That second parameter, `k`, is called the size. A small `k` piles a lot of extra spread on top of the mean, a large `k` adds almost none, and as `k` grows the whole thing settles back into a Poisson. So the negative binomial contains the Poisson as a special case, and can also go wider when the data demands it.
+
+Fitting it needs no sampler at all when there are only two parameters. Lay down a grid of `mu` and `k` values, score every pair by how well it explains the sixty days, turn those scores into weights under a flat prior, and draw five hundred pairs in proportion to their weight. What comes out is a posterior, computed by brute force.
+
+```r
+# Score a grid of mean-and-size pairs by how well each one explains the 60 days
+mu_grid   <- seq(8, 20, by = 0.1)
+size_grid <- seq(0.5, 12, by = 0.1)
+grid      <- expand.grid(mu = mu_grid, size = size_grid)
+
+loglik <- mapply(function(m, k) sum(dnbinom(orders, mu = m, size = k, log = TRUE)),
+                 grid$mu, grid$size)
+
+weight <- exp(loglik - max(loglik))   # turn the log scores into positive weights
+weight <- weight / sum(weight)        # and make them sum to 1
+
+set.seed(3)
+picked  <- sample(nrow(grid), 500, replace = TRUE, prob = weight)
+nb_post <- grid[picked, ]
+
+c(pairs_scored = nrow(grid),
+  mu_mean      = round(mean(nb_post$mu), 2),
+  size_mean    = round(mean(nb_post$size), 2))
+#> pairs_scored      mu_mean    size_mean
+#>     14036.00        12.62         5.26
+
+c(implied_var  = round(mean(nb_post$mu) + mean(nb_post$mu)^2 / mean(nb_post$size), 2),
+  observed_var = round(var(orders), 2))
+#>  implied_var observed_var
+#>        42.92        43.27
+```
+
+That is fourteen thousand pairs scored, and the five hundred that survived average a mean of 12.62 orders with a size of 5.26. The mean barely moved, which is the point. The store still sells about 12.5 a day, and what the second parameter adds is room to be more variable about it.
+
+Put those two numbers through the variance formula above and you get 42.92, against the 43.27 the store actually had. The extra parameter landed exactly where the surplus spread was.
+
+Now let's rerun the identical check on the new model, with the old numbers printed beside the new ones so nothing has to be taken on trust.
+
+```r
+# Simulate 500 negative binomial replicates and rerun both checks on both models
+set.seed(4)
+yrep_nb <- t(mapply(function(m, k) rnbinom(60, mu = m, size = k),
+                    nb_post$mu, nb_post$size))
+
+c(pois_p_sd  = mean(apply(yrep_pois, 1, sd)  >= sd(orders)),
+  nb_p_sd    = mean(apply(yrep_nb,   1, sd)  >= sd(orders)),
+  pois_p_max = mean(apply(yrep_pois, 1, max) >= max(orders)),
+  nb_p_max   = mean(apply(yrep_nb,   1, max) >= max(orders)))
+#>  pois_p_sd    nb_p_sd pois_p_max   nb_p_max
+#>      0.000      0.494      0.000      0.574
+```
+
+The spread check moves from 0.000 to 0.494. Under the negative binomial, roughly half the replicates are more variable than the store and half are less, which is as central as a value can sit.
+
+The busiest-day check moves from 0.000 to 0.574 in the same run. Not one Poisson replicate ever reached a 31-order day, and about 57% of the negative binomial replicates do.
+
+And that closes the loop. A check failed, the failure pointed at the missing piece, a wider likelihood supplied it, and the same check came back clean.
+
+=== step === widget
+## How to read a check that passes and one that fails
+
+Reading these plots gets much easier once you have watched one flip. So here is a second scene, away from the store, with different data and a different statistic.
+
+We have sixty days of a low-volume product, mostly zeros, ones and twos, and 15 of those days sold nothing at all. The statistic is the number of zero days, and the question is whether a fitted model can produce a stretch that has 15 of them.
+
+Move the toggle and watch where the red line sits against the bars.
 
 ::widget ppc-overlay {}
 
-Now let's do the refit on the shop's own numbers. A Poisson has a single parameter, the rate, and with a Gamma(1, 1) prior on that rate the posterior again comes out in closed form: a Gamma whose shape is the prior's 1 plus the total bags sold, and whose rate is the prior's 1 plus the number of days. Each draw of the rate then writes its own sixty-day book, the same way as before.
+Under the Normal fit the replicates almost never manage 15 zero days, so the observed line lands far out in the tail and the p-value collapses towards zero. Switch to the Poisson fit and the same observed line moves in among the bars, with the p-value climbing back into the mid-range.
 
-```r
-# Refit the shop with a Poisson likelihood and run exactly the same no-sale-days check
-set.seed(11)
-lambda <- rgamma(nrep, shape = 1 + sum(orders), rate = 1 + n)
+Nothing about the data changed between those two views. Only the likelihood did, and that is the part worth carrying away.
 
-yrep_pois <- matrix(0, nrow = nrep, ncol = n)
-for (i in 1:nrep) {
-  yrep_pois[i, ] <- rpois(n, lambda[i])
-}
-
-T_pois <- apply(yrep_pois, 1, zero_days)
-
-round(c(observed = T_obs, fake_average = mean(T_pois),
-        p_value = mean(T_pois >= T_obs)), 3)
-#>     observed fake_average      p_value
-#>       15.000       11.707        0.212
-```
-
-The fakes now average 11.707 quiet days instead of 8.507, and the real fifteen sits inside that crowd rather than past its edge. The check comes back at 0.212, so about one fake shop in five is at least as quiet as the real one. That is a number you can work with.
-
-Notice what actually did the work here. Nobody added a parameter for zeros and nobody tuned anything. A Poisson simply cannot write minus one and a half bags, so all the probability the Normal was spending on impossible days now goes to days the shop can really have, and a good share of it lands on zero.
-
-[NOTE]
-Passing this check does not make the Poisson the true story of the shop. It says the model reproduces the one feature we asked it about. Ask about a different feature and it may well fail, and asking about the right features turns out to be the whole skill.
+A likelihood is never right or wrong on its own. A Poisson is the wrong model for the store's spread and the right model for these zeros, and the only way to know which case you are in is to check it against the data in front of you.
 
 === step === concept
-## The one-line version, once the model is fitted with brms
+## The same check in one line, once you fit with brms
 
-Nobody writes those loops at work. Once a model is fitted with brms, everything you just built by hand is one function call, `pp_check()`, which draws the replicates, applies the statistic and plots the comparison for you.
+Building the replicates by hand is how you see what the check is actually doing. It is not how you would do it on a real project. There you would fit with `brms`, which calls Stan underneath and gives you both checks as one-liners.
 
-Here is the same shop done the short way. This one needs Stan on your machine, so run it in your local R rather than here.
+`brms` needs a compiler and a Stan backend, so run this one in your own R session rather than here.
 
 ```r-static
-# Fit the bag shop with brms and run the same checks, one line each
+# Run this locally: the same two checks in one line each, using brms
 library(brms)
 
-shop <- data.frame(orders = orders)
-fit  <- brm(orders ~ 1, data = shop, family = poisson())
+store <- data.frame(orders = orders)
 
-no_sale_days <- function(y) sum(y == 0)
+fit <- brm(orders ~ 1, data = store, family = poisson(),
+           chains = 4, iter = 2000, seed = 1, silent = 2)
 
-pp_check(fit, type = "bars", ndraws = 200)
-pp_check(fit, type = "dens_overlay", ndraws = 200)
-pp_check(fit, type = "stat", stat = "no_sale_days")
+pp_check(fit, type = "dens_overlay", ndraws = 50)   # the overlay, drawn for you
+pp_check(fit, type = "stat", stat = "sd")           # the spread check, as a histogram
+pp_check(fit, type = "bars", ndraws = 500)          # the count version of the overlay
+pp_check(fit, type = "rootogram")                   # counts again, on a square-root scale
 ```
 
-Three types will cover most of what you need.
+The first line draws the overlay you plotted by hand, with a smooth density in place of the count profile. The second draws the spread check: a histogram of the replicate standard deviations with the observed one marked, and the p-value is the share of that histogram lying at or beyond the mark.
 
-1. `type = "bars"` is the one for counts. It draws one bar per whole number for the real data and puts the replicates' range on each bar as a point with an interval, so a shop with more zeros than its model can manage shows up as one bar poking out above its interval.
-2. `type = "dens_overlay"` is the grey-curves-over-red picture, and it is the right default whenever the outcome is continuous.
-3. `type = "stat"` takes any statistic you can write as a function and hands you the histogram with the observed value marked on it, which is the posterior predictive p-value in picture form.
+The last two are the versions built for counts. `bars` compares observed and predicted counts value by value, and `rootogram` puts them on a square-root scale so small discrepancies at the high counts stay visible.
 
-The loop underneath has not changed. `pp_check()` calls `posterior_predict()` for the matrix of replicates and hands it to bayesplot to draw. You can always ask for that matrix yourself and count whatever you like in it, which is what we have been doing all along.
-
-=== step === concept
-## Which statistic you check decides what you find out
-
-Here is the part that decides whether a posterior predictive check teaches you anything at all.
-
-The Normal fit failed on quiet days. So let's put two more statistics through exactly the same machinery, the mean and the standard deviation, and watch how that same broken model does on them.
-
-```r
-# Run three different statistics through the same check, under both fitted models
-ppc_p <- function(yrep, stat) mean(apply(yrep, 1, stat) >= stat(orders))
-
-data.frame(
-  statistic = c("no-sale days", "mean", "sd"),
-  observed  = round(c(zero_days(orders), mean(orders), sd(orders)), 2),
-  p_normal  = round(c(ppc_p(yrep_norm, zero_days), ppc_p(yrep_norm, mean),
-                      ppc_p(yrep_norm, sd)), 3),
-  p_poisson = round(c(ppc_p(yrep_pois, zero_days), ppc_p(yrep_pois, mean),
-                      ppc_p(yrep_pois, sd)), 3)
-)
-#>      statistic observed p_normal p_poisson
-#> 1 no-sale days    15.00    0.025     0.212
-#> 2         mean     1.67    0.515     0.491
-#> 3           sd     1.43    0.504     0.155
-```
-
-Read the `p_normal` column downward. The model we already know is wrong, the one writing negative bags, checks out at 0.515 on the mean and 0.504 on the standard deviation. You cannot land much closer to the middle of a crowd than that. On those two statistics the broken fit looks flawless.
-
-The `p_poisson` column is worth a glance while you are here. The Poisson passes the mean at 0.491 but comes back at 0.155 on the standard deviation, drifting down towards the low edge. A Poisson's spread is pinned to its rate, and this shop swings a little more from day to day than that allows.
-
-There is nothing mysterious about the 0.515 and the 0.504 once you see where those numbers came from. The Normal fit was built out of the sample mean and the sample spread. Asking it afterwards to reproduce the sample mean and the sample spread is asking it to repeat what you handed it, so it repeats it.
-
-So a statistic the model was fitted to can hardly fail. A check on it tells you close to nothing, and a report full of such checks is a report full of passes that were never at risk.
-
-The rule that follows is short. Check one statistic for the middle of the data, so a fit landing in the wrong place would be caught, and check at least one for the feature you would notice yourself if it were wrong. For this shop that feature is the quiet days. For yours it might be the longest gap between sales, the biggest single day, or how often the number goes above ten.
-
-[WARNING]
-A passing check is weak evidence and a failing check is a verdict. Passing means the model reproduced the features you thought to ask about. Failing means the model cannot produce your data, and there is no reading of that number that lets you report the fit as it stands.
+[TIP]
+Always check at least one statistic about the centre and one about the edges. A model can land the mean perfectly while missing every busy day, which is exactly what happened to the store: 0.508 on the mean and 0.000 on the spread, out of a single fit.
 
 === step === quiz
-## Quick check: a check that comes back at 0.99
+## Quick check: what a pass and a fail each let you claim
 
-Suppose you ran the standard-deviation check on a different shop and it came back at 0.99. What has the model just told you?
+The store's Poisson model failed the spread check at 0.000, and after the refit the negative binomial passed it at 0.494. So what does that let you say?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The model reproduces that shop's spread 99 percent of the time, so the fit is about as good as it gets. ::no
-- Ninety nine percent of the replicates are at least as spread out as the real data, so the model predicts far more day to day swing than the shop actually has. ::ok Right. It is the same failure you saw at 0.025 read from the other end, with the observed value out at an edge of the crowd instead of inside it. This time the model produces too much variation rather than too little.
-- There is a 1 percent chance the model is wrong. ::no
-- The shop's spread is statistically significant at the 1 percent level. ::no A posterior predictive p-value is a position in a crowd of replicates. It is not the probability that your model is right and it is not a significance test. Near the middle is fine, and both edges are failures: near zero your data is more extreme than the model can write, near one it is tamer than anything the model writes.
+- The failure means the Gamma(2, 0.1) prior was too weak, and a firmer prior would have fixed it. ::no
+- The failure is decisive about the spread and points at what was missing, while the pass is evidence the negative binomial reproduces the spread, not proof that it is the right model. ::ok Yes. A fail is a positive finding about one feature. A pass is only an absence of evidence against that feature, and plenty of wrong models pass a check on a statistic they happen to get right.
+- The pass means the negative binomial is the correct model for the store. ::no
+- The failure means the four quiet days and the 31-order day should be dropped before refitting. ::no A check only ever speaks about the statistic you fed it. A failure is strong, and it usually tells you which part of the model to change, which here was the likelihood rather than the prior or the data. A pass is much weaker: it says your data would not look out of place among the datasets this model makes, and that is the whole claim.
 
 === step === tryit
-## Your turn: does either model predict the busiest day?
+## Your turn: check the statistic your decision depends on
 
-Both matrices of replicates are still here. `yrep_norm` holds the two thousand day-books from the Normal fit and `yrep_pois` holds the two thousand from the Poisson fit, one book per row.
+The store hires a second packer for any day with 20 or more orders, so what it actually needs from a model is the number of busy days, not the average. That happened 9 times in the real 60 days.
 
-The shop's busiest real day sold 5 bags. Run that statistic, the busiest day, through the same check under both models, and see whether either one struggles to produce a day like it.
+Count the busy days in the real orders, count them in every row of `yrep_pois` and `yrep_nb`, and report the share of replicates that reach the real count under each model.
 
 ```r
-# yrep_norm and yrep_pois each hold 2,000 fake day-books, one per row.
-# The busiest real day is max(orders), which is 5 bags.
-# Work out the share of fake books whose own busiest day reaches 5 or more,
-# once for each of the two models.
-# Two lines. Press Check when you have them.
+# yrep_pois and yrep_nb each hold 500 replicated 60-day stretches, one per row.
+# A busy day is any day with 20 or more orders, and there were 9 of them in orders.
+# Count the busy days in each row of both matrices, then report the share of rows
+# that reach 9 or more.
+# Press Check when you have it.
 ```
-::check {"regex": "apply[(]yrep_(norm|pois), 1, max[)]", "gate": true, "difficulty": "intermediate", "ok": "Yes: 0.479 under the broken Normal fit and 0.793 under the Poisson. Both sit well inside their own crowd, so the busiest day is a statistic that lets the broken model straight through.", "no": "Same shape as the no-sale-days check with a different statistic: take the summary across the rows, compare it to the real value, and average. Start with mean(apply(yrep_norm, 1, max) >= max(orders))."}
+::check {"regex": "yrep_pois\\s*>=\\s*20", "gate": true, "difficulty": "intermediate", "ok": "That is it. The Poisson gives 0.000, with an average of about 2 busy days per stretch, and the negative binomial gives 0.498 with an average of 8.74. The model that failed the check would have staffed the store for two busy days when nine were coming.", "no": "Compare each matrix against the threshold and count along the rows with rowSums(yrep_pois >= 20). Then take mean() of that vector against the real count of 9, and repeat both lines for yrep_nb."}
 ::solution
 ```r
-# The busiest-day check under each of the two fitted models
-round(mean(apply(yrep_norm, 1, max) >= max(orders)), 3)
-#> [1] 0.479
-round(mean(apply(yrep_pois, 1, max) >= max(orders)), 3)
-#> [1] 0.793
+# Count the days with 20 or more orders in the real data and in every replicate
+busy_obs  <- sum(orders >= 20)
+busy_pois <- rowSums(yrep_pois >= 20)
+busy_nb   <- rowSums(yrep_nb   >= 20)
+
+c(busy_obs     = busy_obs,
+  pois_average = round(mean(busy_pois), 2),
+  p_pois       = mean(busy_pois >= busy_obs),
+  nb_average   = round(mean(busy_nb), 2),
+  p_nb         = mean(busy_nb >= busy_obs))
+#>     busy_obs pois_average       p_pois   nb_average         p_nb
+#>        9.000        1.970        0.000        8.740        0.498
 ```
 
-Look at the two numbers, 0.479 and 0.793. Both models produce a five-bag day about as readily as the shop did, so this statistic separates nothing, and a report showing only this check would have handed the broken fit a clean bill of health.
+The Poisson model expects about 2 busy days in a sixty-day stretch and never once produces 9 of them. The negative binomial expects 8.74 and lands the real count dead centre at 0.498.
 
-The busiest day is a real feature of the shop and it was a fair thing to ask about. It just happens to be a feature both likelihoods can manage. That is why the statistic has to be chosen with care. You learn something only when the check you ran was one the model could have failed.
+Notice this is the statistic the store's staffing decision actually rides on, and it was never the mean. Pick the statistic your decision depends on, and check that one.
 
 === step === concept
 ## References
 
-- [Posterior predictive assessment of model fitness via realized discrepancies](https://www3.stat.sinica.edu.tw/statistica/oldpdf/A6n41.pdf) - Gelman, Meng and Stern (1996), Statistica Sinica 6, 733-807. The paper that defines the posterior predictive p-value and the discrepancy measures behind it.
-- [Bayesian Data Analysis, third edition](http://www.stat.columbia.edu/~gelman/book/) - Gelman, Carlin, Stern, Dunson, Vehtari and Rubin (2013), Chapman and Hall. Chapter 6 is model checking, including why a statistic the model was fitted to returns a p-value near 0.5.
-- [Visualization in Bayesian workflow](https://doi.org/10.1111/rssa.12378) - Gabry, Simpson, Vehtari, Betancourt and Gelman (2019), Journal of the Royal Statistical Society A 182(2), 389-402. The case for reading these checks as pictures first.
-- [Graphical posterior predictive checks](https://mc-stan.org/bayesplot/articles/graphical-ppcs.html) - Gabry and Mahr, the bayesplot vignette. Every plot type, with the code that draws it.
-- [pp_check for brmsfit objects](https://paulbuerkner.com/brms/reference/pp_check.brmsfit.html) - Burkner, the brms reference page listing every type argument.
+- [Posterior predictive assessment of model fitness via realized discrepancies](https://www3.stat.sinica.edu.tw/statistica/j6n4/j6n41/j6n41.htm) - Gelman, Meng and Stern (1996), Statistica Sinica 6, 733-807. The paper that defines the posterior predictive p-value and works through what it does and does not measure.
+- [Bayesian Data Analysis, third edition](http://www.stat.columbia.edu/~gelman/book/) - Gelman, Carlin, Stern, Dunson, Vehtari and Rubin (2013). Chapter 6, Model checking, is the standard textbook treatment of replicated data and test quantities.
+- [Visualization in Bayesian workflow](https://doi.org/10.1111/rssa.12378) - Gabry, Simpson, Vehtari, Betancourt and Gelman (2019), Journal of the Royal Statistical Society A 182(2), 389-402. The reasoning behind each of the standard check plots.
+- [Bayesian workflow](https://arxiv.org/abs/2011.01808) - Gelman and colleagues (2020). Where a predictive check sits among the other things you do to a model, and what to do when one fails.
+- [Graphical posterior predictive checks](https://mc-stan.org/bayesplot/articles/graphical-ppcs.html) - the bayesplot vignette, with every plot type `pp_check()` can produce and a note on when to reach for each.
 
 === step === complete
 ## Quick recap
 
-You took a fitted model, made it write two thousand versions of the shop, and used them to catch a fit that every ordinary summary had let straight through.
+You took a fitted model that looked perfectly healthy, simulated five hundred datasets from it, and found out in one plot that it could not produce the data it had just been fitted to.
 
-- A replicate is a full made-up dataset the size of yours, produced by taking one parameter pair from the posterior and running the likelihood at it.
-- Two hundred of them drawn over the real sixty days showed the shape of the problem, and across all two thousand the Normal fit spent 12.6 percent of its days below zero, on a shop that cannot sell less than nothing.
-- A test statistic turns that picture into one number. Fifteen no-sale days against replicates averaging 8.507 gave a posterior predictive p-value of 0.025.
-- The same statistic under the Poisson refit came back at 0.212, with the real fifteen sitting inside the crowd instead of past its edge.
-- The mean and the standard deviation both passed under the broken fit, at 0.515 and 0.504, because a model can always repeat what it was fitted to.
+The loop, in five lines:
 
-So here is the sentence to carry away. A check that passes tells you the model reproduces the features you thought to ask about, and a check that fails tells you the model cannot produce your data at all. Only the second settles anything.
+1. Draw a rate from the posterior, then simulate a full dataset of the same size at that rate.
+2. Repeat until you have a few hundred replicates.
+3. Plot them under your real data, and pick a statistic that matters to your decision.
+4. Compute that statistic on every replicate, then report the share that reach or beat the real value.
+5. If that share sits near 0 or near 1, the model cannot produce that feature. Somewhere in the middle, and it can.
 
-That is why the statistic you choose matters so much. Go and run this on the last model you fitted, on something you would actually notice going wrong.
+For the store, the mean came back at 0.508 and the spread at 0.000, from the same Poisson fit. The variance was 43.27 against a mean of 12.48, and a Poisson ties those two together, so no rate could ever have reached it. Swapping in a negative binomial moved the spread check to 0.494 and the busiest-day check to 0.574.
+
+So when somebody asks whether your model fits:
+
+"I simulated 500 datasets from it and compared them to mine on the statistic we care about. Nine of my days were busy days, and the model produces nine or more about half the time. It reproduces that feature."
+
+You now have a check you can run on any fitted Bayesian model, in any field, and a way to say what came back. Congratulations, and have a great day!
