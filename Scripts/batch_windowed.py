@@ -65,8 +65,8 @@ exactly what it promises, in the owner's voice. Assume the reader did NOT
 read the email: the lesson stands alone from its first line and sets its own
 scene. But the cover is not the email reworded. Open on the running example
 and the first concrete thing the reader sees, in your own words and a
-different order, then say what they will be able to do by the end. No
-sentence of the email may reappear reworded anywhere in the lesson.
+different order. No sentence of the email may reappear reworded anywhere in
+the lesson.
 
 SOURCE MATERIAL: selva86.github.io/_posts/{source}.html is the existing blog
 post. Raw material only.
@@ -248,7 +248,7 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, voice_only=False):
+def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, voice_only=False, no_indep=False):
     seq = seq_item['seq']
     cid = seq_item['course']
     course = reg['courses'][cid]
@@ -477,7 +477,9 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
     # against the canonical lesson and hard-fail on copying (the seq-1 v2
     # attempt sailed through every instruction while reusing v1's prose at
     # up to 98% similarity - only measurement catches that).
-    if (out_slug or rebuild) and not voice_only:
+    if no_indep and (out_slug or rebuild) and not voice_only:
+        log('independence check skipped (--no-independence)')
+    if (out_slug or rebuild) and not voice_only and not no_indep:
         import difflib
         canon_md = os.path.join(ROOT, 'lessons', f"{PREFIX[cid]}-{part['part']}.md")
         if rebuild:
@@ -570,6 +572,8 @@ def main():
                     help='skip stages whose artifact already exists (plan / approved plan / lesson)')
     ap.add_argument('--voice-pass', dest='voice_pass', action='store_true',
                     help='run ONLY the voice pass + gate + publish on already-built lessons (--seq/--seqs/--max select)')
+    ap.add_argument('--no-independence', dest='no_indep', action='store_true',
+                    help='skip the independence gate (comparison/rebuild builds publish regardless of similarity to the archived version)')
     ap.add_argument('--rebuild', action='store_true',
                     help='rewrite ALREADY-BUILT lessons from scratch at their live slugs, in '
                          'sequence order (old versions archived out of reach; --max/--seq apply)')
@@ -598,7 +602,7 @@ def main():
             log(f"seq {it['seq']}: no email copy written; stopping (copy is the promise)")
             break
         slug = build_one(it, reg, copy, out_slug=a.out_slug, resume=a.resume, rebuild=a.rebuild,
-                         voice_only=a.voice_pass)
+                         voice_only=a.voice_pass, no_indep=a.no_indep)
         if not slug:
             sys.exit(1)
         reg = json.load(io.open(REG, encoding='utf-8'))  # reload after registry write
