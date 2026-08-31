@@ -487,13 +487,21 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
             return ' '.join(w for w in re.findall(r"[a-z0-9']+", x.lower())
                             if w not in _tw and w.rstrip('s') not in _tw and (w + 's') not in _tw)
         _cs, _es = _sents(_cover), _sents(body)
-        _pairs = [(difflib.SequenceMatcher(None, _bare(c), _bare(e), autojunk=False).ratio(), c)
+        # A restatement matches in BOTH shape and vocabulary. Short generic
+        # transitions ("Here is a way to ...") share shape with almost no
+        # shared words; they are noise, not rewording, so a word-overlap
+        # floor accompanies the character ratio.
+        def _jac(a, b):
+            wa, wb = set(a.split()), set(b.split())
+            return len(wa & wb) / max(1, len(wa | wb))
+        _pairs = [(difflib.SequenceMatcher(None, _bare(c), _bare(e), autojunk=False).ratio(),
+                   _jac(_bare(c), _bare(e)), c)
                   for c in _cs for e in _es
                   if len(_bare(c).split()) >= 4 and len(_bare(e).split()) >= 4]
-        _worst = max(_pairs or [(0.0, '')])
+        _worst = max([p for p in _pairs if p[1] > 0.45] or [(0.0, 0.0, '')])
         log(f'cover vs email: worst sentence similarity = {_worst[0]:.2f}')
         if _worst[0] > 0.6:
-            log(f'FAIL: the cover restates the email ("{_worst[1][:80]}")')
+            log(f'FAIL: the cover restates the email ("{_worst[2][:80]}")')
             return None
 
     # Comparison builds: PROVE independence, never trust it. Diff every step
