@@ -60,13 +60,19 @@ Subject: "{subject}"
 ---
 {email_body}
 ---
-The email's example and framing are the lesson's opening contract. Deliver
-exactly what it promises, in the owner's voice. Assume the reader did NOT
-read the email: the lesson stands alone from its first line and sets its own
-scene. But the cover is not the email reworded. Open on the running example
-and the first concrete thing the reader sees, in your own words and a
-different order. No sentence of the email may reappear reworded anywhere in
-the lesson.
+The email is the promise, not the script. Take three things from it: its
+example, its numbers, and the outcome it promises. Leave its wording, its
+figures of speech and its friendliness behind; they belong in an email.
+
+The lesson is written for a practitioner, in the register of the skill's
+exemplar lesson. Call things by the plain standard names the exemplar and
+the flagged pairs use (the posterior, the fake datasets, draw, simulate,
+compare), even where the email used a looser one.
+
+Assume the reader did NOT read the email: the lesson stands alone from its
+first line. Open on the running example and the first concrete thing the
+reader sees, in your own order. No sentence of the email may reappear
+reworded anywhere in the lesson.
 
 SOURCE MATERIAL: selva86.github.io/_posts/{source}.html is the existing blog
 post. Raw material only.
@@ -122,17 +128,26 @@ owner-written exemplars and, at its end, ONE COMPLETE LESSON in the owner's
 own hand between BEGIN/END EXEMPLAR markers. That lesson is the standard.
 Then read the lesson you are editing end to end.
 
-REWRITE prose sentence by sentence so it reads as if the owner of the
-exemplar lesson wrote it: same register, same pacing, same way of setting up
-a scene in full sentences and landing a point with a short spoken pause;
-setup facts are never clipped fragments ("Two thousand shoppers, split
-evenly." becomes "Two thousand shoppers took part, split evenly between the
-two pages."); no sentence about the lesson itself, no reference to another
-part or to a step number; keep every fact, every number and the meaning of
-every sentence; keep the running example. Never copy the exemplar's topic
-material into this lesson; imitate its manner only. The pass may tighten but
-never lengthen: when fewer words carry the same meaning in the owner's
-register, use fewer.
+FIX, do not rewrite. Read the lesson as the owner of the exemplar lesson
+would: a practitioner writing to a colleague who does this work.
+
+Change a sentence ONLY if it fails one of these four tests:
+1. It is a clipped fragment used as a setup fact. ("Two thousand shoppers,
+   split evenly." becomes "Two thousand shoppers took part, split evenly
+   between the two pages.")
+2. It talks about the lesson itself, or points to another part or a step
+   number.
+3. It treats a model, a posterior or a test as a person: it believes,
+   promises, proves itself, earns trust; or the reader asks it, takes it
+   at its word, lets it answer for itself. (Plain reporting is fine: the
+   test says p = 0.03.)
+4. It uses a figure of speech where the field has a plain word.
+
+A sentence that passes all four stays exactly as written, even if you would
+phrase it differently. Never copy the exemplar's wording or its topic
+material into this lesson. Keep every fact, every number, the meaning of
+every sentence, and the running example. The pass may tighten but never
+lengthen.
 
 NEVER change: headings (## lines), code fences and everything inside them
 including #> output, the option text of quiz options and which one is correct,
@@ -142,9 +157,6 @@ lines you may rewrite ONLY the human-visible sentences: widget "title", "sub",
 "label" and "note" strings, and the feedback after ::ok or ::no, keeping the
 JSON valid and every other key untouched. If a fix would need anything else to
 change, leave that sentence alone.
-If a step reads exactly like one of the owner's exemplars (the owner's own
-words, for example the Priya taste-test cover), leave it exactly as it is, loose
-grammar included.
 
 The linter flagged these sentences (fix these and everything like them):
 {flags}
