@@ -85,7 +85,20 @@ def prose_lines(step_md):
     out = []
     for l in md.split('\n'):
         t = l.strip()
-        if not t or t.startswith(('::', '#', '|', '- ', '* ', '[', '>', '1.', '2.', '3.', '4.', '5.', '<')):
+        if t.startswith('::'):
+            # Human-visible strings wired inside directives are prose too.
+            for key in ('title', 'sub', 'label', 'note'):
+                for m in re.finditer(r'"%s"\s*:\s*"((?:[^"\\]|\\.)*)"' % key, t):
+                    s = m.group(1).replace('\\"', '"')
+                    if len(s.split()) >= 3:
+                        out.append(s)
+            continue
+        if t.startswith('- ') and (' ::ok' in t or ' ::no' in t):
+            m = re.search(r'::(?:ok|no)\s+(.*)$', t)
+            if m and len(m.group(1).split()) >= 3:
+                out.append(m.group(1))
+            continue
+        if not t or t.startswith(('#', '|', '- ', '* ', '[', '>', '1.', '2.', '3.', '4.', '5.', '<')):
             continue
         out.append(t)
     return out

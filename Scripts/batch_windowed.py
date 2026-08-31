@@ -134,10 +134,14 @@ material into this lesson; imitate its manner only. The pass may tighten but
 never lengthen: when fewer words carry the same meaning in the owner's
 register, use fewer.
 
-NEVER change: headings (## lines), any line starting with ::, code fences and
-everything inside them including #> output, quiz option lines and which one is
-correct, tables, the frontmatter, the order of steps. If a fix would need any of
-those to change, leave that sentence alone.
+NEVER change: headings (## lines), code fences and everything inside them
+including #> output, the option text of quiz options and which one is correct,
+::check regexes and gates, widget types and every numeric or structural config
+value, tables, the frontmatter, the order of steps. Inside :: lines and option
+lines you may rewrite ONLY the human-visible sentences: widget "title", "sub",
+"label" and "note" strings, and the feedback after ::ok or ::no, keeping the
+JSON valid and every other key untouched. If a fix would need anything else to
+change, leave that sentence alone.
 If a step reads exactly like one of the owner's exemplars (the owner's own
 words, for example the Priya taste-test cover), leave it exactly as it is, loose
 grammar included.
@@ -155,7 +159,13 @@ do not touch git. Finish with one line: how many sentences you changed.
 
 def frozen_parts(md):
     """Everything the voice pass must not touch: frontmatter, step fences, headings,
-    :: directives, code fences with their content, quiz option lines, tables."""
+    :: directive structure, code fences with their content, quiz option text and
+    correctness, tables. Human-visible strings (widget title/sub/label/note and
+    the feedback after ::ok / ::no) are editable prose and are masked out."""
+    def mask(t):
+        for key in ('title', 'sub', 'label', 'note'):
+            t = re.sub(r'("%s"\s*:\s*)"(?:[^"\\]|\\.)*"' % key, r'\1"_"', t)
+        return re.sub(r'(::(?:ok|no))\s.*$', r'\1 _', t)
     out, in_code = [], False
     fm_end = md.find('\n---', 4)
     out.append(md[:fm_end])
@@ -163,8 +173,10 @@ def frozen_parts(md):
         t = l.rstrip()
         if t.startswith('```'):
             in_code = not in_code; out.append(t); continue
-        if in_code or t.startswith(('::', '## ', '=== step ===', '|')) or ('::ok' in t or '::no' in t):
-            out.append(t)
+        if in_code or t.startswith(('## ', '=== step ===', '|')):
+            out.append(t); continue
+        if t.startswith('::') or ('::ok' in t or '::no' in t):
+            out.append(mask(t))
     return '\n'.join(out)
 
 
