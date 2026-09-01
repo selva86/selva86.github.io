@@ -266,11 +266,20 @@ def check_lesson(path):
              '(it is untested, static, and inconsistent).')
     # The widget library must actually be used: a real lesson teaches with interactive
     # widgets, not prose + formulas alone (which slip past the bare-prose R6 check).
+    # At least two interactives per lesson (write-lesson Part 5, Two interactives):
+    # static diagrams and the cover step's visual do not count.
+    STATIC_WIDGETS = {'process-flow', 'tree-diagram', 'gini-split', 'importance-bars', 'correlation-heatmap'}
     n_widgets = len(re.findall(r'^\s*::widget\b', body, flags=re.M))
+    n_interactive = sum(1 for _t, _b in steps[1:]
+                        for w in re.findall(r'^\s*::widget\s+([a-z0-9-]+)', _b, flags=re.M)
+                        if w not in STATIC_WIDGETS)
     n_teach = sum(1 for t, _ in steps if t in ('concept', 'widget'))
     if not is_quiz and n_widgets == 0 and n_teach >= 3:
         fail('no ::widget used across %d teaching steps: select widgets from '
              '_build/lesson-visual-catalog.md (show, do not just tell - R6).' % n_teach)
+    elif not is_quiz and n_interactive < 2 and n_teach >= 3:
+        fail('%d interactive widget(s) outside the cover (static diagrams do not count): '
+             'a lesson carries at least two the learner moves (write-lesson Part 5, Two interactives).' % n_interactive)
 
     # MathJax flag must be set when formulas are present.
     if ('\\(' in body or '\\[' in body) and str(fm.get('mathjax', '')).strip().lower() not in ('true', '1', 'yes'):

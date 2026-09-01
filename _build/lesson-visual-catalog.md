@@ -15,7 +15,7 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 ## Static vs interactive (pick the cheaper one that teaches)
 
 - **Interactive widget:** ONLY for a "feel-it" moment, a parameter the learner moves to see an effect, AND it computes real results (overfit slider, averaging slider, mtry tuner).
-- **Static SVG / image:** everything else, structures and flows and one-shot illustrations. Cheaper, no flash, always the default unless manipulation itself teaches.
+- **Static SVG / image:** everything else, structures and flows and one-shot illustrations. Cheaper, no flash.
 
 ## Catalog
 

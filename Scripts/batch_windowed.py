@@ -144,8 +144,7 @@ Change a sentence ONLY if it fails one of these four tests:
 4. It uses a figure of speech where the field has a plain word.
 
 A sentence that passes all four stays exactly as written, even if you would
-phrase it differently. Never copy the exemplar's wording or its topic
-material into this lesson. Keep every fact, every number, the meaning of
+phrase it differently. Keep every fact, every number, the meaning of
 every sentence, and the running example. The pass may tighten but never
 lengthen.
 
@@ -350,7 +349,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
                  "earlier version of this lesson, any file whose name starts with "
                  f"{slug}, or any other lesson under lessons/. Plan and build from the "
                  "email promise, the source post, and the skill alone, as if no lesson "
-                 "had ever been written for it. You MAY reuse the lesson's original story or scenario, including one an exemplar in the skill tells; what must be new is the writing: every sentence written fresh from the plan, never copied or lightly reworked from anything you have seen.\n")
+                 "had ever been written for it. You MAY reuse the lesson's original story or scenario, including one an exemplar in the skill tells; what must be new is the writing: every sentence written fresh from the plan.\n")
         owner_cover = os.path.join(BRIEFS, f'owner-cover-{slug}.md')
         owner_cover_used = os.path.exists(owner_cover)
         if owner_cover_used:
