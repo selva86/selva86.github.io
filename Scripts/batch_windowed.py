@@ -490,9 +490,18 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         # transitions ("Here is a way to ...") share shape with almost no
         # shared words; they are noise, not rewording, so a word-overlap
         # floor accompanies the character ratio.
+        # Overlap counts CONTENT words only: the one sentence every cover and
+        # every email must share is the naming sentence ("this is called a ..."),
+        # and once the title words are out it is nothing but function words.
+        _stop = {'a', 'an', 'the', 'this', 'that', 'these', 'those', 'is', 'are', 'was',
+                 'were', 'be', 'it', 'its', 'of', 'to', 'in', 'on', 'for', 'and', 'or',
+                 'with', 'as', 'at', 'by', 'from', 'you', 'your', 'we', 'our', 'so',
+                 'then', 'called', 'one', 'not', 'no', 'if', 'how', 'what', 'there', 'here'}
         def _jac(a, b):
-            wa, wb = set(a.split()), set(b.split())
-            return len(wa & wb) / max(1, len(wa | wb))
+            wa, wb = set(a.split()) - _stop, set(b.split()) - _stop
+            if len(wa) < 2 or len(wb) < 2:
+                return 0.0
+            return len(wa & wb) / len(wa | wb)
         _pairs = [(difflib.SequenceMatcher(None, _bare(c), _bare(e), autojunk=False).ratio(),
                    _jac(_bare(c), _bare(e)), c)
                   for c in _cs for e in _es
