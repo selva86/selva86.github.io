@@ -71,8 +71,12 @@ compare), even where the email used a looser one.
 
 Assume the reader did NOT read the email: the lesson stands alone from its
 first line. Open on the running example and the first concrete thing the
-reader sees, in your own order. No sentence of the email may reappear
-reworded anywhere in the lesson.
+reader sees, in your own order. The email's explanation is not an outline
+for the cover: the cover does not walk the email's argument in the email's
+order. No sentence of the email may reappear reworded anywhere in the
+lesson; its plain words are not what that rule protects. The names of
+things and the ordinary verbs the email uses are the field's words, and
+you use them freely rather than reaching for a substitute.
 
 SOURCE MATERIAL: selva86.github.io/_posts/{source}.html is the existing blog
 post. Raw material only.
@@ -141,7 +145,12 @@ Change a sentence ONLY if it fails one of these four tests:
    promises, proves itself, earns trust; or the reader asks it, takes it
    at its word, lets it answer for itself. (Plain reporting is fine: the
    test says p = 0.03.)
-4. It uses a figure of speech where the field has a plain word.
+4. It describes a model, a method, a dataset or a result with a noun or verb
+   borrowed from outside statistics and computing (a household object, a
+   physical act, a person or a group of people, a story or a game). Origin
+   decides, not teaching habit; words the field has made its own (fit,
+   draw, tail, spread, noise, bootstrap, tree, leaf, kernel) are terms and
+   stay. Replace the borrowed word with the field's term and a plain verb.
 
 A sentence that passes all four stays exactly as written, even if you would
 phrase it differently. Keep every fact, every number, the meaning of
