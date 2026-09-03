@@ -212,7 +212,10 @@ def voice_pass(slug, fmt, indep):
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-voice-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
         log('voice pass (Opus 5) starting' if attempt == 1 else 'voice pass retry (frozen parts were altered)')
-        claude(prompt, 3600, os.path.join(BRIEFS, f'windowed-{slug}-voice.log'))
+        r = claude(prompt, 3600, os.path.join(BRIEFS, f'windowed-{slug}-voice.log'))
+        if api_died(r):
+            log('FAIL: voice pass never ran (API retries exhausted)')
+            return False
         after = io.open(lesson_md, encoding='utf-8').read()
         if frozen_parts(after) == keep:
             n_before = len(voice_flags(slug).splitlines())
@@ -253,9 +256,11 @@ def claude(stdin_text, timeout, log_path):
             r.stdout + '\n--- stderr ---\n' + r.stderr)
         if not api_died(r):
             return r
-        wait = 120 * attempt
-        log(f'API death (attempt {attempt}/3): waiting {wait}s then relaunching this stage')
-        time.sleep(wait)
+        if attempt < 3:
+            wait = 120 * attempt
+            log(f'API death (attempt {attempt}/3): waiting {wait}s then relaunching this stage')
+            time.sleep(wait)
+    log('API death: all 3 attempts failed; the stage did not run')
     return r
 
 
