@@ -146,8 +146,14 @@ Change a sentence ONLY if it fails one of these four tests:
    outside statistics and computing, however common in teaching. Replace
    it with the field's term and a plain verb; the field's own borrowed
    words (fit, draw, tail, bootstrap) stay.
+5. It leaves the reader guessing what a noun refers to: the sentence is
+   about the data but names the time, place or thing the data came from
+   ("the month supports that rate"), or it mentions something the reader
+   has not seen yet ("the picture", before any plot exists). Rewrite it
+   to name the actual thing: the month's data, not the month; the
+   store's orders, not the store.
 
-A sentence that passes all four stays exactly as written, even if you would
+A sentence that passes all five stays exactly as written, even if you would
 phrase it differently. Keep every fact, every number, the meaning of
 every sentence, and the running example. The pass may tighten but never
 lengthen.
