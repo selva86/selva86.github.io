@@ -163,8 +163,9 @@ including #> output, the option text of quiz options and which one is correct,
 ::check regexes and gates, widget types and every numeric or structural config
 value, tables, the frontmatter, the order of steps. Inside :: lines and option
 lines you may rewrite ONLY the human-visible sentences: widget "title", "sub",
-"label" and "note" strings, and the feedback after ::ok or ::no, keeping the
-JSON valid and every other key untouched. If a fix would need anything else to
+"label", "note", "tail" and "unit" strings, the "ok" and "no" messages inside
+::check, and the feedback after ::ok or ::no, keeping the JSON valid and every
+other key untouched. If a fix would need anything else to
 change, leave that sentence alone.
 
 The linter flagged these sentences (fix these and everything like them):
@@ -181,10 +182,11 @@ do not touch git. Finish with one line: how many sentences you changed.
 def frozen_parts(md):
     """Everything the voice pass must not touch: frontmatter, step fences, headings,
     :: directive structure, code fences with their content, quiz option text and
-    correctness, tables. Human-visible strings (widget title/sub/label/note and
-    the feedback after ::ok / ::no) are editable prose and are masked out."""
+    correctness, tables. Human-visible strings (widget title/sub/label/note/
+    tail/unit, ::check "ok"/"no" messages, and the feedback after ::ok / ::no)
+    are editable prose and are masked out."""
     def mask(t):
-        for key in ('title', 'sub', 'label', 'note'):
+        for key in ('title', 'sub', 'label', 'note', 'tail', 'unit', 'ok', 'no'):
             t = re.sub(r'("%s"\s*:\s*)"(?:[^"\\]|\\.)*"' % key, r'\1"_"', t)
         return re.sub(r'(::(?:ok|no))\s.*$', r'\1 _', t)
     out, in_code = [], False
