@@ -1,8 +1,8 @@
 ---
 title: "Confidence intervals: what they really mean"
 slug: "Inference-Mini-3"
-description: "A 95% confidence interval is not a 95% chance the true average sits inside it. Build intervals from samples of delivery times and count what the 95% counts."
-keywords: "confidence intervals, what a confidence interval means, 95% confidence interval, confidence interval interpretation, coverage, standard error, confidence interval in R, bootstrap confidence interval"
+description: "A 95% confidence interval is not a 95% chance the true average sits inside it. Build 100 intervals from repeated samples and count what the 95% counts."
+keywords: "confidence intervals, what confidence intervals mean, 95% confidence interval, confidence interval interpretation, coverage, confidence interval in R, prediction interval, bootstrap confidence interval"
 mathjax: true
 webr: true
 date: "2026-09-04"
@@ -16,422 +16,357 @@ course_prev: "Inference-Mini-2"
 course_next: ""
 curriculum_id: "0.0.3"
 lesson_access: "windowed"
-catalog_blurb: "What the 95% in a confidence interval actually counts."
+catalog_blurb: "What the 95% in a confidence interval counts, and what it does not."
 ---
 
 === step === cover
 ::eyebrow Inference from Zero
 ## Confidence intervals: what they really mean
 
-Today we are going to work out what the 95% in a confidence interval is actually counting.
+Today let's work out what the 95% in a confidence interval is actually counting.
 
-Here is the setting. A pizza shop wants to know how long its deliveries take. Nobody is going to sit down and time all 5,000 orders from last quarter, so an analyst times 40 of them on one shift. The average comes to 27.30 minutes, and next to it goes a 95% confidence interval of 24.85 to 29.75 minutes.
+A pizza shop records how long every delivery takes. You ask the owner how long an average delivery runs, and instead of one number you get a range: about 22 to 30 minutes, quoted at 95% confidence.
 
-The shop owner reads that line and takes it one of two ways. Either 95% of pizzas arrive between 24.85 and 29.75 minutes, or there is a 95% chance the shop's real average is somewhere in that stretch.
+Two readings of that 95% come to mind straight away. One is that 95% of deliveries arrive somewhere between 22 and 30 minutes. The other is that there is a 95% chance the true average delivery time lies between 22 and 30 minutes.
 
-Both readings are wrong. The second one is wrong in a way that is genuinely hard to see. When researchers have been handed that same sentence and asked to judge it, they have accepted it about as often as first-year students did.
+Neither one is what the 95% says. The second is the one almost everybody carries around, including people who compute these intervals every week.
 
-So we are not going to memorise a definition. We are going to build these intervals ourselves, over and over, from a shop whose true average delivery time we already know, and count what the 95% is counting.
+So we are not going to memorise a definition. We are going to build the intervals ourselves out of the delivery times, and count what the 95% counts. There are only three steps to it.
 
-::widget process-flow {"steps":[{"title":"Time 40 deliveries","sub":"build one interval for the average from that single sample"},{"title":"Do it again on fresh samples","sub":"another 40 deliveries, another interval, a hundred times over"},{"title":"Count the hits","sub":"how many of those intervals contain the true average of all 5,000 orders"}]}
+::widget process-flow {"steps":[{"title":"Draw one night","sub":"take 25 deliveries at random from the shop records"},{"title":"Build the interval","sub":"build a 95% confidence interval for the average"},{"title":"Repeat 100 times","sub":"count how many of them contain the true average"}]}
 
-That is the whole plan. Everything after this is carrying it out and reading the counts.
+Everything from here is doing those three things and reading what comes back.
 
 === step === concept
-## The 40 timed deliveries and the average we do not know
+## One night of deliveries, and its 95% interval
 
-Two numbers matter here, so let's put both of them on the screen.
+Start with the data, since every number that follows is computed from it.
 
-The first is the shop's true average delivery time across all 5,000 orders. In real work you never see this number, which is the entire reason confidence intervals exist. Here we build those 5,000 deliveries ourselves, so we can check every answer against the truth later on.
+The shop has 2,000 past deliveries on record, each one a time in minutes. We are going to treat those 2,000 records as the entire population of deliveries. A real shop never has that. It is the only reason we can check our answers later, because the average of all 2,000 records is the true average delivery time, and we know it.
 
-The second is the mean of the 40 deliveries timed today. That one you always see.
+Delivery times are skewed. Most land in the twenties and thirties, a few run past an hour, and none can be negative. `rgamma()` draws numbers with exactly that shape, so the records behave like real delivery times rather than a tidy bell curve.
+
+Out of those records we take one night: 25 deliveries, drawn at random. Those 25 deliveries are all a real shop would ever get to see.
 
 Press Run.
 
 ```r
-# Build the quarter's 5,000 delivery times, then time 40 of them today
-set.seed(42)
-delivery_times <- round(6 + rgamma(5000, shape = 6, rate = 0.3))
+# Build the shop records, draw one night of 25 deliveries, and build the interval for it
+set.seed(7)
+records   <- round(rgamma(2000, shape = 7, rate = 0.27), 1)   # 2,000 past deliveries, in minutes
+true_mean <- mean(records)
 
-set.seed(3)
-today <- sample(delivery_times, 40)
+set.seed(56)
+night <- sample(records, 25)
 
-c(true_average = mean(delivery_times), sample_mean = mean(today))
-#> true_average  sample_mean
-#>      25.9526      27.3000
+round(c(true_average = true_mean, night_average = mean(night)), 2)
+#>  true_average night_average
+#>         25.92         26.02
+
+t.test(night)$conf.int
+#> [1] 22.07518 29.95682
+#> attr(,"conf.level")
+#> [1] 0.95
 ```
 
-`rgamma()` draws right-skewed numbers, which is what delivery times look like in practice: most orders land in the twenties, with a thin tail of slow ones behind them. `set.seed()` fixes the random draw, so your numbers match mine.
+The true average delivery time is 25.92 minutes. The 25 deliveries we drew average 26.02 minutes, which is close, though nothing guaranteed that.
 
-The shop's true average is 25.95 minutes. Today's 40 deliveries came to 27.30. So the sample mean is 1.35 minutes too high.
+`t.test()` builds the interval for us. Its `conf.int` component holds the two bounds, 22.08 and 29.96 minutes, and the `conf.level` attribute printed under them confirms that 95% is the default.
 
-Now look at what the analyst actually holds.
-
-```r
-# Show the 40 timed deliveries with their mean marked
-hist(today, breaks = 12, col = "grey85", border = "white",
-     main = "40 deliveries timed today",
-     xlab = "Delivery time in minutes")
-abline(v = mean(today), col = "red", lwd = 3)
-```
-
-The 40 times run from 12 minutes to 48, piled up in the low twenties. The red line is 27.30, today's mean.
-
-Nothing in that picture flags the 1.35-minute error. There is no warning sign to spot, because a sample that lands high looks exactly like a sample that lands low. So quoting 27.30 on its own overstates what the analyst knows. The truthful report is 27.30 plus or minus some amount, and a confidence interval is how that amount gets worked out.
-
-To work it out, we first need to know how far the mean of 40 deliveries tends to stray from the truth.
+So one night gives us two things. A single number, 26.02, which is our best guess at the average. And a range, 22.08 to 29.96, which is what we report when we want to be honest about how far off that guess could be.
 
 === step === concept
-## The standard error: how much a sample mean moves
+## What the interval is made of
 
-Today's 40 deliveries gave 27.30. Another 40 would have given something else. How much else is the question, and we can answer it exactly here because we have all 5,000 deliveries in hand.
+Those two bounds did not come out of nowhere. Every confidence interval for a mean is built from the same three pieces, and it is worth assembling this one by hand once.
 
-Draw 40 of them, take the mean, and do that 2,000 times.
+$$\bar{x} \pm t_{n-1,\ 0.975} \times \frac{s}{\sqrt{n}}$$
 
-```r
-# Draw 2,000 fresh samples of 40 and collect the mean of each one
-set.seed(5)
-many_means <- replicate(2000, mean(sample(delivery_times, 40)))
+Reading it left to right:
 
-hist(many_means, breaks = 40, col = "grey85", border = "white",
-     main = "2,000 samples of 40, one mean each",
-     xlab = "Sample mean in minutes")
-abline(v = mean(delivery_times), col = "red", lwd = 3)
+1. The sample mean, 26.02 minutes, sits at the centre of the interval.
+2. The standard error, written `s / sqrt(n)`, is the sample standard deviation divided by the square root of the sample size, and it measures how much the average of 25 deliveries moves around from night to night.
+3. The critical value is the multiplier that decides how many standard errors wide the interval is, and this is where the 95% enters.
 
-c(spread_of_the_means = sd(many_means),
-  population_sd       = sd(delivery_times),
-  sd_over_sqrt_n      = sd(delivery_times) / sqrt(40))
-#> spread_of_the_means       population_sd      sd_over_sqrt_n
-#>            1.321462            8.277515            1.308790
-```
+The critical value comes from the t distribution, which is the normal curve with heavier tails. We need those heavier tails because the spread `s` was estimated from the same 25 deliveries rather than known in advance, and the smaller the sample the more that estimate can be off. The degrees of freedom, `n - 1`, is 24 here, and that number is what picks which t curve the multiplier is read from.
 
-The 2,000 means run from 21.9 up to 30.9 minutes, in a tidy pile centred on the true average of 25.95. Today's 27.30 is an ordinary member of that pile, a little to the right of the middle.
-
-Their standard deviation is 1.32 minutes. That number has a name: the **standard error** of the mean. It is the typical distance between a sample mean and the true average, and it is the single quantity every confidence interval is built from.
-
-Now read the other two numbers. Individual deliveries scatter with a standard deviation of 8.28 minutes, and 8.28 divided by the square root of 40 comes to 1.31. The spread we measured by brute force and the number the formula gives are the same. That is what makes the formula worth having: you do not need 2,000 repeats to know how far a mean strays, because dividing by the square root of the sample size gets you there directly.
-
-There is one catch, and it is the practical one. That formula needs the standard deviation of all 5,000 deliveries, and the analyst has 40. So the sample's own standard deviation stands in for it.
+`qt(0.975, df = 24)` returns the point on that curve with 2.5% of the area above it. It is 0.975 and not 0.95 because a 95% interval leaves 2.5% out on each side.
 
 ```r
-# Compute the standard error from the 40 timed deliveries alone
-se <- sd(today) / sqrt(40)
+# Rebuild the same interval by hand from the mean, the critical value and the standard error
+m <- mean(night)
+s <- sd(night)
+n <- length(night)
 
-c(sample_sd = sd(today), se = se)
-#> sample_sd        se
-#>  7.656738  1.210637
+se     <- s / sqrt(n)
+t_crit <- qt(0.975, df = n - 1)
+
+round(c(mean = m, sd = s, se = se, t_crit = t_crit), 4)
+#>    mean      sd      se  t_crit
+#> 26.0160  9.5470  1.9094  2.0639
+
+round(c(lower = m - t_crit * se, upper = m + t_crit * se), 3)
+#>  lower  upper
+#> 22.075 29.957
 ```
 
-The 40 deliveries have a standard deviation of 7.66, a little under the true 8.28, so the standard error comes out at 1.21 instead of 1.31. Close, and this one is computed entirely from numbers the analyst actually has.
+The 25 deliveries have a standard deviation of 9.547 minutes, so their average has a standard error of 9.547 divided by 5, which is 1.9094. Multiply that by 2.0639 and the half-width is 3.94 minutes. Take 3.94 off the mean and add it on, and you get 22.075 and 29.957, the same two numbers `t.test()` printed.
+
+That 0.975 is the only place the 95% appears in the whole calculation. Ask for a higher level and the critical value grows.
+
+```r
+# Compare the critical value at 95% confidence against the one at 99%
+round(c(t_at_95 = qt(0.975, df = n - 1), t_at_99 = qt(0.995, df = n - 1)), 4)
+#> t_at_95 t_at_99
+#>  2.0639  2.7969
+```
+
+The critical value is 2.7969 instead of 2.0639, applied to the same standard error, which makes the interval wider. In `t.test()` you ask for that with the `conf.level` argument.
 
 [NOTE]
-The standard error is not the spread of the deliveries. Deliveries scatter by about 8 minutes. The mean of 40 of them scatters by about 1.2 minutes. Averaging 40 numbers steadies the result, and the standard error measures exactly how much.
+Older textbooks use 1.96 from the normal curve in place of the t critical value. At 25 deliveries that is 1.96 against 2.0639, an interval about 5% narrower than it should be, and one that contains the true average less than 95% of the time. `qt()` is right at every sample size, so default to it.
 
 === step === concept
-## How to build a 95% interval from one sample
+## 100 nights, 100 intervals
 
-A confidence interval for a mean is the sample mean with a margin added on each side, and the margin is a multiple of the standard error.
+One night gives you one interval, and one interval cannot tell you how often intervals like it are right. For that we need many nights.
 
-\[ \bar{x} \pm t \times \frac{s}{\sqrt{n}} \]
-
-There are three pieces, and we have two of them already. The sample mean is 27.30. The standard error, written here as the sample standard deviation over the square root of the sample size, is 1.21.
-
-The third piece is the multiplier `t`, which sets how many standard errors wide to go. For 95%, you want a margin that leaves 2.5% of the spread hanging off each end, and `qt(0.975, df = 39)` gives exactly that cut-off. The `df` argument is the degrees of freedom, which for a single sample is the sample size minus one, so 39 here.
+So let's run the shop for 100 of them. Each night is 25 deliveries drawn from the records, exactly as before, and each night gets its own 95% interval built the same way. Because we know the true average is 25.92 minutes, we can check every one of the 100 intervals for one thing: does it contain 25.92?
 
 ```r
-# Build the 95% interval by hand from the mean, the standard error and t
-t_star <- qt(0.975, df = 39)
-margin <- t_star * se
+# Draw 100 separate nights and build a 95% interval from each one
+set.seed(11)
+cis <- replicate(100, t.test(sample(records, 25))$conf.int)
+dim(cis)
+#> [1]   2 100
 
-c(t = t_star, margin = margin,
-  lower = mean(today) - margin, upper = mean(today) + margin)
-#>         t    margin     lower     upper
-#>  2.022691  2.448744 24.851256 29.748744
+covers <- cis[1, ] <= true_mean & cis[2, ] >= true_mean
+sum(covers)
+#> [1] 95
+
+mean(covers)
+#> [1] 0.95
 ```
 
-So `t` is 2.0227, and the margin is 2.45 minutes. Take 2.45 off 27.30 and you get 24.85. Add it and you get 29.75.
+`replicate()` runs the same draw-and-build 100 times and stacks the answers, so `cis` is a 2 by 100 matrix. The first row holds the 100 lower bounds and the second holds the 100 upper bounds.
 
-You may have expected 1.96 there rather than 2.0227. The 1.96 multiplier is the right one when you know the population standard deviation. We do not know it, so we put the sample's own 7.66 in its place, and that swap adds a little uncertainty. The t multiplier is slightly wider to pay for it, and it widens further the smaller the sample gets.
+`covers` compares each pair of bounds against 25.92, giving 100 answers of TRUE or FALSE, one per night. 95 of them are TRUE.
 
-In practice nobody computes this by hand, because `t.test()` does the same arithmetic.
+There it is. That count is the 95%.
+
+=== step === concept
+## Which of the 100 intervals miss the true average
+
+A count is easy to nod along to. Let's draw all 100 intervals instead, one horizontal line each, with the true average running down the plot as a vertical line.
 
 ```r
-# Get the same interval straight from t.test()
-today_ci <- t.test(today)$conf.int
-round(as.numeric(today_ci), 2)
-#> [1] 24.85 29.75
+# Plot the 100 intervals against the true average, with the misses in red
+plot(range(cis), c(1, 100), type = "n",
+     xlab = "Delivery time in minutes", ylab = "Night",
+     main = "100 nights, 100 intervals")
+segments(cis[1, ], 1:100, cis[2, ], 1:100,
+         col = ifelse(covers, "grey65", "red"), lwd = 2)
+abline(v = true_mean, lwd = 2)
+
+which(!covers)
+#> [1] 12 25 36 61 73
 ```
 
-Same two numbers. Whichever route you take, the interval on the report is 24.85 to 29.75 minutes.
+Every grey line crosses the vertical line, so every grey interval contains 25.92 minutes. The 5 red ones sit entirely to one side of it, and `which()` names them: nights 12, 25, 36, 61 and 73.
+
+Now ask what was different about those 5 nights. Nothing was. They came from the same 2,000 records, the same random draw of 25 deliveries, the same `t.test()` call and the same formula. The only thing that varied from night to night was which 25 deliveries turned up.
+
+That is why the 95% cannot belong to any one of these intervals. It belongs to the procedure that produced all 100: draw a sample, build an interval this way, and 95 times in 100 the interval you get contains the true average.
+
+[KEY INSIGHT]
+This also fixes what a single interval is worth. You never find out whether yours is one of the 95 or one of the 5, so the only guarantee you carry into a decision is the hit rate of the method that produced it.
+
+=== step === quiz
+## Quick check: what does the 95% describe?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- It is a fact about the 100 intervals we just built: 95 of those particular 100 happened to contain 25.92. ::no
+- There is a 95% probability that the true average delivery time lies inside any interval you compute. ::no
+- Across repeated nights, 95% of the intervals built this way contain the true average delivery time. ::ok Yes. The 95% belongs to the procedure. Run it on a fresh night and you get fresh bounds, and 95 times in 100 those bounds contain 25.92.
+- 95% of a night's deliveries land inside the interval. ::no The 95% is not a fact about one interval, and it is not about the deliveries. It is a hit rate for the method across repeated samples: build an interval this way night after night, and 95% of them contain the true average. Our 100 nights came in at 95, which is the count to expect from the method. Run a different 100 and that count shifts a little, but the 95% does not.
+
+=== step === concept
+## Why the 95% does not attach to the interval you have
+
+The reading almost everyone reaches for is this one: there is a 95% chance the true average delivery time is between 22.08 and 29.96 minutes.
+
+Here is why that sentence cannot be true.
+
+The true average delivery time is 25.92 minutes. It is a fixed number. It was 25.92 before we drew a single delivery and it will be 25.92 tomorrow. Our interval, 22.08 to 29.96, is fixed too now that we have computed it. So either 25.92 sits between those bounds or it does not, and in this case it does. There is no 95% left over to hand out.
+
+You might object that we only know 25.92 because we invented the records. That is fair. But not knowing a number does not make the number random. It makes you uncertain, and those are two different things.
+
+And the bounds on your screen give you no clue which case you are in.
+
+```r
+# Line up two nights whose interval contains the true average against one that misses
+data.frame(
+  night   = 11:13,
+  lower   = round(cis[1, 11:13], 2),
+  upper   = round(cis[2, 11:13], 2),
+  covered = covers[11:13]
+)
+#>   night lower upper covered
+#> 1    11 21.02 27.96    TRUE
+#> 2    12 26.92 33.78   FALSE
+#> 3    13 21.94 31.02    TRUE
+```
+
+Night 12's interval misses and its two neighbours do not. Cover the `covered` column and try to tell which is which from the bounds alone. You cannot. The miss is not wider, or noisier, or flagged in any way. It is an ordinary interval that landed in the wrong place.
+
+So when a report gives the average delivery time as 22.08 to 29.96 minutes at 95% confidence, read that as a statement about the method. The interval came out of a procedure that is right 95% of the time, and that is the whole claim.
+
+[NOTE]
+There is an interval that does carry a probability about the true value, and it is called a credible interval. It comes from Bayesian statistics, which starts from different assumptions and answers a different question. A confidence interval is not one of those.
 
 === step === widget
-## The interval for the average is not the range where deliveries land
+## Confidence interval for the average, prediction interval for one delivery
 
-Read 24.85 to 29.75 out loud and it sounds like a statement about pizzas: most of them turn up between roughly 25 and 30 minutes. It is not. It is a statement about one quantity, the shop's average, and the difference between the two is much larger than it looks.
+The other common reading is friendlier and just as wrong: 95% of deliveries arrive between 22.08 and 29.96 minutes.
 
-Since we have all 5,000 deliveries, we can put the two ranges side by side.
+That one we can check directly. The 2,000 records are every delivery the shop has made, so let's count how many of them fall between those bounds, and while we are here, build the range that would hold a single delivery.
 
 ```r
-# Compare the interval for the average with where single deliveries land
-round(as.numeric(today_ci), 2)
-#> [1] 24.85 29.75
+# Compare the range for the average delivery against the range for one single delivery
+half_ci <- t_crit * se                      # half-width for the average delivery time
+half_pi <- t_crit * s * sqrt(1 + 1 / n)     # half-width for one more delivery
 
-quantile(delivery_times, c(0.025, 0.975))
-#>  2.5% 97.5%
-#>    13    45
+round(c(half_ci = half_ci, half_pi = half_pi), 2)
+#> half_ci half_pi
+#>    3.94   20.09
+
+round(c(lower = m - half_pi, upper = m + half_pi), 2)
+#> lower upper
+#>  5.92 46.11
+
+mean(records >= m - half_ci & records <= m + half_ci)
+#> [1] 0.311
 ```
 
-The middle 95% of individual deliveries runs from 13 minutes to 45, a stretch 32 minutes wide. The interval for the average is 4.9 minutes wide. One is more than six times the other.
+31.1% of deliveries land between 22.08 and 29.96 minutes. Not 95%.
 
-That gap is the standard error at work. A single delivery carries the full 8.28-minute scatter of the shop's kitchen and the traffic outside it. The mean of 40 deliveries averages most of that scatter away, so it can be pinned down far more tightly than any one order can.
+The interval was never about single deliveries. It is a range for the average, and the average of 25 deliveries moves far less than the deliveries themselves do. Dividing by the square root of 25 is what shrank it.
 
-The two bands below are those two ranges. They are drawn on a regression example with its own built-in data rather than on the delivery times, so read the colours here and not the axis numbers. Green is the interval for the average, standing in for our 24.85 to 29.75. Orange is the range where a single new observation lands, standing in for our 13 to 45. Drag the sample size and watch which one moves.
+The range that does hold a single delivery has its own name: the prediction interval. It uses the same critical value, but multiplies the spread of individual deliveries, `s`, instead of the spread of their average. Here that is a half-width of 20.09 minutes rather than 3.94, giving 5.92 to 46.11 minutes.
+
+That gap between 3.94 and 20.09 does not close as you collect more data, and the widget below shows why. It uses its own dataset rather than the shop records: each dot is one observation, the line is the fitted average, the green band is the confidence band for that average, and the orange band is the prediction band for one new observation. Read green as the range for the average delivery time and orange as the range for a single delivery.
 
 ::widget regression-intervals {}
 
-Push the sample size up and the green band collapses onto the line, while the orange band barely narrows at all. Timing more deliveries pins down the average. It does not make any single delivery arrive faster or more predictably, so the range where one order lands stays roughly where it is no matter how much data you collect.
+Drag the sample size. At n = 20 the readout gives a confidence half-width of 0.30 against a prediction half-width of 1.35. Push it to 300 and confidence drops to 0.08 while prediction is still sitting at 1.34.
 
-=== step === concept
-## What the 95% counts: 100 samples, 100 intervals
-
-We have one interval, 24.85 to 29.75, and a 95% stamped on it. The 95% is not a measurement taken from that interval. It is a count taken across many of them, so to see it we have to build many.
-
-Take a fresh sample of 40, build its interval, and repeat 100 times. Then check each interval against the true average of 25.95.
-
-```r
-# Build 100 intervals from 100 fresh samples and count how many contain 25.95
-true_avg <- mean(delivery_times)
-
-set.seed(1)
-ints     <- replicate(100, t.test(sample(delivery_times, 40))$conf.int)
-contains <- ints[1, ] <= true_avg & ints[2, ] >= true_avg
-
-sum(contains)
-#> [1] 95
-
-plot(c(min(ints), max(ints)), c(1, 100), type = "n",
-     xlab = "Interval in minutes", ylab = "Sample number",
-     main = "100 samples of 40, one interval each")
-segments(ints[1, ], 1:100, ints[2, ], 1:100,
-         col = ifelse(contains, "grey60", "red"), lwd = 2)
-abline(v = true_avg, col = "blue", lwd = 2)
-```
-
-Every horizontal line is one interval, built from its own 40 deliveries. The blue vertical line is the true average, 25.95, and 95 of the intervals cross it. The other five sit entirely to one side and never touch it, and those are the red ones.
-
-That is the 95%. It is the share of intervals, built this way from repeated samples, that contain the true value. The standard name for it is **coverage**.
-
-A hundred repeats is a small count, so let's run it 2,000 times and take the share.
-
-```r
-# Repeat the same build 2,000 times and take the share that contain the true average
-set.seed(31)
-covered <- replicate(2000, {
-  s      <- sample(delivery_times, 40)
-  one_ci <- t.test(s)$conf.int
-  one_ci[1] <= true_avg && one_ci[2] >= true_avg
-})
-
-mean(covered)
-#> [1] 0.949
-```
-
-That comes to 0.949, near enough to the 0.95 the procedure is built for.
-
-Now look again at the five red lines. Those five samples of 40 were unlucky: they happened to come in high or low, and the interval built around them landed clear of the truth. Nothing about them was visibly different. Each one came from an ordinary shift with ordinary numbers, and the analyst who drew it would have written up their interval with exactly the same confidence.
-
-[KEY INSIGHT]
-The 95% belongs to the procedure, not to any one interval. Time 40 deliveries, build an interval this way, and repeat: about 95 in every 100 of those intervals will contain the true average. Which five miss is not knowable in advance.
-
-=== step === quiz
-## Quick check: what does the 95% attach to?
-
-The shop reports an average of 27.30 minutes with a 95% confidence interval of 24.85 to 29.75. Which sentence says what the 95% means?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- 95% of the deliveries this shop makes take between 24.85 and 29.75 minutes. ::no
-- There is a 0.95 probability that the true average lies between 24.85 and 29.75. ::no
-- Time 40 deliveries and build an interval this way over and over, and 95% of those intervals will contain the true average. ::ok That is it. It is a count taken across repeated samples, and you measured it: 95 of 100 intervals contained 25.95, and the share settled at 0.949 over 2,000 repeats.
-- Whenever this interval gets printed in a report, it is correct 95% of the time. ::no Each of the three wrong answers pins the 95% to the wrong thing: to the deliveries, to the true average, or to the report. It belongs to the procedure that built the interval. Repeat that procedure on fresh samples of 40 and about 95 in every 100 intervals will contain the true average of 25.95.
-
-=== step === concept
-## What the 95% does not say about your one interval
-
-The interval on your desk is 24.85 to 29.75, and in this shop we happen to know the true average is 25.95. So check the obvious thing about the interval you actually have.
-
-```r
-# Check whether the one interval we built contains the true average
-c(lower = today_ci[1], upper = today_ci[2], true_average = true_avg)
-#>        lower        upper true_average
-#>     24.85126     29.74874     25.95260
-
-today_ci[1] <= true_avg && today_ci[2] >= true_avg
-#> [1] TRUE
-```
-
-TRUE. Not 0.95, not 95%. Had today's sample been one of the five unlucky ones, the same line would have printed FALSE. There is no third answer available.
-
-That is why the probability reading fails. Once the sample is drawn and the arithmetic is done, the interval is two fixed numbers and the true average is one fixed number. One either sits inside the other or it does not. The randomness was all in the sampling, and the sampling is over. The 95% describes the method that produced the interval, not the interval sitting in front of you.
-
-Which raises a fair question: is there any interval that does carry a probability about the true value? Yes, and it is a different object. A **credible interval**, from Bayesian statistics, is read as "given this data, there is a 95% probability the true average lies between these two numbers". That reading is available because the method treats the unknown average as a quantity with a distribution, which means you have to supply a prior, a statement of what you believed about delivery times before timing any. A confidence interval needs no prior, and it does not support that reading.
+More data pins down the average, and that is all it does. How much one delivery differs from the next is a fact about the deliveries, and no amount of extra data changes it.
 
 [WARNING]
-A computed confidence interval either contains the true value or it does not. Writing "there is a 95% chance the average is between 24.85 and 29.75" attaches a Bayesian sentence to a frequentist calculation, which is the most common mistake made with these intervals.
+The two ranges answer two different questions, so which one to report depends on which question was asked. How long does an average delivery take? Confidence interval. How long might my delivery take? Prediction interval. Quoting the first when someone meant the second promises a precision that is not there, by a factor of five in this case.
 
 === step === concept
-## What makes a confidence interval narrower
+## How to build an interval by resampling one night
 
-The width of the interval is twice the margin, so it is `2 * t * se`. Since the standard error divides by the square root of the sample size, the width does too.
+Counting misses across 100 nights is what showed us the meaning of the 95%. It is also something you can never do at work. You get one night of deliveries, and you do not know the true average, which is the whole reason you wanted an interval in the first place.
 
-Hold the sample standard deviation fixed at the 7.66 we measured, and vary only how many deliveries get timed.
+So here is a second way to build one, out of those 25 deliveries alone.
 
-```r
-# Interval width at four sample sizes, holding the sample sd at 7.66
-sample_sd <- sd(today)
-sizes     <- c(10, 40, 160, 640)
-widths    <- 2 * qt(0.975, sizes - 1) * sample_sd / sqrt(sizes)
+Take the night's 25 delivery times and draw 25 of them at random with replacement. Some deliveries get picked twice, some not at all. That resample is a plausible alternative night of deliveries, assembled from the data you already have. Do it 2,000 times, take the mean each time, and you end up with 2,000 plausible values for the average delivery time. Cut off the lowest 2.5% and the highest 2.5%, and what remains is your interval.
 
-data.frame(n = sizes, width_in_minutes = round(widths, 2))
-#>     n width_in_minutes
-#> 1  10            10.95
-#> 2  40             4.90
-#> 3 160             2.39
-#> 4 640             1.19
-```
+The strip below is the 25 deliveries of the night, one box each. Draw a resample and every box reports what happened to that delivery: picked once, picked more than once, or not picked at all, which the widget labels out-of-bag.
 
-At 10 deliveries the interval is almost 11 minutes wide, which tells the shop very little. At 40 it is 4.90. Then look at the pattern down the column: each row multiplies the sample size by 4 and roughly halves the width. Going from 40 to 160 means timing four times as many deliveries for twice the precision, and 160 to 640 does the same again. That ratio, four times the data for half the width, comes straight from the square root in the standard error, and it does not get any better at larger sample sizes.
+::widget bootstrap-sample {"n":25,"tail":"Those deliveries sat out this resample, and a different set sits out the next one."}
 
-The other knob is the confidence level itself, which changes the width and nothing else.
+On the first draw 8 of the 25 sit out, which is 32%. Press Draw again and that number moves around, but it stays near a third every time. Each delivery has a 96% chance of being skipped on any one of the 25 picks, and 0.96 multiplied by itself 25 times is 0.36.
+
+Now let's do the whole thing 2,000 times in R.
 
 ```r
-# Interval width at three confidence levels, on the same 40 deliveries
-conf_levels <- c(0.80, 0.95, 0.99)
-bounds      <- sapply(conf_levels, function(cl) t.test(today, conf.level = cl)$conf.int)
-
-data.frame(confidence = conf_levels,
-           lower = round(bounds[1, ], 2),
-           upper = round(bounds[2, ], 2),
-           width = round(bounds[2, ] - bounds[1, ], 2))
-#>   confidence lower upper width
-#> 1       0.80 25.72 28.88  3.16
-#> 2       0.95 24.85 29.75  4.90
-#> 3       0.99 24.02 30.58  6.56
-```
-
-It is the same 40 deliveries and the same estimate of 27.30 minutes, with three different widths. Asking for 99% coverage instead of 95% does not make the estimate better. It widens the interval from 4.90 minutes to 6.56 so that fewer intervals built this way miss the true average.
-
-[TIP]
-The two knobs do different jobs. Sample size narrows the interval for real, and the only way to turn that knob is to time more deliveries. Confidence level sets how widely you draw the interval around the 40 you already have, and 95% is a convention rather than a law.
-
-=== step === widget
-## Building a confidence interval without the formula
-
-Everything so far ran through one formula. There is a second route that uses no formula at all, and on this data it lands in almost the same place.
-
-The idea is to reuse the 40 deliveries in hand. Draw 40 of them **with replacement**, which means each pick comes from the full 40 every time, so some deliveries get picked twice or three times and others get left out entirely. That gives you a slightly different set of 40, and a slightly different mean. Do it 2,000 times and you have 2,000 means to work with.
-
-The strip below is one such draw. Press Draw again to take another.
-
-::widget bootstrap-sample {"n": 40, "seed": 5, "tail": "Each row here is one of the 40 timed deliveries, and the grey ones are the times this draw left out."}
-
-Every draw picks 40 rows out of the same 40. Blue rows got picked more than once, green rows exactly once, and grey rows not at all. On average roughly 37 rows in every 100 get left out, and the note under the strip counts them for the draw you are looking at. The widget labels those grey ones out-of-bag, which is the standard name for the rows a resample leaves behind.
-
-Now do that 2,000 times and keep the mean of each draw.
-
-```r
-# Resample the 40 timed deliveries 2,000 times and take the middle 95% of the means
-set.seed(13)
-boot_means <- replicate(2000, mean(sample(today, 40, replace = TRUE)))
-
-hist(boot_means, breaks = 40, col = "grey85", border = "white",
-     main = "2,000 resamples of the same 40 deliveries",
-     xlab = "Resampled mean in minutes")
+# Build a 95% interval from the one night alone, by resampling it with replacement
+set.seed(3)
+boot_means <- replicate(2000, mean(sample(night, replace = TRUE)))
 
 round(quantile(boot_means, c(0.025, 0.975)), 2)
 #>  2.5% 97.5%
-#> 24.98 29.60
+#> 22.37 29.49
 ```
 
-Chop off the lowest 2.5% of those means and the highest 2.5%, and what remains runs from 24.98 to 29.60 minutes. The formula gave 24.85 to 29.75. The two agree to within a fifth of a minute, and this route never touched `t`, `qt()` or the number 39.
+The bootstrap gives 22.37 to 29.49 minutes, against 22.08 to 29.96 from the formula. They are close, and close for a reason: both describe the same wobble in the same 25 numbers, one through algebra and one by brute force.
 
-It is worth being clear about what resampling does. It draws no new deliveries. Every number in every resample was already among the 40, and no fresh information entered anywhere. What it measures is how much the mean of 40 wobbles when the 40 change, which is precisely the quantity the standard error estimates. The two routes agree because they are estimating the same thing.
+This is the percentile bootstrap. It is most useful when the statistic you care about has no clean formula for its standard error, like a median or a trimmed mean.
 
-[NOTE]
-This is the **bootstrap**, and an interval built from the middle 95% of resampled means is a **percentile bootstrap interval**. It is the route to reach for when the formula is awkward: a statistic with no neat standard error, or a small skewed sample you would rather not push through a t interval.
+What it does not do is change the reading. A 95% bootstrap interval still comes out of a procedure built to contain the true value 95% of the time across repeated samples. Resampling gets you the bounds by a different route, not a different kind of 95%.
 
 === step === quiz
-## Quick check: reading a 95% interval correctly
+## Quick check: reading a reported interval
 
-You are writing one line about the 40 timed deliveries for the shop owner, who will read it and make decisions from it. Which line is right?
+The shop reports a 95% interval for its average delivery time two ways: 22.08 to 29.96 minutes from the formula, and 22.37 to 29.49 minutes from the bootstrap. Which sentence reads either of them correctly?
 
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The average delivery takes 27.30 minutes, and there is a 95% probability the true average is between 24.85 and 29.75. ::no
-- We timed 40 deliveries. The average came to 27.30 minutes, with a 95% confidence interval of 24.85 to 29.75 minutes. Intervals built this way contain the true average about 95% of the time. ::ok Right. It gives the estimate, gives the interval, and says what the 95% counts, without claiming a probability for this particular pair of numbers.
-- The average delivery takes 27.30 minutes, and 95% of deliveries arrive between 24.85 and 29.75 minutes. ::no
-- The interval should be reported as 24.98 to 29.60, because the resampled version does not depend on a formula. ::no The three wrong lines go astray in three different directions. The first hands the 95% to the true average as a probability, which a computed interval cannot carry. The second hands it to the deliveries, whose middle 95% actually runs from 13 to 45 minutes. The third treats one route as more correct than the other, when 24.85 to 29.75 and 24.98 to 29.60 are two estimates of the same thing and they agreed.
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- 95% of the shop's deliveries arrive between 22.08 and 29.96 minutes. ::no
+- There is a 95% probability that the true average delivery time is between 22.08 and 29.96 minutes. ::no
+- If the night were repeated many times and an interval built from each, 95% of those intervals would contain the true average delivery time. ::ok That is the reading, and it holds for both sets of bounds. The numbers change, the sentence does not.
+- The bootstrap interval does carry that 95% probability, because it was built by resampling the actual deliveries instead of from a formula. ::no Three of these put the 95% somewhere it does not live. It is not a share of deliveries, since only 31.1% of the records fall between 22.08 and 29.96. It is not a probability attached to bounds you have already computed either, whichever route produced them, and the bootstrap resamples the same 25 deliveries so it inherits the same reading. The 95% is the share of intervals that contain the true average when you build them again and again.
 
 === step === tryit
-## Your turn: coverage at 90%
+## Your turn: rebuild the 100 nights at 99%
 
-Over 2,000 samples, the 95% procedure covered the true average 0.949 of the time. A 90% interval should cover it less often. The question is whether it misses by exactly the amount the level states.
+The 100 intervals are still in `cis`, built at 95% confidence, and 5 of them missed 25.92 minutes.
 
-Only the multiplier changes. For 90% you want 5% hanging off each end rather than 2.5%, so the cut-off is `qt(0.95, 39)` instead of `qt(0.975, 39)`.
-
-Build each 90% interval by hand inside the loop, return whether it contains `true_avg`, and print the share that did.
+Suppose the shop wants to be surer than that. Rebuild the same 100 intervals with `conf.level = 0.99`, count how many of the new intervals contain `true_mean`, name the ones that still miss, and put the mean width of the new intervals beside the mean width of the old ones.
 
 ```r
-# delivery_times holds all 5,000 deliveries and true_avg is their average, 25.95.
-# Draw 2,000 samples of 40. In each one build a 90% interval by hand from the
-# sample mean, the standard error and qt(0.95, 39), then return whether that
-# interval contains true_avg. Fill the two blanks and print the share that did.
-set.seed(50)
-hits <- replicate(2000, {
-  s <- sample(delivery_times, 40)
-  ____
-})
-____
+# records, true_mean and cis are all still here.
+# Rebuild the 100 nights with conf.level = 0.99 inside t.test(),
+# then count the covers, name the misses, and put the two mean
+# widths side by side.
+# Press Check when you have it.
 ```
-::check {"regex": "qt[(]\\s*0\\.95\\s*,[\\s\\S]*mean[(]\\s*hits", "gate": true, "difficulty": "intermediate", "ok": "0.894, which is close to 0.90 and clearly below the 0.949 you measured at 95%. A narrower interval misses more often, and by about the amount the level states.", "no": "The interval takes two lines. First the bounds: bound <- mean(s) + c(-1, 1) * qt(0.95, 39) * sd(s) / sqrt(40). Then the containment check to return: bound[1] <= true_avg && bound[2] >= true_avg. Finish outside the loop with mean(hits)."}
+::check {"regex": "conf[.]level\\s*=\\s*0?[.]99", "gate": true, "difficulty": "beginner", "ok": "Right: 98 of the 100 contain the true average now, the misses drop from 5 to 2, and the mean width grows from 8.05 to 10.91 minutes. Higher confidence is bought with width.", "no": "Same 100 nights, one extra argument: t.test(sample(records, 25), conf.level = 0.99) inside the replicate() call."}
 ::solution
 ```r
-# Measure the coverage of 2,000 hand-built 90% intervals
-set.seed(50)
-hits <- replicate(2000, {
-  s     <- sample(delivery_times, 40)
-  bound <- mean(s) + c(-1, 1) * qt(0.95, 39) * sd(s) / sqrt(40)
-  bound[1] <= true_avg && bound[2] >= true_avg
-})
+# Rebuild the same 100 nights at 99% confidence and compare them against the 95% run
+set.seed(11)
+cis99 <- replicate(100, t.test(sample(records, 25), conf.level = 0.99)$conf.int)
 
-mean(hits)
-#> [1] 0.894
+covers99 <- cis99[1, ] <= true_mean & cis99[2, ] >= true_mean
+sum(covers99)
+#> [1] 98
+
+which(!covers99)
+#> [1] 61 73
+
+round(c(width_99 = mean(cis99[2, ] - cis99[1, ]),
+        width_95 = mean(cis[2, ] - cis[1, ])), 2)
+#> width_99 width_95
+#>    10.91     8.05
 ```
 
-0.894, against the 0.949 measured at 95%. Drop the confidence level and you get a narrower interval, and you pay for it by missing the true average roughly twice as often. Neither setting is more correct than the other. They are two different choices about how often you are willing to be wrong.
+Now 98 of the 100 intervals contain the true average rather than 95, and the 2 that still miss, nights 61 and 73, were already among the 5 that missed before. Nothing about the shop changed. We asked for intervals wide enough to be wrong less often, and paid 2.86 minutes of average width for it.
 
 === step === concept
 ## References
 
-- [Outline of a Theory of Statistical Estimation Based on the Classical Theory of Probability](https://doi.org/10.1098/rsta.1937.0005) - Neyman (1937), Philosophical Transactions of the Royal Society A 236, 333-380. The paper that defined confidence in terms of long-run coverage in the first place.
-- [Robust misinterpretation of confidence intervals](https://doi.org/10.3758/s13423-013-0572-3) - Hoekstra, Morey, Rouder and Wagenmakers (2014), Psychonomic Bulletin and Review 21, 1157-1164. Students and working researchers endorse the false readings at much the same rate.
-- [The fallacy of placing confidence in confidence intervals](https://doi.org/10.3758/s13423-015-0947-8) - Morey, Hoekstra, Rouder, Lee and Wagenmakers (2016), Psychonomic Bulletin and Review 23, 103-123. The three fallacies laid out one at a time, including the probability reading.
-- [Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations](https://doi.org/10.1007/s10654-016-0149-3) - Greenland and colleagues (2016), European Journal of Epidemiology 31, 337-350. Twenty-five misreadings, catalogued and corrected.
+- [Outline of a Theory of Statistical Estimation Based on the Classical Theory of Probability](https://doi.org/10.1098/rsta.1937.0005) - Neyman (1937), Philosophical Transactions of the Royal Society A 236, 333-380. The paper that defined a confidence interval by its coverage across repeated samples.
+- [The Fallacy of Placing Confidence in Confidence Intervals](https://doi.org/10.3758/s13423-015-0947-8) - Morey, Hoekstra, Rouder, Lee and Wagenmakers (2016), Psychonomic Bulletin and Review 23(1), 103-123. Why the probability reading is so hard to shake, and what a credible interval does instead.
+- [Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations](https://doi.org/10.1007/s10654-016-0149-3) - Greenland and colleagues (2016), European Journal of Epidemiology 31, 337-350. The confidence-interval misreadings, catalogued and corrected one at a time.
+- [Confidence intervals and replication: where will the next mean fall?](https://doi.org/10.1037/1082-989X.11.3.217) - Cumming and Maillardet (2006), Psychological Methods 11(3), 217-227. How often the mean of a repeat study lands inside the first study's 95% interval, which is not 95%.
 - [Student's t-Test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) - R Core Team, the documentation for `t.test()` and its `conf.level` argument.
 
 === step === complete
 ## Quick recap
 
-You built confidence intervals from scratch, ran the procedure 2,000 times, and counted what the 95% actually counts. The short version:
+You built a confidence interval by hand, then built 100 more and checked every one of them against the truth. Pulling it together:
 
-- The shop's true average across all 5,000 deliveries is 25.95 minutes. The 40 timed today gave 27.30, off by 1.35, and nothing in the sample gave that away.
-- The standard error, 1.21 minutes here, is how far the mean of 40 typically strays. The interval is the sample mean plus and minus about two of them, giving 24.85 to 29.75.
-- That interval is for the average. The middle 95% of single deliveries runs from 13 to 45 minutes, more than six times wider.
-- The 95% is coverage, measured across repeated samples: 95 of your 100 intervals contained 25.95, and 0.949 of 2,000 did.
-- For the one interval you computed, containment came back TRUE. It is TRUE or FALSE, never 0.95.
-- Four times the data roughly halves the width. A higher confidence level widens the interval and leaves the estimate alone.
-- Resampling the same 40 deliveries gave 24.98 to 29.60 without using the formula at all.
+- One night of 25 deliveries gave a 95% interval of 22.08 to 29.96 minutes, which is the sample mean 26.02 plus and minus a half-width of 3.94.
+- Build one interval from each of 100 nights and 95 of them contained the true average, 25.92 minutes. That count is what the 95% names.
+- 5 of them missed, at nights 12, 25, 36, 61 and 73, and nothing in their bounds gave them away.
+- The interval is for the average, not for one delivery. Only 31.1% of the shop's deliveries fall between 22.08 and 29.96, and the range that holds a single delivery runs from 5.92 to 46.11 minutes.
+- Asking for 99% instead of 95% cut the misses from 5 to 2 and widened the average interval from 8.05 to 10.91 minutes.
 
-So when someone asks what the 95% means, you can hand them the honest sentence:
+So when someone puts a 95% confidence interval in front of you, here is the sentence to say back:
 
-"If we timed 40 deliveries again and again and built an interval each time, about 95 in every 100 of those intervals would contain the shop's true average. This is one of them, or it is one of the five that miss."
+"If we collected the data again and again and built an interval each time, 95% of those intervals would contain the true value. This is one of them, and the bounds cannot tell us whether it is one of the 95 or one of the 5."
 
-Very few people can say that correctly. You can now say it and show the count that proves it. Well done getting through this one.
+That is a smaller claim than most people think they are making, and it is the one the arithmetic supports. Congratulations, you made it through.
