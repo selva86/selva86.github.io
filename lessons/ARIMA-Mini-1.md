@@ -1,11 +1,11 @@
 ---
 title: "ARIMA: what AR, I, and MA actually mean"
 slug: "ARIMA-Mini-1"
-description: "Take ARIMA apart on 180 days of coffee sales in R: what the AR, I and MA terms each measure, and how to read any ARIMA(p, d, q) label as one plain sentence."
-keywords: "what AR I and MA mean, ARIMA explained, ARIMA in R, autoregressive term, differencing, moving average term, ARIMA p d q, arima function"
-mathjax: true
+description: "AR, I and MA are three counts you can read off one coffee shop's daily sales. Build each one of them in R, then read an ARIMA order like an ordinary sentence."
+keywords: "what AR I and MA mean, ARIMA explained, ARIMA in R, autoregressive term, moving average term, differencing a time series, ARIMA order p d q, arima function in R"
+mathjax: false
 webr: true
-date: "2026-09-04"
+date: "2026-09-06"
 post_type: "LESSON"
 course_id: "arima-from-zero"
 course_title: "ARIMA from Zero"
@@ -16,355 +16,388 @@ course_prev: ""
 course_next: ""
 curriculum_id: "0.0.4"
 lesson_access: "windowed"
-catalog_blurb: "What each letter in ARIMA does, and how to read any label."
+catalog_blurb: "What each letter of ARIMA counts, and how to read an ARIMA order."
 ---
 
 === step === cover
-::eyebrow ARIMA from Zero
 ## ARIMA: what AR, I, and MA actually mean
 
-Today we are going to take ARIMA apart one letter at a time and find out what each of them is doing.
+Today we are going to take ARIMA apart, one letter at a time, and see exactly what each letter counts.
 
-Here is what we will work on. A coffee shop counts the cups it sells at the close of every day, and we have 180 of those daily counts. The first day sold 300 cups and the last one sold 403, so the shop has grown, though nothing about the way it grew was smooth.
+Here is the series we will do it on. A coffee shop counted how many cups it sold on each of its first 120 trading days: 180 cups on day 1, and 473 on day 120. The shop recorded one number a day and nothing else.
 
-Three separate things go on in a series like that, and ARIMA carries one letter for each of them.
+::widget chart-plotter {"data":[{"x":1,"y":180},{"x":2,"y":181},{"x":3,"y":188},{"x":4,"y":186},{"x":5,"y":189},{"x":6,"y":191},{"x":7,"y":185},{"x":8,"y":181},{"x":9,"y":184},{"x":10,"y":192},{"x":11,"y":209},{"x":12,"y":224},{"x":13,"y":229},{"x":14,"y":241},{"x":15,"y":257},{"x":16,"y":258},{"x":17,"y":259},{"x":18,"y":265},{"x":19,"y":266},{"x":20,"y":273},{"x":21,"y":270},{"x":22,"y":263},{"x":23,"y":257},{"x":24,"y":263},{"x":25,"y":264},{"x":26,"y":272},{"x":27,"y":287},{"x":28,"y":304},{"x":29,"y":322},{"x":30,"y":336},{"x":31,"y":342},{"x":32,"y":346},{"x":33,"y":348},{"x":34,"y":344},{"x":35,"y":334},{"x":36,"y":328},{"x":37,"y":329},{"x":38,"y":331},{"x":39,"y":334},{"x":40,"y":335},{"x":41,"y":328},{"x":42,"y":333},{"x":43,"y":343},{"x":44,"y":346},{"x":45,"y":345},{"x":46,"y":344},{"x":47,"y":346},{"x":48,"y":351},{"x":49,"y":358},{"x":50,"y":364},{"x":51,"y":369},{"x":52,"y":377},{"x":53,"y":389},{"x":54,"y":404},{"x":55,"y":404},{"x":56,"y":405},{"x":57,"y":415},{"x":58,"y":416},{"x":59,"y":434},{"x":60,"y":448},{"x":61,"y":447},{"x":62,"y":443},{"x":63,"y":437},{"x":64,"y":424},{"x":65,"y":405},{"x":66,"y":388},{"x":67,"y":372},{"x":68,"y":356},{"x":69,"y":351},{"x":70,"y":346},{"x":71,"y":334},{"x":72,"y":324},{"x":73,"y":323},{"x":74,"y":324},{"x":75,"y":329},{"x":76,"y":335},{"x":77,"y":326},{"x":78,"y":312},{"x":79,"y":301},{"x":80,"y":299},{"x":81,"y":309},{"x":82,"y":325},{"x":83,"y":344},{"x":84,"y":356},{"x":85,"y":362},{"x":86,"y":366},{"x":87,"y":373},{"x":88,"y":379},{"x":89,"y":390},{"x":90,"y":386},{"x":91,"y":374},{"x":92,"y":370},{"x":93,"y":355},{"x":94,"y":344},{"x":95,"y":344},{"x":96,"y":337},{"x":97,"y":335},{"x":98,"y":340},{"x":99,"y":339},{"x":100,"y":347},{"x":101,"y":365},{"x":102,"y":383},{"x":103,"y":411},{"x":104,"y":437},{"x":105,"y":454},{"x":106,"y":461},{"x":107,"y":462},{"x":108,"y":460},{"x":109,"y":472},{"x":110,"y":492},{"x":111,"y":509},{"x":112,"y":521},{"x":113,"y":525},{"x":114,"y":522},{"x":115,"y":516},{"x":116,"y":510},{"x":117,"y":492},{"x":118,"y":472},{"x":119,"y":466},{"x":120,"y":473}],"geoms":["line"],"x":"day","y":"cups"}
 
-The first is that the daily counts are not independent of each other. Whatever pushed sales up today, a cold spell or a busy week in the offices nearby, is usually still around tomorrow. That is the AR.
+Three separate things are going on in that line, and each one is a letter in ARIMA.
 
-The second is that the level itself keeps moving. The shop sells more now than it did six months ago, so there is no fixed average for the counts to come back to. When that happens we stop modelling the count and model the day-to-day change instead. That is the I.
+The first is easy to spot: the line ends far above where it starts, so the level keeps climbing. The second is that the line walks rather than jumps, so most days sit close to the day before them. The third takes a little more looking. Every so often one day pulls clear of its neighbours, and the day after it has not come all the way back.
 
-The third is that some days get a push nothing in the history could have predicted. A delivery van parks outside, a school group walks past, and the shop sells a good deal more than the days around it would suggest. Part of that push is still in the numbers the following day. That is the MA.
+That climb is the I. The walk from one day to the next is the AR. The day that has not come all the way back is the MA. ARIMA is a count of those three things and nothing else.
 
-::widget process-flow {"steps":[{"title":"AR","sub":"each day leans on the days just before it"},{"title":"I","sub":"model the day-to-day change, not the level"},{"title":"MA","sub":"part of one random shock carries into today"}]}
-
-Those three ideas are the whole model. From here we fit them one at a time on the shop's own sales, and read the numbers that come back.
+The climb is the easiest of the three to pin down, so we start there.
 
 === step === concept
-## The 180 days of coffee sales
+## The I: differencing the climb out of daily sales
 
-Real sales data does not come with the true coefficients behind it. So we will build these 180 days ourselves from coefficients we pick, and then we can compare every fitted coefficient with the number that actually produced the data.
+Let's start with the data, because everything we measure from here comes out of these 120 numbers.
 
-Each day gets its own random shock, drawn from a normal distribution with a standard deviation of 2.5 cups. That shock is the part of a day nothing else explains: the van outside, the school group, the rain.
-
-The day-to-day change is then built from four pieces. It takes today's own shock, plus half of the previous change, plus 40 percent of the previous shock, plus a constant of 0.15 cups that nudges the level upward over time. Adding those changes onto a starting level of 300 gives the count of cups sold.
+The series is simulated, so we know exactly what went into it: a small daily drift, a share of the last two days of movement, and a random amount on top of each day. Each of those pieces has its own name in ARIMA.
 
 Press Run.
 
 ```r
-# Build 180 days of coffee sales from known coefficients and plot them
+# Build 120 days of daily cups sold at the coffee shop
 set.seed(16)
-shock  <- rnorm(180, 0, 2.5)     # the part of each day nothing else explains
-change <- numeric(180)           # how much sales move from one day to the next
+daily_error <- round(rnorm(120, 0, 6), 1)
 
-for (t in 2:180) {
-  change[t] <- 0.15 + 0.5 * change[t - 1] + shock[t] + 0.4 * shock[t - 1]
+daily_change <- numeric(120)
+daily_change[1] <- 0
+daily_change[2] <- 0.30 + 0.35 * daily_change[1] +
+                   daily_error[2] + 0.6 * daily_error[1]
+for (t in 3:120) {
+  daily_change[t] <- 0.30 + 0.35 * daily_change[t - 1] +
+                     0.20 * daily_change[t - 2] +
+                     daily_error[t] + 0.6 * daily_error[t - 1]
 }
 
-cups <- round(300 + cumsum(change))   # cups sold on each of the 180 days
+cups <- round(180 + cumsum(daily_change))
 
-plot(cups, type = "l", col = "steelblue4", lwd = 2,
-     main = "Cups sold per day at the coffee shop",
-     xlab = "Day", ylab = "Cups sold")
-
-c(day_1 = cups[1], day_180 = cups[180], average = round(mean(cups), 1))
-#>   day_1 day_180 average
-#>     300     403     367
+head(cups, 8)
+#> [1] 180 181 188 186 189 191 185 181
+c(day_1 = cups[1], day_120 = cups[120], busiest = max(cups))
+#>   day_1 day_120 busiest
+#>     180     473     525
 ```
 
-The line climbs from 300 cups on day 1 to 403 on day 180 and averages 367 along the way. It does not climb steadily. There are runs of good days, dips that last a week or two, and no level the series is holding to.
+`cups` holds one number per trading day. `cumsum()` is the line that turns those daily changes into levels: day 1 sits at 180, and every day after it adds its own change to the day before. The shop sold 180 cups on day 1, 473 on day 120, and 525 on its busiest day.
 
-Two numbers in that code are worth keeping hold of: the 0.5 on the previous change and the 0.4 on the previous shock. Those are the two numbers a fitted model should recover.
+Now here is the problem that creates. A forecasting model needs the series to behave the same way at the end as it did at the start: roughly the same average level, and roughly the same amount of wobble around it. A series like that is called **stationary**, and this one is clearly not, because the average level at the end is more than twice the average level at the start.
 
-=== step === concept
-## Today's sales against yesterday's sales
-
-Start with the plainest version of the question: how much does one day's count tell you about the day after it?
-
-Pair every count with the one that follows it, which gives 179 pairs, and take the correlation of those two columns. That is the lag-1 correlation, lag 1 meaning shifted along by one day.
+Watch what that does to the most obvious measurement you could take.
 
 ```r
-# Measure how strongly one day follows the day before it
-plot(cups[-180], cups[-1], pch = 19, col = "steelblue4",
-     main = "Today against yesterday, all 179 pairs",
-     xlab = "Yesterday's cups", ylab = "Today's cups")
-
-round(cor(cups[-1], cups[-180]), 3)
-#> [1] 0.991
-
-round(c(days_1_to_30 = mean(cups[1:30]), days_151_to_180 = mean(cups[151:180])), 1)
-#>    days_1_to_30 days_151_to_180
-#>           321.4           371.1
+# Measure how close each day is to the day before it
+n_days <- length(cups)
+round(cor(cups[-1], cups[-n_days]), 3)
+#> [1] 0.993
 ```
 
-The points sit almost on a straight line, and 0.991 says the same thing. Read literally, it means yesterday's count all but determines today's, which would be a strange thing to believe about a coffee shop.
+`cups[-1]` drops the first day and `cups[-n_days]` drops the last, so the two vectors line up as today against yesterday. The correlation between them is 0.993, which looks enormous.
 
-That is not what the number is measuring. Both columns climb over the 180 days, and the shared climb on its own makes any two neighbouring points look alike. The two 30-day averages show how big that climb is: 321.4 cups across the first 30 days against 371.1 across the last 30.
+It is not worth much, though. Any series that moves in small steps gives you a number like that. A day at 470 is followed by a day near 470 for the plain reason that the shop's sales climbed there gradually, one small step at a time. Most of the 0.993 is that climb and not any real memory in the day-to-day trading.
 
-So the series has no fixed average, and a correlation taken on the levels mostly reports the trend the two columns share. Very little of the 0.991 is the day-to-day dependence we came for.
-
-=== step === concept
-## What differencing removes (the I in ARIMA)
-
-The fix is to stop modelling the level. Model the amount the count moved since the day before, and the shared climb drops out.
-
-Here are the first eight days of sales with that change worked out as a new column.
-
-::widget table-transform {"code": "df %>% mutate(change = cups - lag(cups))", "caption": "Each row is that day minus the day before, and the first row has nothing to subtract from.", "before": {"cols": ["day", "cups"], "rows": [[1, 300], [2, 300], [3, 303], [4, 302], [5, 303], [6, 304], [7, 302], [8, 300]]}, "after": {"cols": ["day", "cups", "change"], "rows": [[1, 300, "NA"], [2, 300, 0], [3, 303, 3], [4, 302, -1], [5, 303, 1], [6, 304, 1], [7, 302, -2], [8, 300, -2]]}}
-
-Day 1 has no day before it, so its change is NA. Day 2 sold the same 300 cups as day 1, which is a change of 0, and day 3 sold 303 against 300 the day before, a change of 3. Every row is that day minus the previous one, and nothing else.
-
-Doing that to the whole series is one call to `diff()`.
+So we take the climb out. Instead of modelling the level, we model the change from one day to the next. Subtracting each day from the one after it is called **differencing**, and `diff()` does it in one call.
 
 ```r
-# Turn the daily counts into day-to-day changes and plot them
-daily_change <- diff(cups)
+# Difference the series once and describe the daily changes it leaves
+change <- diff(cups)
 
-plot(daily_change, type = "l", col = "steelblue4",
-     main = "Day-to-day change in cups sold",
+length(change)
+#> [1] 119
+round(mean(change), 1)
+#> [1] 2.5
+round(sd(change), 1)
+#> [1] 9.9
+```
+
+That leaves 119 changes out of 120 days. Differencing costs you the first day, because day 1 has no day before it to subtract from.
+
+The changes average 2.5 cups up, with a spread of 9.9 cups either side of that, and those two numbers hold all the way along instead of drifting. That is the stationary series the model needs.
+
+Doing this once is what **d = 1** means. The **I** stands for integrated, which is the name for the step back the other way: adding the changes up again at the end, so a forecast comes out in cups sold rather than in changes.
+
+Here are the first six days going through it. Run the block to see the change column appear, then press Show what changed to see which row differencing costs you.
+
+::widget table-transform {"code": "df %>% mutate(change = cups - lag(cups)) %>% filter(!is.na(change))", "caption": "Day 1 has no day before it to subtract from, so six days of levels become five changes.", "before": {"cols": ["day", "cups"], "rows": [[1, 180], [2, 181], [3, 188], [4, 186], [5, 189], [6, 191]]}, "after": {"cols": ["day", "cups"], "rows": [[2, 181], [3, 188], [4, 186], [5, 189], [6, 191]]}}
+
+And here is the whole differenced series.
+
+```r
+# Plot the 119 daily changes to check that no climb is left
+plot(change, type = "l", col = "grey40",
+     main = "Daily change in cups sold, after differencing once",
      xlab = "Day", ylab = "Change in cups")
-abline(h = 0, col = "grey60", lwd = 2)
-
-length(daily_change)
-#> [1] 179
-
-round(c(average = mean(daily_change), sd = sd(daily_change),
-        smallest = min(daily_change), largest = max(daily_change)), 2)
-#>  average       sd smallest  largest
-#>     0.58     3.82    -9.00    11.00
+abline(h = 0, col = "red", lwd = 2)
 ```
 
-There are 179 changes for 180 days, because the first day has nothing to subtract from. They average 0.58 cups with a standard deviation of 3.82, and the largest single moves are 9 cups down and 11 cups up.
+The line crosses the red zero line over and over instead of wandering off in one direction. Nothing is left in here that a steady climb would explain. Whatever pattern does survive is real day-to-day memory, and the other two letters are what pick it up.
 
-The plot is the reason we did it. The changes wander around a level of about half a cup for the whole 180 days: the line holds that level from end to end instead of climbing, and the spread never widens. A series whose average and spread stay put like that is called stationary, and it is what ARIMA needs to work on.
+=== step === concept
+## The AR: how much of yesterday's change carries into today
 
-Subtracting the previous value is called differencing, and d counts how many times you do it. Once was enough here, so d = 1. The I stands for integrated, which is the name for adding the changes back up when you want levels again.
+The differenced series has no climb in it, so anything left in it is memory. Let's measure how much.
 
-=== step === widget
-## Today's change against yesterday's change (the AR term)
+Pair each day's change with the change on the day before it. Day 2 changed by 1 cup and day 3 changed by 7, so that is one pair: yesterday 1, today 7. Doing that all the way along gives 118 pairs, and here they are.
 
-With the trend out of the way, ask the same question of the changes: is a day that moved up followed by another day that moves up?
+::widget chart-plotter {"data":[{"x":1,"y":7},{"x":7,"y":-2},{"x":-2,"y":3},{"x":3,"y":2},{"x":2,"y":-6},{"x":-6,"y":-4},{"x":-4,"y":3},{"x":3,"y":8},{"x":8,"y":17},{"x":17,"y":15},{"x":15,"y":5},{"x":5,"y":12},{"x":12,"y":16},{"x":16,"y":1},{"x":1,"y":1},{"x":1,"y":6},{"x":6,"y":1},{"x":1,"y":7},{"x":7,"y":-3},{"x":-3,"y":-7},{"x":-7,"y":-6},{"x":-6,"y":6},{"x":6,"y":1},{"x":1,"y":8},{"x":8,"y":15},{"x":15,"y":17},{"x":17,"y":18},{"x":18,"y":14},{"x":14,"y":6},{"x":6,"y":4},{"x":4,"y":2},{"x":2,"y":-4},{"x":-4,"y":-10},{"x":-10,"y":-6},{"x":-6,"y":1},{"x":1,"y":2},{"x":2,"y":3},{"x":3,"y":1},{"x":1,"y":-7},{"x":-7,"y":5},{"x":5,"y":10},{"x":10,"y":3},{"x":3,"y":-1},{"x":-1,"y":-1},{"x":-1,"y":2},{"x":2,"y":5},{"x":5,"y":7},{"x":7,"y":6},{"x":6,"y":5},{"x":5,"y":8},{"x":8,"y":12},{"x":12,"y":15},{"x":15,"y":0},{"x":0,"y":1},{"x":1,"y":10},{"x":10,"y":1},{"x":1,"y":18},{"x":18,"y":14},{"x":14,"y":-1},{"x":-1,"y":-4},{"x":-4,"y":-6},{"x":-6,"y":-13},{"x":-13,"y":-19},{"x":-19,"y":-17},{"x":-17,"y":-16},{"x":-16,"y":-16},{"x":-16,"y":-5},{"x":-5,"y":-5},{"x":-5,"y":-12},{"x":-12,"y":-10},{"x":-10,"y":-1},{"x":-1,"y":1},{"x":1,"y":5},{"x":5,"y":6},{"x":6,"y":-9},{"x":-9,"y":-14},{"x":-14,"y":-11},{"x":-11,"y":-2},{"x":-2,"y":10},{"x":10,"y":16},{"x":16,"y":19},{"x":19,"y":12},{"x":12,"y":6},{"x":6,"y":4},{"x":4,"y":7},{"x":7,"y":6},{"x":6,"y":11},{"x":11,"y":-4},{"x":-4,"y":-12},{"x":-12,"y":-4},{"x":-4,"y":-15},{"x":-15,"y":-11},{"x":-11,"y":0},{"x":0,"y":-7},{"x":-7,"y":-2},{"x":-2,"y":5},{"x":5,"y":-1},{"x":-1,"y":8},{"x":8,"y":18},{"x":18,"y":18},{"x":18,"y":28},{"x":28,"y":26},{"x":26,"y":17},{"x":17,"y":7},{"x":7,"y":1},{"x":1,"y":-2},{"x":-2,"y":12},{"x":12,"y":20},{"x":20,"y":17},{"x":17,"y":12},{"x":12,"y":4},{"x":4,"y":-3},{"x":-3,"y":-6},{"x":-6,"y":-6},{"x":-6,"y":-18},{"x":-18,"y":-20},{"x":-20,"y":-6},{"x":-6,"y":7}],"geoms":["point"],"x":"yesterday","y":"today"}
 
-Below are the last 60 daily changes, one point per neighbouring pair, with yesterday's change across the bottom and today's change up the side. Move the two sliders to lay a line through the cloud, then press Snap to least squares to jump to the line that makes the squares as small as they go.
+The cloud leans up to the right, and the widget prints the size of that lean in the corner: r = 0.74. Days that follow a rise tend to rise again, and days that follow a drop tend to drop again.
 
-::widget ols-fit {"points":[{"x":3,"y":1},{"x":1,"y":-4},{"x":-4,"y":-1},{"x":-1,"y":-3},{"x":-3,"y":-2},{"x":-2,"y":-1},{"x":-1,"y":0},{"x":0,"y":4},{"x":4,"y":4},{"x":4,"y":2},{"x":2,"y":1},{"x":1,"y":2},{"x":2,"y":1},{"x":1,"y":0},{"x":0,"y":-4},{"x":-4,"y":-4},{"x":-4,"y":-4},{"x":-4,"y":-3},{"x":-3,"y":-7},{"x":-7,"y":-9},{"x":-9,"y":-9},{"x":-9,"y":-7},{"x":-7,"y":-1},{"x":-1,"y":1},{"x":1,"y":-2},{"x":-2,"y":-1},{"x":-1,"y":0},{"x":0,"y":2},{"x":2,"y":3},{"x":3,"y":0},{"x":0,"y":-3},{"x":-3,"y":-3},{"x":-3,"y":-1},{"x":-1,"y":-3},{"x":-3,"y":-3},{"x":-3,"y":-2},{"x":-2,"y":-1},{"x":-1,"y":2},{"x":2,"y":1},{"x":1,"y":3},{"x":3,"y":1},{"x":1,"y":-2},{"x":-2,"y":1},{"x":1,"y":3},{"x":3,"y":7},{"x":7,"y":1},{"x":1,"y":1},{"x":1,"y":3},{"x":3,"y":2},{"x":2,"y":3},{"x":3,"y":7},{"x":7,"y":6},{"x":6,"y":3},{"x":3,"y":2},{"x":2,"y":0},{"x":0,"y":3},{"x":3,"y":9},{"x":9,"y":3},{"x":3,"y":-6}]}
-
-The best line has a slope of 0.70 and an intercept of -0.13. Read that slope as a rule for tomorrow: a day whose change was 10 cups up is followed, on average, by a day about 7 cups up, and a day 4 cups down by one about 3 cups down.
-
-That line is the AR term, and written out it looks like this.
-
-\[ \Delta y_t = c + \phi \, \Delta y_{t-1} + \varepsilon_t \]
-
-Here \(\Delta y_t\) is today's change and \(\Delta y_{t-1}\) is yesterday's, \(c\) is a constant, \(\varepsilon_t\) is the day's own new shock, and \(\phi\) is the slope you just fitted. \(\phi\) is called the AR coefficient, and AR is short for autoregressive, meaning the series is regressed on itself.
-
-R fits the same line on all 180 days. The `order` argument holds the three ARIMA numbers as `c(p, d, q)`: how many previous changes, how many differences, how many past shocks. So `c(1, 1, 0)` asks for one previous change, one difference, and no shock term.
+That lean is the AR part. To turn it into a weight, regress today's change on yesterday's.
 
 ```r
-# Fit one previous change on the whole series and read its coefficient
-fit_ar <- arima(cups, order = c(1, 1, 0))
-fit_ar
-#>
-#> Call:
-#> arima(x = cups, order = c(1, 1, 0))
-#>
-#> Coefficients:
-#>          ar1
-#>       0.6968
-#> s.e.  0.0536
-#>
-#> sigma^2 estimated as 7.67:  log likelihood = -436.66,  aic = 877.32
+# Line up each change against the change before it and fit the weight
+n_change <- length(change)
+today <- change[-1]
+yesterday <- change[-n_change]
+
+ar_fit <- lm(today ~ yesterday)
+round(coef(ar_fit), 3)
+#> (Intercept)   yesterday
+#>       0.675       0.742
 ```
 
-`ar1` is 0.6968, against the 0.6999 the hand-fitted line gave on the last 60 changes. They agree to two decimal places, and they are the same kind of quantity: an AR coefficient is a slope, fitted on the changes rather than on the levels. The `s.e.` line under it is the standard error of that estimate, 0.0536, so 0.6968 is pinned down fairly tightly.
+Read the second number as a weight: `change_today = 0.675 + 0.742 * change_yesterday`, plus whatever is new that day. About three quarters of yesterday's movement is still in today's.
 
-There is no intercept in the output. Once a series has been differenced, `arima()` fits it without a constant, so the 0.15 cups of drift we built in is not estimated here.
+The size of that weight is the whole story of an AR term. A weight near 1 would mean almost all of yesterday's movement carries into today. A weight near 0 would mean every day starts fresh.
+
+That was one past value. Does anything survive two days back? Same measurement, one day further out.
+
+```r
+# Check how much of the change two days back is still there
+two_days_back <- change[1:(n_change - 2)]
+round(cor(change[-(1:2)], two_days_back), 3)
+#> [1] 0.459
+```
+
+Two days back it reads 0.459, weaker than 0.742 but nowhere near nothing. Careful what you read into that, though. Yesterday's change already pulled about three quarters of the day before it into itself, so part of that 0.459 is one weight passed along twice rather than a second, separate helping of memory. Telling those two apart takes a plot we are not building today.
+
+What is not in doubt is that a model can keep more than one past value, and **p** is that count: how many past values it keeps, each with its own weight. p = 1 keeps yesterday. p = 2 keeps yesterday and the day before, and fits a separate weight for each. AR is short for autoregressive, which is the idea in one word, since what we just did was regress the series on itself.
 
 === step === quiz
-## Quick check: what does an AR coefficient of 0.70 mean?
+## Quick check: what the 0.993 and the 0.742 each measure
 
-The fitted model gave an AR coefficient of 0.70 on the day-to-day changes. Which sentence says what that predicts?
+The raw cups correlated 0.993 with the previous day. After differencing, the changes correlate 0.742 with the previous change. Which reading of those two numbers is right?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- Seventy percent of the cups sold today were carried over from yesterday. ::no
-- A day whose change was 10 cups up is followed by a day about 7 cups up, plus whatever new shock that day brings. ::ok That is it. The coefficient multiplies the previous change, so 0.70 times 10 cups up gives about 7 cups up, and the day still gets its own shock on top.
-- Sales grow by about 0.70 cups a day. ::no
-- About 70 percent of the days in the series are up days. ::no The AR coefficient is a slope on the changes, and it is neither a share of the level, a growth rate, nor a count of up days. It multiplies yesterday's change to predict today's, which is why differencing had to come first: 0.70 of yesterday's 300 cups would be a nonsense prediction.
+- Differencing wiped out most of the memory: 0.993 fell to 0.742, so about a quarter of it was lost on the way. ::no
+- Most of the 0.993 was the climb. Once the climb is differenced out, 0.742 is the memory that was really in the daily trading. ::ok Exactly. The two numbers describe two different series, so one is not a shrunken version of the other.
+- The 0.993 already shows very strong memory, so this series does not need differencing at all. ::no
+- The 0.742 is small enough that the daily changes are close to random noise now. ::no Careful: 0.993 and 0.742 come from two different series, so the drop between them is not a loss of anything. The 0.993 came from the levels, where a day near 470 follows a day near 470 simply because the shop's sales climbed there gradually. The 0.742 came from the changes with that climb removed, and a correlation that size is a long way from noise.
 
 === step === concept
-## What the AR fit leaves in the residuals (the MA term)
+## The MA: how much of yesterday's error carries into today
 
-Fit any model and it leaves residuals behind, one per day: the change that actually happened minus the change the model predicted. If the AR term had accounted for all the dependence between neighbouring days, there would be nothing left in those residuals for a second term to explain.
+An AR term carries past values forward. The other letter carries something quite different.
 
-Measure them the same way we measured the raw changes.
+Start with what it carries. A **forecast error** is the gap between what a model predicted for a day and what the shop actually sold that day. It is the part of a day's sales that nothing could have seen coming: a coach party that walked in, a downpour that kept everyone home.
 
-```r
-# Compare the leftover dependence in the AR residuals with the raw changes
-ar_resid <- residuals(fit_ar)
-
-round(cor(ar_resid[-1], ar_resid[-180]), 3)
-#> [1] 0.159
-
-round(cor(daily_change[-1], daily_change[-179]), 3)
-#> [1] 0.689
-```
-
-The raw changes carried a lag-1 correlation of 0.689. The residuals of the fitted model still carry 0.159. So most of the dependence has been accounted for and a little of it has not.
-
-Why any is left is worth seeing, because it is the whole case for the third letter. Take a single day that got a 10-cup shock and follow that shock forward.
-
-An AR coefficient of 0.5 puts half of today's change into tomorrow, half of that into the day after, and so on: 10, then 5, then 2.5, then 1.25. It shrinks every day and never quite arrives at zero.
-
-An MA coefficient of 0.4 does something else. The shock is carried into the next day at 4 cups and then it is finished: 10, 4, 0, 0.
+The series we built has 120 of those in it, one per day, sitting in `daily_error`. They were drawn independently of each other, so on their own they should carry no memory at all. Let's confirm that before we change it.
 
 ```r
-# Follow one 10-cup shock forward under an AR term and under an MA term
-ar_impulse <- 10 * 0.5^(0:8)         # AR coefficient 0.5: half carries on each day
-ma_impulse <- c(10, 4, rep(0, 7))    # MA coefficient 0.4: carried once, then gone
-
-plot(0:8, ar_impulse, type = "b", pch = 19, col = "steelblue4", lwd = 2,
-     ylim = c(0, 11),
-     main = "One 10-cup shock, followed for eight days",
-     xlab = "Days after the shock", ylab = "Cups carried into that day")
-lines(0:8, ma_impulse, type = "b", pch = 19, col = "darkorange", lwd = 2)
-legend("topright", c("AR term, coefficient 0.5", "MA term, coefficient 0.4"),
-       col = c("steelblue4", "darkorange"), lwd = 2, bty = "n")
-
-round(rbind(AR = ar_impulse, MA = ma_impulse), 2)
-#>    [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9]
-#> AR   10    5  2.5 1.25 0.62 0.31 0.16 0.08 0.04
-#> MA   10    4  0.0 0.00 0.00 0.00 0.00 0.00 0.00
+# Check whether the daily errors carry any memory of their own
+round(cor(daily_error[-1], daily_error[-120]), 3)
+#> [1] 0.036
 ```
 
-The blue line is what an AR term can produce and the orange line is what an MA term produces. No AR coefficient gives you the orange line, because an AR term multiplies by the same fraction over and over: it can fade to almost nothing, but it never stops. A shock that counts for exactly one day and then finishes needs a term of its own, and that term is written like this.
+The correlation is 0.036, which is nothing. Yesterday's error tells you nothing about today's, and that is exactly what an error is supposed to be.
 
-\[ \Delta y_t = c + \varepsilon_t + \theta \, \varepsilon_{t-1} \]
+Now add a share of yesterday's error into each day: 0.6 of it, on top of the day's own error. `c(0, head(daily_error, -1))` is the error vector shifted one day forward, with a 0 in front for the day that has no yesterday.
 
-\(\varepsilon_{t-1}\) is yesterday's shock and \(\theta\) is the MA coefficient, the share of that shock carried into today. q counts how many past shocks the model keeps.
+```r
+# Add 0.6 of yesterday's error into each day, then measure and plot what that does
+ma_series <- daily_error + 0.6 * c(0, head(daily_error, -1))
 
-[WARNING]
-MA stands for moving average, and the name is a trap. This is not the moving average that smooths a line by averaging neighbouring points. An MA term is a weighted sum of past shocks, and it smooths nothing.
+n_error <- length(ma_series)
+round(c(lag_1 = cor(ma_series[-1], ma_series[-n_error]),
+        lag_2 = cor(ma_series[-(1:2)], ma_series[1:(n_error - 2)])), 3)
+#> lag_1 lag_2
+#> 0.462 0.061
 
-So the 0.159 left in the AR residuals is the one-day shock effect. An AR term has no way of producing it, so it stays behind.
+plot(ma_series, type = "l", col = "grey40",
+     main = "Today's error plus 0.6 of yesterday's error",
+     xlab = "Day", ylab = "Cups above or below normal")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+One day apart, the correlation went from 0.036 to 0.462. Two days apart it reads 0.061, which is back to nothing.
+
+That is how an MA term shows up in a series. We kept one past error, so neighbouring days are linked and days two apart are not. The memory is exactly as deep as the number of errors kept, and then it is over.
+
+**q** is that count: how many past forecast errors the model keeps, each with its own weight. We kept one here, so q = 1.
+
+So AR carries past values and MA carries past errors. Written down they look similar. What they do to a series is not similar at all.
 
 === step === concept
-## Fitting both terms at once
+## How AR memory and MA memory differ after one unusual day
 
-Ask for one previous change and one past shock together and the order becomes `c(1, 1, 1)`.
+Take the same shop over a quiet 15-day stretch, with one festival on day 5 that brings in 60 extra cups. Nothing else happens in those 15 days.
+
+Under an AR term, those 60 cups go into day 5's value, and day 6 is built from day 5's value, so a share of the 60 is passed along. Then a share of that share goes into day 7, and so on. Under an MA term, the 60 cups are a forecast error, and only the last q errors are kept at all. With q = 1 there is exactly one day of carry, and after that the term has nothing left to pass on.
+
+Here are those 60 extra cups sent through both, using the same two weights that built the shop's series back at the start: 0.35 on the AR side, 0.6 on the MA side.
 
 ```r
-# Fit one previous change and one past shock together, then check the leftovers
-fit_both <- arima(cups, order = c(1, 1, 1))
-fit_both
-#>
-#> Call:
-#> arima(x = cups, order = c(1, 1, 1))
-#>
-#> Coefficients:
-#>          ar1     ma1
-#>       0.4965  0.4114
-#> s.e.  0.0912  0.1019
-#>
-#> sigma^2 estimated as 7.158:  log likelihood = -430.56,  aic = 867.13
+# Send one festival day of 60 extra cups through an AR term and an MA term
+shock <- rep(0, 15)
+shock[5] <- 60
 
-both_resid <- residuals(fit_both)
-round(cor(both_resid[-1], both_resid[-180]), 3)
-#> [1] -0.016
+ar_effect <- numeric(15)
+ar_effect[1] <- shock[1]
+for (t in 2:15) {
+  ar_effect[t] <- 0.35 * ar_effect[t - 1] + shock[t]
+}
+
+ma_effect <- shock + 0.6 * c(0, head(shock, -1))
+
+data.frame(day     = 5:9,
+           ar_term = round(ar_effect[5:9], 2),
+           ma_term = round(ma_effect[5:9], 2))
+#>   day ar_term ma_term
+#> 1   5   60.00      60
+#> 2   6   21.00      36
+#> 3   7    7.35       0
+#> 4   8    2.57       0
+#> 5   9    0.90       0
 ```
 
-`ar1` is 0.4965 and `ma1` is 0.4114, against the 0.5 and the 0.4 the series was built from. Both sit within about a hundredth of the number that produced them.
+Read the AR column down: 60, then 21, then 7.35, then 2.57, then 0.9. Each day keeps 0.35 of the day before, so the festival's 60 cups shrink by the same fraction every day and, strictly speaking, never reach zero. They only get too small to matter.
 
-Look at what happened to `ar1`. Fitted on its own it came out at 0.6968, and with an MA term beside it, it drops to 0.4965. The single AR term had been doing two jobs at once: carrying the real 0.5 of the previous change, and absorbing the one-day shock effect. Give the model a term for each job and each coefficient settles on the number it belongs to.
+Now read the MA column: 60, then 36, then nothing. The 36 is 0.6 of 60, the single error the term keeps. By day 7, day 5's error has fallen out of the window and the festival's 60 cups are gone completely.
 
-The leftover correlation drops as well, from 0.159 to -0.016. On 179 changes, chance alone moves a correlation like that by about 1 over the square root of 179, which is roughly 0.07, so -0.016 is nothing at all, while 0.159 was well outside that band.
+Here are the two fades drawn together.
+
+```r
+# Plot both fades so the difference is visible day by day
+plot(1:15, ar_effect, type = "b", pch = 16, col = "#1f7a55", ylim = c(0, 62),
+     main = "One festival day of 60 cups, under AR and under MA",
+     xlab = "Day", ylab = "Extra cups still showing")
+lines(1:15, ma_effect, type = "b", pch = 17, col = "#b5631a")
+legend("topright", legend = c("AR term, weight 0.35", "MA term, weight 0.6"),
+       col = c("#1f7a55", "#b5631a"), pch = c(16, 17), bty = "n")
+```
 
 [KEY INSIGHT]
-An AR term and an MA term are not two ways of saying the same thing. AR carries a fraction of the previous change forward and keeps on doing it, fading but never stopping. MA carries a fraction of one past shock and then stops dead. A series with both in it needs both fitted, because fitting one alone pushes the other one's work onto it.
+AR memory fades. MA memory stops. That single difference is why p and q are two separate questions and not one.
 
-Putting the two fitted numbers in gives this series its own equation.
-
-\[ \Delta y_t = 0.4965 \, \Delta y_{t-1} + \varepsilon_t + 0.4114 \, \varepsilon_{t-1} \]
+[WARNING]
+The moving average in MA is not the moving average you already know. Smoothing a series by averaging neighbouring data points is a different operation that happens to share the name. An MA term is a weighted sum of past forecast errors, and cups sold never enter it.
 
 === step === concept
-## How to read ARIMA(p, d, q) as a sentence
+## How to read an ARIMA(p, d, q) order
 
-p, d and q are counts, and that is all they are.
+An ARIMA order is three counts, always written in the same three places.
 
-- p is how many previous changes the model uses.
-- d is how many times the series was differenced.
-- q is how many past shocks the model carries.
+- **p** is how many past values are kept, each with its own weight. That is the AR part.
+- **d** is how many times the series is differenced. That is the I part.
+- **q** is how many past forecast errors are kept, each with its own weight. That is the MA part.
 
-The 180 days of cups sold came out as ARIMA(1, 1, 1), which breaks into these three pieces.
+The sequence matters here. The differencing happens first, even though the I sits in the middle of the name. The series is differenced, and the AR and MA terms then work on the differenced series, never on the raw levels.
 
-::widget process-flow {"steps":[{"title":"d = 1, differenced once","sub":"the model works on the day-to-day change"},{"title":"p = 1, one previous change","sub":"the fitted ar1 gives it a weight of 0.50"},{"title":"q = 1, one past shock","sub":"the fitted ma1 gives it a weight of 0.41"}]}
+So ARIMA(2, 1, 1) on the shop's daily sales is three instructions in this order.
 
-Said out loud, that is one sentence about the data: the counts were differenced once, so the model works on the day-to-day change; that change is built from one previous change, weighted 0.50; and one past shock is carried into it, weighted 0.41.
+::widget process-flow {"steps": [{"title": "d = 1", "sub": "difference once, so we model changes"}, {"title": "p = 2", "sub": "keep the last two changes, each with a weight"}, {"title": "q = 1", "sub": "keep one past forecast error, with a weight"}]}
 
-Every other label reads the same way, with only the counts moving. ARIMA(2, 1, 1) builds today's change from the two changes before it instead of one. ARIMA(0, 1, 1) drops the previous change and keeps the shock. ARIMA(1, 0, 0) is not differenced at all, so it is fitted on the counts themselves, and today's count leans on yesterday's count.
+Said out loud: difference the cups once, build today's change out of the last two changes, and add a weighted share of the error the model made yesterday.
 
-=== step === quiz
-## Quick check: what does ARIMA(2,1,1) mean?
+Every other ARIMA order is those same three slots with different counts in them.
 
-A colleague sends you a model of the shop's daily sales labelled ARIMA(2, 1, 1). Which sentence describes it?
+| Order | What it says |
+|---|---|
+| ARIMA(0, 1, 0) | Difference once, keep no memory at all. Today's change is pure error. This one has a name of its own: a random walk. |
+| ARIMA(1, 0, 0) | No differencing, one past value, no past errors. A plain AR model of order 1. |
+| ARIMA(0, 0, 1) | No differencing, no past values, one past error. A plain MA model of order 1. |
+| ARIMA(2, 1, 1) | Difference once, two past changes, one past error. The one spelled out above. |
 
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- The counts were differenced twice, and the model uses one previous change. ::no
-- The model averages the last two days to smooth the series, after differencing it once. ::no
-- The counts were differenced once, today's change is built from the two changes before it, and one past shock is carried into it. ::ok Exactly. Read the numbers in the order p, d, q and each one is a count: two previous changes, one difference, one past shock.
-- The model forecasts two days ahead, using one difference and one past shock. ::no The first number is p, the count of previous changes, not the number of differences and not a forecast horizon. And the MA term is a past shock carried forward, never an average of the last few days.
+Reading an order is now just reading three numbers off in the right places.
 
-=== step === tryit
-## Your turn: fit the MA term on its own
+=== step === concept
+## Fitting ARIMA(2, 1, 1) in R and reading the coefficients
 
-`cups` still holds the 180 days of coffee sales. Fit a model with no previous change and one past shock, which is `order = c(0, 1, 1)`, and read off its `ma1`. Then take that model's residuals and measure their lag-1 correlation, and see how it compares with the 0.159 the AR-only fit left behind.
+`arima()` takes the series and the order, and fits all three terms together.
 
 ```r
-# cups holds the 180 daily counts of cups sold.
-# Fit no previous change and one past shock: order = c(0, 1, 1).
-# Then take the residuals of that fit and measure their lag-1 correlation.
-# Three lines. Press Check when you have them.
-```
-::check {"regex": "order\\s*=\\s*c[(]\\s*0\\s*,\\s*1\\s*,\\s*1\\s*[)]", "gate": true, "difficulty": "intermediate", "ok": "Right: ma1 comes out at 0.6996, and the residuals it leaves carry a lag-1 correlation of 0.23. That is larger than the 0.159 the AR-only fit left, so neither letter on its own accounts for the dependence in the changes.", "no": "Pass the order straight in: arima(cups, order = c(0, 1, 1)). Then call residuals() on that fit, and cor() of it against itself shifted along by one day."}
-::solution
-```r
-# Fit one past shock with no previous change, and measure what it leaves behind
-fit_ma <- arima(cups, order = c(0, 1, 1))
-fit_ma
+# Fit ARIMA(2, 1, 1) to the 120 days of cups sold
+fit <- arima(cups, order = c(2, 1, 1))
+fit
 #>
 #> Call:
-#> arima(x = cups, order = c(0, 1, 1))
+#> arima(x = cups, order = c(2, 1, 1))
 #>
 #> Coefficients:
-#>          ma1
-#>       0.6996
-#> s.e.  0.0433
+#>          ar1     ar2     ma1
+#>       0.2471  0.2847  0.7487
+#> s.e.  0.1519  0.1388  0.1102
 #>
-#> sigma^2 estimated as 8.188:  log likelihood = -442.51,  aic = 889.03
-
-ma_resid <- residuals(fit_ma)
-round(cor(ma_resid[-1], ma_resid[-180]), 3)
-#> [1] 0.23
+#> sigma^2 estimated as 39.88:  log likelihood = -388.74,  aic = 785.49
 ```
 
-Each letter on its own leaves dependence behind: 0.159 for the AR term and 0.23 for the MA term, against -0.016 when the two are fitted together. And notice that `ma1` came back at 0.6996 rather than the 0.4 the series was built from, because with no AR term beside it the MA term is the only thing in the model that can carry any dependence at all.
+Notice what we passed in. `cups` is the raw levels, not `change`, because the d = 1 inside the order tells `arima()` to do the differencing itself.
+
+Three coefficients came back, one per term.
+
+- `ar1` is 0.2471, the weight on yesterday's change.
+- `ar2` is 0.2847, the weight on the change the day before that.
+- `ma1` is 0.7487, the weight on yesterday's forecast error.
+
+The `s.e.` row underneath is the standard error of each weight, which says how precisely 120 days of trading pin that weight down. `sigma^2` is 39.88, the estimated variance of what is left over once all three terms have been fitted: the part of each day's change that none of them accounts for.
+
+One number deserves a second look. On its own, yesterday's change carried a weight of 0.742. Fitted alongside the other two terms, `ar1` is only 0.2471. Nothing shrank, though.
+
+When three terms are fitted together, each weight measures only what the other two do not already cover, and here the error term at 0.7487 is covering a good deal of it.
+
+One last thing worth doing, since we built this series ourselves and know what went into it. The build put 0.35 and 0.20 on the two past changes and 0.6 on the past error. The fit came back with 0.2471, 0.2847 and 0.7487, and every one of those sits inside one and a half standard errors of the number that made it. That is what 120 days buys you: close to the weights behind a series, not exactly onto them.
+
+=== step === quiz
+## Quick check: what the fitted ma1 of 0.7487 weights
+
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- The average number of cups sold over the last two days. ::no
+- The number of cups sold yesterday. ::no
+- The part of yesterday's change the model did not predict, which is yesterday's forecast error. ::ok Right. An MA weight always multiplies an error, never a value. The model predicted a change for yesterday, the actual change came out somewhere else, and 0.7487 of that gap is carried into today.
+- The size of the climb that differencing removed. ::no Two of these describe cups sold and one describes the climb, and an MA weight touches neither. The AR weights, `ar1` and `ar2`, are the ones that multiply past changes; the climb was taken out by d = 1 before any weight was fitted at all. `ma1` multiplies a forecast error, which is the gap between what the model predicted for a day and what the shop actually sold.
+
+=== step === tryit
+## Your turn: fit the same series with no AR and no MA
+
+`cups` still holds the 120 days of daily sales, and `fit` holds the ARIMA(2, 1, 1) we just fitted, with its `sigma^2` of 39.88.
+
+Fit the same series with the differencing kept but no memory at all: no past values and no past errors. Then compare the two leftover variances to see what those three terms were worth.
+
+```r
+# cups holds the 120 days of daily cups sold.
+# Fit it with the differencing kept but no memory of any kind:
+# no past values and no past errors.
+# One call to arima(). Press Check when you have it.
+```
+::check {"regex": "order\\s*=\\s*c[(]\\s*0\\s*,\\s*1\\s*,\\s*0\\s*[)]", "gate": true, "difficulty": "beginner", "ok": "That is the one. ARIMA(0, 1, 0) leaves sigma^2 at 103.5 against 39.88 for ARIMA(2, 1, 1), so the two AR terms and the one MA term cut the leftover variance by about 60 percent.", "no": "Keep cups and keep the differencing, then set both memory counts to zero: arima(cups, order = c(0, 1, 0))."}
+::solution
+```r
+# Fit the same series with differencing only, no AR and no MA terms
+plain <- arima(cups, order = c(0, 1, 0))
+plain
+#>
+#> Call:
+#> arima(x = cups, order = c(0, 1, 0))
+#>
+#>
+#> sigma^2 estimated as 103.5:  log likelihood = -444.88,  aic = 891.76
+round(c(with_terms = fit$sigma2, no_terms = plain$sigma2), 2)
+#> with_terms   no_terms
+#>      39.88     103.45
+```
+
+With no memory of any kind, every day's change is treated as pure error, and the leftover variance is 103.45. Add two past changes and one past error and it drops to 39.88. That fall is the size of what p and q were carrying.
 
 === step === concept
 ## References
 
-- [Forecasting: Principles and Practice, chapter 9](https://otexts.com/fpp3/arima.html) - Hyndman and Athanasopoulos, 3rd edition. The free standard treatment of ARIMA, from stationarity and differencing through to the full non-seasonal model.
-- [Time Series Analysis: Forecasting and Control](https://doi.org/10.1002/9781118619193) - Box, Jenkins and Reinsel (2008), Wiley. The book the method is named after, and the source of the model-building procedure people still follow.
-- [Time Series Analysis and Its Applications](https://doi.org/10.1007/978-3-319-52452-8) - Shumway and Stoffer, 4th edition, Springer. Chapter 3 works through the algebra of AR and MA models and how the two relate.
-- [ARIMA Modelling of Time Series](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html) - R Core Team, the documentation for `arima()`, including what the `order` argument accepts and why no constant is fitted after differencing.
+- [Forecasting: Principles and Practice, 3rd edition, chapter 9](https://otexts.com/fpp3/arima.html) - Hyndman and Athanasopoulos. The standard free reference for what p, d and q are and how each one is chosen.
+- [Time Series Analysis and Its Applications](https://www.stat.pitt.edu/stoffer/tsa4/) - Shumway and Stoffer (4th edition, Springer 2017), chapter 3. ARIMA models with the algebra written out in full.
+- [ARIMA modelling of time series](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/arima.html) - R Core Team, the documentation for `arima()`: what the `order` argument means and what the printed coefficients are.
+- **Time Series Analysis: Forecasting and Control**, 5th edition - Box, Jenkins, Reinsel and Ljung (Wiley, 2015). The book the method comes from, and still the reference for how the AR and MA terms fit together.
 
 === step === complete
 ## Quick recap
 
-You took a series apart and built each letter of ARIMA out of the data.
+You built each letter of ARIMA out of one coffee shop's daily sales, and then fitted all three together. To summarise:
 
-- The raw counts had a lag-1 correlation of 0.991, and nearly all of it was the shared climb rather than any day-to-day dependence.
-- One difference turned 180 daily counts into 179 daily changes, averaging 0.58 cups and holding a steady level. That is d = 1.
-- An AR coefficient is the slope of today's change on yesterday's change. Fitted by hand on the last 60 changes it was 0.70, and `arima()` gave 0.6968 on all 180.
-- The AR term on its own left a lag-1 correlation of 0.159 in its residuals, because it cannot produce a shock that counts for one day and then stops.
-- With both terms fitted, `ar1` was 0.4965 and `ma1` was 0.4114, near the 0.5 and 0.4 the series was built from, and the leftover correlation fell to -0.016.
+- The shop's daily sales kept climbing, which is why the raw cups correlated 0.993 with the previous day. One round of differencing took that climb out, and that is d = 1.
+- An AR term weights p past values. Regressed on its own past one day back, this series gave a weight of 0.742, so about three quarters of yesterday's movement was still in today's.
+- An MA term weights q past forecast errors. Adding 0.6 of yesterday's error to each day took the one-day correlation from 0.036 to 0.462, and left the two-day correlation at 0.061.
+- One unusual day fades under AR and stops dead under MA: 60, 21, 7.35, 2.57, 0.9 against 60, 36, 0.
+- Fitted together on the shop, ARIMA(2, 1, 1) gave weights of 0.2471, 0.2847 and 0.7487, and cut the leftover variance from 103.45 to 39.88.
 
-So the next time a label like ARIMA(2, 1, 1) turns up in a report, you know what it says about the data: differenced once, today's change built from the two changes before it, one past shock still carried.
+So when someone writes ARIMA(2, 1, 1) on a whiteboard, you can say what each number does: one round of differencing, two past changes with a weight each, and one past forecast error with a weight of its own.
 
-What we have not done is choose those three counts. Here you were told which orders to fit, and reading them off a series nobody has labelled for you is the next thing worth seeing.
+What we have not done is work those counts out on a series where nobody hands them to you. Choosing p and q off a series is its own job, with its own plots, and a topic for another day. Nice work getting this far.
