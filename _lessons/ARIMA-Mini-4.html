@@ -1,7 +1,7 @@
 ---
 title: "ARIMA diagnostics: the two checks before you trust a forecast"
-description: "A fitted ARIMA can look healthy and still miss the pattern that matters. Run the residual plot and the Ljung-Box test, then repair a model that fails both."
-keywords: "ARIMA diagnostics, Ljung-Box test, residual diagnostics in R, white noise residuals, residual ACF, checking an ARIMA model, forecast residuals, Box.test fitdf"
+description: "Fit an ARIMA model to the airline series, then run the two checks that decide whether its forecast is safe: the residual ACF band, and the Ljung-Box test."
+keywords: "ARIMA diagnostics, Ljung-Box test, residual ACF, white noise residuals, checkresiduals, Box.test fitdf, ARIMA residuals in R, time series model checking"
 mathjax: true
 webr: true
 curriculum_id: "0.0.18"
@@ -14,58 +14,39 @@ course_landing: "/dashboard.html"
 course_next: ""
 course_prev: "ARIMA-Mini-3"
 lesson_access: "windowed"
-catalog_blurb: "The two checks that tell you whether a fitted model missed something."
+catalog_blurb: "How to tell whether a fitted ARIMA model is safe to forecast with."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
 
 <section class="lesson-step" data-step="1" data-step-type="cover">
-<div class="lesson-step-eyebrow">ARIMA from Zero</div>
 <h2>ARIMA diagnostics: the two checks before you trust a forecast</h2>
 
-<p>Let's say you have just fitted an ARIMA model to eleven years of airline passenger counts, January 1949 through December 1959. The output comes back looking perfectly ordinary. It gives you coefficients, standard errors and an AIC, and it says nothing at all about what the model missed.</p>
+<p>Today let's work out whether a fitted ARIMA model is good enough to forecast with.</p>
 
-<p>So how would you find out?</p>
+<p>The series we will use is <code>AirPassengers</code>, which ships with R. It holds 144 monthly totals of international airline passengers, in thousands, from January 1949 to December 1960. The counts start at 104 and reach 622, and that one series is what we will fit, diagnose and forecast.</p>
 
-<p>You look at what is left over. Take one month, subtract what the model predicted for that month from what actually happened, and keep the difference. Do that for every month and you have a column of leftovers, and that is the only place the model's mistakes ever show up.</p>
+<p>Fit an ARIMA model to it and R prints a table of coefficients and an AIC. Those numbers say how the model was estimated and how large its errors are on average. Not one of them uses the order those errors arrived in, which is where a missed pattern hides.</p>
 
-<p>The whole idea is this. If the model truly captured the pattern, those leftovers should look like pure static: no shape, no rhythm, nothing you could predict. If there is still a pattern sitting in them, the model missed something, and the forecasts will pay for it.</p>
-
-<p>The good news is that finding out takes about a minute. There are two checks and you run them in this order.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Take the residuals","sub":"actual minus predicted, one number for every month"},{"title":"Look at them","sub":"a time plot and an autocorrelation plot, read by eye"},{"title":"Test them","sub":"one test pools every lag into a single p-value"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>The first one is an eyeball check and the second is a formal test called Ljung-Box. Between them they catch plenty of models that looked fine, and we are about to run both on a model that looked fine and was not.</p>
+<p>The errors are called residuals, and two checks read them. Here is the order they run in.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Fit the model, then take its residuals","sub":"one residual per month: the observed value minus the prediction for it"},{"title":"Check 1: the residual plot and the ACF","sub":"the shape of the errors, and the bars that break the band"},{"title":"Check 2: the Ljung-Box test","sub":"one p-value covering 24 lags at once"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Both checks read the same set of residuals, and neither one is more than a line of code. What takes learning is reading what each one says.</p>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<h2>The fitted model, and what its printout leaves out</h2>
+<h2>The airline series and the model we are checking</h2>
 
-<p>Let's get the data and the model on the table first, because everything after this is measured against them.</p>
-
-<p><code>AirPassengers</code> is built into R: monthly totals of international airline passengers, in thousands, from January 1949 to December 1960. We fit on the 132 months up to the end of 1959 and hold 1960 back, unseen, so we can score the forecasts later against months that actually happened.</p>
-
-<p>The order is ARIMA(2,1,1), which is two autoregressive terms, one difference, and one moving-average term. Press Run.</p>
+<p>Let's start by looking at the data.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Fit a plain ARIMA(2,1,1) to the 1949 to 1959 passenger counts
+    <div class="webr-editor" data-language="r"># Plot the airline passenger series we are going to model
 library(forecast)
 
-passengers_train &lt;- window(AirPassengers, end = c(1959, 12))
-passengers_1960  &lt;- window(AirPassengers, start = c(1960, 1))
-
-fit_plain &lt;- Arima(passengers_train, order = c(2, 1, 1))
-fit_plain
-#&gt; Series: passengers_train 
-#&gt; ARIMA(2,1,1) 
-#&gt; 
-#&gt; Coefficients:
-#&gt;          ar1      ar2      ma1
-#&gt;       1.0698  -0.4734  -0.8402
-#&gt; s.e.  0.0824   0.0782   0.0461
-#&gt; 
-#&gt; sigma^2 = 758.6:  log likelihood = -619.13
-#&gt; AIC=1246.26   AICc=1246.58   BIC=1257.76</div>
+plot(AirPassengers,
+     main = &quot;Monthly international airline passengers, 1949 to 1960&quot;,
+     ylab = &quot;passengers (thousands)&quot;)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -75,40 +56,56 @@ fit_plain
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read that output and nothing jumps out as wrong. There are three coefficients, each one several times larger than its own standard error, so all three are doing real work. The AIC is 1246.26, and that number only means something when you hold it up against another model.</p>
+<p>Two things stand out. The level climbs steadily across the twelve years, and the same shape repeats every year, a summer peak and a winter dip. Look at the size of that yearly swing as well: it is narrow in 1949 and much wider by 1960.</p>
 
-<p>And that is exactly the problem with it. The output tells you what the model found. It cannot tell you what the model missed, because the model never saw that either.</p>
+<p>Now fit a model. We will use ARIMA(2,1,1), which is two autoregressive terms, one difference and one moving-average term. An autoregressive term predicts this month from an earlier month's value, a moving-average term predicts it from an earlier month's error, and the difference means the model works on month-to-month changes rather than on the raw totals. That is a reasonable non-seasonal choice for a series that trends.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit an ARIMA(2,1,1) to the airline series and print its coefficients
+fit &lt;- Arima(AirPassengers, order = c(2, 1, 1))
+fit
+#&gt; Series: AirPassengers
+#&gt; ARIMA(2,1,1)
+#&gt;
+#&gt; Coefficients:
+#&gt;          ar1      ar2      ma1
+#&gt;       1.0906  -0.4890  -0.8438
+#&gt; s.e.  0.0776   0.0744   0.0427
+#&gt;
+#&gt; sigma^2 = 862.7:  log likelihood = -685.17
+#&gt; AIC=1378.34   AICc=1378.63   BIC=1390.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ar1</code>, <code>ar2</code> and <code>ma1</code> rows hold the estimated coefficients, and the <code>s.e.</code> row under each one is its standard error. Divide each coefficient by its own standard error and the smallest of the three is still above 6, so all three sit a long way from zero. The AIC, 1378.34, is the number you would hold up against a competing model.</p>
+
+<p>So the fit looks healthy. But a set of coefficients and an AIC only ever summarise how large the errors are, never the order they came in. Whether the model missed a pattern is a separate question with its own numbers.</p>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<h2>What a residual actually is</h2>
+<h2>What the residuals are, and what they should look like</h2>
 
-<p>A residual is a gap. Take one month, ask the model what it predicts for that month using only the months before it, and subtract that prediction from what actually happened. The number left over is the residual for that month.</p>
-
-<p>Because each prediction looks only one month ahead, residuals are also called one-step-ahead forecast errors. There is one for every month the model was fitted on, so 132 of them here.</p>
-
-<p>The function <code>residuals()</code> hands you all 132. Let's line the first six up beside the real counts and the model's predictions, so you can watch the subtraction happen.</p>
+<p>A residual is one month's observed value minus the model's one-step-ahead prediction for that same month. The model reads everything up to the previous month, predicts this one, and the gap between the prediction and the truth is the residual. Fit 144 monthly values and you get 144 residuals.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Line up the first six months: what happened, what the model said, and the gap
-res_plain &lt;- residuals(fit_plain)
+    <div class="webr-editor" data-language="r"># Pull out the residuals and measure their mean and variance
+res &lt;- residuals(fit)
+length(res)
+#&gt; [1] 144
 
-first_six &lt;- data.frame(
-  month     = c(&quot;Jan 1949&quot;, &quot;Feb 1949&quot;, &quot;Mar 1949&quot;, &quot;Apr 1949&quot;, &quot;May 1949&quot;, &quot;Jun 1949&quot;),
-  actual    = as.numeric(passengers_train)[1:6],
-  predicted = round(as.numeric(fitted(fit_plain))[1:6], 1),
-  residual  = round(as.numeric(res_plain)[1:6], 1)
-)
-first_six
-#&gt;      month actual predicted residual
-#&gt; 1 Jan 1949    112     111.9      0.1
-#&gt; 2 Feb 1949    118     112.8      5.2
-#&gt; 3 Mar 1949    132     120.9     11.1
-#&gt; 4 Apr 1949    129     135.3     -6.3
-#&gt; 5 May 1949    121     124.0     -3.0
-#&gt; 6 Jun 1949    135     116.8     18.2</div>
+round(c(mean = mean(res), variance = var(res)), 3)
+#&gt;     mean variance
+#&gt;    6.376  803.666</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -118,51 +115,35 @@ first_six
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Check the last row by hand. In June 1949, 135 thousand passengers flew and the model had called 116.8, so the residual is 135 minus 116.8, which is 18.2 thousand passengers the model did not see coming.</p>
+<p>The mean is 6.376, so in the average month the model lands about 6,400 passengers below the truth. The variance of those 144 errors is 803.666.</p>
 
-<p>A positive residual means the month beat the model and a negative one means the month came in under it. That is all the sign means.</p>
-
-<p>Everything from here on works on that last column.</p>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="concept">
-<h2>White noise: the four traits your leftovers should have</h2>
-
-<p>On their own, 132 residuals are just numbers. To judge them you need a standard to compare against, and that standard has a name: white noise.</p>
-
-<p>White noise is a series with no usable pattern in it at all. It has four traits, and every diagnostic you are about to run is really a test for one of them.</p>
+<p>Those two numbers cover part of what we want to know. If the model has captured everything it could, its residuals should be <strong>white noise</strong>, a series with no usable pattern left in it. White noise has four properties.</p>
 
 <ol>
 
-<li><strong>Centred on zero.</strong> The errors are not consistently high or consistently low, so the model is not leaning one way.</li>
+<li><strong>Zero mean.</strong> The errors are not consistently high or low, so the forecasts are not biased.</li>
 
-<li><strong>Steady spread.</strong> The errors are about as wide in the last year as in the first, not calm early and wild later.</li>
+<li><strong>Constant variance.</strong> The spread of the errors stays the same from the start of the series to the end.</li>
 
-<li><strong>No correlation from one error to the next.</strong> Knowing this month's error tells you nothing about next month's.</li>
+<li><strong>No autocorrelation.</strong> This month's error tells you nothing about next month's error.</li>
 
-<li><strong>Roughly bell shaped.</strong> Most errors sit near zero and big ones are rare. This one is a bonus trait: you need it for honest prediction intervals, not for the forecast itself.</li>
+<li><strong>Roughly normal.</strong> The errors pile up in a bell shape, which is what prediction intervals assume.</li>
 
 </ol>
 
-<p>The third trait is the one that carries the most weight, and here is why. If today's error helps you predict tomorrow's, then there was information in the data that the model could have used and did not. Leftover correlation is leftover signal.</p>
-
-<p>So let's see what the standard actually looks like. The top panel below is our residuals. The bottom panel is 132 draws from <code>rnorm()</code> with the same spread, which are white noise because we built them that way.</p>
+<p>The first two you can read off a plot of the residuals. So plot them, and measure the spread at each end of the series while you are there.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Put our residuals above 132 draws of genuine random noise
-set.seed(1)
-pure_noise &lt;- rnorm(132, sd = sd(res_plain))
+    <div class="webr-editor" data-language="r"># Compare the residual spread early in the series with the spread late in it
+round(c(first_48_months = sd(res[1:48]), last_48_months = sd(res[97:144])), 1)
+#&gt; first_48_months  last_48_months
+#&gt;            14.1            40.3
 
-par(mfrow = c(2, 1), mar = c(4, 4, 3, 1))
-plot(as.numeric(res_plain), type = &quot;l&quot;, col = &quot;steelblue&quot;,
-     main = &quot;Our residuals&quot;, xlab = &quot;Month&quot;, ylab = &quot;Passengers (thousands)&quot;)
-abline(h = 0, col = &quot;grey40&quot;, lty = 2)
-plot(pure_noise, type = &quot;l&quot;, col = &quot;grey35&quot;,
-     main = &quot;Genuine white noise, same spread&quot;, xlab = &quot;Month&quot;, ylab = &quot;Passengers (thousands)&quot;)
-abline(h = 0, col = &quot;grey40&quot;, lty = 2)
-par(mfrow = c(1, 1))</div>
+plot(res, main = &quot;Residuals from the ARIMA(2,1,1) fit&quot;,
+     ylab = &quot;observed minus prediction&quot;)
+abline(h = 0, col = &quot;red&quot;, lwd = 2)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -172,66 +153,41 @@ par(mfrow = c(1, 1))</div>
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The bottom panel wanders around zero and never settles into anything. The top panel does not behave like that at all. So the job now is to say exactly how it differs, and what to do about it.</p>
+<p>Property one holds up well enough: a mean of 6.376 is a slight upward drift, small next to the spread of the errors themselves. Property two is already broken. The early errors stay in a narrow band either side of the red zero line, and by 1960 they swing much further out. The two standard deviations put a number on what the plot shows: 14.1 over the first four years against 40.3 over the last four, so the spread is nearly three times wider at the end.</p>
 </section>
 
-<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
-<h2>Your turn: are these residuals centred, with a steady spread?</h2>
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Three shapes a residual plot can take</h2>
 
-<p>Two of the four traits take one line of arithmetic each, so start there.</p>
-
-<p><code>res_plain</code> holds the 132 residuals. Get their mean, which answers the first trait, and their standard deviation, which is the usual measure of spread and answers the second.</p>
-<section class="exercise" data-exercise-id="ARIMA-Mini-4-step5" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="sd\s*[(]\s*res_plain\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false"># res_plain holds the 132 residuals from the fitted model.
-# Trait one: is their mean near zero?
-# Trait two: how wide is their spread?
-# Two lines, one with mean() and one with sd().
-# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. A mean of 6.04 sitting next to counts in the hundreds, and a spread of 26.54. Both of those look fine, which is precisely the trouble with them.</span><span class="lesson-tryit-fb lesson-tryit-no">You want two summaries of the same vector. Put <code>round(mean(res_plain), 2)</code> on one line and <code>round(sd(res_plain), 2)</code> on the next.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Check the first two white-noise traits, one number each
-round(mean(res_plain), 2)
-#&gt; [1] 6.04
-round(sd(res_plain), 2)
-#&gt; [1] 26.54</code></pre></details></div>
-</section>
-<p>A mean of 6.04 against monthly counts in the hundreds is close enough to zero, so the first trait passes. The standard deviation is 26.54, and on its own that is neither good news nor bad news, it is simply how wide the errors are.</p>
-
-<p>Now notice what those two numbers cannot do. Each one is a single summary of all eleven years at once, and collapsing eleven years into one number throws away the order the months came in.</p>
-
-<p>A mean of 6.04 would read the same whether the errors were scattered at random or arranged in a neat repeating wave. One standard deviation cannot tell you the errors were small in 1949 and large in 1959. That is how a bad model gets away with it. It passes the checks that throw time away and fails the ones that keep it.</p>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<h2>The first check: the residual time plot</h2>
-
-<p>The first check is the simplest thing you can do with a column of numbers. Put them in the order they happened, plot them, and look.</p>
-
-<p>Three things are worth looking for, and any one of them is a fail:</p>
+<p>A residual plot has only a handful of ways to go wrong, and they are worth learning by sight. Switch between the three below and watch the scatter change.</p>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"healthy"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The scatter comes from a small straight-line fit of the widget's own rather than from the airline model, because a shape means the same thing whatever kind of model produced the residuals. The widget spreads the residuals across the fitted value; for a series measured over time you spread them across time, which is how the airline residuals were just plotted, and the three shapes read the same way.</p>
 
 <ul>
 
-<li><strong>Drift.</strong> The residuals sit above zero for a long stretch and below it for another, which means there is a trend in the data that the model never absorbed.</li>
+<li><strong>The flat band</strong> is the healthy one. Points scatter evenly either side of zero and the width never changes.</li>
 
-<li><strong>A widening funnel.</strong> The swings are narrow at the start and wide at the end, so the errors are growing along with the series.</li>
+<li><strong>The funnel</strong> spreads as you move right. The errors are bigger where the predictions are bigger, so the variance is not constant.</li>
 
-<li><strong>A repeating hump.</strong> The same shape comes back at the same interval, which means a cycle the model never learned.</li>
+<li><strong>The curve</strong> bends away from zero and back again. The residuals still hold a shape, which means the model has the wrong form.</li>
 
 </ul>
 
-<p>Here are ours, with a dashed line at zero to read them against. Underneath the plot we measure the spread separately over the first five years and the last five.</p>
+<p>The airline residuals are the funnel. That is exactly what 14.1 growing to 40.3 measured. A funnel is not repaired by adding model terms. It is repaired by stabilising the variance, usually with a log transform.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Check 1: the ACF of the residuals and its band</h2>
+
+<p>The first check is a picture, and the thing it draws is the autocorrelation function, or ACF.</p>
+
+<p>Autocorrelation is the correlation between a series and a shifted copy of itself. Shift the residuals along by one month and correlate the two: that is the autocorrelation at lag 1. Shift by twelve months instead and you get lag 12. Do it for every lag from 1 to 24 and you have 24 numbers, which <code>acf()</code> draws as bars.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Plot the residuals in time order and measure their spread in two eras
-plot(res_plain, type = &quot;l&quot;, col = &quot;steelblue&quot;,
-     main = &quot;Residuals from ARIMA(2,1,1), 1949 to 1959&quot;,
-     xlab = &quot;Year&quot;, ylab = &quot;Passengers (thousands)&quot;)
-abline(h = 0, col = &quot;grey40&quot;, lty = 2)
-
-r &lt;- as.numeric(res_plain)
-c(first_five_years = round(sd(r[1:60]), 2),
-  last_five_years  = round(sd(r[73:132]), 2))
-#&gt; first_five_years  last_five_years 
-#&gt;            15.32            34.67 </div>
+    <div class="webr-editor" data-language="r"># Draw the autocorrelation function of the residuals out to 24 lags
+acf(res, lag.max = 24, main = &quot;ACF of the ARIMA(2,1,1) residuals&quot;)</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -241,38 +197,95 @@ c(first_five_years = round(sd(r[1:60]), 2),
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Two of the three are here. The line climbs above zero and drops below it in the same months every year, over and over. There is the repeating hump, a twelve-month cycle the model never learned.</p>
+<p>Most of the bars are short and sit between the two dashed blue lines. That pair of lines is the band, and it marks how large an autocorrelation can get by chance alone when the true correlation is zero. It sits at plus and minus \(1.96/\sqrt{n}\), where \(n\) is the number of residuals.</p>
 
-<p>And the swings widen. 15.32 against 34.67 says the errors in the last five years are more than twice as wide as in the first five, and there is the funnel. The airline more than doubled in size over those eleven years and the model's mistakes grew right along with it.</p>
+<p>A bar inside the band is indistinguishable from zero. A bar outside it is a correlation the residuals should not have. So let's compute the band for our 144 residuals and count the bars that break it.</p>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The mean of 6.04 was never wrong. It was just averaging a series that runs above zero for part of every year and below it for the rest, and an average cannot see that.</div></div>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the band and count the autocorrelations that break it
+band &lt;- 1.96 / sqrt(length(res))
+round(band, 3)
+#&gt; [1] 0.163
+
+acf_vals &lt;- acf(res, lag.max = 24, plot = FALSE)$acf[-1]
+sum(abs(acf_vals) &gt; band)
+#&gt; [1] 6
+
+which(abs(acf_vals) &gt; band)
+#&gt; [1]  4  8 12 16 20 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Setting <code>plot = FALSE</code> returns the numbers instead of the picture, and <code>[-1]</code> drops the value at lag 0, which is always 1 because any series correlates perfectly with itself.</p>
+
+<p>Six of the 24 autocorrelations break the 0.163 band, and where they fall is the whole story: lags 4, 8, 12, 16, 20 and 24. The two at multiples of twelve are the big ones.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read off the two largest residual autocorrelations
+round(acf_vals[c(12, 24)], 3)
+#&gt; [1] 0.780 0.639</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.780 at lag 12 is nearly five times the band, which is enormous for a residual series. On monthly data lag 12 is one full year, so a month's error is strongly predictable from the error twelve months before it. The yearly cycle you saw in the passenger counts is still sitting in the errors, untouched.</p>
+
+<p>The other four breaks are negative, and they land between the yearly spikes. That is what a repeating cycle does to an ACF: at a lag that falls part way through the cycle, high months line up against low ones and the correlation turns negative.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Residuals are one-step-ahead forecast errors, so any pattern left in them is signal the model could have used and did not. A bar outside the band is not bad luck. It is a piece of the series the model failed to take.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: the spikes at lag 12 and lag 24</h2>
+
+<p>The residual ACF broke its 0.163 band six times, at lags 4, 8, 12, 16, 20 and 24, with 0.780 at lag 12 and 0.639 at lag 24. What does that pattern tell you about the model?</p>
+<section class="exercise" data-exercise-id="ARIMA-Mini-4-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The residuals are simply too large, so the model needs more terms of any kind.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A month's error is still predictable from the error twelve months earlier, so the yearly cycle was never captured.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The spread of the residuals grows over time, and those tall bars are what measures it.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The band is too narrow for a series of only 144 observations, so bars break it by construction.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Lag 12 on monthly data is one full year, and a correlation of 0.780 there means the seasonal pattern is still sitting in the residuals, waiting to be modelled.</div><div class="lesson-qfb lesson-qfb-no">An ACF measures one thing: the correlation between the residuals and a shifted copy of themselves. It says nothing about how large the residuals are, and nothing about whether their spread grows, which is what the residual plot is for. The band is the standard one for a series of this length, and a correlation of 0.780 at lag 12 on monthly data means the yearly cycle is still in the errors.</div></div>
+</section>
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="concept">
-<h2>Autocorrelation at lag 12, worked out by hand</h2>
+<h2>Check 2: the Ljung-Box test</h2>
 
-<p>Your eye says twelve months. Let's get a number for it.</p>
+<p>Counting bars works, but it leaves you deciding by eye how many breaks are too many. The second check replaces that judgement with a single number.</p>
 
-<p>An autocorrelation at lag 12 asks one question: how strongly does the residual series line up with itself when you slide it twelve months? Pair every month with the month a year earlier, and if a big residual in July 1955 tends to sit beside a big residual in July 1956, that number comes out large and positive.</p>
+<p>The Ljung-Box test takes the first \(h\) autocorrelations, squares each one, weights it and adds them into one statistic. Because it pools many lags into one quantity instead of testing each lag on its own, it is called a portmanteau test.</p>
 
-<p>The arithmetic has the same shape as an ordinary correlation, with one twist to it. Both halves of every pair are centred on the mean of the whole series, and the total is divided by the sum of squares of the whole series rather than of the two overlapping pieces. That is how <code>acf()</code> in R defines it, and it is why the number it gives is not quite what <code>cor()</code> on two sliced vectors would give.</p>
+<p>It is a hypothesis test, so it starts from a null hypothesis and checks whether the data reject it.</p>
 
-<p>\[ r_{12} = \frac{\sum_{t=13}^{n} (e_t - \bar{e})(e_{t-12} - \bar{e})}{\sum_{t=1}^{n} (e_t - \bar{e})^{2}} \]</p>
+<p><strong>Null hypothesis: the residuals are white noise, with no autocorrelation up to lag \(h\).</strong></p>
 
-<p>Here \(e_t\) is the residual for month \(t\), \(\bar{e}\) is the mean of all 132 of them, and \(n\) is 132. The top line runs over the 120 pairs that survive once you slide the series by twelve. Let's do it in R.</p>
+<p>Now the part that trips people up: the direction. A large p-value means the residuals are indistinguishable from white noise, and that is the pass. A small p-value rejects the null, which says autocorrelation is still in there, and that is the failure. In most tests you run, a small p-value is the result you are hoping for. Here the boring outcome is the one you want.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Work out the lag-12 autocorrelation of the residuals by hand
-n &lt;- length(r)
-centred &lt;- r - mean(r)
-
-numerator   &lt;- sum(centred[13:n] * centred[1:(n - 12)])
-denominator &lt;- sum(centred^2)
-
-round(numerator / denominator, 3)
-#&gt; [1] 0.781</div>
+    <div class="webr-editor" data-language="r"># Pool the first 24 residual autocorrelations into one Ljung-Box test
+Box.test(res, lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 3)
+#&gt;
+#&gt; 	Box-Ljung test
+#&gt;
+#&gt; data:  res
+#&gt; X-squared = 216.35, df = 21, p-value &lt; 2.2e-16</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -282,235 +295,80 @@ round(numerator / denominator, 3)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>0.781. Read it the way you would read any correlation, and it is a strong one: a big miss last July goes with a big miss this July, a small one with a small one, year after year.</p>
+<p>Three arguments decide what that test actually did.</p>
 
-<p>That is not an error the model could have avoided by being luckier. It is a pattern, sitting in the leftovers, that a better model would have used.</p>
+<ul>
+
+<li><code>lag = 24</code> is \(h\), the number of autocorrelations pooled into the statistic. For monthly data, twice the seasonal period is the usual choice, so 24.</li>
+
+<li><code>type = &quot;Ljung-Box&quot;</code> picks the Ljung-Box weighting rather than the older Box-Pierce one.</li>
+
+<li><code>fitdf = 3</code> is the correction for the coefficients you estimated.</li>
+
+</ul>
+
+<p>That last one deserves a sentence. You did not know the model in advance, you estimated it, and each estimated AR or MA coefficient uses up a little of the freedom the residuals had to wander. The test allows for that by subtracting them from the lag count:</p>
+
+<p>\[ df = h - \textrm{fitdf} \]</p>
+
+<p>Our model is ARIMA(2,1,1), so it estimated two AR terms and one MA term. That makes <code>fitdf</code> 3, and \(df = 24 - 3 = 21\), which is the <code>df = 21</code> printed in the output. The differencing is never counted, because differencing estimates nothing.</p>
+
+<p>So read the verdict: a statistic of 216.35 against 21 degrees of freedom, and a p-value R prints as <code>&lt; 2.2e-16</code> because it is smaller than R will display. The residuals are not white noise. The model fails.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A large p-value here is not proof that the model is right. The Ljung-Box test looks for autocorrelation and nothing else, so a model whose residual spread triples across the series can still pass it. That is why the plot comes first and the test second, rather than the test on its own.</div></div>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="concept">
-<h2>The residual ACF and its noise band</h2>
-
-<p>Doing that by hand once is worth it. Doing it twenty-four times is not, and <code>acf()</code> gives you every lag in one go.</p>
-
-<p>The plot it draws puts one vertical bar at each lag. Lag 1 is the correlation between neighbouring months, lag 12 is the one we just computed, and the plot runs out to lag 24, which is two years back.</p>
-
-<p>The two dashed lines are what turn the picture into a decision. They sit at 1.96 divided by the square root of the number of residuals, which is the range a correlation from genuinely random data would stay inside about 95% of the time. A bar inside the band is noise. A bar outside it is not.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Draw the residual ACF and count the bars that break the noise band
-acf(r, lag.max = 24, main = &quot;Residual ACF, ARIMA(2,1,1)&quot;)
-
-band &lt;- 1.96 / sqrt(n)
-bars &lt;- acf(r, lag.max = 24, plot = FALSE)$acf[-1]
-
-round(band, 3)
-#&gt; [1] 0.171
-round(bars[c(12, 24)], 3)
-#&gt; [1] 0.781 0.620
-sum(abs(bars) &gt; band)
-#&gt; [1] 6</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The band sits at 0.171. The bar at lag 12 reaches 0.781, more than four times the band, and the bar at lag 24 reaches 0.620. Six of the twenty-four bars break the band altogether.</p>
-
-<p>The two tall ones are at twelve months and twenty-four months, which are the seasonal lags for monthly data. The residuals repeat every year, and then repeat again at two years, which is the same yearly cycle turning up a second time.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Every bar outside that band is forecastable structure the model left behind. A bar of 0.781 at lag 12 says you could predict most of this month's error from the error twelve months ago, and a model that lets you do that is not finished.</div></div>
-</section>
-
-<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what the bar at lag 12 is telling you</h2>
-
-<p>The bar at lag 12 came out at 0.781 with the band at 0.171. What does that tall bar actually say?</p>
-<section class="exercise" data-exercise-id="ARIMA-Mini-4-step9" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">That the passenger counts have a yearly season, which was obvious from the raw series before any model was fitted.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That the model left a yearly rhythm behind in its errors, so there was a pattern available that it did not use.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">That the residuals are too large on average, so the model is leaning upward.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">That twelve is the number of differences to apply next.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The season was always in the data. What matters is that it is still in the leftovers after the model has had its turn, which means the model never used it.</div><div class="lesson-qfb lesson-qfb-no">The ACF here is drawn on the residuals, not on the passenger counts. The raw series is seasonal and always was, so that on its own is not news, and a tall bar says nothing about the average size of the errors or about how much differencing to do. What it says is that the season survived the model and is still sitting in the errors.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<h2>The second check: the Ljung-Box test</h2>
-
-<p>Reading twenty-four bars and deciding how many are too many is a judgement call, and you would have to make it fresh for every model you fit. The second check replaces the whole thing with one number.</p>
-
-<p>The Ljung-Box test asks a single pooled question: taken together, are the first few autocorrelations close enough to zero to be chance? It is called a portmanteau test, because it packs many lags into one statistic.</p>
-
-<p>Like any test it starts from a null hypothesis, and this is the part that catches people out. The null here is that the residuals ARE white noise. So a small p-value rejects white noise and hands you the bad news. A large one means the test found nothing wrong, and that is the outcome you want.</p>
-
-<p>That runs backwards to most tests you have used, where a small p-value is the result you wanted. Here you are hoping to fail to reject.</p>
-
-<p>Besides the residuals themselves, the call takes three settings. <code>lag</code> says how many lags to pool, and for monthly data the usual choice is twice the seasonal period, so 24. <code>type</code> picks the version of the statistic. <code>fitdf</code> is how many terms the model estimated from this same data, three here. Why the test needs that number, and why it is three, is the next thing we work out.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Pool the first 24 residual autocorrelations into one test
-Box.test(res_plain, lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 3)
-#&gt; 
-#&gt; 	Box-Ljung test
-#&gt; 
-#&gt; data:  res_plain
-#&gt; X-squared = 200.44, df = 21, p-value &lt; 2.2e-16</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The p-value comes back below 2.2e-16, which is R's way of printing a number too small to write out. There is no judgement call left to make. If these residuals really were white noise, a statistic this large would essentially never turn up.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>type = &quot;Ljung-Box&quot;</code> matters. The default in <code>Box.test()</code> is the older Box-Pierce statistic, which is the same idea with weaker behaviour on short series. Ljung-Box is the one to ask for.</div></div>
-</section>
-
-<section class="lesson-step" data-step="11" data-step-type="concept">
-<h2>What Q* adds up, and how it turns into a p-value</h2>
-
-<p>One number just stood in for twenty-four, so let's open it up and see what went in.</p>
-
-<p>The statistic is called Q*, and <code>Box.test()</code> prints it under the label X-squared. It squares each of the first h autocorrelations, weights the ones at longer lags a little more heavily, and adds them up.</p>
-
-<p>\[ Q^{*} = n(n+2) \sum_{k=1}^{h} \frac{r_{k}^{2}}{n-k} \]</p>
-
-<p>Here \(n\) is the number of residuals, \(h\) is how many lags you pool, and \(r_k\) is the residual autocorrelation at lag \(k\). Squaring is what stops a negative correlation cancelling a positive one, so every departure from zero counts, whichever way it points.</p>
-
-<p>That total is then compared against a chi-squared distribution, which is the shape a sum of squared quantities takes when nothing is going on. The degrees of freedom are not h, though. You did not know the true model, you estimated it, and each estimated term uses up a little of the data's freedom to wiggle, so the count is h minus the number of terms the model estimated.</p>
-
-<p>Our ARIMA(2,1,1) estimated three of them: two autoregressive terms and one moving-average term. The differencing does not count, because nothing was estimated for it. That is the 3 in <code>fitdf = 3</code>, and 24 minus 3 is the df of 21 the output showed.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Rebuild the Ljung-Box statistic and its p-value from the autocorrelations
-lags  &lt;- 1:24
-Qstar &lt;- n * (n + 2) * sum(bars[lags]^2 / (n - lags))
-round(Qstar, 2)
-#&gt; [1] 200.44
-
-degrees &lt;- 24 - 3
-pchisq(Qstar, df = degrees, lower.tail = FALSE)
-#&gt; [1] 2.961794e-31</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>There it is, 200.44, the same statistic the test reported, built out of nothing but the twenty-four bars you already had. Then <code>pchisq()</code> with <code>lower.tail = FALSE</code> gives the area to the right of it, which is the p-value.</p>
-
-<p>That is the exact number the test reported as smaller than 2.2e-16: a decimal point followed by thirty zeros before the digits start. If the residuals had no pattern left in them, a Q* this large would be that rare.</p>
-</section>
-
-<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
-<h2>Your turn: run the test at 12 lags instead of 24</h2>
-
-<p>The lag you test at is a real decision, not a formality. Pool too few lags and a seasonal spike further out never enters the sum. Pool too many and one genuine signal gets watered down by a crowd of empty lags.</p>
-
-<p>Ours had big bars at both lag 12 and lag 24, so pooling 24 caught the pair of them. Run the same test over 12 lags instead and see whether the verdict moves. The model estimated three terms either way.</p>
-<section class="exercise" data-exercise-id="ARIMA-Mini-4-step12" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="Box[.]test[\s\S]*lag\s*=\s*12"><textarea class="lesson-tryit-input" spellcheck="false"># res_plain holds the residuals from the ARIMA(2,1,1) model.
-# Run the same Ljung-Box test, but pool 12 lags instead of 24.
-# The model still estimated three terms.
-# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. Q* falls to 118.08 on 9 degrees of freedom, and the p-value is still under 2.2e-16. Halving the lags changed the arithmetic and changed nothing about the answer.</span><span class="lesson-tryit-fb lesson-tryit-no">Take the call you just ran and move one argument: <code>Box.test(res_plain, lag = 12, type = &quot;Ljung-Box&quot;, fitdf = 3)</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Run the same test over 12 lags instead of 24
-Box.test(res_plain, lag = 12, type = &quot;Ljung-Box&quot;, fitdf = 3)
-#&gt; 
-#&gt; 	Box-Ljung test
-#&gt; 
-#&gt; data:  res_plain
-#&gt; X-squared = 118.08, df = 9, p-value &lt; 2.2e-16</code></pre></details></div>
-</section>
-<p>Q* drops from 200.44 to 118.08, which makes sense, because twelve fewer squared correlations are going into the sum. The degrees of freedom drop with it, from 21 to 9, since 12 minus the three estimated terms is 9.</p>
-
-<p>The verdict does not move an inch. When a model misses something as loud as a whole season, you do not have to pick the lag carefully to catch it. Where the choice starts to matter is on borderline models, and the safe habit for monthly data is twice the seasonal period, so that the twelve-month and twenty-four-month bars are both in the pool.</p>
-</section>
-
-<section class="lesson-step" data-step="13" data-step-type="widget">
-<h2>What leftover autocorrelation costs a forecast</h2>
-
-<p>Our model fails both checks. Before we repair it, look at what failing costs you, because it is not what most people expect.</p>
-
-<p>Drag the dial below. At every setting it fits a straight trend line to sixty points, a couple of thousand times over, and the setting is how strongly each error is correlated with the one before it. Watch the two lines as you move it.</p>
-<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>The line marked interval coverage is the share of all those studies whose 95% interval really did contain the true slope. It is supposed to sit at 95%, and as you push the dial to the right it falls away. The other line is R-squared, the fit statistic you would quote, and it holds up. If anything it climbs, because errors that move together in a smooth wave are easier to fit than errors that jump about.</p>
-
-<p>That combination is the trap. The number you would look at to judge the model goes up while the number that says how far to trust it goes down.</p>
-
-<p>Our own model does exactly this. Here is what it forecast for July 1960, with its 95% interval, next to the month that actually happened.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Ask the failing model for its July 1960 forecast and its 95% interval
-fc_plain &lt;- forecast(fit_plain, h = 12)
-
-c(forecast = round(as.numeric(fc_plain$mean)[7], 1),
-  lo95     = round(as.numeric(fc_plain$lower[7, 2]), 1),
-  hi95     = round(as.numeric(fc_plain$upper[7, 2]), 1),
-  actual   = as.numeric(passengers_1960)[7])
-#&gt; forecast     lo95     hi95   actual 
-#&gt;    430.6    319.8    541.5    622.0 </div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The model put July 1960 between 319.8 and 541.5 thousand passengers, and it attached 95% confidence to that range. July came in at 622. The month is not near the edge of the interval, it is more than 80 thousand passengers clear of the top of it.</p>
-</section>
-
-<section class="lesson-step" data-step="14" data-step-type="concept">
 <h2>The repair, and the same two checks again</h2>
 
-<p>A failing diagnostic is not a dead end. It is a to-do list, because each thing the time plot showed points straight at its own fix.</p>
+<p>A failing check is not a dead end. It names what to add.</p>
 
-<p>The twelve-month hump asks for a seasonal term. The model has a moving-average term that reaches back one month. What it needs is one that also reaches back a whole year, so that a July error can inform the following July. In R that is the <code>seasonal</code> argument, and <code>seasonal = c(0, 1, 1)</code> adds a seasonal difference and a seasonal moving-average term at the twelve-month period.</p>
-
-<p>The widening swings ask for a log. Taking logs turns growth that multiplies into growth that adds: if the errors are roughly a fixed percentage of the level, then on the log scale they are roughly a fixed size, which is the steady spread we want. <code>lambda = 0</code> is how <code>Arima()</code> asks for a log, and it puts the forecasts back on the passenger scale for you afterwards.</p>
-
-<p>Let's make both changes at once, then run both checks again on the new residuals.</p>
+<p>Two faults turned up in these residuals. The spikes at lags 12 and 24 say the yearly cycle is still in there, which calls for seasonal terms. The spread growing from 14.1 to 40.3 says the variance is not constant, which calls for a transform. <code>Arima()</code> takes both in the same call.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Refit with a seasonal term and a log, then run both checks again
-fit_season &lt;- Arima(passengers_train, order = c(0, 1, 1),
-                    seasonal = c(0, 1, 1), lambda = 0)
-res_season &lt;- residuals(fit_season)
+    <div class="webr-editor" data-language="r"># Refit with seasonal terms and a log transform, then run both checks at once
+fit_fixed &lt;- Arima(AirPassengers, order = c(0, 1, 1),
+                   seasonal = c(0, 1, 1), lambda = 0)
+checkresiduals(fit_fixed)
+#&gt;
+#&gt; 	Ljung-Box test
+#&gt;
+#&gt; data:  Residuals from ARIMA(0,1,1)(0,1,1)[12]
+#&gt; Q* = 26.446, df = 22, p-value = 0.233
+#&gt;
+#&gt; Model df: 2.   Total lags used: 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-acf(as.numeric(res_season), lag.max = 24, main = &quot;Residual ACF, seasonal model&quot;)
+<p><code>seasonal = c(0, 1, 1)</code> adds a seasonal difference and a seasonal moving-average term at the twelve-month period, which is what takes the yearly cycle out. <code>lambda = 0</code> applies a log transform before fitting, which turns those widening swings into swings of roughly constant width.</p>
 
-new_bars &lt;- acf(as.numeric(res_season), lag.max = 24, plot = FALSE)$acf[-1]
-round(new_bars[c(12, 23)], 3)
-#&gt; [1] -0.042  0.193
-sum(abs(new_bars) &gt; band)
+<p><code>checkresiduals()</code> runs both checks in one line. It draws three panels, the residuals over time, their ACF and a histogram, and prints the Ljung-Box test underneath. It labels the statistic <code>Q*</code> where <code>Box.test()</code> labels it <code>X-squared</code>, and they are the same number.</p>
+
+<p>The printed line reads 26.446 on 22 degrees of freedom with a p-value of 0.233. That is comfortably above 0.05, so the test does not reject white noise, and the model passes.</p>
+
+<p><code>Model df: 2</code> is the <code>fitdf</code> the wrapper worked out for you, and it is worth seeing why it is 2 and not 4. The order is ARIMA(0,1,1)(0,1,1)[12]: no AR term and one MA term in the non-seasonal part, no seasonal AR term and one seasonal MA term in the seasonal part. So the count is p + q + P + Q, which is 0 + 1 + 0 + 1 = 2, and \(df = 24 - 2 = 22\). Both differences, the ordinary one and the seasonal one, stay out of the count.</p>
+
+<p>Now let's run the other check on the same repaired model.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Redraw the residual ACF for the repaired model and recount the breaks
+acf_fixed &lt;- acf(residuals(fit_fixed), lag.max = 24,
+                 main = &quot;ACF of the repaired model residuals&quot;)
+sum(abs(acf_fixed$acf[-1]) &gt; band)
 #&gt; [1] 1
 
-Box.test(res_season, lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 2)
-#&gt; 
-#&gt; 	Box-Ljung test
-#&gt; 
-#&gt; data:  res_season
-#&gt; X-squared = 21.011, df = 22, p-value = 0.5201</div>
+round(acf_fixed$acf[-1][12], 3)
+#&gt; [1] -0.051</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -520,40 +378,26 @@ Box.test(res_season, lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Lag 12 has gone from 0.781 to -0.042, which is well inside the band of 0.171. Six bars used to break the band. Now one does, at lag 23, and it barely gets out at 0.193. A band drawn to hold 95% of pure noise lets about one bar in twenty escape by chance, so one out of twenty-four is nothing to chase.</p>
-
-<p>Notice that <code>fitdf</code> is 2 now, not 3. This model estimates two terms, one moving-average and one seasonal moving-average. The two differences are not estimated from the data at all, so they never count, and neither does the log, because we chose it rather than fitted it.</p>
-
-<p>And the p-value is 0.5201. If these residuals were white noise, a statistic this big or bigger would show up in about half of all fits, which is as ordinary as a result gets. Both checks pass.</p>
+<p>One bar out of 24 now sits outside the same 0.163 band, against six before. Lag 12 has fallen from 0.780 to -0.051, comfortably inside the band, so the yearly cycle has gone from the errors. One stray bar in 24 is roughly what chance alone produces, because the band is drawn to be broken about 5% of the time even when nothing is wrong.</p>
 </section>
 
-<section class="lesson-step" data-step="15" data-step-type="concept">
-<h2>1960, forecast against fact</h2>
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Forecasting the repaired model, and what its intervals assume</h2>
 
-<p>A passing check is a promise about the future, not a measurement of it. That is why we held 1960 back, so we could take the measurement.</p>
-
-<p>Neither model has seen a single month of 1960. Here is what each of them said, drawn against what actually happened, with the average size of the miss printed underneath.</p>
+<p>With both checks passed, the model can be put to the job you fitted it for.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Score both models against the twelve months of 1960 they never saw
-fc_season &lt;- forecast(fit_season, h = 12)
-actual_1960 &lt;- as.numeric(passengers_1960)
-
-plot(actual_1960, type = &quot;b&quot;, pch = 16, ylim = c(370, 660),
-     main = &quot;1960, forecast against fact&quot;,
-     xlab = &quot;Month of 1960&quot;, ylab = &quot;Passengers (thousands)&quot;)
-lines(as.numeric(fc_plain$mean), type = &quot;b&quot;, pch = 1, col = &quot;firebrick&quot;)
-lines(as.numeric(fc_season$mean), type = &quot;b&quot;, pch = 1, col = &quot;steelblue&quot;)
-legend(&quot;topleft&quot;, bty = &quot;n&quot;, lty = 1, pch = c(16, 1, 1),
-       col = c(&quot;black&quot;, &quot;firebrick&quot;, &quot;steelblue&quot;),
-       legend = c(&quot;What happened&quot;, &quot;Failing model&quot;, &quot;Repaired model&quot;))
-
-c(plain    = round(mean(abs(actual_1960 - as.numeric(fc_plain$mean))), 1),
-  seasonal = round(mean(abs(actual_1960 - as.numeric(fc_season$mean))), 1))
-#&gt;    plain seasonal 
-#&gt;     65.2     13.3 </div>
+    <div class="webr-editor" data-language="r"># Forecast the next six months from the repaired model
+forecast(fit_fixed, h = 6)
+#&gt;          Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+#&gt; Jan 1961       450.4224 429.5461 472.3132 418.8895 484.3289
+#&gt; Feb 1961       425.7172 402.8146 449.9219 391.1938 463.2874
+#&gt; Mar 1961       479.0068 450.1386 509.7265 435.5677 526.7781
+#&gt; Apr 1961       492.4045 459.8801 527.2290 443.5416 546.6503
+#&gt; May 1961       509.0550 472.7467 548.1518 454.5866 570.0497
+#&gt; Jun 1961       583.3449 538.8968 631.4591 516.7552 658.5155</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -563,207 +407,93 @@ c(plain    = round(mean(abs(actual_1960 - as.numeric(fc_plain$mean))), 1),
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The failing model is the flat one. It sits between 430 and 451 thousand passengers for all twelve months, because a model with no seasonal term has no way of knowing that July is different from February. The repaired model rises and falls with the real year.</p>
+<p>January 1961 comes out at 450.4 thousand passengers, with a 95% interval running from 418.9 to 484.3. The point forecast is the single best guess and the interval is the honest width around it.</p>
 
-<p>July is where it hurts. The failing model called 430.6 against an actual 622, so it was 191 thousand passengers short in a single month. The repaired model called 622.2 and missed by 0.2.</p>
+<p>That interval is where leftover autocorrelation does its damage, and the damage is easy to miss because the fit statistics do not drop when it happens. Drag the dial below and watch it happen.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation","levels":11,"start":0}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The dial runs its own simulated studies rather than the airline data. At every setting it fits a trend to 60 observations two thousand times over and records two numbers. Coverage is the share of those 95% intervals that really do contain the true value, which is the property that makes an interval like 418.9 to 484.3 worth quoting. R-squared is the fit statistic you would look at.</p>
 
-<p>Across all twelve months, the average miss is 65.2 thousand passengers against 13.3. That gap is what the two checks were pointing at the whole time. The ACF said a year-long rhythm had been left behind, and this is the bill for it.</p>
+<p>At the left of the dial the errors are independent, and coverage reads 95.0%, which is exactly what 95% is supposed to mean. R-squared is 0.504. Now drag it right. At the far end, where neighbouring errors correlate at 0.92, coverage has dropped to 32.2%, so about two intervals in three miss the value they claim to bracket.</p>
+
+<p>And R-squared at that far end is 0.636, which is higher than where it started. A smoothly correlated error series raises the fit statistic at the same time as it wrecks the coverage. So no fit statistic is going to warn you here. Only a check on the residuals will.</p>
 </section>
 
-<section class="lesson-step" data-step="16" data-step-type="concept">
-<h2>How to run both checks in one line</h2>
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: good coefficients, failing Ljung-Box</h2>
 
-<p>We did all of that in pieces so you could see what each piece does. In daily use there is one function that does the lot.</p>
+<p>Take the ARIMA(2,1,1) fit from earlier. Every coefficient sat several standard errors from zero and the AIC was 1378.34, yet the Ljung-Box test on its residuals returned a p-value below 2.2e-16. What does that combination tell you?</p>
+<section class="exercise" data-exercise-id="ARIMA-Mini-4-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The very small p-value confirms the model fits well, because a small p-value is the pass for Ljung-Box.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The AIC of 1378.34 is the stronger evidence of the two, so the model can be used as it stands.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The residuals still carry pattern the model could have used, so its prediction intervals will contain the truth less often than their 95% label claims, while the coefficients and the AIC stay exactly as printed.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The p-value is that small only because 144 observations is a large sample, so it can be discounted.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The coefficients and the AIC describe how the model was estimated, and this leaves them untouched. The leftover autocorrelation is a separate fault, and the prediction interval is what pays for it.</div><div class="lesson-qfb lesson-qfb-no">Three of these either read the test backwards or rank a fit statistic above it. For Ljung-Box a large p-value is the pass and a small one the failure, and 144 monthly observations is a modest series, not a sample so large that any test rejects. What the small p-value buys you is a warning about the intervals, which no coefficient and no AIC will ever give you.</div></div>
+</section>
+</section>
 
-<p><code>checkresiduals()</code> draws the time plot, the ACF and a histogram of the residuals in a single figure, and prints the Ljung-Box test underneath. It reads the lag and the degrees of freedom off the model itself, so you do not have to remember either.</p>
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: reproduce the p-value with Box.test</h2>
 
-<p>That last part is easy to take on trust, so let's test it. The second call below is the same test with the subtraction skipped, <code>fitdf = 0</code>, as though nothing had been estimated.</p>
+<p><code>checkresiduals()</code> chose the lag and the degrees of freedom for the repaired model on its own. Now do it by hand.</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Run both checks in one call, then see what a wrong fitdf does to the p-value
-checkresiduals(fit_season)
-#&gt; 
-#&gt; 	Ljung-Box test
-#&gt; 
-#&gt; data:  Residuals from ARIMA(0,1,1)(0,1,1)[12]
-#&gt; Q* = 21.011, df = 22, p-value = 0.5201
-#&gt; 
-#&gt; Model df: 2.   Total lags used: 24
-
-Box.test(res_season, lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 0)
-#&gt; 
+<p>Run a Ljung-Box test on the residuals of <code>fit_fixed</code> at lag 24, setting <code>fitdf</code> yourself. Get it right and the output will match the numbers the wrapper printed.</p>
+<section class="exercise" data-exercise-id="ARIMA-Mini-4-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="fitdf\s*=\s*2\b"><textarea class="lesson-tryit-input" spellcheck="false"># fit_fixed is the repaired ARIMA(0,1,1)(0,1,1)[12] on the airline series.
+# Run a Ljung-Box test on its residuals at lag 24 and set fitdf yourself,
+# counting the AR and MA terms the model estimated, seasonal ones included.
+# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: X-squared 26.446 on df 22, p-value 0.233, the same numbers the wrapper printed. fitdf counts p + q + P + Q, which here is 0 + 1 + 0 + 1 = 2.</span><span class="lesson-tryit-fb lesson-tryit-no">Count the estimated AR and MA terms, seasonal ones included, and leave both differences out: 0 + 1 + 0 + 1 = 2, so fitdf = 2. Leave it at 0 and df comes out at 24 with a p-value of 0.3309, from a test more lenient than the correct one.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Reproduce the checkresiduals p-value with an explicit Box.test call
+Box.test(residuals(fit_fixed), lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 2)
+#&gt;
 #&gt; 	Box-Ljung test
-#&gt; 
-#&gt; data:  res_season
-#&gt; X-squared = 21.011, df = 24, p-value = 0.6381</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The first result is exactly what we worked out by hand: Q* of 21.011 on 22 degrees of freedom and a p-value of 0.5201. The two extra lines spell out the choices it made for you, <code>Model df: 2</code> being the <code>fitdf</code> and <code>Total lags used: 24</code> being the lag. One cosmetic difference: <code>checkresiduals()</code> calls the statistic Q* while <code>Box.test()</code> calls the same number X-squared.</p>
-
-<p>In the second result the statistic has not moved, because the statistic never depended on the degrees of freedom. Only the yardstick moved, to 24, and the p-value drifted from 0.5201 to 0.6381.</p>
-
-<p>Here the model passes either way, so it looks harmless. It is not. Forgetting <code>fitdf</code> always makes the test more lenient, so the model it eventually lets through is the borderline one that should have gone back for work.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Let <code>checkresiduals()</code> pick the lag and the degrees of freedom, and reach for <code>Box.test()</code> only when you want to override them. The wrapper already knows your model's order and its seasonal period, which removes the most common way people end up quoting a wrong p-value.</div></div>
+#&gt;
+#&gt; data:  residuals(fit_fixed)
+#&gt; X-squared = 26.446, df = 22, p-value = 0.233</code></pre></details></div>
+</section>
+<p>The statistic does not move when you change <code>fitdf</code>. Only the degrees of freedom it gets compared against move, which is why forgetting the correction quietly makes the test easier to pass.</p>
 </section>
 
-<section class="lesson-step" data-step="17" data-step-type="concept">
-<h2>What a passing p-value does not prove</h2>
-
-<p>The repaired model passed. Now be precise about what that buys you.</p>
-
-<p>The Ljung-Box test looks for one thing: correlation between the errors at different lags. That is all it looks for. Anything else wrong with your residuals is invisible to it.</p>
-
-<p>Here is a series built to make the point. Every value is an independent draw from <code>rnorm()</code>, so no value has any connection to the one before it. The only thing that changes is the spread, which climbs steadily from 4 at the start to 20 at the end.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Build a series with no correlation at all but a spread that keeps climbing
-set.seed(1)
-funnel_demo &lt;- rnorm(132, sd = seq(4, 20, length.out = 132))
-
-plot(funnel_demo, type = &quot;l&quot;, col = &quot;steelblue&quot;,
-     main = &quot;Independent draws with a growing spread&quot;,
-     xlab = &quot;Month&quot;, ylab = &quot;Value&quot;)
-abline(h = 0, col = &quot;grey40&quot;, lty = 2)
-
-Box.test(funnel_demo, lag = 24, type = &quot;Ljung-Box&quot;)
-#&gt; 
-#&gt; 	Box-Ljung test
-#&gt; 
-#&gt; data:  funnel_demo
-#&gt; X-squared = 24.741, df = 24, p-value = 0.42</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>A p-value of 0.42. The test finds nothing wrong, and it is right not to, because there genuinely is no autocorrelation here, and autocorrelation is the only thing it was ever asked about.</p>
-
-<p>Now look at the plot. The funnel is plain to see: quiet at the left, wild at the right. Residuals shaped like that will not break the point forecast, but they will wreck the prediction intervals, because one spread is being quoted for a series whose spread keeps changing.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A large Ljung-Box p-value means the model left no correlation behind. It does not mean the model is right, and it says nothing at all about a spread that changes over time, which is why the time plot is never the check you skip.</div></div>
-</section>
-
-<section class="lesson-step" data-step="18" data-step-type="quiz" data-gate="1">
-<h2>Practice: which of these models would you ship?</h2>
-
-<p>Four models, four diagnostic summaries. Which one would you forecast with?</p>
-<section class="exercise" data-exercise-id="ARIMA-Mini-4-step18" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Ljung-Box p = 0.31 and every bar inside the band, but the time plot fans out from narrow at the start to three times as wide at the end.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Ljung-Box p = 0.0004, one bar far outside the band at lag 12, and a hump repeating every twelve months in the time plot.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ljung-Box p = 0.44, every bar inside the band, and a time plot that bounces around zero at a steady width from start to finish.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Ljung-Box p = 0.68 and every bar inside the band, but the test was run with fitdf left at 0 on a model that estimated three terms.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Yes. Both checks agree and neither has anything to report, which is the only combination that clears a model to forecast with.</div><div class="lesson-qfb lesson-qfb-no">Read the p-value, the ACF and the time plot together, because each one sees something the other two cannot. A fan in the time plot is a changing spread, which the test cannot detect, and a p-value of 0.0004 with a tall bar at lag 12 is a missed season. The last one may well turn out fine, but you cannot say so yet: with fitdf at 0 the test was run too leniently, so set fitdf to 3 and run it again before deciding.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="19" data-step-type="quiz" data-gate="1">
-<h2>Practice: reading an ACF you have not seen before</h2>
-
-<p>A colleague hands you the residual ACF of a monthly model. One bar at lag 1 sits at 0.52, well outside the band. Every other bar out to lag 24, including lag 12 and lag 24, sits comfortably inside it, and the Ljung-Box test comes back at p = 0.002. What did the model miss?</p>
-<section class="exercise" data-exercise-id="ARIMA-Mini-4-step19" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A yearly season, so add a seasonal moving-average term at the twelve-month period.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Short memory: this month's error still predicts next month's, so an ordinary autoregressive or moving-average term is what it needs.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing worth fixing, because one bar out of twenty-four breaking the band is what chance alone produces.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A spread that changes over time, so take logs and refit.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">That is the read. Lag 1 is this month against last month, so the leftover pattern is a one-month one, and the fix is an ordinary term rather than a seasonal one.</div><div class="lesson-qfb lesson-qfb-no">Where the bar sits is the whole message. Lag 1 is this month against last month, so the miss is short memory rather than a season, and a seasonal term would be aimed at lag 12, which is already clean. One bar out of twenty-four can be chance, but not one this far out with the test at p = 0.002, and a log repairs a changing spread, which an ACF does not measure at all.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="20" data-step-type="tryit" data-gate="1">
-<h2>Practice: diagnose a model end to end</h2>
-
-<p>One last one, and this is the whole loop in a single try.</p>
-
-<p>Fit the seasonal model again with exactly the same orders, but leave the log out this time: no <code>lambda</code> argument at all. Then run both checks on it and decide whether you would ship it. Use 24 lags and <code>fitdf = 2</code>, since this model estimates the same two terms as the logged one.</p>
-<section class="exercise" data-exercise-id="ARIMA-Mini-4-step20" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="seasonal[\s\S]*fitdf\s*=\s*2"><textarea class="lesson-tryit-input" spellcheck="false"># passengers_train holds the 132 training months.
-# Fit ARIMA(0,1,1) with seasonal = c(0, 1, 1) into fit_nolog, and no lambda.
-# Then plot its residuals over time, measure their spread across the first
-# five years and the last five, and run the Ljung-Box test at 24 lags with
-# fitdf = 2. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Good. p = 0.0713 clears the 0.05 bar, but only just, and the spread still climbs from 8.49 to 11.05 across the eleven years. This is a model to look at twice rather than ship.</span><span class="lesson-tryit-fb lesson-tryit-no">Fit it with <code>Arima(passengers_train, order = c(0, 1, 1), seasonal = c(0, 1, 1))</code> and no lambda, then test the residuals with <code>Box.test(residuals(fit_nolog), lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 2)</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit the seasonal model without the log, then run both checks on it
-fit_nolog &lt;- Arima(passengers_train, order = c(0, 1, 1), seasonal = c(0, 1, 1))
-res_nolog &lt;- as.numeric(residuals(fit_nolog))
-
-plot(res_nolog, type = &quot;l&quot;, col = &quot;steelblue&quot;,
-     main = &quot;Residuals, seasonal model without the log&quot;,
-     xlab = &quot;Month&quot;, ylab = &quot;Passengers (thousands)&quot;)
-abline(h = 0, col = &quot;grey40&quot;, lty = 2)
-
-c(first_five_years = round(sd(res_nolog[1:60]), 2),
-  last_five_years  = round(sd(res_nolog[73:132]), 2))
-#&gt; first_five_years  last_five_years 
-#&gt;             8.49            11.05 
-
-Box.test(residuals(fit_nolog), lag = 24, type = &quot;Ljung-Box&quot;, fitdf = 2)
-#&gt; 
-#&gt; 	Box-Ljung test
-#&gt; 
-#&gt; data:  residuals(fit_nolog)
-#&gt; X-squared = 32.37, df = 22, p-value = 0.0713</code></pre></details></div>
-</section>
-<p>The seasonal terms did most of the work, so the yearly rhythm is gone and the test comes back at 0.0713. Against the usual 0.05 bar that is a pass, but it is a pass by a hair, and the logged version scored 0.5201 on the very same series.</p>
-
-<p>Then there is the part the test cannot see. The spread still climbs from 8.49 in the first five years to 11.05 in the last five, because without the log the errors keep growing with the airline. That is the second white-noise trait failing while the p-value looks acceptable.</p>
-
-<p>So the verdict is: not yet. Put the log back and both numbers improve at once.</p>
-</section>
-
-<section class="lesson-step" data-step="21" data-step-type="concept">
+<section class="lesson-step" data-step="12" data-step-type="concept">
 <h2>References</h2>
 
 <ul>
 
-<li><a href="https://doi.org/10.1093/biomet/65.2.297">On a measure of lack of fit in time series models</a> - Ljung and Box (1978), Biometrika 65(2), 297-303. The paper the test and the Q* statistic come from.</li>
+<li><a href="https://otexts.com/fpp3/diagnostics.html">Forecasting: Principles and Practice, 3rd edition, section 5.4 Residual diagnostics</a> - Hyndman and Athanasopoulos. The white-noise standard for residuals, and the portmanteau test that checks it.</li>
 
-<li><a href="https://doi.org/10.1080/01621459.1970.10481180">Distribution of residual autocorrelations in autoregressive-integrated moving average time series models</a> - Box and Pierce (1970), Journal of the American Statistical Association 65(332), 1509-1526. Where the degrees-of-freedom subtraction for estimated terms is derived.</li>
+<li><a href="https://doi.org/10.1093/biomet/65.2.297">On a measure of lack of fit in time series models</a> - Ljung and Box (1978), Biometrika 65(2), 297-303. The original statistic and its distribution.</li>
 
-<li><a href="https://otexts.com/fpp3/diagnostics.html">Forecasting: Principles and Practice, section 5.4, Residual diagnostics</a> - Hyndman and Athanasopoulos, 3rd edition. The workflow followed here.</li>
+<li><a href="https://doi.org/10.1080/01621459.1970.10481180">Distribution of residual autocorrelations in autoregressive-integrated moving average time series models</a> - Box and Pierce (1970), Journal of the American Statistical Association 65(332), 1509-1526. Where the degrees-of-freedom correction comes from.</li>
 
-<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/box.test.html">Box-Pierce and Ljung-Box Tests</a> - R Core Team, the documentation for <code>Box.test()</code>, including the <code>fitdf</code> argument.</li>
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/box.test.html">Box-Pierce and Ljung-Box tests</a> - R Core Team. The reference for the <code>lag</code>, <code>type</code> and <code>fitdf</code> arguments.</li>
 
-<li><a href="https://pkg.robjhyndman.com/forecast/reference/checkresiduals.html">checkresiduals</a> - Hyndman and colleagues, the forecast package reference for the one-line check.</li>
+<li><a href="https://doi.org/10.18637/jss.v027.i03">Automatic time series forecasting: the forecast package for R</a> - Hyndman and Khandakar (2008), Journal of Statistical Software 27(3). The package behind <code>Arima()</code> and <code>checkresiduals()</code>.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="22" data-step-type="complete">
+<section class="lesson-step" data-step="13" data-step-type="complete">
 <h2>Quick recap</h2>
 
-<p>You took a model that looked completely healthy, found what it had missed, repaired it, and then measured what the repair was worth against a year the model had never seen. Two checks did all of that.</p>
+<p>You fitted one ARIMA model to the airline series, found it could not be trusted, repaired it, and checked it again. The two checks, in the order you run them:</p>
 
 <ul>
 
-<li><strong>Take the residuals.</strong> Each one is the actual month minus what the model predicted for that same month, one step ahead. There were 132 of them.</li>
+<li><strong>The residual plot and the ACF.</strong> Residuals are one-step-ahead forecast errors. Plot them for shape, then read their autocorrelations against the band at 1.96 over the square root of n. On 144 residuals that band is 0.163, and the first model broke it six times, with 0.780 at lag 12.</li>
 
-<li><strong>Look at them.</strong> The time plot showed a hump repeating every twelve months and swings that widened as the airline grew. The ACF put a number on the hump: 0.781 at lag 12, against a noise band of 0.171.</li>
-
-<li><strong>Test them.</strong> Ljung-Box pooled all twenty-four autocorrelations into a single statistic, Q* of 200.44, with a p-value under 2.2e-16. Small is the bad news here, because the null it rejects is the good outcome.</li>
-
-<li><strong>Repair, then check again.</strong> A seasonal term for the yearly hump and a log for the widening swings brought lag 12 to -0.042 and the p-value to 0.5201. The average miss across 1960 fell from 65.2 thousand passengers to 13.3.</li>
-
-<li><strong>Know what a pass does not buy.</strong> The test looks for correlation and nothing else, so a series whose spread climbed from 4 to 20 passed it at p = 0.42.</li>
+<li><strong>The Ljung-Box test.</strong> One p-value covering 24 lags at once. A large p-value is the pass and a small one the failure, the opposite direction to most tests. The first model returned a p-value below 2.2e-16, and with seasonal terms and a log transform it returned 0.233.</li>
 
 </ul>
 
-<p>So when someone asks whether a model is good enough to forecast with, the answer is not the AIC. It is this: there is nothing left in the residuals, and here are the plot and the p-value that say so.</p>
+<p>Two details worth carrying with you:</p>
 
-<p>It costs a minute, and it catches the models that look fine. Nice work getting through it.</p>
+<ul>
+
+<li><code>fitdf</code> counts the estimated AR and MA terms, seasonal ones included, and never the differencing. Forget it and the test comes out more lenient than it should be.</li>
+
+<li>A model can have strong coefficients, a respectable AIC and autocorrelated residuals all at the same time. The fit statistics will sit there looking fine while the prediction intervals miss.</li>
+
+</ul>
+
+<p>So diagnose first and forecast second. The ACF tells you what the model missed, and the test tells you whether it is still missing after you have made the change.</p>
 </section>
 
 {% endraw %}
