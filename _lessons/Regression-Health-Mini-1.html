@@ -1,7 +1,7 @@
 ---
 title: "Multicollinearity: why your coefficients look wrong, and the fix"
-description: "Two predictors that move together can flip a coefficient and hide a real effect. Measure the overlap with a VIF, then fix it without dropping a variable."
-keywords: "multicollinearity, VIF in R, variance inflation factor, car vif, correlated predictors, collinearity, ridge regression, regression coefficients"
+description: "Correlated predictors can flip the sign of a regression coefficient. Compute the VIF yourself, see what collinearity does and does not ruin, then fix it."
+keywords: "multicollinearity, VIF in R, variance inflation factor, car vif, correlated predictors, collinearity in regression, ridge regression in R, auxiliary regression"
 mathjax: true
 webr: true
 curriculum_id: "0.0.11"
@@ -14,67 +14,55 @@ course_landing: "/dashboard.html"
 course_next: ""
 course_prev: ""
 lesson_access: "windowed"
-catalog_blurb: "Why correlated predictors flip a coefficient, and how to fix it."
+catalog_blurb: "Why correlated predictors make a coefficient look wrong, and what to do."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
 
 <section class="lesson-step" data-step="1" data-step-type="cover">
-<div class="lesson-step-eyebrow">Regression Health Check</div>
 <h2>Multicollinearity: why your coefficients look wrong, and the fix</h2>
 
-<p>Today, we have a small horror story from regression.</p>
+<p>Today let's work out what happens to a regression when two of its predictors carry the same information, and what to do about it.</p>
 
-<p>You are predicting house prices from the floor area in square feet and the number of rooms. Both obviously matter, and you would happily bet money on both. So you fit the model, print the summary, and the coefficient next to rooms comes back negative. It says a house loses about 6,340 dollars for every extra room it has.</p>
+<p>Here is the setting. We have 60 houses. For each one we know the floor area in square feet, the number of rooms, and how old the building is in years. The question is what each of those three is worth in the sale price.</p>
 
-<p>The p-value beside it is 0.46. Read literally, the model is telling you that the number of rooms has nothing to do with what a house sells for.</p>
+<p>Those three are not separate facts about a house though. A house with more space has more rooms inside it, so two of the columns are close to being one measurement written down twice.</p>
 
-<p>Nothing errored. No warning was printed. The R-squared is perfectly respectable.</p>
+<p>Here is the correlation between every pair of columns.</p>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["price","sqft","rooms","age"],"matrix":[[1,0.964,0.921,-0.294],[0.964,1,0.971,-0.116],[0.921,0.971,1,-0.042],[-0.294,-0.116,-0.042,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Find the <code>sqft</code> row and read across to the <code>rooms</code> column: 0.97. Almost all of the variation in one of them is variation in the other. Age is nearly unrelated to both, at -0.12 against floor area and -0.04 against room count.</p>
 
-<p>What actually happened is that big houses have many rooms, so the two predictors move together, and the model cannot tell which one deserves the credit. That is multicollinearity. It catches people out because it never announces itself. It just hands you a number you would be embarrassed to put in a report.</p>
-
-<p>The good news is that it takes one line to measure, and the repairs do not ask you to throw away a variable you know matters. To get there, we will do three things.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Watch the coefficient break","sub":"one model, three predictors, a room worth minus 6,340 dollars"},{"title":"Measure the overlap","sub":"build the VIF by hand, then read it off in one line"},{"title":"Repair it","sub":"four fixes, and what each one costs you"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Everything after this is just doing it, on ninety houses whose true price rule we already know.</p>
+<p>When two predictors carry nearly the same information, the data holds almost nothing that tells their two effects apart. The fit still returns a coefficient for each of them, but either one can land a long way from the truth, including on the wrong side of zero, while nothing else in the output looks unusual. That is multicollinearity, and in this data it comes from the pair sitting at 0.97.</p>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<h2>The ninety houses, and the price rule we already know</h2>
+<h2>The house data, and a negative coefficient for rooms</h2>
 
-<p>Before we can accuse a model of getting something wrong, we need to know what right looks like. Real sales data will never tell us that, because nobody knows what a room is really worth. So we are going to build ninety houses ourselves and set the rule by hand.</p>
+<p>We will build the 60 houses ourselves instead of loading them, because then we know the true answer and can check the estimates against it.</p>
 
-<p>The rule is simple. Every square foot adds 110 dollars, every room adds 8,000 dollars, and every year of age takes 600 dollars off. Then we add a little noise on top, because no two houses with the same specification ever sell for exactly the same price.</p>
-
-<p>One note on units before you run it. Price is measured in thousands of dollars, so 8,000 dollars a room appears in the code as 8, and 110 dollars a square foot appears as 0.110. The number of rooms is tied to the floor area, one room for roughly every 250 square feet, and that is the part that causes all the trouble.</p>
-
-<p>Press Run.</p>
+<p>Prices here are in dollars. Each house gets a floor area drawn around 1,800 square feet, a room count of roughly one room per 350 square feet, and an age somewhere between 0 and 60 years. The price is then 118 per square foot, plus 8,000 per room, minus 900 per year of age, plus normal noise with a standard deviation of 15,000.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Build 90 houses from a price rule we choose ourselves
-set.seed(46)
-sqft  &lt;- round(rnorm(90, 2000, 350))            # floor area, square feet
-rooms &lt;- round(sqft / 250 + rnorm(90, 0, 0.2))  # roughly one room per 250 sq ft
-age   &lt;- round(runif(90, 2, 60))                # years since it was built
+    <div class="webr-editor" data-language="r"># Build 60 houses from price drivers we choose ourselves, then measure the sqft to rooms correlation
+set.seed(62)
+n &lt;- 60
+sqft  &lt;- round(rnorm(n, mean = 1800, sd = 500))
+rooms &lt;- round(sqft / 350 + rnorm(n, mean = 0, sd = 0.15))
+age   &lt;- round(runif(n, min = 0, max = 60))
+price &lt;- 90000 + 118 * sqft + 8000 * rooms - 900 * age + rnorm(n, sd = 15000)
+houses &lt;- data.frame(sqft, rooms, age, price)
 
-# price in thousands: 0.110 a square foot, 8 a room, 0.6 off per year of age
-price &lt;- round(55 + 0.110 * sqft + 8 * rooms - 0.6 * age + rnorm(90, 0, 26), 1)
+head(houses, 4)
+#&gt;   sqft rooms age    price
+#&gt; 1 2201     6  28 407640.2
+#&gt; 2 1942     5   9 352917.6
+#&gt; 3 1044     3  59 184289.6
+#&gt; 4 1837     6  33 327345.7
 
-homes &lt;- data.frame(sqft, rooms, age, price)
-head(homes)
-#&gt;   sqft rooms age price
-#&gt; 1 1685     6  38 283.6
-#&gt; 2 2074     8  36 363.8
-#&gt; 3 1745     7   8 324.0
-#&gt; 4 2432    10   4 348.5
-#&gt; 5 2409    10   4 411.7
-#&gt; 6 1782     7  30 291.7
-
-rbind(lowest = sapply(homes, min), highest = sapply(homes, max))
-#&gt;         sqft rooms age price
-#&gt; lowest  1119     5   2 197.6
-#&gt; highest 2794    12  60 463.1</div>
+round(cor(houses$sqft, houses$rooms), 3)
+#&gt; [1] 0.971</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -84,31 +72,83 @@ rbind(lowest = sapply(homes, min), highest = sapply(homes, max))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>So the smallest house on the street is 1,119 square feet with five rooms, the largest is 2,794 square feet with twelve, and the prices run from 197.6 to 463.1 thousand dollars. That looks like an ordinary dataset, and it is the one we work with the rest of the way.</p>
+<p>Floor area and room count correlate at 0.971, and the <code>rooms</code> line is where that comes from. Room count is built out of floor area, one room for every 350 feet, with a small random amount added on top. That is not a trick to make the problem appear, it is how houses are.</p>
 
-<p>Hold on to three numbers: 0.110, 8 and 0.6. Every coefficient we look at from here has a correct answer sitting behind it. You never get that with real data, and it is exactly what we need to catch a model in the act.</p>
+<p>Now fit the model and read what it reports for each predictor.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit price on all three predictors and read the coefficient table
+fit &lt;- lm(price ~ sqft + rooms + age, data = houses)
+
+coefs &lt;- summary(fit)$coefficients
+data.frame(estimate  = round(coefs[, &quot;Estimate&quot;], 1),
+           std_error = round(coefs[, &quot;Std. Error&quot;], 1),
+           p_value   = round(coefs[, &quot;Pr(&gt;|t|)&quot;], 3))
+#&gt;             estimate std_error p_value
+#&gt; (Intercept)  81500.2    8492.3   0.000
+#&gt; sqft           146.8      17.2   0.000
+#&gt; rooms        -1249.6    5873.3   0.832
+#&gt; age           -782.1     116.5   0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two of the three are fine. <code>age</code> comes in at -782.1 against the -900 we built in, and <code>sqft</code> at 146.8 against 118, both in the right direction with small standard errors beside them.</p>
+
+<p>Then there is <code>rooms</code>. We built the price with 8,000 per room and the fit reports -1249.6. It is not just too small, it has the wrong sign. Its standard error is 5,873.3, more than four times the size of the estimate itself, so the p-value comes out at 0.832. Read that row on its own and you would say room count has nothing to do with price.</p>
+
+<p>And here is what makes this hard to catch.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># How much of the variation in price the model explains
+round(summary(fit)$r.squared, 4)
+#&gt; [1] 0.9626</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R-squared is 0.9626. There is no warning, no error, nothing in the output that looks broken. A model that explains 96% of the variation in price still reports that an extra room is worth minus 1,250.</p>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<h2>The coefficient that comes back negative</h2>
+<h2>Why the fit cannot tell sqft and rooms apart</h2>
 
-<p>Let's start where a real analysis would start, with each predictor on its own.</p>
+<p>We can check whether -1,249.6 really fits the data any better than 8,000 does. Force the rooms coefficient to a value we pick, let least squares choose the other two around it, and see what that costs.</p>
+
+<p><code>offset()</code> inside a formula does exactly that. A term wrapped in <code>offset()</code> is held fixed at the value you supply instead of being estimated.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Price the houses on rooms alone, then on floor area alone
-model_rooms &lt;- lm(price ~ rooms, data = homes)
-round(summary(model_rooms)$coefficients, 4)
-#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept)  56.6305    20.9807  2.6992   0.0083
-#&gt; rooms        33.1307     2.5683 12.8998   0.0000
+    <div class="webr-editor" data-language="r"># Force the rooms coefficient to five values and refit the rest each time
+forced &lt;- c(-1250, 0, 4000, 8000, 12000)
+fit_forced &lt;- function(b) lm(price ~ sqft + age + offset(b * rooms), data = houses)
 
-model_sqft &lt;- lm(price ~ sqft, data = homes)
-round(summary(model_sqft)$coefficients, 4)
-#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept)  37.2259    19.8922  1.8714   0.0646
-#&gt; sqft          0.1428     0.0098 14.5829   0.0000</div>
+data.frame(
+  rooms_effect = forced,
+  sqft_effect  = round(sapply(forced, function(b) coef(fit_forced(b))[[&quot;sqft&quot;]]), 1),
+  resid_se     = round(sapply(forced, function(b) summary(fit_forced(b))$sigma))
+)
+#&gt;   rooms_effect sqft_effect resid_se
+#&gt; 1        -1250       146.8    14835
+#&gt; 2            0       143.3    14841
+#&gt; 3         4000       131.9    14940
+#&gt; 4         8000       120.5    15160
+#&gt; 5        12000       109.1    15494</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -118,161 +158,104 @@ round(summary(model_sqft)$coefficients, 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Both predictors look excellent. A room is worth 33.13 thousand dollars with a t of 12.9, and a square foot is worth 143 dollars with a t of 14.6. Neither p-value is anywhere near 0.05, and if you had to defend either variable in a meeting you would have no trouble at all.</p>
+<p><code>resid_se</code> is the residual standard error, the typical gap between a house's real price and the model's prediction for it. Smaller means the model matches the 60 houses better.</p>
 
-<p>Now put them in the same model, along with the age of the house.</p>
+<p>Now read that last column downwards. The value least squares chose, -1,250, gives 14,835. The true value, 8,000, gives 15,160. Moving the rooms coefficient by 9,250 dollars costs 325 dollars of typical error, on prices that average 323,854.</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Price the houses on all three predictors at once
-model_both &lt;- lm(price ~ sqft + rooms + age, data = homes)
-round(summary(model_both)$coefficients, 4)
-#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept)  67.3545    19.1602  3.5153   0.0007
-#&gt; sqft          0.1648     0.0354  4.6547   0.0000
-#&gt; rooms        -6.3390     8.5540 -0.7411   0.4607
-#&gt; age          -0.8192     0.1780 -4.6026   0.0000</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<p>So the fit did not land on -1,249.6 because that answer is much better. It landed there because a whole range of answers are almost equally good, and it has to return one of them.</p>
 
-<p>There it is. Three things happened at once, and each one is worth naming.</p>
+<p>The middle column shows what the fit does in return. For every 1,000 dollars added to the rooms coefficient, <code>sqft</code> gives up about 2.85 dollars per square foot. That is the ratio we built into the data: an extra room arrives with about 350 extra square feet, so 1,000 spread over 350 feet is 2.86 a foot. The two columns can pass the same effect back and forth almost for free.</p>
 
-<ol>
-
-<li>The rooms coefficient went from plus 33.13 to minus 6.34. It changed sign, and now says a house loses about 6,340 dollars for every extra room.</li>
-
-<li>Its standard error went from 2.57 to 8.55, more than three times wider. That is why the p-value is 0.4607, and why a reader would strike rooms out of the model.</li>
-
-<li>The floor area coefficient moved too. We built these houses at 0.110 a square foot, and the model now charges 0.1648, which is 165 dollars a square foot for houses we priced at 110.</li>
-
-</ol>
-
-<p>Read that last one again, because it is the part people miss. The predictor that survived did not survive intact. It is absorbing the credit that rooms lost, and it now overstates the price of floor area by half.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Nothing in this output is broken in a way R can detect. There is no warning, no NA, no rank deficiency. The model fitted cleanly and returned a sentence about houses that is simply false.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Many different pairs of coefficients fit this data about equally well. Least squares still has to return exactly one pair, and which pair it returns is settled by small amounts of noise. That is what "the data cannot separate two predictors" means in practice.</div></div>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="concept">
-<h2>Why the model cannot tell the two predictors apart</h2>
+<h2>VIF: what it computes, and how to read it</h2>
 
-<p>To see why, it helps to say out loud what a regression coefficient actually claims. The number next to rooms is not "what rooms are worth". It is what one more room is worth <strong>among houses of the same floor area and the same age</strong>. Everything else is held still, and one room is added.</p>
+<p>What we need now is a number for how much of one predictor is already carried by the others. That number is the variance inflation factor, or VIF.</p>
 
-<p>So the model needs houses that differ in their number of rooms while their floor area stays put. Let's see how many of those we gave it.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># How tightly do rooms and floor area move together
-round(cor(homes$sqft, homes$rooms), 3)
-#&gt; [1] 0.968
-
-plot(homes$sqft, homes$rooms, pch = 19, col = &quot;grey35&quot;,
-     xlab = &quot;Floor area in square feet&quot;, ylab = &quot;Number of rooms&quot;,
-     main = &quot;Rooms against floor area, 90 houses&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The correlation is 0.968, and the plot says the same thing more bluntly. The points sit along a line. Take any vertical slice of that plot, say the houses near 2,000 square feet, and the room counts inside that slice barely vary.</p>
-
-<p>We can put a number on how little they vary. Take the part of the rooms column that floor area cannot predict, and measure its spread.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># How much room-to-room variation is left once floor area is known
-round(sd(residuals(lm(rooms ~ sqft, data = homes))), 2)
-#&gt; [1] 0.36</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>About a third of a room. That is the entire supply of "same size, different number of rooms" in the dataset, and it is what the model has to price a room from. Ninety houses went in, and the question the coefficient answers is being settled by a third of a room of variation.</p>
-
-<p>That is the whole mechanism. The coefficient is not unreliable because the data is dirty or because the sample is small. It is unreliable because the comparison it stands for is one this data can barely see.</p>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what is the regression actually short of?</h2>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step5" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It is short of rows. Ninety houses is too small a sample to support three predictors.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is short of houses that differ in rooms without also differing in floor area, so there is almost nothing left to price a room from.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is short of signal. The number of rooms turns out not to affect the price after all.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It is short of a link between rooms and price, because the two are too weakly correlated to measure.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The rows are there and the signal is there. What is missing is the one comparison the coefficient is defined as, and no amount of staring at the summary will produce it.</div><div class="lesson-qfb lesson-qfb-no">The data has plenty of rows and plenty of signal: rooms on its own priced a house at 33.13 thousand a room with a t of 12.9. What it does not have is houses that differ in rooms while floor area holds still. At a fixed floor area the room count moves by about a third of a room, and that sliver is all the model gets.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<h2>How much of rooms the other predictors already explain</h2>
-
-<p>The shortage has a name, and more usefully it has a size. Measuring it is just another regression, one you already know how to run.</p>
-
-<p>Ask this about the rooms column: how much of it can the other predictors reproduce on their own? Put rooms on the left of the formula and everything else on the right. Nothing about price is involved, because the overlap is a fact about the predictors and has nothing to do with the outcome.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Ask how much of the rooms column the other predictors already explain
-aux_rooms &lt;- lm(rooms ~ sqft + age, data = homes)
-r2_rooms  &lt;- summary(aux_rooms)$r.squared
-round(r2_rooms, 4)
-#&gt; [1] 0.9375
-
-round(1 / (1 - r2_rooms), 2)
-#&gt; [1] 15.99</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>93.75 percent of the variation in the number of rooms is already accounted for by floor area and age. Only 6.25 percent of the column is the room count on its own, and that 6.25 percent is the whole budget the regression has for working out what a room is worth.</p>
-
-<p>Flip that leftover fraction upside down and you get the standard measure:</p>
+<p>The calculation is short. Take one predictor, and regress it on all the other predictors, leaving the outcome out of it completely. That is called the auxiliary regression, and its R-squared is the share of the predictor that the rest of the model already explains. The VIF is</p>
 
 <p>\[ \text{VIF}_j = \frac{1}{1 - R_j^2} \]</p>
 
-<p>where \(R_j^2\) is the R-squared from regressing predictor \(j\) on all the other predictors. Here 1 divided by 0.0625 gives 15.99.</p>
+<p>where \(R_j^2\) is the auxiliary R-squared for predictor j. Let's compute it by hand for rooms.</p>
 
-<p>That number is the variance inflation factor, VIF for short, and the name means what it says. The variance of the rooms coefficient is 15.99 times what it would have been if rooms had shared nothing with the rest of the model. A VIF is not a mysterious diagnostic. It is one auxiliary regression, turned upside down.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Regress rooms on the other two predictors and turn that R-squared into a VIF
+aux &lt;- lm(rooms ~ sqft + age, data = houses)
+r2_aux &lt;- summary(aux)$r.squared
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A VIF answers a question about your predictors alone: how much of this column do the others already know? The price of a house never enters the calculation. That is why a VIF can be high in a model that fits beautifully, and why it says nothing at all about whether the predictor belongs in your model on subject-matter grounds.</div></div>
+round(c(r_squared = r2_aux, vif = 1 / (1 - r2_aux), se_factor = sqrt(1 / (1 - r2_aux))), 4)
+#&gt; r_squared       vif se_factor
+#&gt;    0.9471   18.9003    4.3474</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>94.71% of the variation in room count is already accounted for by floor area and age together. Only 5.29% of it is information the other columns do not have, and 1 divided by 0.0529 is 18.90.</p>
+
+<p>The interpretation is the part people most often get wrong. A VIF multiplies the variance of the coefficient, not the coefficient. A standard error is the square root of a variance, so what happens to the standard error is the square root of the VIF: sqrt(18.90) = 4.35. If the rooms column had exactly the same spread but no relationship to floor area, its standard error would be about 4.35 times smaller than the 5,873.3 we got.</p>
+
+<p>The <code>car</code> package gives all three predictors in one line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The same calculation for every predictor, in one line
+suppressMessages(library(car))
+round(vif(fit), 2)
+#&gt;  sqft rooms   age
+#&gt; 19.13 18.90  1.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rooms comes in at 18.90, exactly what we worked out by hand. <code>sqft</code> is 19.13, the same redundancy read from the other side of the pair. <code>age</code> is 1.11, which is roughly what you get when a predictor is unrelated to the rest: a VIF of 1 means no inflation at all.</p>
+
+<p>You will see 5 and 10 quoted as thresholds. Those are conventions, not results, and nothing changes at 4.9 or at 5.1. The useful interpretation is always the same one: take the square root, and you have the factor your standard error was multiplied by.</p>
 </section>
 
-<section class="lesson-step" data-step="7" data-step-type="concept">
-<h2>The one line that measures the overlap: vif() from the car package</h2>
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Is the rooms coefficient biased, or just imprecise?</h2>
 
-<p>You will not run an auxiliary regression by hand in real work. The <code>car</code> package does all of them at once, and its output is the number people quote.</p>
+<p>So we have one fit and one coefficient with the wrong sign. There are two very different explanations for that, and it matters a great deal which one is true. Either collinearity systematically pulls the estimate away from 8,000, or the estimate is centred in the right place and simply very noisy.</p>
+
+<p>The way to tell them apart is to run the study more than once. We built this data, so we can build it a thousand times.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Get the variance inflation factor for every predictor at once
-suppressMessages(library(car))
-round(vif(model_both), 2)
-#&gt;  sqft rooms   age 
-#&gt; 15.95 15.99  1.01 </div>
+    <div class="webr-editor" data-language="r"># Rebuild the whole study 1,000 times and keep the rooms coefficient from each
+one_study &lt;- function(correlated) {
+  sqft  &lt;- round(rnorm(60, mean = 1800, sd = 500))
+  rooms &lt;- if (correlated) round(sqft / 350 + rnorm(60, mean = 0, sd = 0.15))
+           else round(rnorm(60, mean = 5.23, sd = 1.44))
+  age   &lt;- round(runif(60, min = 0, max = 60))
+  price &lt;- 90000 + 118 * sqft + 8000 * rooms - 900 * age + rnorm(60, sd = 15000)
+  coef(lm(price ~ sqft + rooms + age))[[&quot;rooms&quot;]]
+}
+
+set.seed(7)
+b_corr &lt;- replicate(1000, one_study(TRUE))
+set.seed(7)
+b_ind  &lt;- replicate(1000, one_study(FALSE))
+
+round(c(mean_corr = mean(b_corr), sd_corr = sd(b_corr),
+        mean_ind  = mean(b_ind),  sd_ind  = sd(b_ind)))
+#&gt; mean_corr   sd_corr  mean_ind    sd_ind
+#&gt;      7982      6002      7971      1361</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -282,19 +265,19 @@ round(vif(model_both), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>There is 15.99 for rooms, the same value we built by hand a moment ago. The <code>suppressMessages()</code> wrapper is only there to keep the console tidy, since attaching <code>car</code> prints a line about loading its data package.</p>
+<p><code>correlated = TRUE</code> rebuilds the houses exactly as before. <code>correlated = FALSE</code> changes one line only: room count is drawn from a normal distribution with the same mean, 5.23, and the same standard deviation, 1.44, that the correlated version has, but with no link to floor area at all. The true 8,000, the noise, the 60 rows, all stay as they were.</p>
 
-<p>Look at the other two while they are on screen. Floor area sits at 15.95, almost the same number, which makes sense because the overlap is between that pair, so each one carries the other's weight. Age sits at 1.01, and a VIF of 1 means a predictor standing entirely on its own.</p>
+<p>Both means land on 8,000. That is 7,982 in the correlated design against 7,971 in the independent one. So the estimator is unbiased either way. Repeat a collinear study often enough and the average estimate is the true value.</p>
 
-<p>There is a third route to the same three numbers, worth seeing once because it shows there is no magic inside the function.</p>
+<p>What differs is the spread: 6,002 against 1,361.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The same three numbers from the predictor correlation matrix alone
-round(diag(solve(cor(homes[, c(&quot;sqft&quot;, &quot;rooms&quot;, &quot;age&quot;)]))), 2)
-#&gt;  sqft rooms   age 
-#&gt; 15.95 15.99  1.01 </div>
+    <div class="webr-editor" data-language="r"># Count the negative estimates, then compare the two spreads
+round(c(share_negative = mean(b_corr &lt; 0), sd_ratio = sd(b_corr) / sd(b_ind)), 3)
+#&gt; share_negative       sd_ratio
+#&gt;          0.099          4.409</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -304,23 +287,85 @@ round(diag(solve(cor(homes[, c(&quot;sqft&quot;, &quot;rooms&quot;, &quot;age&qu
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Invert the correlation matrix of the predictors, read the diagonal, and there they are. Three routes, one answer, and not one of them ever looked at price.</p>
+<p>9.9% of the correlated studies returned a negative coefficient for room count, in a world where the true value was +8,000 in every one of them. Our -1,249.6 is one of those, and there was nothing unusual about the sample that produced it.</p>
+
+<p>The ratio of the two spreads is 4.41, which is what the VIF said it would be: sqrt(18.90) = 4.35, to within simulation error.</p>
+
+<p>Here are both sets of 1,000 estimates drawn on one axis.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw both sets of 1,000 estimates on one scale, with the true 8,000 marked
+edges &lt;- seq(-16000, 34000, by = 1250)
+par(mfrow = c(2, 1), mar = c(4, 4, 3, 1))
+
+hist(b_corr, breaks = edges, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;rooms correlated with floor area at 0.971&quot;,
+     xlab = &quot;estimated price of one extra room&quot;)
+abline(v = 8000, col = &quot;red&quot;, lwd = 3)
+
+hist(b_ind, breaks = edges, col = &quot;grey85&quot;, border = &quot;white&quot;,
+     main = &quot;rooms drawn independently of floor area&quot;,
+     xlab = &quot;estimated price of one extra room&quot;)
+abline(v = 8000, col = &quot;red&quot;, lwd = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both piles sit over the red line at 8,000. The top one is wide enough to spill past zero on the left, which is where our sign flip came from. The bottom one is the same estimator on the same true value, with the redundancy taken out.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Collinearity does not bias a coefficient, it widens it. One coefficient from one collinear fit is a single draw from a wide distribution, and when that distribution is wide enough to cross zero, a draw with the wrong sign is an ordinary event rather than a sign that something broke.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<h2>What a rising correlation does to the confidence interval</h2>
+
+<p>A 95% confidence interval can be checked by simulation. Build the interval in many repeated studies and about 95 in every 100 should contain the true value. That share is called coverage, and it is the thing to watch when you want to know whether a wide interval is still valid.</p>
+
+<p>The dial below runs 2,000 complete studies at every setting of the correlation between two predictors, and reports two numbers: the coverage of the 95% interval for the first coefficient, and R-squared. It carries its own two-predictor data rather than the houses, so read its <code>x1</code> as floor area and its <code>x2</code> as room count.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"multicollinearity","levels":41,"start":0}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Start on the left, where the two predictors are uncorrelated. Coverage sits at about 95% and R-squared at about 0.68. That is the baseline.</p>
+
+<p>Now drag the dial to the right. At r = 0.970 the label reads VIF 17.0, and coverage is still about 95%. R-squared has not moved either. The one number that changed is the width of the interval, now about 5.8 times what it was on the left.</p>
+
+<p>That 5.8 has two parts to it. The collinearity accounts for sqrt(17.0) = 4.12 of it. The rest comes from the widget holding R-squared fixed as the correlation climbs, which it does by raising the error standard deviation by a factor of 1.40, and 4.12 times 1.40 is 5.8.</p>
+
+<p>So a collinear interval is not a broken interval. It contains the true value as often as a 95% interval should. It is simply reporting, correctly, that this data cannot pin the coefficient down.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does a VIF of 18.90 mean?</h2>
+
+<p>The rooms column came back with a VIF of 18.90. Which sentence reads that number correctly?</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">18.9% of the variation in room count is explained by the other predictors.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The variance of the rooms coefficient is 18.9 times what it would be if room count had the same spread but no relationship to the other predictors, so its standard error is about 4.35 times wider.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The rooms coefficient is about 18.9 times too large, so dividing it by 18.9 corrects it.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 95% interval for rooms now misses the true value far more often than 5 times in 100.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A VIF multiplies the variance, and a standard error is the square root of a variance, so the widening factor is sqrt(18.90) = 4.35.</div><div class="lesson-qfb lesson-qfb-no">A VIF is a variance multiplier and nothing else. It comes from regressing room count on the other predictors, where the R-squared is 0.9471, not 0.189. It does not scale the estimate up or down, and it does not break the interval: coverage stays at about 95% however high the correlation climbs. What it changes is the width, by a factor of sqrt(18.90) = 4.35.</div></div>
+</section>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="concept">
-<h2>How to read a VIF number</h2>
+<h2>What multicollinearity does not ruin</h2>
 
-<p>A VIF of 15.99 sounds alarming, but alarming by how much? The number lives on the variance scale, and nothing you report lives on the variance scale. Standard errors, confidence intervals and t values all sit one square root down.</p>
-
-<p>So take the square root.</p>
+<p>A VIF of 19 sounds alarming, so it is worth being precise about what it actually damages. Start with the fit.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Turn each VIF into how many times wider that standard error got
-round(sqrt(vif(model_both)), 2)
-#&gt;  sqft rooms   age 
-#&gt;  3.99  4.00  1.01 </div>
+    <div class="webr-editor" data-language="r"># Compare the fit with and without the redundant predictor
+fit_drop &lt;- lm(price ~ sqft + age, data = houses)
+
+round(c(with_rooms = summary(fit)$r.squared, without_rooms = summary(fit_drop)$r.squared), 4)
+#&gt;    with_rooms without_rooms
+#&gt;        0.9626        0.9625</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -330,20 +375,30 @@ round(sqrt(vif(model_both)), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Four. The standard error on rooms is four times what it would have been if rooms had carried no overlap at all, and the confidence interval around it is four times wider for the same reason.</p>
+<p>R-squared is 0.9626 with room count in the model and 0.9625 without it. The two differ in the fourth decimal place.</p>
 
-<p>We can check that claim directly against the summary we already printed.</p>
+<p>R-squared on the data you fitted is a soft test, though. The harder one is prediction on houses the model has never seen, so let's build 40 more from the same process and score both models on them.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Undo the inflation on the room standard error and see what is underneath
-se_rooms &lt;- summary(model_both)$coefficients[&quot;rooms&quot;, &quot;Std. Error&quot;]
-round(se_rooms, 3)
-#&gt; [1] 8.554
+    <div class="webr-editor" data-language="r"># Score both models on 40 houses neither of them was fitted on
+set.seed(500)
+new_sqft  &lt;- round(rnorm(40, mean = 1800, sd = 500))
+new_rooms &lt;- round(new_sqft / 350 + rnorm(40, mean = 0, sd = 0.15))
+new_age   &lt;- round(runif(40, min = 0, max = 60))
+new_price &lt;- 90000 + 118 * new_sqft + 8000 * new_rooms - 900 * new_age + rnorm(40, sd = 15000)
+new_houses &lt;- data.frame(sqft = new_sqft, rooms = new_rooms, age = new_age, price = new_price)
 
-round(se_rooms / sqrt(15.99), 2)
-#&gt; [1] 2.14</div>
+rmse &lt;- function(pred, actual) sqrt(mean((pred - actual)^2))
+pred_full &lt;- predict(fit, new_houses)
+pred_drop &lt;- predict(fit_drop, new_houses)
+
+round(c(rmse_with_rooms    = rmse(pred_full, new_houses$price),
+        rmse_without_rooms = rmse(pred_drop, new_houses$price),
+        largest_gap        = max(abs(pred_full - pred_drop))))
+#&gt;    rmse_with_rooms rmse_without_rooms        largest_gap
+#&gt;              14289              14107               1031</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -353,16 +408,35 @@ round(se_rooms / sqrt(15.99), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Without the overlap the standard error on rooms would have been about 2.14 rather than 8.55, and that difference is the whole story of this fit. The truth is 8. With a standard error of 2.14, an estimate of minus 6.34 would sit about seven standard errors below the truth, which effectively never happens. With 8.55 it sits less than two below, which happens all the time.</p>
+<p>RMSE is the typical size of a prediction error. That is 14,289 for the model carrying the sign-flipped rooms coefficient and 14,107 for the one without it, on houses that sell for 323,854 on average. And on no single house do the two models disagree by more than 1,031.</p>
 
-<p>That same square root is the right way to hear the rules of thumb you have seen quoted.</p>
+<p>So the damage is contained. Collinearity hurts the individual coefficient and its standard error, and leaves the fitted values, the R-squared and the predictions where they were. The reason is the trade we watched earlier: the fit can move the two coefficients against each other, and every one of those trades lands on nearly the same prediction.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Before you fix a high VIF, ask what the coefficient is for. If room count is in the model as a control that nobody will ever quote, a VIF of 19 needs no action at all. It becomes a problem the moment someone reads the number.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Fix 1: collapse the pair into one column</h2>
+
+<p>If somebody does have to read the coefficient, the most common response is to stop estimating two coefficients the data cannot separate, and estimate one instead.</p>
+
+<p>The blunt version is to drop one of the pair.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># What the usual VIF thresholds mean once you square-root them
-round(sqrt(c(5, 10)), 2)
-#&gt; [1] 2.24 3.16</div>
+    <div class="webr-editor" data-language="r"># Read the coefficients after dropping rooms, and check the VIFs
+dcoefs &lt;- summary(fit_drop)$coefficients
+data.frame(estimate  = round(dcoefs[, &quot;Estimate&quot;], 1),
+           std_error = round(dcoefs[, &quot;Std. Error&quot;], 1))
+#&gt;             estimate std_error
+#&gt; (Intercept)  81711.8    8363.0
+#&gt; sqft           143.3       3.9
+#&gt; age           -789.5     110.3
+
+round(vif(fit_drop), 2)
+#&gt; sqft  age
+#&gt; 1.01 1.01</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -372,73 +446,32 @@ round(sqrt(c(5, 10)), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>A VIF of 5 is a standard error a bit over twice as wide, and a VIF of 10 is about three times as wide. Those two thresholds get repeated as though they were laws. They are not. They are round numbers somebody picked, and whether three times wider ruins your day depends on how wide the interval was to begin with and how precise an answer you owe someone.</p>
+<p>The standard error on <code>sqft</code> falls from 17.2 to 3.9 and both VIFs drop to 1.01. That looks like a clean result, and this is exactly where it gets misread.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Read a VIF by taking its square root and saying the result out loud as a multiple: "this standard error is 4 times wider than it needed to be". That sentence tells you what to do next. The raw VIF does not.</div></div>
-</section>
+<p>143.3 is not the price of a square foot any more. With room count out of the model, the floor area coefficient carries two effects at once: its own 118 per foot, plus the 8,000 that arrives with the extra room that comes with roughly every 350 extra feet. 118 + 8000/350 is 140.9, and 143.3 is that number estimated from 60 houses.</p>
 
-<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
-<h2>Your turn: work out the VIF for the age of the house</h2>
+<p>Dropping a collinear predictor does not recover the kept column's own effect. It merges both effects into that column.</p>
 
-<p>Age came back at 1.01, the smallest number in that output. Build it yourself, so you can see what a predictor with no overlap looks like from the inside.</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step9" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="age\s*~\s*(sqft|rooms)"><textarea class="lesson-tryit-input" spellcheck="false"># homes holds sqft, rooms, age and price, and model_both is the fit on all three.
-# Do for age what we just did for rooms: regress age on the other two
-# predictors, take the R-squared, and turn it into a VIF.
-# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: an R-squared of 0.0121 and a VIF of 1.01. Floor area and rooms know almost nothing about how old a house is, so the age coefficient gets the full standard error the data can support.</span><span class="lesson-tryit-fb lesson-tryit-no">Reuse the two lines from the rooms version with age as the response. Fit lm(age ~ sqft + rooms, data = homes), pull r.squared out of its summary, then divide 1 by 1 minus that number.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># The same auxiliary regression, with age as the response
-aux_age &lt;- lm(age ~ sqft + rooms, data = homes)
-round(summary(aux_age)$r.squared, 4)
-#&gt; [1] 0.0121
-
-round(1 / (1 - summary(aux_age)$r.squared), 2)
-#&gt; [1] 1.01</code></pre></details></div>
-</section>
-<p>Just 1.2 percent of the age column is predictable from the other two, so 98.8 percent of it survives into the coefficient. That is what a healthy predictor looks like, and it is why age got a standard error of 0.178 while rooms got 8.554 out of the very same fit.</p>
-</section>
-
-<section class="lesson-step" data-step="10" data-step-type="concept">
-<h2>Why a correlation matrix is not a collinearity check</h2>
-
-<p>The habit most people fall into is to scan the correlation matrix, look for anything above 0.8, and call it done. It works for our two predictors, since 0.968 is impossible to miss. It stops working the moment three variables are involved.</p>
-
-<p>Here is the case that breaks it. Split the room count into its parts: bedrooms, bathrooms, and, in a few houses, a separate dining room. Every house also has a kitchen and a living room, which is the 2 in the arithmetic below. Nothing about the original data changes here, we are only describing the same houses in more detail.</p>
+<p>The tidier version of the same idea is to say so openly and build one column out of the two.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Describe the same houses by their individual room counts
-set.seed(92)
-counts &lt;- homes
-counts$dining    &lt;- rbinom(nrow(homes), 1, 0.08)
-counts$bathrooms &lt;- pmax(1, round(0.35 * counts$rooms + rnorm(nrow(homes), 0, 0.7)))
-counts$bedrooms  &lt;- counts$rooms - counts$bathrooms - 2 - counts$dining
+    <div class="webr-editor" data-language="r"># Average the two standardised columns into a single size score and fit on that
+houses$size &lt;- (as.numeric(scale(houses$sqft)) + as.numeric(scale(houses$rooms))) / 2
+fit_size &lt;- lm(price ~ size + age, data = houses)
 
-round(cor(counts[, c(&quot;bedrooms&quot;, &quot;bathrooms&quot;, &quot;rooms&quot;)]), 2)
-#&gt;           bedrooms bathrooms rooms
-#&gt; bedrooms      1.00     -0.04  0.69
-#&gt; bathrooms    -0.04      1.00  0.68
-#&gt; rooms         0.69      0.68  1.00</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["bedrooms","bathrooms","rooms"],"matrix":[[1,-0.04,0.69],[-0.04,1,0.68],[0.69,0.68,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Scan that grid the way you normally would. Bedrooms against bathrooms is minus 0.04, which is nothing at all. The other two pairs sit at 0.69 and 0.68, and most people would wave those through without a second thought. Not one pair reaches 0.7.</p>
+scoefs &lt;- summary(fit_size)$coefficients
+data.frame(estimate  = round(scoefs[, &quot;Estimate&quot;], 1),
+           std_error = round(scoefs[, &quot;Std. Error&quot;], 1))
+#&gt;             estimate std_error
+#&gt; (Intercept) 349504.1    4130.0
+#&gt; size         70757.4    2266.9
+#&gt; age           -940.7     127.6
 
-<p>Now put all three in a model.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Fit the three room counts together and measure the overlap
-model_counts &lt;- lm(price ~ bedrooms + bathrooms + rooms, data = counts)
-round(vif(model_counts), 2)
-#&gt;  bedrooms bathrooms     rooms 
-#&gt;     35.92     35.35     67.27 </div>
+round(vif(fit_size), 2)
+#&gt; size  age
+#&gt; 1.01 1.01</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -448,165 +481,35 @@ round(vif(model_counts), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Thirty-six, thirty-five and sixty-seven. That is far worse than the pair we started with, out of a correlation matrix that looked perfectly healthy.</p>
+<p><code>scale()</code> puts a column on a mean of 0 and a standard deviation of 1, which is what makes two columns measured in feet and in rooms averageable at all. The result, <code>size</code>, is a single measure of how big a house is. One standard deviation of it is worth 70,757 with a standard error of 2,267, and the VIF is 1.01.</p>
 
-<p>The reason is that no pair of these is redundant, but the three together are. Bedrooms plus bathrooms plus two always comes to the total number of rooms, except in the few houses that also have a dining room. That one rare extra room is the only thing standing between these three predictors and an exact dependency, which is why the VIFs are in the tens rather than infinite.</p>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Taking the first principal component of the two columns instead of averaging them gives an identical fit here, R-squared 0.9495 either way. It is the same one-dimensional summary of the pair, on a different scale.</div></div>
 
-<p>So collinearity does not have to live inside a pair. It lives in any linear combination of the predictors, and a correlation matrix can only ever show you pairs.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">This is the everyday version of that trap: putting a total and its components in the same model. Revenue with unit price and quantity, total spend with online spend and store spend, a test score with its section scores. Every pair can look harmless while the set of them is nearly a straight line.</div></div>
+<p>The cost of collapsing is the obvious one. You now have a defensible answer about house size and no answer at all about rooms holding floor area fixed. If that second question is the one you were asked, this fix does not answer it.</p>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="widget">
-<h2>What happens to the confidence interval as the overlap gets worse</h2>
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<h2>Fix 2: ridge keeps every predictor</h2>
 
-<p>So far we have watched one dataset at one level of overlap. The dial below runs the whole range. It is not a drawing: at every setting it fits a couple of thousand complete studies and measures what happened to them.</p>
+<p>Ridge regression takes a different route. Instead of removing a column it adds a penalty on the size of the coefficients to the least squares criterion, so a fit is now scored on two things: how well it matches the data, and how large its coefficients are. Under collinearity that stops the pair from moving far in opposite directions, which is where the instability was coming from.</p>
 
-<p>Drag it from left to right. On the left the two predictors are unrelated. On the right they are correlated at 0.995, which is worse than anything we have looked at so far.</p>
-<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"multicollinearity","levels":11,"start":0}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Two numbers are worth watching as you drag, and they behave very differently.</p>
+<p>The widget below shows what a rising penalty does to a set of coefficients. It carries its own six-predictor example rather than the houses.</p>
+<div class="lesson-widget" data-widget-type="coef-path" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the penalty from left to right with <strong>Ridge (L2)</strong> selected, and all six shrink toward zero smoothly, with none of them ever reaching it. Switch to <strong>Lasso (L1)</strong> and they hit exactly zero one at a time, which is variable selection. Ridge is the one that keeps a collinear pair together.</p>
 
-<p>Coverage is the share of those studies whose 95 percent interval contained the true value. It is supposed to be 95 percent, and it stays at 95 percent the whole way across. Collinearity biases nothing. The estimates stay centred on the truth, and the intervals keep the promise they make.</p>
-
-<p>Width is the number that moves, and it moves a long way. Watch the individual study intervals in the lower panel stretch out as the dial climbs.</p>
-
-<p>Put those two together and you have the summary of the whole problem. As two predictors converge, your estimate does not become wrong. It becomes vague, and the interval says so in plain sight. A wide, honest interval is a result to report, not a fault to hide.</p>
-</section>
-
-<section class="lesson-step" data-step="12" data-step-type="concept">
-<h2>The predictions and the R-squared do not move</h2>
-
-<p>Here is the part that surprises almost everyone, and it decides whether you need to do anything at all.</p>
-
-<p>We have a model with a VIF of 16 in it. Let's fit the version without the offending predictor and compare the two on the things a model is usually judged by.</p>
+<p>Now fit it on the houses. In <code>glmnet()</code>, <code>alpha = 0</code> selects ridge and <code>lambda</code> is the penalty. Here it is 7,203, the value <code>cv.glmnet()</code> picks on this data by cross-validation.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Compare the collinear fit with the one that drops the collinear predictor
-model_drop &lt;- lm(price ~ sqft + age, data = homes)
-
-round(c(collinear = summary(model_both)$r.squared,
-        dropped   = summary(model_drop)$r.squared), 4)
-#&gt; collinear   dropped 
-#&gt;    0.7655    0.7640 
-
-round(c(collinear = summary(model_both)$sigma,
-        dropped   = summary(model_drop)$sigma), 2)
-#&gt; collinear   dropped 
-#&gt;     28.84     28.77 </div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Keeping the collinear predictor buys 0.0015 of R-squared, a move from 0.7640 to 0.7655. It costs about as little on the residual standard deviation, which goes from 28.77 up to 28.84, because sigma charges you for the extra column and R-squared does not.</p>
-
-<p>Either way the verdict is the same. Removing a predictor with a VIF of 16 changed this model's ability to predict a house price by an amount nobody could notice.</p>
-
-<p>That is not a quirk of these ninety houses. It follows from what collinearity is. The two predictors carry the same information, so the model has all of that information either way. What it cannot do is decide how much of it to write next to each name.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Multicollinearity damages the individual coefficients and their standard errors. It leaves the fitted values, the R-squared, the residual spread and the overall F test alone. If you are predicting, a high VIF is not your problem. If you are quoting a coefficient, it is the whole problem.</div></div>
-</section>
-
-<section class="lesson-step" data-step="13" data-step-type="quiz" data-gate="1">
-<h2>Quick check: which part of the model does collinearity break?</h2>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step13" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The predictions and the R-squared, which is why a collinear model fits so badly.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The individual coefficients and their standard errors. The fit, the predictions and the residual spread barely move.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Everything. A model with a VIF of 16 in it should not be used for any purpose.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing at all. A high VIF is a technicality that can be ignored.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Yes. That split is the whole practical rule: a high VIF is a warning about what you can say about one variable, and about nothing else.</div><div class="lesson-qfb lesson-qfb-no">Dropping the collinear predictor moved R-squared from 0.7655 to 0.7640 and the residual spread from 28.84 to 28.77, which is nothing. What moved was the room coefficient: minus 6.34 with a standard error of 8.55, for a variable we know is worth 8 thousand a room. The damage is real, and it is confined to the split of credit between predictors.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="14" data-step-type="concept">
-<h2>The total is known precisely, only the split is not</h2>
-
-<p>If the estimates are unbiased and the intervals cover, then something in this fit is pinned down. It is worth finding out what, because it turns out to be the most useful idea here.</p>
-
-<p>An extra room in these houses does not arrive on its own. We built one room for roughly every 250 square feet, so a room turns up with about 250 square feet attached to it. Ask about that package rather than about a bare room, and the data can answer.</p>
-
-<p>The package is worth 250 times the floor area coefficient plus 1 times the rooms coefficient. Combining coefficients also combines their uncertainty, and <code>vcov()</code> holds exactly what that needs: the variances of the estimates and the covariances between them. Sandwiching that matrix between the weights on both sides adds all of those pieces up with the right weight on each, and the square root of what comes out is the standard error of the combination.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Price one extra room together with the 250 square feet it arrives with
-w   &lt;- c(0, 250, 1, 0)                                  # (Intercept), sqft, rooms, age
-est &lt;- sum(w * coef(model_both))
-se  &lt;- sqrt(drop(t(w) %*% vcov(model_both) %*% w))
-round(c(estimate = est, std_error = se), 2)
-#&gt;  estimate std_error 
-#&gt;     34.86      2.22 
-
-# What our own price rule says the same package is worth
-250 * 0.110 + 8
-#&gt; [1] 35.5</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>34.86, give or take 2.22. The truth is 35.50, so the model landed within seven hundred dollars of it, and the standard error is small enough to quote in a meeting.</p>
-
-<p>Now set that beside the two pieces on their own. Floor area came back at 0.1648 against a truth of 0.110, and rooms came back at minus 6.34 against a truth of 8. Both are badly off, and the room coefficient alone carries a standard error of 8.55, yet the combination of the two comes with a standard error of 2.22. That is not a coincidence.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># How the two estimates move relative to each other
-round(cov2cor(vcov(model_both))[&quot;sqft&quot;, &quot;rooms&quot;], 3)
-#&gt; [1] -0.968</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The two estimates are correlated at minus 0.968. Whenever this data pushes the floor area coefficient up, it pushes the room coefficient down by very nearly the offsetting amount. The pair is tied together, and that is what holds the total steady while each piece moves around.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Multicollinearity is not a defect in your data waiting to be repaired. It is a statement about what your data can answer. It cannot separate two things that always travel together, and it can price them accurately as a bundle. Ask the question the data can answer, and the imprecision disappears.</div></div>
-</section>
-
-<section class="lesson-step" data-step="15" data-step-type="concept">
-<h2>Ridge regression: keep both predictors and shrink them</h2>
-
-<p>That was the first repair, and the cheapest one: leave the model exactly as it is and ask it the question it can answer. The next repair changes the model instead. It still keeps every predictor, and it simply refuses to let the pair run off in opposite directions.</p>
-
-<p>Ordinary least squares picks the coefficients that minimise the squared errors, full stop. Ridge regression minimises the squared errors plus a penalty on how large the coefficients get. When the estimates are tied at minus 0.968, pairing a big positive with a big negative is expensive under that penalty, so ridge will not do it. The size of the penalty is called lambda, and cross-validation picks it for you.</p>
-
-<p><code>glmnet</code> wants a matrix of predictors rather than a formula, and <code>alpha = 0</code> is what makes it ridge.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Fit ridge with a cross-validated penalty and set it beside the OLS fit
+    <div class="webr-editor" data-language="r"># Fit ridge on the houses at the penalty that cross-validation selects
 suppressMessages(library(glmnet))
-X &lt;- as.matrix(homes[, c(&quot;sqft&quot;, &quot;rooms&quot;, &quot;age&quot;)])
+X &lt;- as.matrix(houses[, c(&quot;sqft&quot;, &quot;rooms&quot;, &quot;age&quot;)])
+ridge_fit &lt;- glmnet(X, houses$price, alpha = 0, lambda = 7203)
 
-set.seed(46)
-ridge_cv &lt;- cv.glmnet(X, homes$price, alpha = 0)
-round(ridge_cv$lambda.min, 3)
-#&gt; [1] 4.897
-
-ridge_coef &lt;- as.numeric(coef(ridge_cv, s = &quot;lambda.min&quot;))
-comparison &lt;- rbind(ols = coef(model_both), ridge = ridge_coef)
-round(comparison, 4)
-#&gt;       (Intercept)   sqft   rooms     age
-#&gt; ols       67.3545 0.1648 -6.3390 -0.8192
-#&gt; ridge     80.1110 0.0925  9.8135 -0.7451</div>
+round(coef(ridge_fit)[, 1], 1)
+#&gt; (Intercept)        sqft       rooms         age
+#&gt;     97853.8        85.3     17548.2      -838.2</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -616,44 +519,18 @@ round(comparison, 4)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Look at what happened to rooms. Ordinary least squares said minus 6.34, and ridge says plus 9.81, against a truth of 8. Floor area came down from 0.1648 to 0.0925, against a truth of 0.110. Both are now close to the rule we wrote ourselves.</p>
-
-<p>That is a better answer, and it comes at a real cost. Ridge estimates are biased on purpose. The penalty keeps the coefficients small and will not hand back the least squares answer even when that answer is the unbiased one. What you buy in exchange is a large drop in how far the estimates swing from one sample to the next, and with this much overlap that is a trade worth making.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The catch is what you are allowed to say afterwards. A ridge coefficient is a shrunken estimate whose amount of shrinkage depends on lambda, so it is not the unbiased effect of one more room and it has no honest p-value beside it. Use ridge when you want stable predictions and plausible coefficients. Do not use it to produce a number you are going to defend as the effect of a variable.</div></div>
-</section>
-
-<section class="lesson-step" data-step="16" data-step-type="concept">
-<h2>More houses: the VIF stays high, the estimate becomes usable</h2>
-
-<p>The third repair is the least clever and the most effective. Collect more houses.</p>
-
-<p>It is natural to expect the VIF to fall as the sample grows, so it is worth watching what actually happens. Here is the identical generator, run at 900 houses instead of 90.</p>
+<p>Every predictor stays in the model and the sign flip is gone. Room count now reads 17,548.2. Here is how it does on the 40 unseen houses.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Regenerate the same houses at 900 rows and refit
-set.seed(46)
-big_sqft  &lt;- round(rnorm(900, 2000, 350))
-big_rooms &lt;- round(big_sqft / 250 + rnorm(900, 0, 0.2))
-big_age   &lt;- round(runif(900, 2, 60))
-big_price &lt;- round(55 + 0.110 * big_sqft + 8 * big_rooms - 0.6 * big_age +
-                     rnorm(900, 0, 26), 1)
-big_homes &lt;- data.frame(sqft = big_sqft, rooms = big_rooms,
-                        age = big_age, price = big_price)
+    <div class="webr-editor" data-language="r"># Compare least squares and ridge on the houses neither was fitted on
+new_X &lt;- as.matrix(new_houses[, c(&quot;sqft&quot;, &quot;rooms&quot;, &quot;age&quot;)])
 
-model_big &lt;- lm(price ~ sqft + rooms + age, data = big_homes)
-round(summary(model_big)$coefficients, 4)
-#&gt;             Estimate Std. Error  t value Pr(&gt;|t|)
-#&gt; (Intercept)  52.7598     5.2084  10.1297    0e+00
-#&gt; sqft          0.1062     0.0105  10.1375    0e+00
-#&gt; rooms         9.2672     2.5369   3.6529    3e-04
-#&gt; age          -0.5968     0.0536 -11.1386    0e+00
-
-round(vif(model_big), 2)
-#&gt;  sqft rooms   age 
-#&gt; 18.59 18.60  1.00 </div>
+round(c(rmse_ols   = rmse(predict(fit, new_houses), new_houses$price),
+        rmse_ridge = rmse(predict(ridge_fit, new_X), new_houses$price)))
+#&gt;   rmse_ols rmse_ridge
+#&gt;      14289      14081</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -663,23 +540,26 @@ round(vif(model_big), 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The VIF did not improve. It went up, from 15.99 to 18.60, because the overlap between floor area and rooms is a fact about how houses are built and not about how many of them you measured.</p>
-
-<p>Everything you care about improved anyway. The room coefficient is 9.27 against a truth of 8. Its standard error fell from 8.55 to 2.54, a bit more than threefold, which is roughly what ten times the data buys you. The p-value is 0.0003, so the variable that looked worthless at ninety houses is now solidly reported.</p>
-
-<p>And here is the line that should change how you read the small model.</p>
+<p>That is a small improvement in prediction. The part that matters more is what ridge did to the coefficient itself. Run 200 fresh studies and estimate the rooms effect both ways in each one.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The 95 percent interval for a room, from each fit
-round(confint(model_both)[&quot;rooms&quot;, ], 2)
-#&gt;  2.5 % 97.5 % 
-#&gt; -23.34  10.67 
+    <div class="webr-editor" data-language="r"># Compare the least squares and ridge rooms coefficient across 200 fresh studies
+set.seed(21)
+both &lt;- replicate(200, {
+  sqft  &lt;- round(rnorm(60, mean = 1800, sd = 500))
+  rooms &lt;- round(sqft / 350 + rnorm(60, mean = 0, sd = 0.15))
+  age   &lt;- round(runif(60, min = 0, max = 60))
+  price &lt;- 90000 + 118 * sqft + 8000 * rooms - 900 * age + rnorm(60, sd = 15000)
+  c(ols   = coef(lm(price ~ sqft + rooms + age))[[&quot;rooms&quot;]],
+    ridge = coef(glmnet(cbind(sqft, rooms, age), price, alpha = 0, lambda = 7203))[&quot;rooms&quot;, 1])
+})
 
-round(confint(model_big)[&quot;rooms&quot;, ], 2)
-#&gt;  2.5 % 97.5 % 
-#&gt;   4.29  14.25 </div>
+round(rbind(mean = apply(both, 1, mean), sd = apply(both, 1, sd)))
+#&gt;       ols ridge
+#&gt; mean 8218 19855
+#&gt; sd   6225  1452</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -689,156 +569,85 @@ round(confint(model_big)[&quot;rooms&quot;, ], 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>At ninety houses the interval for a room ran from minus 23.34 to plus 10.67, and the true value, 8, sits comfortably inside it. The small model was never lying to us. It said "somewhere between minus 23 and plus 11", and we read that as "a room is worth nothing" only because the point estimate happened to land on the wrong side of zero.</p>
+<p>Read the two columns against the true value of 8,000. Least squares averages 8,218, close to the truth, with a standard deviation of 6,225. Ridge averages 19,855, more than twice the truth, with a standard deviation of 1,452.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">A non-significant coefficient with a high VIF is not evidence that the variable does not matter. It is evidence that this dataset cannot tell. Look at the confidence interval before concluding anything: when it stretches from a large negative to a large positive, the honest report is that the effect was not measured.</div></div>
+<p>That is the whole trade in one table. Ridge buys a steadier coefficient by accepting one that is not centred on the true value, and on this data the miss is large: 19,855 against 8,000. So use ridge when you want predictions out of a collinear design. Do not read a ridge coefficient as the effect of one more room.</p>
 </section>
 
-<section class="lesson-step" data-step="17" data-step-type="concept">
-<h2>What dropping a predictor quietly changes</h2>
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which reading of the rooms coefficient is right?</h2>
 
-<p>The fourth repair is the one everybody reaches for first, which is to take the redundant variable out. It works. It also changes the meaning of what is left, and that part usually goes unsaid.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Compare the floor area coefficient with and without rooms in the model
-round(coef(summary(model_both))[&quot;sqft&quot;, 1:2], 4)
-#&gt;   Estimate Std. Error 
-#&gt;     0.1648     0.0354 
-
-round(coef(summary(model_drop))[&quot;sqft&quot;, 1:2], 4)
-#&gt;   Estimate Std. Error 
-#&gt;     0.1394     0.0089 </div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The standard error collapsed from 0.0354 to 0.0089, four times tighter, which is exactly what the square root of the VIF promised. That is the win, and it is a real one.</p>
-
-<p>The estimate moved as well, from 0.1648 to 0.1394, and that movement is not noise. With rooms in the model, 0.1648 meant "one more square foot, rooms held fixed". With rooms gone, nothing is being held fixed any more, so 0.1394 means "one more square foot, and whatever fraction of a room comes with it".</p>
-
-<p>We can check that reading against the rule we wrote, since we know exactly what comes with a square foot.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># What a square foot is worth once the rooms it brings are counted in
-0.110 + 8 / 250
-#&gt; [1] 0.142</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>A square foot is worth 0.110 directly, and it brings one two-hundred-and-fiftieth of a room with it, worth another 0.032. That comes to 0.142. The dropped model reported 0.1394, and the floor-area-only fit reported 0.1428. Both are estimating that combined quantity, and both found it.</p>
-
-<p>So dropping a predictor did not remove its effect from the model. It folded that effect into the coefficient that stayed, without saying so.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">If you drop a collinear predictor, the surviving coefficients change meaning and you owe your reader that sentence. Write "the effect of floor area, not adjusted for the number of rooms" rather than reporting 0.1394 as though it were the same quantity as 0.1648. And when two variables are interchangeable, keep the one that is cheaper to collect or easier to explain, not the one with the lower VIF.</div></div>
-</section>
-
-<section class="lesson-step" data-step="18" data-step-type="quiz" data-gate="1">
-<h2>Quick check: your model reports a VIF of 9</h2>
-
-<p>You have inherited someone else's model. One predictor comes back with a VIF of 9, and you need that predictor's coefficient for a report.</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step18" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The coefficient on that predictor is wrong, and so are the predictions the model makes.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Its standard error is about 3 times wider than it would be with no overlap, and the predictions and R-squared are unaffected.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Its standard error is about 9 times wider, and nothing in the output can be trusted.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nine is under the usual threshold of 10, so there is nothing here to think about.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right on both halves. The square root turns a VIF into the multiple that matters, and the fit side of the model is untouched, which is why a high VIF is only ever a warning about the coefficients.</div><div class="lesson-qfb lesson-qfb-no">Take the square root: a VIF of 9 means the standard error, and therefore the confidence interval, is 3 times wider than it would otherwise be. The predictions and the R-squared are not affected at all. And 10 is a convention somebody chose, not a law, so 9 is not safe simply because it sits below it.</div></div>
+<p>The model on the 60 houses reported -1,249.6 for room count, with a VIF of 18.90. Which sentence gets it right?</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Collinearity pulls the estimate toward zero, so -1,249.6 is a shrunken version of the real per-room effect.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Ridge corrected it, so 17,548.2 is the per-room effect to report.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The estimate is unbiased but imprecise. It is one draw from a distribution about 4.4 times wider than an unrelated rooms column would give, and the model's predictions are untouched by any of it.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Dropping rooms and refitting recovers the true per-room effect from what is left.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. Across 1,000 rebuilt studies the correlated design averaged 7,982 against a true 8,000, and 9.9% of those studies came back negative. Ours was one of them.</div><div class="lesson-qfb lesson-qfb-no">Nothing here is biased toward zero: 1,000 rebuilt studies of the correlated design averaged 7,982 against a true 8,000, and only the spread changed, 6,002 against 1,361. Ridge's 17,548.2 is deliberately biased and is not an effect to quote. And dropping rooms leaves the floor area coefficient at 143.3, which is the per-foot effect plus the room that arrives with every 350 feet, not the per-room effect.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="19" data-step-type="tryit" data-gate="1">
-<h2>Your turn: price a 500 square foot extension that adds 2 rooms</h2>
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: is the collinearity in the model, or in the pair?</h2>
 
-<p>A client is adding a 500 square foot extension containing 2 new rooms, and wants to know what it does to the value of the house.</p>
+<p>The three-predictor fit gave VIFs of 19.13 for floor area, 18.90 for room count and 1.11 for age. Suppose you leave age out and fit price on floor area and room count alone.</p>
 
-<p>That is a bundle, so the collinear model can answer it even though its room coefficient is minus 6.34. Build the same kind of weighted combination we used for one room and its 250 square feet.</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step19" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="c[(]\s*0\s*,\s*500\s*,\s*2|500\s*[*]"><textarea class="lesson-tryit-input" spellcheck="false"># model_both is the three-predictor fit, and its coefficients come out in the
-# order (Intercept), sqft, rooms, age.
-# The extension is worth 500 times the sqft coefficient plus 2 times the
-# rooms coefficient.
-# Build that weight vector with c(), multiply it into coef(model_both), and sum.
-# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes: 69.72 thousand dollars. Our own price rule says 500 times 0.110 plus 2 times 8, which is 71.00, so the model landed within 1.3 thousand of the truth out of a fit whose room coefficient was minus 6.34.</span><span class="lesson-tryit-fb lesson-tryit-no">Line up the weights with the coefficients in order, so w2 is c(0, 500, 2, 0), and then take sum(w2 * coef(model_both)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Price the extension out of the same collinear model
-w2 &lt;- c(0, 500, 2, 0)
-round(sum(w2 * coef(model_both)), 2)
-#&gt; [1] 69.72
-
-# What our own price rule says the extension is worth
-round(500 * 0.110 + 2 * 8, 2)
-#&gt; [1] 71</code></pre></details></div>
+<p>Decide first, before you run anything: does the VIF for the pair go up, go down, or stay roughly where it was? Then write the two lines and find out.</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step12" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*vif[(])(?=[\s\S]*sqft\s*[+]\s*rooms)"><textarea class="lesson-tryit-input" spellcheck="false"># houses holds the 60 houses, with the columns sqft, rooms, age and price.
+# Fit price on sqft and rooms only, leaving age out.
+# Then compute the VIF for that model.
+# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 17.23 for both, slightly below the 18.90 the three-predictor model gave. age was never part of the redundancy, so taking it out changes almost nothing.</span><span class="lesson-tryit-fb lesson-tryit-no">Two lines. Fit the model with lm(price ~ sqft + rooms, data = houses) and store it in fit_pair, then pass fit_pair to vif().</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit the pair on its own and read the VIF
+fit_pair &lt;- lm(price ~ sqft + rooms, data = houses)
+round(vif(fit_pair), 2)
+#&gt;  sqft rooms
+#&gt; 17.23 17.23</code></pre></details></div>
 </section>
-<p>Two coefficients that were individually useless combine into an answer good to within about two percent. Whenever someone asks about a realistic change rather than a textbook one, this is usually the move, and it needs no repair to the model at all.</p>
+<p>With only two predictors, both VIFs have to be equal. Rooms regressed on floor area, and floor area regressed on rooms, share a single R-squared, 0.942, which is their correlation squared. And 1 / (1 - 0.942) is 17.23.</p>
+
+<p>So taking a whole predictor out of the model moved the number from 18.90 to 17.23. A VIF measures how much one column duplicates the others, not how many columns there are.</p>
 </section>
 
-<section class="lesson-step" data-step="20" data-step-type="quiz" data-gate="1">
-<h2>Quick check: choosing a fix that keeps your variables</h2>
-
-<p>You need to report what one more room is worth. Floor area and rooms are correlated at 0.968, and your company has years of unprocessed sales records it could still add.</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-1-step20" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Drop rooms from the model and report the floor area coefficient instead.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Collect more houses. The overlap will not fall, but the standard error will, until the estimate is precise enough to report.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Fit ridge regression and quote its room coefficient as the effect of one more room.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Report the model as it stands, noting that the number of rooms was not statistically significant.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. Nine hundred houses left the VIF at 18.60 and still brought the room coefficient to 9.27 with a standard error of 2.54. More information is the only fix that hands you the number you were asked for.</div><div class="lesson-qfb lesson-qfb-no">Dropping rooms does not produce a room price, it changes what the floor area coefficient means. Ridge deliberately biases the coefficients to buy stability, which is right for prediction and wrong for a number you will defend. And calling rooms not significant would state something false about houses, when the interval ran from minus 23 to plus 11 and the truth was 8.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="21" data-step-type="concept">
+<section class="lesson-step" data-step="13" data-step-type="concept">
 <h2>References</h2>
 
 <ul>
 
-<li><a href="https://cran.r-project.org/package=car">car: Companion to Applied Regression</a> - Fox and Weisberg. The R package behind <code>vif()</code>, and the software companion to An R Companion to Applied Regression, 3rd edition (2019), Sage.</li>
+<li><a href="https://doi.org/10.1002/0471725153">Regression Diagnostics: Identifying Influential Data and Sources of Collinearity</a> - Belsley, Kuh and Welsch (1980), Wiley. The book that put collinearity diagnostics on a formal footing, including the condition numbers that sit alongside the VIF.</li>
 
-<li><a href="https://doi.org/10.1080/01621459.1992.10475190">Generalized Collinearity Diagnostics</a> - Fox and Monette (1992), Journal of the American Statistical Association 87(417), 178-183. Defines the generalized VIF that <code>vif()</code> returns once a factor is in the model.</li>
+<li><a href="https://doi.org/10.1080/01621459.1992.10475190">Generalized Collinearity Diagnostics</a> - Fox and Monette (1992), Journal of the American Statistical Association 87(417), 178-183. Defines the GVIF, which is what <code>vif()</code> reports when a predictor is a factor carrying more than one degree of freedom.</li>
 
-<li><a href="https://doi.org/10.1007/s11135-006-9018-6">A Caution Regarding Rules of Thumb for Variance Inflation Factors</a> - O'Brien (2007), Quality and Quantity 41, 673-690. Why 5 and 10 are conventions rather than laws.</li>
+<li><a href="https://doi.org/10.1007/s11135-006-9018-6">A Caution Regarding Rules of Thumb for Variance Inflation Factors</a> - O'Brien (2007), Quality and Quantity 41, 673-690. Why 5 and 10 are conventions rather than results, and why acting on them can cost more than the collinearity does.</li>
 
-<li><a href="https://doi.org/10.1002/0471725153">Regression Diagnostics: Identifying Influential Data and Sources of Collinearity</a> - Belsley, Kuh and Welsch (1980), Wiley. The original full treatment, including the condition number as a second diagnostic.</li>
+<li><a href="https://doi.org/10.1080/00401706.1970.10488634">Ridge Regression: Biased Estimation for Nonorthogonal Problems</a> - Hoerl and Kennard (1970), Technometrics 12(1), 55-67. The original ridge paper, written for exactly this problem.</li>
 
-<li><a href="https://doi.org/10.1080/00401706.1970.10488634">Ridge Regression: Biased Estimation for Nonorthogonal Problems</a> - Hoerl and Kennard (1970), Technometrics 12(1), 55-67. The paper that introduced ridge as the answer to correlated predictors.</li>
+<li><a href="https://cran.r-project.org/package=car">car: Companion to Applied Regression</a> - Fox and Weisberg. The documentation for <code>vif()</code>, from the people who wrote it.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="22" data-step-type="complete">
+<section class="lesson-step" data-step="14" data-step-type="complete">
 <h2>Quick recap</h2>
 
-<p>You started with a room worth minus 6,340 dollars and finished with a model you can read properly. Five things are worth keeping.</p>
+<p>You started with a model that said an extra room takes 1,250 off the price of a house, and you now know what that number was and what to do about it.</p>
 
 <ul>
 
-<li>A coefficient answers "one more of this, everything else held fixed". When two predictors move together there is almost no data left in which one moves and the other holds, and 0.968 left us about a third of a room to work with.</li>
+<li>Floor area and room count correlate at 0.971, so 94.71% of room count is already carried by the other predictors. That is a VIF of 18.90, and a standard error sqrt(18.90) = 4.35 times wider than an unrelated rooms column would give.</li>
 
-<li>A VIF is one auxiliary regression turned upside down. Regress a predictor on the others, take the R-squared, and compute 1 divided by 1 minus it.</li>
+<li>The estimate is not biased, only imprecise. Across 1,000 rebuilt studies it averaged 7,982 against a true 8,000, and 9.9% of them came back negative. The -1,249.6 was one ordinary draw from that spread.</li>
 
-<li>Read a VIF by taking its square root. A VIF of 15.99 means the standard error is 4 times wider, and a VIF of 9 means 3 times wider.</li>
+<li>The interval is not broken either. Its coverage stays at about 95% however high the correlation climbs, and all that grows is its width.</li>
 
-<li>Collinearity damages the coefficients and their standard errors, and leaves the predictions, the R-squared and the residual spread alone. Dropping our worst predictor moved R-squared by 0.0015.</li>
+<li>Prediction is untouched. R-squared went from 0.9626 to 0.9625 when room count was dropped, and on 40 fresh houses no prediction moved by more than 1,031.</li>
 
-<li>The bundle is estimable even when the pieces are not. One room and its 250 square feet came out at 34.86 give or take 2.22, against a truth of 35.50, from the very fit that priced a room at minus 6.34.</li>
+<li>There are three responses, each with a price. Leave it alone when nobody reads the coefficient. Collapse the pair, and accept that the column you keep carries the combined effect, 143.3 rather than 118. Or fit ridge, which keeps both columns and returns a steadier coefficient that is deliberately off centre.</li>
 
 </ul>
 
-<p>And four repairs. In the order worth trying them, which is not the order we met them: ask about the bundle instead of the piece, collect more rows, fit ridge if you only need predictions, and drop a predictor last, saying out loud what the survivors now mean.</p>
+<p>And one thing none of those three does: recover information the data never held. Separating floor area from room count needs houses where the two vary independently, which is a question about how the data was collected rather than about which function you call.</p>
 
-<p>The one line to run on the next model you fit is <code>vif(model)</code>. Take the square root of whatever comes back, and if your interval is still narrow enough to answer the question at that width, the coefficients are yours to quote. If something comes back at 16, you now know exactly which part of that output to stop trusting and which part you can keep using.</p>
-
-<p>Congratulations, that is multicollinearity done properly. Have a great day!</p>
+<p>Next up are residuals that are correlated with their own past, why that quietly breaks every standard error in the output, and the test that catches it.</p>
 </section>
 
 {% endraw %}
