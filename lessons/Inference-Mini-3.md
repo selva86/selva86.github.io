@@ -36,7 +36,7 @@ Every number in that table came out of one function call. What the 95% actually 
 ## What "95% confident" does not mean
 ::prose-only the correct reading is demonstrated concretely two steps ahead, in the coverage simulation
 
-Look at Rosa's interval again: 25.2 to 31.1 minutes, at 95% confidence. Say that sentence out loud and two readings probably come to mind, and both of them are wrong.
+Look at Rosa's interval again: 25.2 to 31.1 minutes, at 95% confidence. Say that sentence out loud and two interpretations probably come to mind, and both of them are wrong.
 
 The first is: "there is a 95% probability the true average delivery time is between 25.2 and 31.1." That statement describes something called a credible interval, a different calculation built on different assumptions than the one `t.test()` just ran. It is not what a 95% confidence interval means.
 
