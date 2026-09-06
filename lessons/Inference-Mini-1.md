@@ -1,11 +1,11 @@
 ---
 title: "How statistical inference works, no formulas yet"
 slug: "Inference-Mini-1"
-description: "Anita named 9 of 10 cups right by taste. Simulate the world where she only guesses, count how often luck reaches 9, and see how statistical inference works."
-keywords: "how statistical inference works, statistical inference, null hypothesis, simulation in R, inference without formulas, statistical significance, taste test experiment"
+description: "Learn how statistical inference works from scratch: simulate a pure-luck crowd in R, no formulas, and see exactly how surprising a real result would be."
+keywords: "statistical inference, hypothesis testing basics, p-value intuition, null hypothesis explained, simulation in R, statistics for beginners"
 mathjax: false
 webr: true
-date: "2026-09-06"
+date: "2026-09-07"
 post_type: "LESSON"
 course_id: "inference-from-zero"
 course_title: "Inference from Zero"
@@ -16,310 +16,207 @@ course_prev: ""
 course_next: "Inference-Mini-2"
 curriculum_id: "0.0.1"
 lesson_access: "windowed"
-catalog_blurb: "How to tell a real result from a lucky run, no formulas needed."
+catalog_blurb: "How to tell whether a surprising result is real skill or just luck."
 ---
 
 === step === cover
 ## How statistical inference works, no formulas yet
 
-Let's work out how statistical inference actually works, using one taste test and not a single formula.
+Today you are going to learn how to tell whether a surprising result is real, or nothing more than luck, and you will do the whole thing without touching a single formula.
 
-Here is the setup. Anita is sure that Coke and Pepsi taste nothing alike, and that she can name which is which blind. So ten cups go out in front of her, one drink in each, the pour decided by a coin flip. Six come out Coke and four come out Pepsi. She tastes each cup in turn and names the drink in it, and her score is 9 out of 10.
+Here is the situation. Priya swears her palate never misses: hand her any cola without the label and she will name the brand. You test her properly: 10 cups, each filled in secret with one drink or the other, poured in an order she cannot see. She tastes every cup and calls it. She gets 9 of the 10 right.
 
-So what do you make of that?
+9 out of 10 is a lot of correct guesses. But before you believe Priya has a real skill, you have to ask an honest question: could someone with no ability to tell the drinks apart at all land on 9 correct just by luck?
 
-Two explanations fit that score equally well. Either Anita really can taste the difference, or she cannot and this was a lucky run. The number 9 on its own does not tell you which one you are looking at.
+Answering that question, for Priya's tasting test or for any experiment you will ever run, always comes down to the same four steps.
 
-Separating those two is the job. We cannot inspect Anita's palate, so we go after the other explanation instead: build the world where she is only guessing, see what that world produces, and check whether her result sits comfortably inside it.
+::widget process-flow {"steps":[{"title":"State the real result","sub":"Priya named 9 of the 10 cups correctly"},{"title":"Imagine pure chance","sub":"picture a guesser with no ability at all, right half the time by luck"},{"title":"Simulate pure chance many times","sub":"build a large crowd of such guessers and see where their scores land"},{"title":"Compare and judge","sub":"check how rare a score of 9 would be inside that crowd"}]}
 
-That takes three steps.
-
-::widget process-flow {"steps":[{"title":"Assume she is only guessing","sub":"every call is a 50/50 coin flip, no tasting involved"},{"title":"Simulate that world 10,000 times","sub":"count the correct calls in each round of ten"},{"title":"Compare her 9 against those rounds","sub":"how often does guessing alone reach 9 or more"}]}
-
-Those three steps are the whole method. Everything from here is carrying them out on Anita's ten cups.
+That is the whole shape of it. Everything from here builds one piece of that picture, using Priya's test as the running example throughout.
 
 === step === concept
-## Nine correct calls out of ten, and two ways to explain them
+## Skill or luck: simulating one pure-chance guesser
 
-Before we can reason about the result, we need it as data we can compute on. So let's lay the test out exactly as it happened: what went into each cup, and what Anita said was in it.
+Before you can judge Priya's result, you need to be precise about what you are comparing it against.
 
-The `poured` column is the truth, fixed by the coin flips before she tasted anything. The `said` column is her call.
+There are exactly two explanations for 9 correct guesses out of 10. Either Priya can genuinely tell Coke from Pepsi apart, or she has no ability at all and got lucky.
+
+To check which one holds up, you need to know what "no ability at all" would actually look like in this test. If Priya truly cannot tell the two drinks apart, then on each cup she is really just flipping a coin in her head: right half the time, wrong half the time, and one cup's result has no bearing on the next.
+
+Let's build exactly that: one taster with zero ability, guessing at 10 cups. Press Run.
 
 ```r
-# Build the ten poured cups beside Anita's calls and count the matches
-cups <- data.frame(
-  poured = c("Coke", "Pepsi", "Coke", "Coke", "Pepsi",
-             "Coke", "Pepsi", "Coke", "Pepsi", "Coke"),
-  said   = c("Coke", "Pepsi", "Coke", "Coke", "Pepsi",
-             "Coke", "Coke",  "Coke", "Pepsi", "Coke")
-)
-
-cups$correct <- cups$poured == cups$said
-cups
-#>    poured  said correct
-#> 1    Coke  Coke    TRUE
-#> 2   Pepsi Pepsi    TRUE
-#> 3    Coke  Coke    TRUE
-#> 4    Coke  Coke    TRUE
-#> 5   Pepsi Pepsi    TRUE
-#> 6    Coke  Coke    TRUE
-#> 7   Pepsi  Coke   FALSE
-#> 8    Coke  Coke    TRUE
-#> 9   Pepsi Pepsi    TRUE
-#> 10   Coke  Coke    TRUE
-
-sum(cups$correct)
-#> [1] 9
+# Simulate one pure-luck guesser tasting 10 cups
+set.seed(1)
+truth <- sample(c("Coke", "Pepsi"), size = 10, replace = TRUE)
+guess <- sample(c("Coke", "Pepsi"), size = 10, replace = TRUE)
+sum(guess == truth)
+#> [1] 4
 ```
 
-`cups$poured == cups$said` compares the two columns cup by cup and returns TRUE wherever they agree. Summing a column of TRUE and FALSE counts the TRUEs, so `sum()` gives her score directly.
+`truth` is which drink actually filled each of the 10 cups, decided at random. `guess` is what our zero-ability taster calls each cup, also decided at random and completely unconnected to `truth`. `sum(guess == truth)` counts how many of the 10 guesses happened to match.
 
-Only cup 7 went wrong. It was poured Pepsi and she called it Coke. Everything else she got right, which puts her at 9 out of 10, or 90%.
-
-And here is where people jump straight to the wrong conclusion. That 90% settles nothing on its own, because both explanations produce numbers like it. Someone who really can tell the two drinks apart would score high, and 9 is high. But someone with no ability at all, naming every cup at random, also lands on 9 now and then. Not often. Sometimes.
-
-So the useful question is not whether 9 is a lot. It is how often guessing alone gets to 9.
+This particular run of pure luck landed on 4 correct out of 10. Run the code again with a different seed and you would get a different number: maybe 6, maybe 2, maybe even 9. A guesser with zero ability does not always score 5. Chance alone spreads results out.
 
 === step === concept
-## What it means to say she was only guessing
+## Building a crowd of ten thousand pure-luck guessers
 
-We have no way to test the first explanation. There is no measurement of whether Anita can taste the difference; that is the very thing in dispute. But the second explanation is a precise claim, and precise claims can be simulated.
+One pure-luck guesser only tells you one possible outcome. To see the full shape of what pure luck can do, you need thousands of them.
 
-Here is what it says. Anita cannot taste any difference at all. Every cup tastes identical to her, and she is naming a drink for each one at random. Each call is then a coin flip: right half the time, wrong half the time, with no connection to what was actually poured.
+`rbinom()` does in one line what running the code above 10,000 times would do the slow way. Read `rbinom(10000, size = 10, prob = 0.5)` as: create 10,000 guessers, each one tossing 10 fair coins, and report how many of the 10 landed correct for each guesser.
 
-That assumption, the one saying there is no real effect here, is called the **null hypothesis**. It is written H0 and said out loud as "H nought". Notice which side we put it on. We assume the dull explanation is true, and then we go looking for evidence against it.
-
-A coin flip is something R can do for us. `sample()` draws ten calls at random from the two drink names, and `replace = TRUE` puts each name back in the bag after it is drawn, so every call is independent of the ones before it.
+Press Run.
 
 ```r
-# Simulate one round in which the taster only guesses, and count her correct calls
-set.seed(18)
-one_round <- sample(c("Coke", "Pepsi"), 10, replace = TRUE)
-one_round
-#>  [1] "Pepsi" "Pepsi" "Coke"  "Pepsi" "Pepsi" "Pepsi" "Pepsi" "Coke"  "Pepsi"
-#> [10] "Coke"
-
-sum(one_round == cups$poured)
-#> [1] 7
+# Build a crowd of 10,000 pure-luck guessers, each tasting 10 cups
+set.seed(1)
+pure_luck_crowd <- rbinom(10000, size = 10, prob = 0.5)
+mean(pure_luck_crowd)
+#> [1] 5.003
+min(pure_luck_crowd)
+#> [1] 0
+max(pure_luck_crowd)
+#> [1] 10
 ```
 
-`set.seed(18)` fixes the random draws, so your ten calls match mine.
+The average score across all 10,000 pure-luck guessers is 5.003, almost exactly 5 out of 10. That makes sense: with a fair coin flip on each cup, getting half right is the typical outcome.
 
-Now look at what pure guessing just did. It got 7 of the 10 cups right, with no tasting involved anywhere. This guesser has no ability whatsoever and still came away with 70%.
-
-One round settles nothing, of course. But it already tells us something useful: guessing does not sit near zero. It scores high. What we need to know is how high it scores, and how often.
+But look at the spread. Somewhere in that crowd of 10,000, at least one guesser scored a 0 and missed every single cup, and at least one scored a perfect 10. Pure luck alone is enough to produce those extremes occasionally, just not often. Priya's score of 9 sits out near that rare end, nowhere close to the typical 5.
 
 === step === widget
-## What pure guessing produces over 10,000 rounds
+## Where nine out of ten falls in the pure-luck crowd
 
-One round of guessing gave 7. Another would give something else. To see the full range that guessing produces, we have to run it over and over.
+The two code blocks above already built the crowd. Now let's watch pure luck pile up, one guesser at a time, and see exactly how often it reaches Priya's score.
 
-Start by running it yourself. Each press below plays out rounds of ten guessed calls, drops every round's score onto the histogram, and keeps a running count of how often guessing reached Anita's 9 or better.
+::widget luck-simulator {"trials": 10, "p": 0.5, "observed": 9, "unit": "correct guesses"}
 
-::widget luck-simulator {"trials":10,"p":0.5,"observed":9,"unit":"correct calls","seed":42}
+Press "Run 1,000" a few times. Every bar is a count of pure-luck guessers who landed on that particular score out of 10, and the orange bars mark 9 and 10, the scores that match or beat Priya. Watch how short those orange bars stay even as the rest of the crowd grows tall in the middle.
 
-Press Run 1 game a few times and watch where the scores land. Then press Run 1,000. The pile builds up in the middle, around 5, and the two orange bars on the right, the rounds that reached 9 or 10, stay almost flat. Keep pressing and the percentage in the readout settles at about 1%.
-
-Now let's build the same thing in R, so we have numbers to work with rather than a shape to look at. `replicate()` runs the same round over and over and stores the score from each one.
+Now let's check that against `pure_luck_crowd`, the full crowd of 10,000 you already built.
 
 ```r
-# Run 10,000 rounds of pure guessing and plot the correct calls each round produced
-set.seed(1)
-luck_correct <- replicate(10000, {
-  guesses <- sample(c("Coke", "Pepsi"), 10, replace = TRUE)
-  sum(guesses == cups$poured)
-})
-
-hist(luck_correct, breaks = -0.5:10.5, col = "grey85", border = "white",
-     main = "10,000 rounds of pure guessing",
-     xlab = "Correct calls out of 10")
-abline(v = 9, col = "red", lwd = 3)
-
-table(luck_correct)
-#> luck_correct
-#>    0    1    2    3    4    5    6    7    8    9   10
-#>    4   71  438 1190 1996 2490 2042 1225  441   97    6
+# Count how many of the 10,000 pure-luck guessers matched or beat Priya's score
+sum(pure_luck_crowd >= 9)
+#> [1] 101
+length(pure_luck_crowd)
+#> [1] 10000
+sum(pure_luck_crowd >= 9) / length(pure_luck_crowd)
+#> [1] 0.0101
 ```
 
-`luck_correct` now holds 10,000 numbers, one per round, each of them somewhere between 0 and 10. The `breaks = -0.5:10.5` puts one bar over each whole number from 0 to 10, so the height of a bar is the number of rounds that scored exactly that many.
+101 out of 10,000 pure-luck guessers matched or beat Priya's 9. As a share, that is 0.0101, or about 1%.
 
-This pile is what every later number gets measured against, so it is worth reading slowly. The tall bars sit at 4, 5 and 6: a guesser usually gets about half the cups right, which is exactly what a coin should do. Out at the right, where the red line marks Anita's 9, the bars are barely off the axis. 97 rounds scored 9, and 6 rounds scored all 10.
-
-That 6 at the end is worth a second look. Pure guessing does reach a perfect 10 out of 10. It just takes about 1,700 rounds to do it.
-
-[KEY INSIGHT]
-The pile is what "she was only guessing" looks like once you actually build it. It is not a formula and not an opinion about Anita. It is 10,000 rounds of coin flips, counted.
-
-=== step === concept
-## How often does guessing reach 9 or more?
-
-The guessing-only world is sitting in `luck_correct`, and Anita's result is 9. Comparing the two is now a counting job: how many of those 10,000 rounds matched or beat her 9?
-
-```r
-# Count the guessing rounds that matched or beat Anita's 9 correct calls
-sum(luck_correct >= 9)
-#> [1] 103
-mean(luck_correct >= 9)
-#> [1] 0.0103
-```
-
-`luck_correct >= 9` returns a TRUE or FALSE for each of the 10,000 rounds. `sum()` counts the TRUEs. `mean()` on the same TRUEs and FALSEs is that count divided by 10,000, which turns it into a share.
-
-103 rounds out of 10,000. As a share, 0.0103, or roughly 1 in 100.
-
-That is the number we came for. If Anita cannot taste any difference at all, a result as good as hers still turns up in about 1 taste test out of every 100.
-
-Look at what it took to get there. We counted the rounds that did as well as she did or better, and divided by how many rounds we ran. A count and a division, and that is the entire calculation.
-
-=== step === concept
-## What the 1 in 100 does not say
-
-::prose-only the point is one conditional statement read in the wrong direction; the histogram of the 10,000 guessing rounds already carries the picture
-
-0.0103 is a small number, and small numbers get turned into big claims. So let's be exact about what it measures and what it does not.
-
-It answers this question: if Anita were guessing, how often would she reach 9 or more? About once in every 100 taste tests.
-
-It does not answer this one: given that she reached 9, how likely is it that she was guessing? That is a different question with a different answer, and 0.0103 is not it.
-
-The two are easy to mix up, because they use the same words in a different order. So try the same reversal somewhere the answer is obvious. Nearly every professional basketball player is over 6 feet tall. Now read it backwards: nearly every person over 6 feet tall is a professional basketball player. Same two facts, opposite direction, and the second version is nonsense.
-
-| What 0.0103 answers | What it does not answer |
-|---|---|
-| If she was guessing, how often does a guesser reach 9 or more? | Given that she reached 9, how likely is it that she was guessing? |
-| Counted here: 103 rounds out of 10,000. | Not counted anywhere here, and not equal to 0.0103. |
-
-There is a second thing 0.0103 is not, and that is proof. 103 of the simulated guessers did reach 9 or more, and not one of them could taste anything. Had Anita been one of those 103, her score would look exactly the way it looks now.
-
-So what does the number actually give you? Evidence against the guessing explanation, and a measured amount of it. A result that guessing produces once in every 100 tries is an awkward fit for the guessing story. That is a long way from a verdict on Anita's palate, and keeping those two apart is most of what it takes to read a test correctly.
+Keep pressing the buttons on the widget above and your own count will bounce around a little each time, since it is a fresh batch of random guessers every run. But the more games you run, the closer it settles to that same 1% ballpark. That is not a coincidence. It is the same question, asked two different ways.
 
 === step === quiz
-## Quick check: what the 10,000 rounds do and do not say
+## Quick check: does a stricter threshold catch more guessers, or fewer?
+
+Before moving on, check that you can predict this without running any more code.
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- They are 10,000 replays of Anita's own taste test, so the pile shows how well she performs. ::no
-- They are 10,000 rounds of pure guessing, and 9 or more correct calls turned up in 103 of them, about 1 in 100. ::ok Yes. Not one of those rounds involved tasting anything, and 103 of them still reached 9 or better. That count, divided by 10,000, is the 0.0103.
-- They show there is a 1.03% chance that Anita was guessing. ::no
-- They prove that a guesser cannot reach 9 correct calls, so Anita must be able to taste the difference. ::no Every one of those 10,000 rounds is a guesser, never Anita: they are built by assuming she cannot taste anything, so they say what guessing produces, not what she does. They also prove nothing of the sort, since 103 of them reached 9 or better, 6 of those scoring all 10. And the 0.0103 only runs in one direction. It is how often guessing reaches her result, never the chance that she was guessing.
-
-=== step === widget
-## The same 70 percent, with ten times the cups
-
-One more thing decides how much a result is worth, and it is not the percentage. It is how many cups you poured.
-
-Suppose Anita had named 7 of the 10 correctly instead of 9. That is 70%. Now suppose a second taster, Ravi, sat down to 100 cups and named 70 of them correctly. Also 70%. On paper the two scores are identical.
-
-Here is the guessing-only world for Ravi's 100 cups. Every round is 100 guessed calls now, and the orange bars, the ones that would match him, start at 70.
-
-::widget luck-simulator {"trials":100,"p":0.5,"observed":70,"unit":"correct calls","seed":7}
-
-Press Run 1,000 a couple of times. The pile gathers around 50, as a coin should, and the readout for 70 or more sits at 0.0%. Press it as often as you like and it stays there. At 100 cups, guessing its way to 70 is rare enough that a thousand rounds at a time will almost certainly never turn one up.
-
-Which means a thousand rounds cannot measure it. We need far more of them, so let's run 200,000 at once. `rbinom(200000, 100, 0.5)` does that in one line: 200,000 rounds, 100 calls each, every call right with probability 0.5. It returns the number correct in each round, which saves us building the calls one at a time.
-
-```r
-# Count how often 100 guessed calls reach 70 or more correct
-set.seed(3)
-luck_100 <- rbinom(200000, 100, 0.5)
-
-sum(luck_100 >= 70)
-#> [1] 7
-mean(luck_100 >= 70)
-#> [1] 3.5e-05
-```
-
-7 rounds out of 200,000. R prints that share as `3.5e-05`, its shorthand for 0.000035, or about 1 in 29,000.
-
-Now hold the two 70% scores side by side. Over 10 cups, 7 or more correct is something guessing does constantly: of the 10,000 guessing rounds, 1,225 scored exactly 7 and another 544 scored above that, which is roughly 1 round in 6. Over 100 cups, 70 or more correct is something guessing manages about once in 29,000 rounds.
-
-Same percentage, and nothing alike in what they are worth. The percentage tells you how well the taster did. The number of cups tells you how hard that was to do by luck.
+- It rises, because a higher score should pull in more of the crowd. ::no
+- It falls, because fewer pure-luck guessers are lucky enough to reach a rarer, more extreme score. ::ok That is right. Raising the bar shrinks the slice of the crowd that clears it, the same thing you just watched happen between a score of 9 and the scores below it.
+- It stays the same, because the size of the crowd never changes. ::no
+- It falls all the way to zero, because pure luck can never reach 9 or higher. ::no A stricter threshold always shrinks the count of pure-luck guessers who clear it, or leaves it unchanged, since a higher bar is harder to reach, not easier. It never rises, and rare is not the same as impossible: 101 of the 10,000 guessers in your crowd reached 9 or higher by chance alone.
 
 === step === concept
-## The same three steps behind t-tests and ANOVA
+## Naming the fraction: the p-value, and what it doesn't mean
+::prose-only the number and its shape were already shown by the widget two steps back; this step names and interprets it
 
-Everything so far was built by hand, and that was deliberate: you can point at exactly where 0.0103 came from. In practice nobody simulates 10,000 rounds to judge a taste test. There is a function for it.
+That 1% figure you just counted has a name statisticians use constantly: the p-value.
 
-`binom.test()` takes the same three facts we have been using: 9 correct, out of 10 cups, against a guessing rate of 0.5. The argument `alternative = "greater"` says we only care about scores at or above hers, which is the direction we counted.
+Here is the exact definition, built entirely from what you just did. A p-value is the fraction of pure-chance outcomes that match or beat the real result you saw. For Priya's test, the p-value is 0.0101, the same number you already computed.
 
-```r
-# Run the standard test for this result and read the p-value it reports
-binom.test(9, 10, 0.5, alternative = "greater")
-#>
-#> 	Exact binomial test
-#>
-#> data:  9 and 10
-#> number of successes = 9, number of trials = 10, p-value = 0.01074
-#> alternative hypothesis: true probability of success is greater than 0.5
-#> 95 percent confidence interval:
-#>  0.6058367 1.0000000
-#> sample estimates:
-#> probability of success
-#>                    0.9
-```
+A small p-value like this makes the pure-chance story look unlikely. It does not make it impossible. Remember, 101 of your 10,000 pure-luck guessers really did reach 9 or higher, purely by chance, with zero tasting ability. A p-value never rules the chance story out. It only tells you how rare that story's best outcomes are.
 
-The line to read is `p-value = 0.01074`. Our 10,000 rounds gave 0.0103. They agree to two decimal places, and the small gap between them is only there because we counted 10,000 rounds instead of working the answer out exactly.
+[KEY INSIGHT]
+A p-value is not the probability that Priya has real skill. It is the probability that pure luck, with no skill at all, produces a result this good or better. Those are two different questions, and mixing them up is the single most common mistake made with this number.
 
-So the share you counted has a standard name. It is the **p-value**: assume the null hypothesis is true, then ask how often a result at least as good as yours turns up. Ours turned up 103 times in 10,000.
+=== step === widget
+## The same shaded tail, for any test statistic
 
-Which is why it was worth building by hand once. A t-test compares two group means. An ANOVA compares several. A chi-square test compares counts in a table. Underneath, each one assumes there is no effect, works out what that assumption produces, and reports where your result falls inside it. The three steps never change. Only the arithmetic in the middle does, and where we counted rounds, they use a formula that goes straight to the answer.
+The bar chart in the last widget only works because you can count 10,000 individual guessers one by one. But most real tests do not use a simple count out of 10. They use all kinds of test statistics, like the gap between two conversion rates or the difference between two group averages. The good news is the exact same idea still works, just drawn as a smooth curve instead of separate bars.
+
+::widget null-distribution {"tails": 1, "start": 2.3, "label": "how far the marked result sits from the middle of the pure-luck crowd"}
+
+The curve is what your bar chart would look like if you smoothed it out: still centered where pure luck lands most often, still thin at the edges. The dot marks Priya's result, and the shaded sliver to its right is the same kind of count you did by hand, just expressed as a share of the whole curve instead of a share of 10,000 guessers.
+
+Drag the dot further right, away from the center, and the shaded sliver shrinks: a more extreme result is rarer under pure chance. Drag it back toward the center and the sliver grows: a middling result is common under pure chance. That is exactly the relationship you already found with the threshold in the pure-luck crowd. This widget just shows it for any result, not only a count out of 10.
+
+Underneath the curve, the label will read "reject H0" or "fail to reject H0" as you drag. H0 is short for the null hypothesis, which is just a formal name for the pure-chance story: the claim that nothing but luck produced the result. Many fields draw the line for "rare enough to doubt pure chance" at a shaded sliver of 5%, calling anything thinner than that "reject H0" and anything wider "fail to reject H0". For now, keep your eye on the sliver itself: the smaller it is, the more surprising the real result would be if only chance were at work.
+
+=== step === concept
+## The general recipe behind every statistical test
+::prose-only the recipe restates the arc already built, step by step; no new computation
+
+Step back for a second and look at everything you just did, because it fits a pattern you will meet again and again.
+
+1. State the real result. Priya named 9 of the 10 cups correctly.
+2. Define what pure chance alone would look like. A guesser with no ability at all is right half the time, and each cup's result is independent of the others.
+3. Simulate that pure-chance world many times over. You built a crowd of 10,000 such guessers and saw where they landed.
+4. Compare the real result to that crowd, and read off how far into the rare end it falls. Priya's 9 sat out near the 1% mark.
+
+A t-test, an A/B test on a website, and Priya's tasting test are all running this exact same four-step recipe. What changes from test to test is only the kind of data and the kind of result you are measuring: a correct-guess count here, a difference in two averages there, a gap in conversion rates somewhere else. The four-step shape underneath never changes.
 
 === step === quiz
-## Quick check: does 70 percent always mean the same thing?
+## Quick check: what does a p-value of 0.01 actually say?
 
-Two tasters, both scoring 70%. Anita named 7 of 10 cups correctly. Ravi named 70 of 100. Which reading of those two results is right?
+Here is one more check before you try this yourself on a new result. Suppose Priya's test had come back with a p-value of 0.01 instead of 0.0101.
 
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- They are equally convincing. Both tasters scored 70%, and the percentage is what matters. ::no
-- Ravi is far more convincing. Guessing reaches 7 of 10 about 1 round in 6, but it reaches 70 of 100 about once in 29,000, so the number of cups decides the weight. ::ok Right. The score tells you how the taster did. The number of cups tells you how easily luck could have done the same. Ten cups leave plenty of room for a lucky 70%. A hundred cups leave almost none.
-- Anita is more convincing, because getting 7 right out of only 10 leaves much less room for error. ::no
-- Neither is convincing, because 70% is below the 95% a result has to clear before you can call it real. ::no Both tasters scored the same percentage, so the percentage cannot be the thing that separates them. Simulate the guessing-only world at each size and the difference is enormous: 7 or more correct out of 10 turns up in roughly 1 guessing round in 6, while 70 or more out of 100 turns up about once in 29,000. More cups means luck has far less room to fake the result. As for 95%, that is a threshold borrowed from somewhere else entirely, and it has no bearing on either score.
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- There is a 1% chance she has no real ability. ::no
+- She is 99% likely to be a better taster than average. ::no
+- If she had no real ability and were only guessing, a result at least this extreme would happen only about 1% of the time. ::ok Exactly right. A p-value of 0.01 only ever describes the pure-chance world: how often a result this extreme or better would show up if nothing but luck were at work. It says nothing about how likely Priya is to have real skill.
+- The test proves she can really tell the drinks apart. ::no A p-value cannot prove anything, and it never puts a probability on Priya having real skill. It only describes how rare a result like hers would be under pure chance. Reading it as a 1% chance she lacks skill, or a 99% chance she is better than average, both flip the question around onto Priya, when the number only ever describes the pure-luck crowd.
 
 === step === tryit
-## Your turn: how often does guessing reach 7 or more?
+## Your turn: test two new tasters
 
-Suppose Anita had named 7 of the 10 cups correctly instead of 9. `luck_correct` still holds the correct-call counts from all 10,000 rounds of guessing, so you can weigh that weaker result exactly the way we weighed her 9.
+Two more tasters just finished the same test. The first correctly named 8 of the 10 cups. The second named 7. Are either of those results surprising, or could pure luck easily produce them?
 
-Count the rounds that reached 7 or more correct calls, then write that same count as a share of the 10,000.
+`pure_luck_crowd` still holds your 10,000 pure-luck guessers from earlier. For each new taster, count how many of those 10,000 matched or beat that taster's score, then write that count as a share of 10,000, the same two-line approach you used for Priya's score of 9.
 
 ```r
-# luck_correct holds the correct-call counts from 10,000 rounds of pure guessing.
-# Count the rounds that reached 7 or more correct calls,
-# then write that same count as a share of all 10,000.
+# pure_luck_crowd still holds the 10,000 pure-luck guessers from earlier.
+# A first taster scored 8 out of 10; a second scored 7 out of 10.
+# For each score, write the share of pure-luck guessers who matched or
+# beat it, out of the full 10,000.
 # Two lines. Press Check when you have them.
 ```
-::check {"regex": "luck_correct\\s*>=\\s*7", "gate": true, "difficulty": "beginner", "ok": "That is 1,769 rounds out of 10,000, a share of 0.1769, or about 1 round in 6. Guessing produces a 7 out of 10 all the time, so on its own that score would tell you almost nothing about Anita.", "no": "Reuse the counting line and move the bar: `sum(luck_correct >= 7)`, then the same line with `mean()` in place of `sum()`."}
+::check {"regex": "pure_luck_crowd\\s*>=\\s*8[\\s\\S]*pure_luck_crowd\\s*>=\\s*7", "gate": true, "difficulty": "intermediate", "ok": "Right: 581 out of 10,000 for the 8-correct taster, about 5.8%, and 1,795 out of 10,000 for the 7-correct taster, about 18%. The first is still fairly rare. The second is common: pure luck lands on 7 or better roughly one time in six.", "no": "Reuse the counting lines from a few steps back with a new threshold: sum(pure_luck_crowd >= 8) / length(pure_luck_crowd), then the same line with 7 in place of 8."}
 ::solution
 ```r
-# Count the guessing rounds that reached 7 or more correct calls
-sum(luck_correct >= 7)
-#> [1] 1769
-mean(luck_correct >= 7)
-#> [1] 0.1769
+# The full pure-luck crowd, checked against both new scores
+sum(pure_luck_crowd >= 8) / length(pure_luck_crowd)
+#> [1] 0.0581
+sum(pure_luck_crowd >= 7) / length(pure_luck_crowd)
+#> [1] 0.1795
 ```
 
-Two cups is all that separates those two results, and it changes everything. 9 correct out of 10 came in at 0.0103. 7 correct out of the same 10 cups comes in at 0.1769, which is 17 times more often.
+8 out of 10 gives 0.0581, about 5.8%. Pure luck can reach that score, but not often. It still sits toward the rare end, though not as rare as Priya's 9.
+
+7 out of 10 gives 0.1795, about 18%. That is common. Pure luck lands on 7 or better roughly one guesser in every six, so a score of 7 tells you almost nothing about whether the taster has real skill.
+
+Notice the pattern. As the score you check against drops from 9 to 8 to 7, the pure-luck crowd catches up to it faster and faster, and the result stops looking surprising.
 
 === step === concept
 ## References
 
-- [The Design of Experiments](https://archive.org/details/in.ernet.dli.2015.502684) - Fisher (1935), chapter 2. The original tasting experiment, settled by counting the possible arrangements by hand rather than simulating them.
-- [The Lady Tasting Tea](https://archive.org/details/TheladytastingteaSalsburg2001) - Salsburg (2001), Henry Holt. The story of that experiment and of the reasoning it set off.
-- [The Introductory Statistics Course: A Ptolemaic Curriculum?](https://doi.org/10.5070/T511000028) - Cobb (2007), Technology Innovations in Statistics Education 1(1). The case for teaching simulation before formulas, which is the order used here.
-- [Introduction to Statistical Investigations](http://www.isi-stats.com/isi/) - Tintle and colleagues (2016), Wiley. A full introductory course built on simulated null distributions.
-- [Exact binomial test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/binom.test.html) - R Core Team, the documentation for `binom.test()`.
+- [Statistical Inference: The Big Picture](https://doi.org/10.1214/10-STS337) - Kass, R. E. (2011), Statistical Science, 26(1).
+- [OpenIntro Statistics](https://www.openintro.org/book/os/) - Diez, D., Barr, C., and Cetinkaya-Rundel, M., 4th edition, the chapter on simulation-based inference.
+- [The Introductory Statistics Course: A Ptolemaic Curriculum?](https://escholarship.org/uc/item/6hb3k0nz) - Cobb, G. W. (2007), Technology Innovations in Statistics Education.
+- [All of Statistics: A Concise Course in Statistical Inference](https://doi.org/10.1007/978-0-387-21736-9) - Wasserman, L. (2004), Springer.
+- [Statistical hypothesis testing](https://en.wikipedia.org/wiki/Statistical_hypothesis_testing) - Wikipedia.
 
 === step === complete
-## Quick recap
+## Wrapping up: the pure-luck test in one recipe
 
-You took a claim that cannot be checked directly and measured it anyway, without a formula appearing once. To pull it together:
+You started with one simple question: was Priya's 9 out of 10 real skill, or just a lucky guesser having a good day?
 
-- Anita named 9 of 10 cups correctly. Real ability and a lucky run both explain a score like that, so the 9 by itself decides nothing.
-- The null hypothesis is the dull explanation stated precisely: she cannot taste any difference, so every call is a coin flip. That is the one you can simulate.
-- 10,000 rounds of those coin flips gave the whole range guessing produces. Most rounds landed at 4, 5 or 6 correct.
-- 103 of the 10,000 reached 9 or more, a share of 0.0103. That is how often guessing does as well as Anita did.
-- 0.0103 is evidence against the guessing explanation. It is not the chance that she was guessing, and it is not proof that she can taste anything, since 103 guessers reached her score.
-- The number of cups decides what a percentage is worth. 70% over 10 cups is ordinary under guessing. 70% over 100 cups is very nearly impossible.
+To answer it, you built the pure-chance story by hand: one guesser with no ability, then a crowd of 10,000 of them. You counted how many of that crowd matched or beat Priya's score, 101 out of 10,000, and gave that fraction its proper name, the p-value.
 
-So the next time someone puts a result in front of you and asks whether it is real, you have a way to answer that needs no formula at all. Build the world where nothing is going on, run it, and count how often it does what you saw.
+Then you saw the same shaded-tail idea generalize past counting correct guesses, to any result from any test at all: state the real result, build the pure-chance crowd, and see how far into the rare end the real result falls.
 
-That counted share has a name, the p-value, and it comes with a set of traps that catch experienced people every day. Those traps are the next thing worth seeing.
+You also tried it yourself on two new tasters. A score of 8 stayed fairly rare. A score of 7 turned out to be common, nowhere near surprising enough to suggest real skill.
+
+You did not use a formula anywhere. Every number came from a crowd you built and counted by hand, which is exactly how a p-value works underneath, no matter which test produces it.
