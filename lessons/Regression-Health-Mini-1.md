@@ -1,8 +1,8 @@
 ---
 title: "Multicollinearity: why your coefficients look wrong, and the fix"
 slug: "Regression-Health-Mini-1"
-description: "When two predictors overlap, one coefficient can come back negative. Measure that overlap with VIF in R, then choose between reporting, dropping and ridge."
-keywords: "multicollinearity in R, variance inflation factor, VIF in R, correlated predictors, collinearity diagnostics, ridge regression in R, lm coefficients"
+description: "A correlated predictor can flip a coefficient and widen its interval. Diagnose it with VIF in R, and then pick the fix that keeps the variables you need."
+keywords: "multicollinearity in R, VIF in R, variance inflation factor, correlated predictors, coefficient sign flip, car vif, ridge regression in R, regression diagnostics"
 mathjax: true
 webr: true
 date: "2026-09-06"
@@ -16,450 +16,431 @@ course_prev: ""
 course_next: ""
 curriculum_id: "0.0.11"
 lesson_access: "windowed"
-catalog_blurb: "How to spot correlated predictors and pick the right fix for them."
+catalog_blurb: "Why correlated predictors flip a coefficient, how VIF finds it, and what to fix."
 ---
 
 === step === cover
 ## Multicollinearity: why your coefficients look wrong, and the fix
 
-Today let's take a regression that looks broken, work out what is actually wrong with it, and fix it.
+Today let's work through what happens to a regression when two of your predictors measure almost the same thing.
 
-Say your job is to put a price on a house, and for each one you have three measurements: the floor area in square feet, the number of rooms, and how old the building is. You put all three into a linear model, which is exactly the right thing to do.
+We have 60 homes. For each one we know four numbers: the price in thousands of dollars, the floor area in square feet, how many rooms it has, and how old it is in years.
 
-You fit the model and the room count comes back at minus 10.6. Every extra room takes 10,600 off the predicted price. Its p value is 0.41, so the number cannot even be told apart from zero. Area and age, sitting in the same output, look perfectly sensible.
+Nothing in that list looks like trouble. Floor area and room count are both ordinary things to know about a house, and both should have something to do with what it sells for.
 
-Nothing failed, by the way. There is no error and no warning, and the model still explains 70 percent of the variation in price.
+But bigger houses tend to have more rooms. So before fitting anything, it is worth asking how much these four columns already move together.
 
-The cause is that a room count is very nearly a restatement of a floor area. When two columns carry that much of the same information, almost nothing is left for the room coefficient to be estimated from, and a coefficient estimated from almost nothing can land anywhere, including on the wrong side of zero.
+The grid below is the correlation matrix of those 60 homes. Each cell holds the Pearson correlation between two columns: green for positive, blue for negative, and the darker the cell the stronger the relationship.
 
-The name for this is multicollinearity. There is a number that measures it, and four sensible things to do once you have that number. The whole path is three moves.
+::widget correlation-heatmap {"vars": ["price", "area", "rooms", "age"], "matrix": [[1, 0.8456, 0.7531, -0.1844], [0.8456, 1, 0.9246, -0.0726], [0.7531, 0.9246, 1, -0.0243], [-0.1844, -0.0726, -0.0243, 1]]}
 
-::widget process-flow {"steps":[{"title":"Fit the model, read the coefficients","sub":"one predictor comes back negative"},{"title":"Measure the overlap with VIF","sub":"how much of each predictor the others already explain"},{"title":"Pick a response","sub":"report as it stands, drop, separate, or shrink"}]}
+Find the cell where area meets rooms: 0.92. Both of them are worth having, since price sits at 0.85 with area and 0.75 with rooms. Age is the odd one out, at -0.07 against area and -0.02 against rooms, so it is the only predictor here carrying information of its own.
 
-So: fit the model and read what it gives you, measure the overlap between the predictors, then choose a response. Let's build the house data first.
+That 0.92 between area and rooms is the number to watch.
 
 === step === concept
-## A house price model where one coefficient flips sign
+## What area and rooms each predict on their own
 
-Let's set up the data first, because every number from here on comes out of it.
+Let's build those 60 homes, so every number from here on comes from the same data.
 
-The data covers 180 houses in one city. For each house we have the sale price in thousands of dollars, the floor area in square feet, the number of rooms, and the age of the building in years.
+The prices are made with a formula we choose ourselves: a base of 60, plus 0.11 for each square foot, plus 14 for each room, minus 1.2 for each year of age, and random noise on top. Knowing the true answer is the point of doing it this way. When a fitted coefficient looks strange later on, we will be able to say exactly how strange it is.
 
-We are simulating the data ourselves, and that is deliberate: it means we know the truth the model is trying to recover. Every square foot adds 0.14 to the price, every room adds 12, and every year of age takes off 0.8. The room count is the floor area divided by 430 and rounded, plus a small amount of noise, which is roughly how room counts and floor areas go together in real housing data.
+Room count is built from floor area, roughly one room for every 430 square feet, plus a little randomness. That is what makes the two columns move together the way they do in real housing data.
 
 Press Run.
 
 ```r
-# Build the 180 homes and look at the first few rows
-set.seed(115)
-n     <- 180
-area  <- round(rnorm(n, 1900, 520))               # floor area in square feet
-rooms <- round(area / 430 + rnorm(n, 0, 0.20))    # room count, built to track area
-age   <- round(runif(n, 0, 60))                   # age in years
-price <- round(55 + 0.14 * area + 12 * rooms - 0.8 * age + rnorm(n, 0, 55), 1)
+# Build the 60 homes we will use for the whole lesson
+set.seed(96)
+area  <- round(rnorm(60, 1850, 420))
+rooms <- round(area / 430 + rnorm(60, 0, 0.32))
+age   <- round(runif(60, 1, 40))
+price <- round(60 + 0.11 * area + 14 * rooms - 1.2 * age + rnorm(60, 0, 38))
 
 homes <- data.frame(price, area, rooms, age)
 head(homes)
 #>   price area rooms age
-#> 1 416.3 2229     5  48
-#> 2 471.1 2198     5  18
-#> 3 352.1 2181     5  22
-#> 4 336.2 1804     4  28
-#> 5 293.9 1958     5  50
-#> 6 380.2 2276     5  55
+#> 1   306 1879     4   3
+#> 2   318 2442     5  22
+#> 3   439 2626     7  38
+#> 4   396 2421     5  19
+#> 5   335 1791     4   3
+#> 6   200 1263     3  31
 ```
 
-The first house has 2,229 square feet, 5 rooms, 48 years on it, and sold for 416.3 thousand.
+The first home is 1879 square feet, has 4 rooms, is 3 years old and sold for 306 thousand dollars. Across the 60 rows the floor areas run from 635 to 2929 square feet and the room counts from 1 to 7.
 
-Now fit the model the way anyone would, with all three predictors on the right hand side.
+Now fit price on one predictor at a time and read what each one says by itself.
 
 ```r
-# Fit price on all three predictors and read the coefficient table
-m_full <- lm(price ~ area + rooms + age, data = homes)
-round(summary(m_full)$coefficients, 3)
+# Fit price on area alone, then on rooms alone
+fit_area  <- lm(price ~ area, data = homes)
+fit_rooms <- lm(price ~ rooms, data = homes)
+
+round(summary(fit_area)$coefficients, 4)
 #>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)   57.283     20.049   2.857    0.005
-#> area           0.196      0.033   6.008    0.000
-#> rooms        -10.642     12.973  -0.820    0.413
-#> age           -0.989      0.269  -3.674    0.000
+#> (Intercept)  16.7561    23.8882  0.7014   0.4858
+#> area          0.1496     0.0124 12.0650   0.0000
+
+round(summary(fit_rooms)$coefficients, 4)
+#>             Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)  63.5547    27.6426  2.2992   0.0251
+#> rooms        53.2081     6.1027  8.7187   0.0000
 ```
 
-Read the rooms row first. The estimate is -10.642, so this model says that an extra room takes 10,642 off the price of a house. We generated the data with a true room effect of plus 12, so even the sign is wrong.
+In the first fit, one more square foot of floor area adds 0.1496 to the price, so about 150 dollars per square foot. In the second, one more room adds 53.2 thousand dollars.
 
-The standard error beside it is 12.973, larger than the estimate itself, so the t value in the next column is only -0.820. That is why the p value comes out at 0.413.
-
-Now the other two rows. Area is 0.196 with a standard error of 0.033, and age is -0.989 with a standard error of 0.269. Both have the right sign and both are estimated tightly. Two of the three coefficients came out fine.
-
-The interval around the rooms estimate says the same thing in a more useful way.
-
-```r
-# The 95 percent interval for each coefficient, and how much of price the model explains
-round(confint(m_full), 2)
-#>              2.5 % 97.5 %
-#> (Intercept)  17.71  96.85
-#> area          0.13   0.26
-#> rooms       -36.24  14.96
-#> age          -1.52  -0.46
-
-round(summary(m_full)$r.squared, 4)
-#> [1] 0.7013
-```
-
-The rooms interval runs from -36.24 to 14.96. It does contain the true value of 12, so the model is not wrong. But it also contains -30, and zero, and everything in between. The interval is correct and nearly empty of information at the same time.
-
-R-squared is 0.7013, so the model still explains 70 percent of the variation in price. Whatever went wrong with that one coefficient never showed up in the fit.
+Both estimates are many times their own standard error, both t values clear 8, and both p-values round to zero at four decimal places. Taken one at a time, each predictor is strong and points where you would expect: more space costs more, more rooms cost more.
 
 === step === concept
-## What the rooms coefficient is asked to measure
+## What happens when both go into the same model
 
-So why did that one coefficient come apart while the other two held?
-
-Start with what a regression coefficient actually means. In a multiple regression, the coefficient on rooms is not the price difference between houses with more rooms and houses with fewer. It is the price difference between two houses of the same floor area and the same age that differ by one room. Area held fixed, age held fixed, only the room count moving.
-
-Answering that needs data of exactly that kind: houses of the same size with different room counts. So let's find out how much of that kind of variation the 180 houses actually contain.
+The obvious next move is to use everything we know about a home at once.
 
 ```r
-# How strongly every pair of columns moves together
-round(cor(homes), 2)
-#>       price  area rooms   age
-#> price  1.00  0.82  0.78 -0.21
-#> area   0.82  1.00  0.96 -0.07
-#> rooms  0.78  0.96  1.00 -0.06
-#> age   -0.21 -0.07 -0.06  1.00
+# Fit price on all three predictors at once
+model_full <- lm(price ~ area + rooms + age, data = homes)
+round(summary(model_full)$coefficients, 4)
+#>             Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)  36.8498    26.1835  1.4074   0.1648
+#> area          0.1748     0.0323  5.4166   0.0000
+#> rooms       -11.5487    12.8602 -0.8980   0.3730
+#> age          -0.8215     0.4895 -1.6781   0.0989
 ```
 
-The cell to look at is area against rooms: 0.96. Those two columns are very nearly the same column. Age is unrelated to both, at -0.07 and -0.06, and it is worth remembering that age is the odd one out here.
+Look at the rooms row. On its own a room was worth 53.2 thousand dollars. Next to area and age, a room is worth -11.5 thousand dollars, so an extra room now takes money off the price. Its standard error has more than doubled, from 6.10 to 12.86, and its p-value has gone from below 0.001 to 0.373.
 
-Here is the same matrix as colour, which makes the pattern easier to take in at a glance.
+Area moved too. The estimate rose from 0.1496 to 0.1748, and its standard error grew by a factor of 2.6, from 0.0124 to 0.0323.
 
-::widget correlation-heatmap {"vars":["price","area","rooms","age"],"matrix":[[1,0.82,0.78,-0.21],[0.82,1,0.96,-0.07],[0.78,0.96,1,-0.06],[-0.21,-0.07,-0.06,1]]}
+And nothing complained. No warning, no error, no dropped column. R fitted the model and printed the table.
 
-A correlation is a pairwise number, though, and a regression adjusts for all the other predictors at once. So the question is not how much of rooms area explains. It is how much of rooms area and age explain together. Regress rooms on both of them and read the R-squared.
+The confidence intervals say the same thing more plainly.
 
 ```r
-# Regress rooms on the other two predictors to see how much of it they already explain
-aux_rooms <- lm(rooms ~ area + age, data = homes)
-round(summary(aux_rooms)$r.squared, 3)
-#> [1] 0.93
+# The 95 percent interval for each coefficient, and the model R-squared
+round(confint(model_full), 3)
+#>               2.5 % 97.5 %
+#> (Intercept) -15.602 89.302
+#> area          0.110  0.239
+#> rooms       -37.311 14.213
+#> age          -1.802  0.159
+
+round(summary(model_full)$r.squared, 4)
+#> [1] 0.7341
 ```
 
-0.93. Area and age together account for 93 percent of the variation in the room count. Only 7 percent of it is left over, and that leftover is the houses that have more or fewer rooms than their size and age would suggest.
+The 95% interval for rooms runs from -37.311 to 14.213. It covers a large loss, it covers zero, and it just reaches the 14 we used to build the data. With area and age already in the model, the data from these 60 homes cannot say what a room is worth.
 
-That 7 percent is the only part of the data the rooms coefficient can be estimated from. Everything else about the room count is already spoken for by area. So the model is estimating a real quantity from a very thin slice of the data, and 12.973 is what that thinness costs.
+Meanwhile R-squared is 0.7341, so the three predictors together account for 73.4% of the variation in price.
+
+[NOTE]
+Two different things are being reported here. The model as a whole fits well, and one coefficient inside it is unusable. A regression can hand you both at the same time without a single warning.
+
+=== step === concept
+## Why the rooms coefficient flipped
+
+A coefficient in a multiple regression answers one narrow question: with the other predictors held fixed, what does one more unit of this predictor do to price?
+
+Holding area fixed means comparing homes of the same floor area. So the real question is how much room counts differ among homes that are already the same size and age.
+
+We can measure that. Regress rooms on the other two predictors and keep what is left over.
+
+```r
+# Regress rooms on the other two predictors and keep the leftover variation
+aux <- lm(rooms ~ area + age, data = homes)
+round(summary(aux)$r.squared, 4)
+#> [1] 0.8567
+
+homes$rooms_left <- resid(aux)
+round(c(sd_rooms = sd(homes$rooms), sd_rooms_left = sd(homes$rooms_left)), 3)
+#>      sd_rooms sd_rooms_left
+#>         1.151         0.436
+```
+
+That auxiliary regression has an R-squared of 0.8567, so area and age between them already account for 85.7% of the variation in room count. The residual, `rooms_left`, is the remaining 14.3%: the part of room count that floor area and age cannot explain.
+
+Its standard deviation is 0.436 rooms, against 1.151 in the original column. That leftover variation is all the full model has to work with, and we can show it is the only thing the model used.
+
+```r
+# Fit price on that leftover variation alone
+coef(lm(price ~ rooms_left, data = homes))["rooms_left"]
+#> rooms_left
+#>  -11.54872
+
+coef(model_full)["rooms"]
+#>     rooms
+#> -11.54872
+```
+
+The same number to five decimal places. That is the Frisch-Waugh-Lovell theorem: the coefficient on a predictor in a multiple regression equals the coefficient you get by regressing the outcome on the part of that predictor the others leave behind.
+
+Predictors that overlap this much have a name. Multicollinearity is two or more of them carrying so much of the same information that almost nothing independent is left for a coefficient to be fitted from. When the overlap is a single pair, like area and rooms here, most people shorten the word to collinearity.
+
+[KEY INSIGHT]
+The rooms coefficient is not fitted from the room counts. It is fitted from 60 residuals with a standard deviation of 0.436 rooms, which is what area and age leave behind. There is very little signal in that, so the estimate lands wherever the noise in these particular 60 homes puts it, and here the noise put it below zero.
 
 === step === concept
 ## VIF: how much of a predictor the others already explain
 
-That leftover share is worth turning into a number you can compute for every predictor, because it is the standard diagnostic for exactly this. It is called the Variance Inflation Factor, usually written VIF, and it is built straight out of the regression we just ran, the one with a predictor on the left and the rest of them on the right. A fit like that is called an auxiliary regression: you never report it, you run it to find out how much of one predictor the others already hold.
+The auxiliary R-squared of 0.8567 is the entire diagnosis, and it has a standard name once you turn it upside down. That name is the Variance Inflation Factor, or VIF.
 
-\[ \text{VIF}_j = \frac{1}{1 - R^2_j} \]
+$$\text{VIF}_j = \frac{1}{1 - R^2_j}$$
 
-R-squared with a subscript j is what we computed for rooms: 0.93. So 1 minus it, the 0.07, is the share of predictor j that the other predictors cannot explain, and the VIF is one divided by that.
+Here the R-squared with the subscript j is the R-squared from regressing predictor j on all the other predictors. The closer the others come to explaining predictor j completely, the smaller the denominator gets and the larger VIF grows. A predictor nothing else can explain has an auxiliary R-squared of 0 and a VIF of exactly 1.
 
-Read the two ends of the scale. A predictor that the others cannot explain at all has an auxiliary R-squared of 0 and a VIF of 1. A predictor the others can predict perfectly has an R-squared approaching 1 and a VIF that runs off to infinity.
-
-Let's compute it for all three predictors, each from its own auxiliary regression.
+For rooms that gives 1 / (1 - 0.8567), which is 6.98. Here is the same auxiliary regression run for all three predictors.
 
 ```r
-# Compute the VIF of every predictor from its own auxiliary regression
+# Compute each predictor's VIF from its own auxiliary regression
 predictors <- c("area", "rooms", "age")
 
 vif_manual <- sapply(predictors, function(p) {
-  others <- setdiff(predictors, p)
-  f  <- as.formula(paste(p, "~", paste(others, collapse = " + ")))
-  r2 <- summary(lm(f, data = homes))$r.squared
+  others    <- setdiff(predictors, p)
+  formula_p <- as.formula(paste(p, "~", paste(others, collapse = " + ")))
+  r2 <- summary(lm(formula_p, data = homes))$r.squared
   1 / (1 - r2)
 })
 
 round(vif_manual, 2)
 #>  area rooms   age
-#> 14.30 14.29  1.00
+#>  7.01  6.98  1.02
 ```
 
-Area is 14.30, rooms 14.29, age 1.00.
+Area and rooms sit at 7.01 and 6.98, almost the same number, because the overlap is mutual. Age is at 1.02, which is what a predictor carrying its own information looks like.
 
-Age comes in at 1.00, the floor of the scale, because nothing else in the model explains how old a building is. Area and rooms both come in at 14.3, and they have to be close, since each one is mostly explaining the other.
-
-You would not write that loop in practice. The car package does the same job in one line.
+You would not write that loop in practice. The `car` package has the function.
 
 ```r
-# The same three numbers in one line
+# Get the same three numbers from car in one line
 suppressMessages(library(car))
-round(vif(m_full), 2)
+round(vif(model_full), 2)
 #>  area rooms   age
-#> 14.30 14.29  1.00
+#>  7.01  6.98  1.02
 ```
 
-The same three numbers. `vif()` runs those auxiliary regressions internally, so there is nothing hidden in it.
+Identical values, one line. That is the line to reach for on a real model.
 
-But what does 14.30 mean for the coefficient? The name says it: the VIF is the factor by which the overlap inflates the variance of that coefficient. A standard error is the square root of a variance, so take the square root of the VIF.
+The name says what the number does. The variance of a coefficient estimate is VIF times bigger than it would be if that predictor were uncorrelated with the rest. Standard errors are square roots of variances, so the standard error is stretched by the square root of VIF.
 
 ```r
-# Turn each VIF into the multiplier it puts on that coefficient standard error
-round(sqrt(vif_manual), 2)
-#>  area rooms   age
-#>  3.78  3.78  1.00
+# Turn the rooms VIF into the width of its standard error
+se_now  <- summary(model_full)$coefficients["rooms", "Std. Error"]
+se_at_1 <- se_now / sqrt(vif_manual[["rooms"]])
+
+round(c(vif = vif_manual[["rooms"]], widening = sqrt(vif_manual[["rooms"]]),
+        se_now = se_now, se_at_vif_1 = se_at_1), 3)
+#>         vif    widening      se_now se_at_vif_1
+#>       6.979       2.642      12.860       4.868
 ```
 
-3.78. The standard error on rooms is 3.78 times what it would be if area and age explained none of it. That is the damage, stated as a multiplier.
+The overlap with area costs a factor of 2.642 on the standard error of rooms. Had rooms been uncorrelated with the other two, that standard error would have been 4.868 instead of 12.860, and the interval around the estimate would have been 2.642 times narrower.
 
-We can check that against the model's own arithmetic. The standard error of a coefficient is the residual standard deviation divided by the square root of two things multiplied together: the total squared spread of that predictor, and the fraction of it the other predictors leave unexplained. Drop that second factor and you get the standard error you would have had with no overlap at all.
-
-```r
-# The area standard error as the model computes it, and what it would be with no overlap
-sigma    <- summary(m_full)$sigma
-sst_area <- sum((homes$area - mean(homes$area))^2)
-r2_area  <- summary(lm(area ~ rooms + age, data = homes))$r.squared
-
-round(c(with_overlap = sigma / sqrt(sst_area * (1 - r2_area)),
-        no_overlap   = sigma / sqrt(sst_area)), 5)
-#> with_overlap   no_overlap
-#>      0.03255      0.00861
-```
-
-0.03255 with the overlap and 0.00861 without it. The ratio is 3.78, the square root of the VIF, and nothing else about the model changed.
-
-So here is collinearity stated precisely. It does not move the estimate and it does not touch the fit. It multiplies the standard error by the square root of the VIF.
-
-[NOTE]
-1, 5 and 10 are the VIF thresholds you will see quoted. They are conventions, not tests. A VIF of 5 means the standard error is 2.24 times what it would be and a VIF of 10 means 3.16 times, which is useful to know. Whether that is a problem depends on whether you needed that coefficient and how wide its interval ended up. There is no value at which a model stops being valid.
+You will see 5 and 10 quoted as the VIF thresholds where a predictor becomes a problem. They are conventions, not tests, and nothing changes at 4.9 that does not change at 5.1. Read a VIF as a statement about how much independent information you have for that predictor, next to the standard error it inflates.
 
 === step === widget
-## What collinearity damages, and what it leaves alone
+## Wider intervals, unchanged estimates and predictions
 
-We can measure the overlap now. The next question is what it damages, and that is worth being exact about, because collinearity gets blamed for a lot of things it does not do.
+So is the -11.5 wrong, or only uncertain? The difference decides what you do next, and it is worth settling with an experiment rather than an argument.
 
-The dial below runs the experiment properly. It builds a regression with two predictors, raises the correlation between them from 0 up to 0.995, and at every setting it runs 2,000 complete studies: generate the data, fit the model, take the 95 percent interval for the first coefficient, and check whether that interval contains the true value.
+The dial below runs that experiment. It carries its own data rather than the homes: at each setting it generates two predictors with a chosen correlation, builds an outcome in which the first predictor's true coefficient is 1, and then fits 2,000 separate studies of 60 observations each. Read the two predictors as area and rooms, and the dial as the correlation between them.
 
-It uses its own two predictors rather than the house data, so read the first one as area and the second as rooms, and read the dial as how close the room count is to being a restatement of the floor area. Start at the far left and drag it right.
+It measures two things across those 2,000 studies. Coverage is the share of the 95% confidence intervals that contain the true value of 1. R-squared is the fit.
 
-::widget assumption-dial {"assumption":"multicollinearity","levels":11,"start":0}
+::widget assumption-dial {"assumption": "multicollinearity", "start": 0}
 
-Watch which numbers move and which ones do not.
+At the left end the two predictors are uncorrelated, coverage is about 95%, and that is exactly what a 95% interval is supposed to deliver. Now drag the dial to the right. The readout names the correlation and the VIF that comes with it, ending at a correlation of 0.995 and a VIF near 100.
 
-At the far left the label reads r = 0.000, VIF 1.0. One notch from the right it reads r = 0.895, VIF 5.0, and at the right end it reads r = 0.995, VIF 100.3, which is a pair of predictors that are almost the same variable.
+Coverage does not budge off 95% anywhere along that dial, and R-squared stays flat. The only thing that grows is the width of the intervals.
 
-Across that whole range three things hold still. The estimate stays centred on the true value, so the coefficient is unbiased at every setting. Coverage stays at about 95 percent, so the intervals cover the true value as often as they should. R-squared holds still.
+That is the answer to the question. Collinearity does not bias the estimate and does not break the model. It makes the estimate imprecise, and the interval reports that imprecision honestly.
 
-One thing changes: the width. By the right end the interval is more than ten times wider than it was with uncorrelated predictors.
+Prediction survives too. Drop rooms from the model completely and compare the two fits.
 
-That makes the first of the four responses easy to overlook. Report the interval you have. Minus 36.24 to 14.96 is not a broken result, it is a correct statement that 180 houses cannot separate area from rooms. If what you owe someone is an honest account of how much you do not know, that interval already gives it.
+```r
+# Drop rooms, refit, and compare the fit with the full model
+model_no_rooms <- lm(price ~ area + age, data = homes)
 
-[KEY INSIGHT]
-Collinearity makes a coefficient imprecise, not wrong. The estimate is still unbiased, the 95 percent interval still covers the true value 95 percent of the time, and the fit and the predictions are untouched. All that happens is that the interval gets wide, and a wide interval is a true statement about how little the data can separate two predictors carrying the same information.
+round(c(r2_full        = summary(model_full)$r.squared,
+        r2_no_rooms    = summary(model_no_rooms)$r.squared,
+        sigma_full     = summary(model_full)$sigma,
+        sigma_no_rooms = summary(model_no_rooms)$sigma), 4)
+#>        r2_full    r2_no_rooms     sigma_full sigma_no_rooms
+#>         0.7341         0.7303        43.0427        42.9696
+```
+
+R-squared slips from 0.7341 to 0.7303, a loss of 0.0038. The residual standard deviation, which penalises the model for every parameter it uses, actually improves a little, from 43.04 to 42.97 thousand dollars.
+
+So for predicting a price, rooms was contributing nothing that area had not already contributed.
+
+[WARNING]
+A high VIF on its own is not a reason to delete a variable. If all you need is predictions, a VIF of 7 costs you nothing. It starts to matter when you have to read, report or defend an individual coefficient.
 
 === step === quiz
-## Quick check: reading a VIF of 14.3
+## Quick check: what collinearity does to an estimate
 
-The house price model has a VIF of 14.3 on rooms. Which sentence reads that correctly?
+The full model put rooms at -11.5 with a VIF of 6.98. Which sentence describes what collinearity did to that number?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- The model now predicts badly, so the fitted prices and the R-squared cannot be trusted either. ::no
-- The rooms estimate is pulled toward zero, so the real room effect must be larger than the model reports. ::no
-- The standard error on rooms is 3.78 times what it would be if the other predictors explained none of it, so the estimate is imprecise rather than wrong. ::ok Exactly. 3.78 is the square root of 14.30, and it multiplies the standard error and nothing else. The estimate stays unbiased and the interval keeps covering at 95 percent.
-- The other predictors explain 14.3 percent of the variation in rooms. ::no A VIF is not a percentage and it does not say whether the model is any good. It is one divided by the leftover share of a predictor after the others have explained what they can, and its square root is the factor it puts on that coefficient standard error. Here that factor is 3.78. The fitted values, the predictions and the R-squared are unaffected, and the estimate is not pulled in either direction. It is only imprecise.
+- It biased the estimate downwards, so -11.5 is systematically too low and the true value is higher. ::no
+- It broke an assumption of least squares, so the fitted model is invalid and its predictions cannot be trusted. ::no
+- It left the estimate unbiased and widened its interval, because rooms is fitted only from the variation area and age leave behind. ::ok Exactly. Coverage held at 95% right across the dial while only the width grew, and dropping rooms moved R-squared by 0.0038. The estimate is honest, it is just imprecise.
+- It inflated R-squared, so the model looks better than it really is. ::no Three of these describe damage that does not happen. Collinearity does not push the estimate in any direction, it does not invalidate the fit, and it does not inflate R-squared. What it does is shrink the independent variation a coefficient is fitted from, which widens the interval and nothing else.
 
 === step === concept
-## Fix 1: drop the redundant predictor
+## Two fixes that change the predictors
 
-This is the second of the four responses, and the one everybody reaches for first. If two predictors carry the same information, keep one and drop the other.
+If a coefficient for rooms is what you need, the first two remedies both work on the predictors themselves.
 
-Rooms is the one with almost nothing of its own left, so drop rooms and refit on exactly the same 180 houses.
+The first is to drop one of the pair. We already have that model, so read its coefficients and its VIFs.
 
 ```r
-# Drop rooms, refit on the same data, and read the VIFs again
-m_drop <- lm(price ~ area + age, data = homes)
-round(summary(m_drop)$coefficients, 3)
+# Read the coefficients and the VIFs of the model without rooms
+round(summary(model_no_rooms)$coefficients, 4)
 #>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)   59.214     19.892   2.977    0.003
-#> area           0.170      0.009  19.701    0.000
-#> age           -0.991      0.269  -3.687    0.000
+#> (Intercept)  37.4557    26.1304  1.4334   0.1572
+#> area          0.1480     0.0122 12.1309   0.0000
+#> age          -0.8711     0.4856 -1.7938   0.0782
 
-round(vif(m_drop), 2)
+round(vif(model_no_rooms), 2)
 #> area  age
-#>    1    1
-
-round(summary(m_drop)$r.squared, 4)
-#> [1] 0.7002
+#> 1.01 1.01
 ```
 
-Both VIFs are 1. The area coefficient moved from 0.196 with a standard error of 0.033 to 0.170 with a standard error of 0.009. That is the 3.78 multiplier coming off, and area is now estimated nearly four times more precisely.
+Both VIFs fall to 1.01, and the area coefficient is back to 0.1480 with a standard error of 0.0122, as tight as it was on its own. The cost is worth stating plainly: this model has no answer at all about rooms, and its area coefficient now carries the value of the extra rooms that come with extra space.
 
-R-squared went from 0.7013 to 0.7002. Removing a predictor whose coefficient could not be pinned down cost about a thousandth of R-squared.
-
-Look at where the area coefficient landed, though. The true per square foot effect is 0.14, and each square foot brings about 1/430 of a room with it, worth another 12/430, or 0.028. Add them and you get 0.168, which is what the fit gives as 0.170. Area is now carrying its own effect plus the room effect that travels with it.
+The second remedy keeps both variables but asks them different questions. Rooms and area overlap because they both measure size, so divide one by the other and the overlap goes away.
 
 ```r
-# Predict one house from both models: 2000 square feet, 5 rooms, 20 years old
-new_house <- data.frame(area = 2000, rooms = 5, age = 20)
+# Re-express rooms as rooms per 1000 square feet, then refit
+homes$rooms_per_1000 <- 1000 * homes$rooms / homes$area
+round(cor(homes$area, homes$rooms_per_1000), 3)
+#> [1] 0.027
 
-round(predict(m_full, new_house, interval = "prediction"), 1)
-#>     fit   lwr   upr
-#> 1 375.5 256.2 494.7
+model_layout <- lm(price ~ area + rooms_per_1000 + age, data = homes)
+round(summary(model_layout)$coefficients, 4)
+#>                Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)     89.5648    56.1296  1.5957   0.1162
+#> area             0.1484     0.0122 12.1689   0.0000
+#> rooms_per_1000 -22.9028    21.8389 -1.0487   0.2988
+#> age             -0.8367     0.4863 -1.7206   0.0909
 
-round(predict(m_drop, new_house, interval = "prediction"), 1)
-#>   fit   lwr   upr
-#> 1 379 260.2 497.9
+round(vif(model_layout), 2)
+#>           area rooms_per_1000            age
+#>           1.01           1.01           1.01
 ```
 
-Both models predict essentially the same price for the same house, 375.5 against 379, with prediction intervals of near identical width. Dropping rooms cost the predictions nothing, because rooms was not adding information the model did not already have.
+Rooms per 1000 square feet correlates 0.027 with area, so all three VIFs drop to 1.01 and both predictors keep their place in the model. They now answer separate questions: area is the price of size, at 0.1484 per square foot, and rooms per 1000 square feet is the price of layout, at -22.9 thousand dollars for each extra room packed into the same space.
 
-What it cost is the answer to a question. There is no per room number in the model without rooms, and its area coefficient can no longer be read as the effect of floor area alone.
-
-[TIP]
-Choose the predictor to drop by which coefficient your question needs, not by which VIF is highest. Here area and rooms come in at 14.30 and 14.29, which is no guidance at all. And if the question is what a room is worth, dropping rooms answers nothing, however clean the diagnostics look afterwards.
-
-=== step === concept
-## Fix 2: keep both predictors and separate the shared part
-
-Dropping a predictor is a real loss when both variables mean something. So here is a response that keeps both of them.
-
-The problem was never the room count itself. It was the 93 percent of the room count that area already accounts for. So split the column in two: the part area explains, and the part it does not. That second part is exactly the residuals from regressing rooms on area.
-
-```r
-# Split rooms into the part area explains and the part it does not
-homes$extra_rooms <- residuals(lm(rooms ~ area, data = homes))
-round(cor(homes$area, homes$extra_rooms), 10)
-#> [1] 0
-```
-
-`extra_rooms` is the room count of a house minus the room count a house of that floor area usually has. A value of plus 0.4 is four tenths of a room more than its size would suggest, and minus 0.2 is slightly fewer.
-
-Its correlation with area is 0, and not approximately 0: residuals from a regression on area are orthogonal to area by construction. The overlap is gone. Now refit with `extra_rooms` in place of `rooms`.
-
-```r
-# Refit with extra_rooms in place of rooms
-m_res <- lm(price ~ area + extra_rooms + age, data = homes)
-round(summary(m_res)$coefficients, 3)
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)   59.130     19.911   2.970    0.003
-#> area           0.170      0.009  19.684    0.000
-#> extra_rooms  -10.642     12.973  -0.820    0.413
-#> age           -0.989      0.269  -3.674    0.000
-
-round(vif(m_res), 2)
-#>        area extra_rooms         age
-#>           1           1           1
-
-round(summary(m_res)$r.squared, 4)
-#> [1] 0.7013
-```
-
-Look at what changed and what did not.
-
-Every VIF is 1 now. The area coefficient is 0.170 with a standard error of 0.009, the same well determined number the model without rooms gave, and here it means area together with the rooms that come with it.
-
-The `extra_rooms` coefficient is -10.642 with a standard error of 12.973. Those are the numbers the original model reported for rooms, down to the last digit. R-squared is 0.7013, unchanged from the original fit.
-
-So we gained no precision at all. We rearranged three predictors into three uncorrelated ones, and every quantity that was imprecise before is exactly as imprecise now.
-
-[KEY INSIGHT]
-Rearranging predictors cannot add information the data never held. Residualising, and principal components regression which is the general form of the same move, buys you uncorrelated predictors, well posed questions and a diagnostic that reads clean. It does not buy a more precise answer to the original question, because the 7 percent of the room count that area leaves behind is still all there is.
+Notice what re-expressing did not do. The layout coefficient still has a standard error of 21.8 and a p-value of 0.2988, so it remains uncertain. Removing the overlap gave us two questions we can ask separately, not more data.
 
 === step === widget
-## Fix 3: shrink the coefficients with ridge regression
+## The fix that keeps every predictor: ridge regression
 
-If rearranging cannot help, the only way left to make the estimates less variable is to accept some bias in exchange. That trade is what ridge regression makes.
+The third remedy changes neither the predictors nor the data. It changes what the fitting procedure is trying to do.
 
-Least squares finds the coefficients by inverting one small matrix, X transpose X, where X is the predictor columns set side by side. When two of those columns are nearly the same, that matrix comes very close to one that cannot be inverted at all, and it is that near miss which throws up the huge offsetting pairs: a large positive coefficient on one predictor paid for by a large negative one on the other.
+Ordinary least squares picks the coefficients that make the squared errors as small as possible, and it will use enormous coefficients to get there if the predictors let it. Ridge regression adds a second term to that goal, a penalty on the squared size of the coefficients, controlled by a number called lambda. At a lambda of 0 you get least squares back. As lambda grows, the coefficients are pulled toward zero.
 
-Ridge adds a small constant, lambda, to every entry down the diagonal of that matrix before inverting it, which is enough to steady the arithmetic. That is the same thing as penalising the sum of the squared coefficients, which makes a large offsetting pair expensive to hold. Let's run it by hand on standardized predictors, so the three coefficients sit on a comparable scale, at five values of lambda.
-
-```r
-# Ridge regression from its closed form, on standardized predictors
-X   <- scale(homes[, c("area", "rooms", "age")])
-y   <- homes$price - mean(homes$price)
-XtX <- t(X) %*% X
-
-lambdas     <- c(0, 1, 5, 20, 50)
-ridge_coefs <- sapply(lambdas, function(l) solve(XtX + l * diag(3)) %*% t(X) %*% y)
-dimnames(ridge_coefs) <- list(c("area", "rooms", "age"), paste0("lambda=", lambdas))
-
-round(rbind(ridge_coefs, "area+rooms" = colSums(ridge_coefs[1:2, ])), 2)
-#>            lambda=0 lambda=1 lambda=5 lambda=20 lambda=50
-#> area         101.95    93.97    75.89     55.71     45.20
-#> rooms        -13.91    -6.19    10.93     27.66     32.04
-#> age          -16.53   -16.49   -16.29    -15.35    -13.68
-#> area+rooms    88.03    87.79    86.81     83.37     77.24
-```
-
-The lambda = 0 column is plain least squares: area 101.95 and rooms -13.91, the sign flip we started with, now in standardized units.
-
-Follow those two rows to the right. Area falls from 101.95 to 55.71 at lambda 20. Rooms climbs from -13.91 through 10.93 at lambda 5 and on to 27.66. The two converge toward each other, which is exactly what the penalty is for, since an offsetting pair costs more than a shared moderate pair.
-
-And look at the bottom row. Their sum barely moves, from 88.03 down to 83.37. The pair was always well determined. It was only the split between the two that the data could not pin down, and the penalty is what settles the split.
-
-Every coefficient here is biased. At lambda 20 neither number is an unbiased estimate of anything. In exchange they are stable: refit on a different sample of houses and they would not swing the way the least squares pair does.
-
-The shape of that shrinkage is worth seeing on its own, so here it is on a six predictor example, with a switch between the two common penalties.
+The path below shows that happening. It carries its own example, six predictors named x1 to x6 whose least-squares values sit on the left, with lambda growing from left to right.
 
 ::widget coef-path {}
 
-It opens on Lasso. Drag lambda to the right and the coefficients hit exactly zero one after another, weakest first, which turns the penalty into variable selection. Switch to Ridge and every coefficient slides toward zero without any of them arriving.
+The control above the chart opens on lasso, so switch it to ridge first, then drag lambda. Every one of the six curves bends toward the middle line, none of them ever reaches it, and the readout under the chart says exactly that: all 6 shrink, none vanish. Now switch back to lasso and drag again. The readout counts how many of the six survive, because lasso sets weak coefficients to exactly zero and drops them from the model.
 
-That is the practical difference between the two. Ridge keeps every predictor and shrinks an overlapping pair toward each other, which is what you want when both variables are real and you want a model that holds still. Lasso picks one of a correlated pair and deletes the other, which is what you want when you actually want a shorter model.
+For a collinear pair, shrinking is the useful behaviour. Instead of handing one predictor a large positive coefficient and the other a large negative one, ridge splits the shared signal between them and keeps both small.
 
-In practice you would not write the closed form. `glmnet()` fits both penalties, and `cv.glmnet()` chooses lambda by cross validation instead of by eye.
+Here it is on the homes, with lambda chosen by cross validation.
+
+```r
+# Fit ridge regression on the same three predictors
+suppressMessages(library(glmnet))
+X <- as.matrix(homes[, c("area", "rooms", "age")])
+
+ridge_cv <- cv.glmnet(X, homes$price, alpha = 0,
+                      foldid = rep(1:10, length.out = 60))
+
+round(ridge_cv$lambda.min, 2)
+#> [1] 6.82
+```
+
+The argument `alpha = 0` asks for ridge. `cv.glmnet` splits the 60 homes into 10 folds, fits the model at many values of lambda, and keeps the one with the lowest cross-validated error, here 6.82. Fixing `foldid` makes the folds the same on every run, so the answer does not move.
+
+Now put the ridge coefficients next to the least-squares ones.
+
+```r
+# Put the ridge coefficients beside the ordinary least squares ones
+ridge_coef <- coef(ridge_cv, s = "lambda.min")
+
+data.frame(ols   = round(coef(model_full), 3),
+           ridge = round(as.vector(ridge_coef), 3))
+#>                 ols  ridge
+#> (Intercept)  36.850 55.537
+#> area          0.175  0.118
+#> rooms       -11.549  8.822
+#> age          -0.821 -0.864
+```
+
+Rooms comes back at 8.822 instead of -11.549, and area settles at 0.118 instead of 0.175. `glmnet` standardises the predictors before it applies the penalty, so a square foot and a room are treated on the same footing, and it returns the coefficients on their original scales. On that common footing the least-squares pair sat far apart, a big positive on area against a negative on rooms, and the penalty pulled them together until the sign flip was gone.
 
 [WARNING]
-Ridge coefficients are not estimates of the true effects and should not be reported as though they were. There is no honest p value for them and no interval with a coverage guarantee. Use ridge when you want a model that predicts stably under collinearity, and use least squares with a wide interval when you want to report what one predictor is worth.
+Ridge coefficients are biased on purpose. That is the trade: a little bias bought in exchange for much less variance. They also come with no ordinary standard errors or p-values, so reach for ridge when you want stable coefficients and good predictions, not when you need a significance test.
 
 === step === quiz
-## Quick check: which response fits the question?
+## Quick check: which fix fits the question you are asking
 
-You have a house price model with a VIF of 14.3 on two of its predictors. It is going into a price estimator on a property website, so it will only ever produce a predicted price and a range around it, and nobody will read a coefficient off it. What should you do?
+You have area and rooms at a VIF of about 7. Which action fits which goal?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Drop rooms, because a VIF above 10 always has to be brought back down. ::no
-- Leave the model as it is, because nothing it is ever asked to produce is affected. ::ok Right. The overlap widens the coefficient intervals and leaves the fitted values, the R-squared and the prediction intervals alone, so a model that only ever produces predictions is not damaged by it.
-- Refit with lasso, so that one of the two overlapping predictors is set to exactly zero. ::no
-- Collect more predictors, so that the shared information is spread over a wider set of columns. ::no The other three answers all treat a high VIF as a fault to be repaired. It is not a fault, it is a measurement of how precisely the individual coefficients can be estimated. The question is never how high the VIF is, it is which coefficient the model has to deliver. This one delivers none, and its predictions are unaffected, so dropping a predictor, switching to lasso, or collecting more columns would each cost work and gain nothing.
+- Always drop the predictor with the highest VIF, because a VIF above 5 means the variable does not belong in the model. ::no
+- If you only need predictions, change nothing. If you need to report a coefficient, drop one of the pair, re-express them as size and layout, or fit ridge. ::ok That is the whole decision. Every fix costs something, so you only pay when the goal makes it worth paying.
+- The p-value of 0.373 on rooms shows that room count does not affect price, so removing it is the statistically correct choice. ::no
+- Switch to lasso, since it sets a coefficient to exactly zero and so removes the collinearity for you. ::no Each of these is a reflex rather than a decision. A VIF of 7 costs prediction nothing, a p-value of 0.373 on a coefficient this imprecise says the data cannot measure the effect rather than that the effect is absent, and letting lasso pick which of two near-identical predictors to delete only hides the choice.
 
 === step === tryit
-## Your turn: the VIFs after a derived predictor is added
+## Your turn: work out the VIF of a two-predictor model
 
-There is one more source of collinearity, and it is the easiest one to create by accident: a predictor computed out of other predictors.
-
-Add a column `sqft_per_room`, the floor area divided by the room count, and fit price on all four predictors. Then run `vif()` on that model and see what the numbers do.
+Leave age out and fit price on area and rooms only. Call `vif()` on that model, then get the same number a second way, straight from the correlation between area and rooms, without fitting an auxiliary regression at all.
 
 ```r
-# homes holds price, area, rooms and age for 180 houses.
-# Add a column sqft_per_room, the floor area divided by the room count.
-# Fit price on area, rooms, age and sqft_per_room, then run vif() on that model.
-# Three lines. Press Check when you have them.
+# homes holds the 60 homes with price, area, rooms and age.
+# 1. Fit price on area and rooms only, call it model_two, and run vif() on it.
+# 2. Get the same number from cor(homes$area, homes$rooms) and the VIF formula.
+# Press Check when you have both.
 ```
-::check {"regex": "sqft_per_room[\\s\\S]*vif[(]", "gate": true, "difficulty": "intermediate", "ok": "115.50 for area, 135.84 for rooms, 1.00 for age and 9.83 for sqft_per_room. A predictor built out of two predictors already in the model is a duplicate by construction, so sqft_per_room is the one to remove.", "no": "Three lines. Set `homes$sqft_per_room` to `homes$area / homes$rooms`, fit `lm(price ~ area + rooms + age + sqft_per_room, data = homes)` into `m_extra`, then call `round(vif(m_extra), 2)`."}
+::check {"regex": "1\\s*/\\s*[(]\\s*1\\s*-\\s*cor", "gate": true, "difficulty": "intermediate", "ok": "Yes, 6.891 both ways. With only two predictors there is nothing else to regress area on, so the auxiliary R-squared is just the squared correlation: 0.9246 squared is 0.8549, and 1 divided by what is left over gives 6.891.", "no": "Two lines. First lm(price ~ area + rooms, data = homes) passed to vif(), then the formula itself, with the squared correlation in place of the auxiliary R-squared."}
 ::solution
 ```r
-# Add a predictor derived from two others, then check every VIF
-homes$sqft_per_room <- homes$area / homes$rooms
-m_extra <- lm(price ~ area + rooms + age + sqft_per_room, data = homes)
-round(vif(m_extra), 2)
-#>          area         rooms           age sqft_per_room
-#>        115.50        135.84          1.00          9.83
+# Fit the two-predictor model, then get its VIF two ways
+model_two <- lm(price ~ area + rooms, data = homes)
+round(vif(model_two), 3)
+#>  area rooms
+#> 6.891 6.891
+
+round(1 / (1 - cor(homes$area, homes$rooms)^2), 3)
+#> [1] 6.891
 ```
 
-Area went from 14.30 to 115.50 and rooms from 14.29 to 135.84, purely from adding a column that contains no new measurement at all. Age is untouched at 1.00, because a derived column does not spread collinearity everywhere. It adds it among the columns it was derived from.
+Both predictors share one number here, and it is a little smaller than the 6.98 of the three-predictor model, because age was also contributing a small amount to the explanation of rooms.
 
 === step === concept
 ## References
 
-- [Generalized Collinearity Diagnostics](https://doi.org/10.1080/01621459.1992.10475190) - Fox and Monette (1992), Journal of the American Statistical Association 87(417), 178-183. The generalised form, and what `vif()` reports for a model containing a factor: read the third column, not the first.
-- [A Caution Regarding Rules of Thumb for Variance Inflation Factors](https://doi.org/10.1007/s11135-006-9018-6) - O'Brien (2007), Quality and Quantity 41, 673-690. Why 5 and 10 are conventions rather than tests, and why a high VIF on its own does not justify removing a variable.
-- [Regression Diagnostics: Identifying Influential Data and Sources of Collinearity](https://doi.org/10.1002/0471725153) - Belsley, Kuh and Welsch (1980), Wiley. Condition numbers and variance decomposition, which catch a three way near dependency that pairwise VIFs can miss.
-- [Ridge Regression: Biased Estimation for Nonorthogonal Problems](https://doi.org/10.1080/00401706.1970.10488634) - Hoerl and Kennard (1970), Technometrics 12(1), 55-67. The original bias for variance trade, and where the lambda added down the diagonal comes from.
-- [An R Companion to Applied Regression](https://cran.r-project.org/package=car) - Fox and Weisberg (2019), 3rd edition, Sage. The book behind the car package, including how `vif()` is computed and what it returns.
+- [A Caution Regarding Rules of Thumb for Variance Inflation Factors](https://doi.org/10.1007/s11135-006-9018-6) - O'Brien (2007), Quality and Quantity 41(5), 673-690. Why 5 and 10 are conventions rather than tests, and what else has to be true before a high VIF is a problem.
+- [Generalized Collinearity Diagnostics](https://doi.org/10.1080/01621459.1992.10475190) - Fox and Monette (1992), Journal of the American Statistical Association 87(417), 178-183. The paper behind the vif() function in car, including the generalised form for factors.
+- [Regression Diagnostics: Identifying Influential Data and Sources of Collinearity](https://doi.org/10.1002/0471725153) - Belsley, Kuh and Welsch (1980), Wiley. Condition numbers and variance decompositions, which examine the whole predictor matrix instead of one predictor at a time.
+- [Ridge Regression: Biased Estimation for Nonorthogonal Problems](https://doi.org/10.1080/00401706.1970.10488634) - Hoerl and Kennard (1970), Technometrics 12(1), 55-67. The original bias-for-variance trade.
+- [An R Companion to Applied Regression](https://www.john-fox.ca/Companion/) - Fox and Weisberg (2019), 3rd edition, Sage. The reference for the car package and its regression diagnostics.
 
 === step === complete
 ## Quick recap
 
-You started with a model whose room coefficient came back at -10.642 when the true effect was plus 12, and you now know exactly why and what to do about it. To summarize:
+You watched a good predictor turn into a bad coefficient, measured why it happened, and fixed it three different ways.
 
-- The diagnosis is the VIF: one divided by the leftover share of a predictor after the others explain what they can. Area and rooms came in at 14.30 and 14.29, out of an auxiliary R-squared of 0.93.
-- The damage is the square root of the VIF, applied to the standard error and to nothing else. Here that is 3.78, which took the area standard error from 0.00861 up to 0.03255.
-- What is not damaged: the estimate stays unbiased, the 95 percent intervals keep covering at 95 percent, and the fitted values, the prediction intervals and the R-squared are untouched.
-- The four responses: report the wide interval as it stands, drop the redundant predictor, split one predictor into the shared part and the leftover, or shrink both with ridge. Choose by which coefficient your question needs, never by which VIF is highest.
+- Fitted alone, rooms was worth 53.2 thousand dollars with a p-value below 0.001. Fitted beside area and age, it was worth -11.5 with a 95% interval from -37.3 to 14.2, and R printed no warning.
+- The reason is the leftover variation. Area and age explain 85.7% of room count, leaving 0.436 rooms of standard deviation, and refitting price on that leftover alone reproduces -11.5487 exactly.
+- VIF puts a number on the overlap: 1 divided by 1 minus that auxiliary R-squared, which is 6.98 for rooms and 1.02 for age. One line of vif() from car gives all three.
+- Collinearity widens intervals without biasing estimates. Coverage held at 95% across the whole dial, and dropping rooms moved R-squared from 0.7341 to 0.7303.
+- Fix it only when you need the coefficient itself. Drop one of the pair, re-express them as size and layout, or fit ridge, which returned rooms to 8.82.
 
-The thing to carry away is that a high VIF is a measurement, not a fault. It tells you how much these data can say about one predictor while the others are held fixed, and sometimes the honest answer is that they cannot say much, with an interval to prove it.
+So the next time a coefficient comes back with the wrong sign and a p-value that says nothing, check the VIF before you delete the variable. The number is usually telling you that your data cannot separate two predictors, not that one of them is worthless.
 
-Next time a coefficient comes back with the wrong sign, you will know what to measure, what it costs, and which of the four responses your question calls for. Have a great day!
+Congratulations on making it through, and have a great day!
