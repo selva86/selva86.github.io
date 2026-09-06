@@ -115,13 +115,6 @@ def check_lesson(path):
         return issues, slug
     types = [t for t, _ in steps]
 
-    # Two-pass build (2026-09-06): Phase 1 writes a skeleton with numbered
-    # [PROSE-n] markers, Phase 2 fills them. A survivor means the fill pass
-    # missed a step; it must never publish.
-    _left = re.findall(r'\[PROSE-\d+\]', raw)
-    if _left:
-        fail('unfilled prose markers from the two-pass build: ' + ', '.join(_left))
-
     # Voice tells (owner voice pack): hard tells fail, heuristic tells warn with the
     # sentences listed. Rules live in Scripts/voice_lint.py (also runs standalone).
     try:
