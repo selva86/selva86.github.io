@@ -54,6 +54,8 @@ PREFIX = {
 BRIEF = """LESSON: slug {slug}; title "{title}"; part {part} of {total} of the mini course
 "{course_title}" (course_id {course_id}); curriculum_id 0.0.{seq};
 lesson_access windowed; course_landing /dashboard.html{prev_next}.
+Working directory: the project root D:/09_rstatisticsco; the site repo is
+selva86.github.io/ inside it.
 
 THE PROMISE THIS LESSON MUST DELIVER: the daily email that unlocks it.
 Subject: "{subject}"
@@ -124,9 +126,9 @@ VOICE_PROMPT = """You are the VOICE PASS for one lesson: selva86.github.io/lesso
 Work from the project root. Your only job is how the prose sounds; the teaching,
 the structure and the code are already done and reviewed for pedagogy.
 
-READ FIRST: .claude/skills/write-lesson/SKILL.md, Part 2 only. It holds the
-owner-written exemplars and, at its end, ONE COMPLETE LESSON in the owner's
-own hand between BEGIN/END EXEMPLAR markers. That lesson is the standard.
+READ FIRST: .claude/skills/write-lesson/exemplar-lesson.md, ONE COMPLETE
+LESSON in the owner's own hand; that lesson is the standard. Then Part 2 of
+.claude/skills/write-lesson/SKILL.md, the rules and flagged pairs around it.
 Then read the lesson you are editing end to end.
 
 FIX, do not rewrite. Read the lesson as the owner of the exemplar lesson

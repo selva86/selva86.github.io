@@ -156,7 +156,7 @@ def lint_steps(steps, whole_text=None):
         issues.append(('FAIL', 'em/en dash present (%d); use a comma, a full stop, or "to"' % len(DASH_RE.findall(whole_text))))
     # Heuristic categories (fragments, flourish words, personification, soft
     # narration) were RETIRED 2026-08-21: the owner's hand-written exemplar
-    # lesson (write-lesson SKILL.md Part 2) uses short spoken pauses, the word
+    # lesson (write-lesson exemplar-lesson.md) uses short spoken pauses, the word
     # "honest", and light personification deliberately, so those detectors
     # flagged the owner's own voice. The exemplar is the calibration now; only
     # the objective hard tells above gate.
