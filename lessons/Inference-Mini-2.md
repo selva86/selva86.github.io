@@ -22,7 +22,7 @@ catalog_blurb: "What a p-value actually measures, and the mistake almost everyon
 === step === cover
 ## What p-values mean
 
-A p-value is one of the most reported numbers in data work, and one of the least understood. This lesson works through one real test from beginning to end, so you know exactly what that number is telling you and what it is not.
+A p-value is one of the most reported numbers in data work, and one of the least understood. Work through one real test from beginning to end, and you will know exactly what that number is telling you and what it is not.
 
 An online store tests a new checkout page against its old one. Over one stretch, 2,000 visitors see the old page and 140 of them buy something, a rate of 7.0%. Another 2,000 visitors see the new page, and 178 buy, a rate of 8.9%. A statistical test comparing the two pages returns p = 0.03.
 
@@ -75,7 +75,7 @@ The line to read is X-squared = 4.68, p-value = 0.03057. The test statistic, X-s
 === step === widget
 ## What the shaded tail under the null actually shows
 
-The X-squared statistic and its p-value are two views of the same picture: how far the observed gap sits from a world where nothing is going on. It helps to actually see that picture.
+The X-squared statistic and its p-value both measure the same thing: how far the observed gap sits from a world where nothing is going on. It helps to see that distance directly.
 
 For a test comparing exactly two groups like this one, that X-squared statistic works out to exactly the square of a simpler, more familiar number: how many standard deviations the observed gap sits from zero, the point of no difference at all. The square root of 4.68 is about 2.16. Reading the tail area off a standard normal curve at that same distance out gives back the exact same p-value the test reported.
 
@@ -83,12 +83,12 @@ Drag the marker below and watch the shaded tail area, the p-value, change with i
 
 ::widget null-distribution {"tails": 2, "max": 4, "start": 2.16, "label": "the observed gap, in standard deviations"}
 
-Left where it starts, at 2.16, the shaded area reads about 0.031, the same story as the test's 0.0306. Push the marker further from zero and the shaded area shrinks, because a bigger gap is rarer under the null hypothesis. Pull it back toward zero and the shaded area grows, because a small gap is common when nothing real is going on.
+Left where it starts, at 2.16, the shaded area reads about 0.031, matching the test's 0.0306. Push the marker further from zero and the shaded area shrinks, because a bigger gap is rarer under the null hypothesis. Pull it back toward zero and the shaded area grows, because a small gap is common when nothing real is going on.
 
 === step === concept
 ## Building that same 0.03 by simulation
 
-The widget's curve is a mathematical shortcut. You can get to the same 0.03 without any curve at all, just by simulating the null hypothesis directly and counting.
+The normal curve is a mathematical shortcut. You can get to the same 0.03 without any curve at all, just by simulating the null hypothesis directly and counting.
 
 Under the null hypothesis, both pages convert at the pooled rate, 7.95%. So build 10,000 pretend versions of this exact experiment. In each one, draw a pretend old page and a pretend new page, both from that same 7.95% rate, each with 2,000 visitors. Then count how many of those 10,000 pretend experiments produce a gap at least as large as the real one.
 
@@ -112,7 +112,7 @@ mean(abs(sim_diff) >= abs(obs_gap))
 #> [1] 0.0296
 ```
 
-296 of the 10,000 pretend experiments produced a gap of 1.9 percentage points or more, which as a share is 0.0296. That is the same story as prop.test's 0.0306, this time built entirely from counting, with no formula at all.
+296 of the 10,000 pretend experiments produced a gap of 1.9 percentage points or more, which as a share is 0.0296. That matches prop.test's 0.0306, this time built entirely from counting, with no formula at all.
 
 [KEY INSIGHT] A p-value is nothing more than a count. Out of every pretend experiment where the null hypothesis is exactly true, it is the share that produces a gap at least this large.
 
@@ -123,7 +123,7 @@ Before moving on, check that the shaded tail and the 0.0296 you counted mean the
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
 - The shaded area is the chance the new page truly converts better than the old one. ::no
-- The shaded area is how often a gap this large or larger would happen if both pages truly converted at the pooled 7.95% rate. ::ok Exactly. Both the widget and the 10,000 pretend experiments are answering that one question, nothing else.
+- The shaded area is how often a gap this large or larger would happen if both pages truly converted at the pooled 7.95% rate. ::ok Exactly. Both the shaded tail and the 10,000 pretend experiments are answering that one question, nothing else.
 - The shaded area is how much bigger the new page's conversion rate is than the old page's. ::no That describes the gap itself, not the p-value. The shaded area, and the 0.0296 you just counted, both answer one question only: how often a gap this size turns up if the pooled 7.95% rate is the one true rate for both pages.
 
 === step === concept
@@ -142,7 +142,7 @@ A useful comparison: nearly every lottery jackpot winner bought a ticket, so the
 === step === widget
 ## Simulating ten thousand tests where nothing changed
 
-That last claim was made in words. Here is the proof in numbers.
+p = 0.03 measures data, never the null hypothesis. Numbers prove it next.
 
 Build 10,000 separate checkout tests. In every single one, both the old page and the new page are drawn from the exact same pooled rate, 7.95%, so the null hypothesis is true by construction, not just assumed. Run the real prop.test on each of those 10,000 pretend tests, and count how many still come back with p below 0.05.
 
@@ -191,7 +191,7 @@ c(test_p = round(prop.test(c(old_x, new_x), c(old_n, new_n))$p.value, 4),
 #>           0.0306           0.0457 
 ```
 
-0.0306 and 0.0457 are close because both come from the same pooled rate and the same sample sizes, but they answer two different questions. 0.0306 is how rare this specific 1.9 point gap is under the null hypothesis. 0.0457 is how often the 0.05 cutoff misfires across many null-true tests in general. Neither one is the chance the null hypothesis is true.
+0.0306 and 0.0457 are close because both come from the same pooled rate and the same sample sizes, but they answer two different questions. 0.0306 is how rare this specific 1.9 point gap is under the null hypothesis. 0.0457 is how often the 0.05 cutoff gives a false alarm across many null-true tests in general. Neither one is the chance the null hypothesis is true.
 
 === step === quiz
 ## Quick check: a new quarter, a new p-value
@@ -200,13 +200,13 @@ Try applying all of this to a fresh number. The store reruns the checkout test t
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
 - There is a 20 percent chance the new page truly changed nothing. ::no
-- If the new page truly changed nothing, a gap this size or bigger would still turn up in about 20 percent of tests. ::ok Right. Same rule as before, applied to a new number: p always answers how often the data would look this way under the null hypothesis, never how likely the null itself is.
+- If the new page truly changed nothing, a gap this size or bigger would still turn up in about 20 percent of tests. ::ok Right. p always answers how often the data would look this way under the null hypothesis, never how likely the null itself is.
 - This quarter's improvement is about 20 percent smaller than last quarter's. ::no p = 0.20 says nothing about how big the improvement was this quarter, only about how often a gap like it would appear under the null hypothesis. It is not a percentage chance the null is true, and it is not a measure of how big the effect is.
 
 === step === tryit
 ## Your turn: tighten the cutoff
 
-sim_p still holds those 10,000 p-values from tests where the null hypothesis was true every time. You already found that a 0.05 cutoff misfires 4.57% of the time. Now try a stricter cutoff, 0.01, and see whether it misfires less.
+sim_p still holds those 10,000 p-values from tests where the null hypothesis was true every time. You already found that a 0.05 cutoff gives a false alarm 4.57% of the time. Now try a stricter cutoff, 0.01, and see whether it gives fewer false alarms.
 
 Recompute the false alarm rate using 0.01 instead of 0.05.
 
@@ -216,7 +216,7 @@ Recompute the false alarm rate using 0.01 instead of 0.05.
 # Recompute the false-alarm rate using 0.01 as the cutoff instead of 0.05.
 # One line. Press Check when you have it.
 ```
-::check {"regex": "mean[(]sim_p\\s*<\\s*0?\\.01[)]", "gate": true, "difficulty": "beginner", "ok": "Right: 89 out of 10,000, a false alarm rate of 0.0089. A stricter cutoff means fewer false alarms, because you are only willing to accept a rarer coincidence before calling something significant.", "no": "Reuse the counting line from a few steps back and swap the cutoff: mean(sim_p < 0.01)."}
+::check {"regex": "mean[(]sim_p\\s*<\\s*0?\\.01[)]", "gate": true, "difficulty": "beginner", "ok": "Right: 89 out of 10,000, a false alarm rate of 0.0089. A stricter cutoff means fewer false alarms, because you are only willing to accept a rarer coincidence before calling something significant.", "no": "Reuse the counting line and swap the cutoff: mean(sim_p < 0.01)."}
 ::solution
 ```r
 # Recompute the false-alarm rate at a stricter 0.01 cutoff
@@ -244,4 +244,4 @@ You built p = 0.03 twice: once from prop.test, and once by literally counting 29
 
 You then proved the common misreading wrong with numbers, not just words. 10,000 tests where the null hypothesis was true every single time still crossed the 0.05 cutoff 457 times, 4.57% of them. That is what a false alarm rate looks like, not what "the null is probably false" looks like.
 
-So the next time a test hands you p = 0.03, read it the way you now know is correct: if nothing were really going on, a result this good would still show up about 3 times in 100. Nothing more, and nothing less.
+So the next time a test gives you p = 0.03, read it the way you now know is correct: if nothing were really going on, a result this good would still show up about 3 times in 100. Nothing more, and nothing less.
