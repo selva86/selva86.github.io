@@ -1,7 +1,7 @@
 ---
 title: "Autocorrelation in residuals: how to test and fix it"
-description: "Autocorrelated residuals leave your coefficients alone and quietly eat your standard errors. Test for them with Durbin-Watson, then repair the inference."
-keywords: "autocorrelation in residuals, durbin watson test in r, breusch-godfrey test, serial correlation, newey-west standard errors, hac standard errors, regression diagnostics in r"
+description: "Learn to test regression residuals for autocorrelation with the Durbin-Watson statistic, see what it breaks, and fix it with Newey-West HAC standard errors."
+keywords: "durbin-watson test, autocorrelation in residuals, serial correlation, newey-west standard errors, HAC standard errors, regression residuals, lmtest, sandwich package"
 mathjax: true
 webr: true
 curriculum_id: "0.0.19"
@@ -14,353 +14,89 @@ course_landing: "/dashboard.html"
 course_next: ""
 course_prev: "Regression-Health-Mini-1"
 lesson_access: "windowed"
-catalog_blurb: "How to spot correlated errors in time-ordered data and repair the inference."
+catalog_blurb: "Test whether your regression's errors are independent, and fix it when they are not."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
 
 <section class="lesson-step" data-step="1" data-step-type="cover">
-<div class="lesson-step-eyebrow">Regression Health Check</div>
 <h2>Autocorrelation in residuals: how to test and fix it</h2>
 
-<p>Let's say you have ten years of monthly sales from one store, and the owner keeps asking you the same question. Does the advertising actually do anything?</p>
+<p>Today's lesson is about one requirement ordinary least squares makes of your residuals, one that is easy to break without ever noticing: each residual has to carry no information about the one that comes right after it.</p>
 
-<p>So you fit a regression: sales this month against the ad budget this month, with the number of promotion days in as a control. The output comes back looking healthy. Every extra thousand of ad budget buys about half a unit of sales, the p-value on that coefficient is 0.0019, and the model accounts for 76% of the month-to-month movement in sales.</p>
+<p>Here is a simulated example to make that concrete. A company regresses its monthly sales on its monthly ad spend, both measured in thousands of dollars, over 60 months, five years of data. It fits the usual straight line, <code>sales ~ ad_spend</code>, using ordinary least squares, OLS for short.</p>
 
-<p>You would take that into a meeting without thinking twice.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit sales on ad spend across 60 months, ready for the rest of the lesson
+set.seed(42)
+ad_spend &lt;- 20 + cumsum(rnorm(60, mean = 0.3, sd = 1.5))
+ad_spend &lt;- round(ad_spend, 2)
 
-<p>Then you plot the model's errors in the order the months actually happened, and something is off. The errors do not scatter around zero the way errors are supposed to. They travel. There is a stretch of thirty-one months in a row where the model sits on the same side of the truth the whole way, never once crossing back.</p>
+e &lt;- numeric(60)
+e[1] &lt;- rnorm(1, 0, 9)
+for (t in 2:60) {
+  e[t] &lt;- 0.8 * e[t - 1] + rnorm(1, 0, 5.5)
+}
 
-<p>That happens because months lean on each other. If demand ran soft in November it is probably still soft in December, so a model that overshoots in one month overshoots again in the next.</p>
+sales &lt;- round(90 + 1.6 * ad_spend + e, 2)
+model &lt;- lm(sales ~ ad_spend)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>That pattern has a name, autocorrelation, and it does its damage in an odd place. The coefficient does not move. The fit does not move. What it eats is the standard error, the one number nobody was watching, and a standard error that is too small gives you a t-value that is too big and a p-value that flatters you.</p>
+<p>The fit looks perfectly normal. But watch what happens when you chart the residuals, the gap between each month's actual sales and what the model predicted, against the month they belong to.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":-8.72},{"x":2,"y":-7.21},{"x":3,"y":-3.42},{"x":4,"y":4.29},{"x":5,"y":-1.27},{"x":6,"y":5.26},{"x":7,"y":5.94},{"x":8,"y":9.75},{"x":9,"y":13.16},{"x":10,"y":14.01},{"x":11,"y":5.65},{"x":12,"y":4.8},{"x":13,"y":6.56},{"x":14,"y":-0.3},{"x":15,"y":-3.47},{"x":16,"y":0.54},{"x":17,"y":4.43},{"x":18,"y":4.75},{"x":19,"y":-2.56},{"x":20,"y":-8.01},{"x":21,"y":1.36},{"x":22,"y":1.27},{"x":23,"y":0.85},{"x":24,"y":0.03},{"x":25,"y":-6.08},{"x":26,"y":-1.93},{"x":27,"y":-3.11},{"x":28,"y":-4.57},{"x":29,"y":1.29},{"x":30,"y":4.91},{"x":31,"y":11.42},{"x":32,"y":6.53},{"x":33,"y":9.05},{"x":34,"y":14.48},{"x":35,"y":5.56},{"x":36,"y":-1.19},{"x":37,"y":-7.77},{"x":38,"y":-14.93},{"x":39,"y":-12.99},{"x":40,"y":-7.34},{"x":41,"y":0.29},{"x":42,"y":5.32},{"x":43,"y":-1.42},{"x":44,"y":8.27},{"x":45,"y":1.83},{"x":46,"y":1.67},{"x":47,"y":-1.89},{"x":48,"y":-2.09},{"x":49,"y":-1.27},{"x":50,"y":-0.49},{"x":51,"y":-0.75},{"x":52,"y":-0.69},{"x":53,"y":-2.86},{"x":54,"y":-4.96},{"x":55,"y":-13.19},{"x":56,"y":-12.63},{"x":57,"y":-12.66},{"x":58,"y":4.81},{"x":59,"y":-5.0},{"x":60,"y":-3.32}],"geoms":["line","point"],"x":"month","y":"residual"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at the shape of that line. It does not bounce up and down around zero at random. It moves in long runs instead: several months positive in a row, then several months negative in a row, before swinging back the other way.</p>
 
-<p>So we are going to catch it, measure it and repair it, and there are only three moves involved.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"See the runs","sub":"plot the errors in month order, watch them travel"},{"title":"Measure them","sub":"Durbin-Watson for lag 1, Breusch-Godfrey for the rest"},{"title":"Repair the standard errors","sub":"Newey-West keeps the coefficients, fixes the errors"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>By the end, that p-value of 0.0019 will read 0.11, the coefficient will not have moved by a hair, and you will know exactly which of the two to believe.</p>
+<p>That run of same-signed residuals sitting together, instead of scattering with no pattern, is what a broken independence assumption looks like on a page.</p>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<h2>Ten years of monthly sales, built so ad spend does nothing</h2>
+<h2>Why OLS needs its residuals to be independent</h2>
 
-<p>Let's get the data on the table first, because everything we do from here reads off it.</p>
+<p>Ordinary least squares assumes its residuals are independent of one another. In plain terms, knowing this month's residual should tell you nothing about the sign or the size of next month's.</p>
 
-<p>We are going to build the store ourselves instead of downloading one, and that is the whole point. When you build the data you know the truth, and here the truth is blunt: ad spend has exactly zero effect on sales. It never enters the sales calculation at all. So any evidence the regression finds for it is a false alarm, and we get to watch that false alarm being manufactured.</p>
+<p>Time-ordered data breaks that assumption constantly, and the reason is simple. Something can nudge sales up, or down, for several months running: a slow shift in what customers want, a competitor's price cut that takes months to fully bite, a stretch where the sales team is short-staffed. None of that is a variable in <code>sales ~ ad_spend</code>, so it lands in the residual instead, and it tends to land there for more than one month at a time.</p>
 
-<p>We record three things each month, for 120 months:</p>
-
-<ul>
-
-<li><code>sales</code>, the units the store sold that month.</li>
-
-<li><code>ad_spend</code>, the ad budget for that month, in thousands.</li>
-
-<li><code>promo_days</code>, the number of days that month that ran a promotion.</li>
-
-</ul>
-
-<p>Two of those really do move sales. Each promotion day adds 8 units, and November and December add another 20 on top, because people buy at Christmas. Ad spend adds nothing.</p>
-
-<p>Under all of it sits demand, which is the part of a month's sales that no column explains. Demand does not start fresh every month. It keeps 93% of where it was last month and adds a small new shock, which is how a real market behaves: a slow season stays slow for a while, then turns.</p>
-
-<p>Press Run.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Build ten years of monthly sales for one store, with ad spend that does nothing
-set.seed(1880)
-n_months      &lt;- 120
-month         &lt;- 1:n_months
-month_in_year &lt;- ((month - 1) %% 12) + 1
-
-# The ad budget drifts slowly around 60: each month is mostly last month
-ad_noise &lt;- rnorm(n_months, sd = 3)
-ad_spend &lt;- numeric(n_months)
-ad_spend[1] &lt;- ad_noise[1] / sqrt(1 - 0.96^2)
-for (t in 2:n_months) ad_spend[t] &lt;- 0.96 * ad_spend[t - 1] + ad_noise[t]
-ad_spend &lt;- 60 + ad_spend
-
-# Promotion days are drawn fresh each month, so they carry no memory
-promo_days &lt;- sample(0:12, n_months, replace = TRUE)
-
-# Demand keeps 93% of last month and adds a fresh shock
-shock  &lt;- rnorm(n_months, sd = 5.5)
-demand &lt;- numeric(n_months)
-demand[1] &lt;- shock[1] / sqrt(1 - 0.93^2)
-for (t in 2:n_months) demand[t] &lt;- 0.93 * demand[t - 1] + shock[t]
-
-# Sales: a base, 8 units per promotion day, a Christmas lift, and demand
-holiday &lt;- ifelse(month_in_year %in% c(11, 12), 20, 0)
-sales   &lt;- 380 + 8 * promo_days + holiday + demand
-
-store &lt;- data.frame(month, sales = round(sales, 1),
-                    ad_spend = round(ad_spend, 1), promo_days)
-head(store)
-#&gt;   month sales ad_spend promo_days
-#&gt; 1     1 363.9     64.2          0
-#&gt; 2     2 432.0     63.5          9
-#&gt; 3     3 430.0     63.0          8
-#&gt; 4     4 438.5     67.2          9
-#&gt; 5     5 364.7     64.2          0
-#&gt; 6     6 416.8     66.2          6</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Look at the ad budget column for a second. 64.2, then 63.5, then 63.0, then 67.2. It hardly moves, because budgets get set once and then nudged, not redrawn from scratch every month. Hold on to that, because a column that drifts slowly turns out to be dangerous company for errors that also drift slowly.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The Christmas lift is real, and it is deliberately left out of the model we are about to fit. That is not cheating, it is normal. You almost never have a column for every driver, and the drivers you do not have go into the errors.</div></div>
+<p>The widget below runs that idea as an experiment. It fits many regressions on data built with a chosen amount of month-to-month correlation between the errors, and it measures two things every time: how often the model's 95% interval actually contains the true value, called coverage, and how good the fit looks, R-squared.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>With the dial at its lowest step, the errors are independent and coverage sits close to the 95% a confidence interval is built to hit. Drag the dial up toward severe and coverage collapses, while the fit barely moves from where it started. That gap, between a model that still looks fine and an interval you can no longer trust, is the whole reason autocorrelation matters.</p>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<h2>What the regression says about ad spend</h2>
-
-<p>Now let's fit the obvious model, which is sales explained by ad spend, controlling for promotion days.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Fit the obvious regression and read what it says about ad spend
-model &lt;- lm(sales ~ ad_spend + promo_days, data = store)
-summary(model)
-#&gt;
-#&gt; Call:
-#&gt; lm(formula = sales ~ ad_spend + promo_days, data = store)
-#&gt;
-#&gt; Residuals:
-#&gt;     Min      1Q  Median      3Q     Max
-#&gt; -37.209 -11.454  -1.066  10.352  50.143
-#&gt;
-#&gt; Coefficients:
-#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept) 349.4807     9.9770  35.029  &lt; 2e-16 ***
-#&gt; ad_spend      0.5039     0.1585   3.179  0.00189 **
-#&gt; promo_days    8.1265     0.4254  19.104  &lt; 2e-16 ***
-#&gt; ---
-#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-#&gt;
-#&gt; Residual standard error: 17.13 on 117 degrees of freedom
-#&gt; Multiple R-squared:  0.7577,	Adjusted R-squared:  0.7536
-#&gt; F-statistic:   183 on 2 and 117 DF,  p-value: &lt; 2.2e-16</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Read the <code>ad_spend</code> row across. The estimate is 0.5039, so every extra thousand of budget is worth about half a unit of sales. The standard error is 0.1585, which makes the t-value 3.18, which makes the p-value 0.00189, and R prints two stars beside it. The model explains 76% of the variation in sales.</p>
-
-<p><code>promo_days</code> comes in at 8.13, almost exactly the 8 we built in, so the model got that one right.</p>
-
-<p>Nothing in this output looks broken. There is no warning, no complaint, no flag. If you stopped here you would tell the owner that advertising works and that the evidence is strong.</p>
-
-<p>We built this store ourselves, so we know that sentence is false. The question worth asking is how this output managed to hide it.</p>
-</section>
-
-<section class="lesson-step" data-step="4" data-step-type="concept">
-<h2>The residuals plotted in month order</h2>
-
-<p>A residual is what the model got wrong for one month: the sales that actually happened, minus the sales the model predicted. One number per month, 120 of them, and <code>resid()</code> hands them over.</p>
-
-<p>The usual diagnostic plots put residuals against fitted values. That is the wrong axis for time-ordered data. Sort them by month instead and look at the shape.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Plot the residuals in month order and count how long they stay on one side of zero
-res &lt;- resid(model)
-
-plot(month, res, type = &quot;b&quot;, pch = 16, cex = 0.6, col = &quot;grey30&quot;,
-     xlab = &quot;Month&quot;, ylab = &quot;Residual (units)&quot;,
-     main = &quot;Residuals in the order the months happened&quot;)
-abline(h = 0, col = &quot;red&quot;, lwd = 2)
-
-max(rle(sign(res))$lengths)     # longest stretch on one side of zero
-#&gt; [1] 31
-
-sum(diff(sign(res)) != 0)       # how often the sign flips, out of 119 chances
-#&gt; [1] 25</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>That is not a cloud. That is a wave.</p>
-
-<p>The first thirty-one months sit below the line without a single crossing, which means the model over-predicted sales every month for two and a half years straight. Later there is a run of twenty-four months on the other side.</p>
-
-<p>The two counts underneath make it concrete. Across 119 neighbouring pairs the residual changed sign 25 times. If the errors were independent, each sign would be a fresh coin toss and you would expect about sixty changes. We got fewer than half that.</p>
-
-<p>So the errors are not independent. Knowing this month's error tells you something real about next month's, and independence is the assumption OLS relies on and never checks for you.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Autocorrelated errors are not big errors. They are predictable errors. The model is not wrong by more than it should be, it is wrong in the same direction for months at a time.</div></div>
-</section>
-
-<section class="lesson-step" data-step="5" data-step-type="concept">
-<h2>Each residual against the one before it</h2>
-
-<p>The wave is convincing to the eye. Let's turn it into a number.</p>
-
-<p>Take the residual series and pair each month with the month before it. Month 2 pairs with month 1, month 3 pairs with month 2, all the way along. That gives 119 pairs, and if the errors really were independent those pairs would form a shapeless blob.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Pair every residual with the residual from the month before
-n        &lt;- length(res)
-previous &lt;- res[-n]     # months 1 to 119
-current  &lt;- res[-1]     # months 2 to 120
-
-plot(previous, current, pch = 16, col = &quot;grey30&quot;,
-     xlab = &quot;Residual last month&quot;, ylab = &quot;Residual this month&quot;,
-     main = &quot;Each residual against the one before it&quot;)
-abline(lm(current ~ previous), col = &quot;red&quot;, lwd = 2)
-
-round(cor(previous, current), 3)
-#&gt; [1] 0.828</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The cloud climbs. A big positive error last month goes with a big positive error this month, and the correlation between the two columns is 0.828.</p>
-
-<p>That number has a name. It is the <strong>lag-1 autocorrelation</strong> of the residuals, which is the plain correlation between the series and itself shifted along by one step. The gap you shift by is the <strong>lag</strong>, so lag 1 means one month apart and lag 12 means a year apart. You will also hear the whole phenomenon called <strong>serial correlation</strong>, which means the same thing.</p>
-
-<p>0.828 is not a hint. Correlation runs from -1 to 1, and an error series that correlates at 0.83 with itself one month later is about as dependent as data gets.</p>
-</section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<h2>How to read every lag at once with an ACF plot</h2>
-
-<p>Lag 1 is one question out of many. There is no reason the memory should stop after a single month, and with monthly data there is an obvious second suspect: the same month a year ago.</p>
-
-<p>Rather than compute a correlation at each lag by hand, <code>acf()</code> does the whole set at once and draws them as a row of bars. The name is short for autocorrelation function, which is the phrase for exactly that row: the correlation of a series with itself, read at every lag. Bar height is the correlation at that lag. The dashed lines mark the band inside which a bar is small enough to be luck.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Compute the residual correlation at every lag, with the independence band
-a &lt;- acf(res, main = &quot;ACF of the residuals&quot;)
-
-round(a$acf[c(2, 11, 12, 13)], 3)     # lags 1, 10, 11 and 12
-#&gt; [1] 0.814 0.360 0.482 0.568
-
-round(1.96 / sqrt(length(res)), 3)    # half-width of the dashed band
-#&gt; [1] 0.179</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>There are two things going on in that picture.</p>
-
-<p>First is the decay. The bar at lag 1 stands at 0.814, and instead of dropping to nothing it fades slowly across the next several lags. That is the demand cycle we built: memory that leaks away over months rather than ending at the next one.</p>
-
-<p>If 0.814 looks a shade off the 0.828 <code>cor()</code> gave a moment ago, it is the same quantity measured two ways. <code>acf()</code> centres every lag on the mean and the spread of the whole series, where <code>cor()</code> treated the two shifted columns as separate variables with means of their own. The gap is small and it stays small. Read them as one number.</p>
-
-<p>Second, and more interesting, is the bounce. The bars sink to 0.360 by lag 10, then climb back to 0.482 at lag 11 and 0.568 at lag 12. Twelve months apart, the errors resemble each other again. That is the Christmas lift, the driver we left out of the model, showing up in the errors on exactly the schedule you would expect.</p>
-
-<p>Every one of those bars sits far outside the 0.179 band, so none of it is luck.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">An ACF is where you find out what kind of memory you have. Slow decay means each month leans on the last one. A spike at a seasonal lag means an annual pattern the model has not been told about. Here you have both.</div></div>
-</section>
-
-<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what do the runs and the ACF bars tell you?</h2>
-
-<p>The residuals ran thirty-one months on one side of zero, and the ACF bars sit well outside the band at every lag from 1 to 12. What have you learned about the errors?</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step7" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model is biased, so its coefficients are pointing at the wrong values.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The residuals are simply too large, which is what a weak model looks like.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Part of each error is predictable from the errors before it, so the errors carry structure the model has not used.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">One unusual month is dragging the residuals off centre.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. That is the whole content of the runs and the bars. The errors are not larger than they should be, they are more knowable than they should be.</div><div class="lesson-qfb lesson-qfb-no">A single odd month makes one big residual, not thirty-one in a row and not a wall of ACF bars outside the band. Nothing here says the errors are too big or the coefficients are off target either. What the pattern says is narrower and stranger: each error is partly forecastable from the ones before it.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="8" data-step-type="widget">
-<h2>What autocorrelation costs, and where the damage lands</h2>
-
-<p>So the errors have memory. Why should that cost you anything?</p>
-
-<p>Because a standard error is built on a headcount. When OLS works out the uncertainty in a coefficient it assumes each of your 120 rows is a fresh, independent piece of evidence. If each month's error correlates at 0.83 with the error before it, then most of what a row tells you was already told to you by its neighbour, and 120 rows are not worth 120 rows. OLS never notices. It divides by too big a number and hands back an interval that is far too narrow.</p>
-
-<p>The dial below sets our store aside for a moment and runs a smaller experiment instead: sixty time-ordered observations with a straight trend running through them, fitted two thousand times over at every setting of the dial, with the true slope known every time.</p>
-
-<p>Two numbers come back. <strong>Coverage</strong> is the share of those studies whose 95% interval for the slope actually contained that true value, so an interval that works should score 95. <strong>Fit</strong> is R-squared, the number you actually look at in a summary.</p>
-
-<p>Start at the left, where the errors are independent, then drag the dial to the right.</p>
-<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation","start":0}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Watch which number moves.</p>
-
-<p>Coverage falls off a cliff. It leaves 95 and keeps going, down to roughly a third by the time the dial reaches the far end, which means that under severe autocorrelation about two out of every three 95% intervals you publish do not contain the truth.</p>
-
-<p>Now watch the fit statistic. It does not fall. It climbs a little, because a smooth error series hugs the fitted line more tidily than a jumpy one does.</p>
-
-<p>That is the trap in one picture. The number you check gets better while the number you rely on collapses.</p>
-</section>
-
-<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what does autocorrelation break?</h2>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step9" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The coefficient estimates, which drift away from the true values.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The standard errors, and with them the t-values, p-values and confidence intervals.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The fitted values, which stop tracking the actual sales.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Nothing worth acting on, as long as R-squared is respectable.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. OLS stays unbiased under autocorrelation, so the estimates are still aimed at the truth. It is the uncertainty around them that gets computed as though you had far more independent information than you really do.</div><div class="lesson-qfb lesson-qfb-no">Estimates, fitted values and R-squared all survive autocorrelation, and R-squared can even improve, which is exactly why it makes such a poor alarm. The casualty is the uncertainty: standard errors, and everything computed from them.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="10" data-step-type="concept">
 <h2>The Durbin-Watson statistic, worked out by hand</h2>
 
-<p>Time to measure this properly, and the classic measurement is the Durbin-Watson statistic. It compresses lag-1 dependence into a single number, and it is small enough to build yourself, so let's build it.</p>
+<p>So there is clearly a pattern in the residuals from the last plot. But "clearly a pattern" is not something you can act on. You need a number, and a rule for reading it.</p>
 
-<p>The idea is to compare each residual with its neighbour. Take the gap between neighbouring residuals, square it, add up all 119 of them, and divide by the sum of the squared residuals themselves.</p>
+<p>The Durbin-Watson statistic, usually written <code>d</code>, is that number. It compares each residual to the one right before it.</p>
 
 <p>\[ d = \frac{\sum_{t=2}^{n} (e_t - e_{t-1})^2}{\sum_{t=1}^{n} e_t^2} \]</p>
 
-<p>where \(e_t\) is the residual for month \(t\) and \(n\) is the number of months.</p>
+<p>Here \(e_t\) is the residual at month \(t\), and \(n\) is the number of months, 60 in this case. The numerator adds up the squared gap between each residual and the one before it. The denominator adds up the squared residuals themselves.</p>
 
-<p>Read the top line as a measure of how far the errors move from month to month, and the bottom line as a measure of how large they are overall. So \(d\) asks one question: relative to their size, how far do these residuals travel between neighbours?</p>
+<p>Think through what that ratio does. If neighbouring residuals move together, this month's error looking much like last month's, the gaps in the numerator stay small, so <code>d</code> drops toward 0. If residuals bounce back and forth instead, above zero, then below, then above again, the gaps swell and <code>d</code> climbs toward 4. If the residuals really are independent, <code>d</code> lands near 2.</p>
 
-<p>In R that is two sums.</p>
+<p>Here is that computation done directly on the running example's residuals.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Build the Durbin-Watson statistic from its own two parts
-numerator   &lt;- sum(diff(res)^2)     # squared gaps between neighbouring residuals
-denominator &lt;- sum(res^2)           # squared residuals
+    <div class="webr-editor" data-language="r"># Compute the Durbin-Watson statistic by hand from the fitted model's residuals
+res &lt;- resid(model)
+d_numerator   &lt;- sum(diff(res)^2)
+d_denominator &lt;- sum(res^2)
+d_by_hand     &lt;- d_numerator / d_denominator
 
-c(numerator = numerator, denominator = denominator)
-#&gt;   numerator denominator
-#&gt;    11678.84    34348.19
-
-numerator / denominator
-#&gt; [1] 0.3400131</div>
+round(c(numerator = d_numerator, denominator = d_denominator, d = d_by_hand), 4)
+#&gt;   numerator denominator           d 
+#&gt;   1733.6658   2715.6340      0.6384 </div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -370,28 +106,18 @@ numerator / denominator
   <div class="webr-plot-output"></div>
 </div>
 
-<p>So \(d\) is 0.34. Now let's look at the scale it lives on.</p>
+<p><code>d</code> comes out to 0.6384, a long way below 2 and much closer to 0. That alone says these residuals are not behaving like independent draws.</p>
 
-<p>If the residuals were independent, every gap would be a full fresh jump, and the arithmetic works out so that \(d\) lands near 2. If neighbours are nearly identical the gaps are tiny, the top line shrinks toward nothing, and \(d\) falls toward 0. If they alternate, flipping sign every month, the gaps are enormous and \(d\) rises toward 4.</p>
-
-<ul>
-
-<li><strong>near 0</strong>: strong positive autocorrelation, the errors travel in runs.</li>
-
-<li><strong>near 2</strong>: no autocorrelation, which is what you want.</li>
-
-<li><strong>near 4</strong>: strong negative autocorrelation, the errors zigzag.</li>
-
-</ul>
-
-<p>There is a shortcut that ties this straight back to the correlation you already computed. For any decent-sized sample, \(d \approx 2(1 - \rho)\), where \(\rho\) is the lag-1 correlation of the residuals.</p>
+<p>There is a quicker way to sanity check that number. <code>d</code> is approximately \(2(1 - \hat{\rho})\), where \(\hat{\rho}\) is the correlation between each residual and the one right before it, its lag-1 correlation.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Check the statistic against the rule of thumb, two times one minus the correlation
-2 * (1 - cor(res[-n], res[-1]))
-#&gt; [1] 0.3449499</div>
+    <div class="webr-editor" data-language="r"># Check the by-hand d against the lag-1-correlation shortcut
+rho_hat &lt;- cor(res[-length(res)], res[-1])
+round(c(rho = rho_hat, shortcut_d = 2 * (1 - rho_hat)), 3)
+#&gt;        rho shortcut_d 
+#&gt;      0.676      0.649 </div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -401,30 +127,25 @@ numerator / denominator
   <div class="webr-plot-output"></div>
 </div>
 
-<p>0.3449 against the 0.3400 we computed the long way. The rule of thumb is not the definition, but it is close enough to carry in your head: halve \(d\), subtract from 1, and you have the correlation. A \(d\) of 0.34 is telling you that neighbouring residuals correlate at about 0.83, which is exactly what we saw.</p>
+<p>The lag-1 correlation is 0.676, and the shortcut formula lands at 0.649, close to the 0.6384 computed directly from the definition. The two will rarely match to the decimal, since the shortcut is an approximation, but they agree on the story: these residuals are strongly and positively correlated with their own past.</p>
 </section>
 
-<section class="lesson-step" data-step="11" data-step-type="concept">
+<section class="lesson-step" data-step="4" data-step-type="concept">
 <h2>Running the test with dwtest()</h2>
 
-<p>A statistic on its own does not tell you whether 0.34 is surprising. For that you need its distribution under the null hypothesis of independent errors, and <code>dwtest()</code> from the <code>lmtest</code> package has it.</p>
-
-<p>Hand it the fitted model, not the residuals.</p>
-
-<p>One thing to settle before you run it. The test reads the residuals in the order the rows sit in the data frame, and it never looks at your date column to check. If the rows are not already in time order, put them in time order before you fit, or every test on this page is reading a shuffled series.</p>
+<p>Working <code>d</code> out by hand is useful once, to see where the number comes from. In practice you call a function and read its p-value along with it.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"># Run the Durbin-Watson test on the fitted model
-suppressMessages(library(lmtest))
-
+library(lmtest)
 dwtest(model)
-#&gt;
-#&gt; 	Durbin-Watson test
-#&gt;
+#&gt; 
+#&gt;   Durbin-Watson test
+#&gt; 
 #&gt; data:  model
-#&gt; DW = 0.34001, p-value &lt; 2.2e-16
+#&gt; DW = 0.6384, p-value = 1.817e-10
 #&gt; alternative hypothesis: true autocorrelation is greater than 0</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -435,167 +156,63 @@ dwtest(model)
   <div class="webr-plot-output"></div>
 </div>
 
-<p><code>DW = 0.34001</code>, the same number we built by hand, so nothing mysterious happened inside the function.</p>
+<p><code>dwtest()</code> reports the same 0.6384 computed by hand a moment ago. The p-value, 1.817 times ten to the minus 10, is close enough to zero that chance is not a credible explanation for a value this low. The last line names the default direction the test checks, autocorrelation greater than zero, which is by far the most common case in time-ordered data like this one.</p>
 
-<p>The p-value is the new part. Read it the way you read any p-value: if the errors really were independent, a statistic this far from 2 would turn up essentially never. <code>2.2e-16</code> is R's way of saying the number is smaller than it can usefully print.</p>
+<p>::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}</p>
 
-<p>The last line matters too. By default <code>dwtest()</code> tests only for positive autocorrelation, which is the direction that shows up in almost all business and economic data, because runs are far more common than zigzags. If you have reason to suspect alternating errors, ask for both directions with <code>alternative = &quot;two.sided&quot;</code>.</p>
+<ul>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">A rejected Durbin-Watson test is not a verdict on your model's usefulness. The coefficients may still be exactly the ones you want. What has been rejected is the arithmetic behind the standard errors sitting next to them.</div></div>
+<li>This is close to independent, since 0.64 is a small number compared to most test statistics you have seen. ::no</li>
+
+<li>This is strong positive autocorrelation. 0.6384 sits far below 2, the value dwtest() would report if the residuals carried no lag-1 information. ::ok Exactly right. The reference point for the Durbin-Watson statistic is 2, not 0. A value this far below 2 means each residual is a good predictor of the next one.</li>
+
+<li>The model's R-squared must be very low, since d is a small number too. ::no</li>
+
+<li>This is strong negative autocorrelation, since any value below 2 counts as negative. ::no The Durbin-Watson statistic runs from 0 to 4, with 2 meaning no lag-1 autocorrelation. Values below 2 point to positive autocorrelation, where neighbouring residuals move together, and values above 2 point to negative autocorrelation, where they alternate in sign. At 0.6384, this model shows strong positive autocorrelation, and that number says nothing about R-squared, which measures something else entirely.</li>
+
+</ul>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
-<h2>Your turn: what does d become when the months are shuffled?</h2>
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>What this actually breaks: coefficients vs. standard errors</h2>
 
-<p>Here is a way to prove to yourself what \(d\) is actually measuring.</p>
+<p>The residuals in this model are autocorrelated. So what does that actually cost you?</p>
 
-<p>Keep the residuals exactly as they are, every value identical, and scramble only the order they sit in. Nothing about their size changes. Their sum of squares is untouched. The only thing you take away is the month order, which is the thing that carried the memory.</p>
+<p>Start with what it does not touch: the ad_spend coefficient. Fitting <code>sales ~ ad_spend</code> by OLS gives 1.29, the estimated slope of sales on ad spend, whether or not the residuals are autocorrelated. Autocorrelation does not bias a coefficient.</p>
 
-<p>Shuffle <code>res</code> and rebuild \(d\) from the same two sums.</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step12" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="sample[(]res[)][\s\S]*diff[(]"><textarea class="lesson-tryit-input" spellcheck="false"># Shuffle the residuals out of month order, then rebuild the statistic
-# res holds the 120 residuals.
-# Use set.seed(4) first so your number matches mine.
-# Two lines after the seed. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">There it is: 1.92, right up against the 2 that means no correlation at all. Same numbers, same spread, same sum of squares. The only thing you removed was the order, and the order was the whole of what d was measuring.</span><span class="lesson-tryit-fb lesson-tryit-no">Two lines after set.seed(4). First shuffled <- sample(res), then sum(diff(shuffled)^2) divided by sum(shuffled^2).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Rebuild the Durbin-Watson statistic after destroying the month order
-set.seed(4)
-shuffled &lt;- sample(res)
+<p>What it does touch is the standard error, the number that says how much that 1.29 would move around if you refit the model on a fresh set of 60 months. OLS computes that number by assuming each month's residual is independent of the others. When they are not, as here, that assumption is false, and the standard error comes out smaller than it should. A standard error that is too small drags the t-statistic up and the p-value down, so ad_spend ends up looking like a more significant predictor than it really is.</p>
 
-sum(diff(shuffled)^2) / sum(shuffled^2)
-#&gt; [1] 1.918227</code></pre></details></div>
-</section>
-<p>This is worth saying out loud, because it is easy to file Durbin-Watson under general residual health and move on. It is not a measure of how big your errors are, or how skewed, or how variable. It reads the sequence and nothing else. Give it the same errors in a different order and you get a different answer.</p>
+<p>The <code>assumption-dial</code> widget you saw earlier shows exactly this split. Here it is again, this time turned to the running example's own severity.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation","levels":20,"start":14}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>At phi = 0.68, close to this model's own lag-1 correlation of 0.676, coverage collapses well below the 95% a confidence interval is built to hit, while the fit line barely moves from where it started. That is the coefficient-versus-standard-error split from a moment ago, drawn as one picture: the model still looks fine, and the interval around it, computed the naive way, is narrower than it should be.</p>
 </section>
 
-<section class="lesson-step" data-step="13" data-step-type="concept">
-<h2>Where Durbin-Watson fails, and what Breusch-Godfrey adds</h2>
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Fixing it with Newey-West (HAC) standard errors</h2>
 
-<p>Durbin-Watson has two real limits, and both of them bite in practice.</p>
+<p>The coefficient is fine. The standard error is not. So the fix should touch only the standard error, and leave the coefficient alone.</p>
 
-<p>The first is that it only ever looks one step back. Our ACF had a bounce at lag 12 that Durbin-Watson cannot see at all, because it is built entirely out of neighbouring pairs. Yearly structure is invisible to it.</p>
-
-<p>The second is worse. If your model has the outcome's own past on the right-hand side, say last month's sales used as a predictor of this month's, then \(d\) is biased toward 2. It reports independence whether or not the errors are independent, so what you get is a false clean bill of health rather than a missing one.</p>
-
-<p>The Breusch-Godfrey test fixes both. Its logic is direct: if the residuals still hold predictable structure, you should be able to predict them from their own past. So it regresses the residuals on their own lags plus the original predictors, and tests whether those lag coefficients are jointly zero. That joint test is a Lagrange multiplier test, which is where the <code>LM</code> in the output comes from.</p>
-
-<p>Ask for one lag and you get the same question Durbin-Watson asked.</p>
+<p>That is exactly what a Newey-West correction does. It is one member of a family called HAC standard errors, short for heteroskedasticity and autocorrelation consistent. Instead of assuming independent residuals, it builds a corrected covariance matrix that allows for the correlation the Durbin-Watson test just found, and <code>lmtest::coeftest()</code> uses that corrected matrix to redo the inference.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Test the same lag-1 idea with Breusch-Godfrey
-bgtest(model, order = 1)
-#&gt;
-#&gt; 	Breusch-Godfrey test for serial correlation of order up to 1
-#&gt;
-#&gt; data:  model
-#&gt; LM test = 81.912, df = 1, p-value &lt; 2.2e-16</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+    <div class="webr-editor" data-language="r"># Compare naive OLS standard errors with Newey-West HAC standard errors
+library(sandwich)
 
-<p>The LM statistic comes in at 81.9 on one degree of freedom, with a p-value below anything R will print. Same verdict, reached by a different route.</p>
-
-<p>The difference is what happens next. Durbin-Watson has now said everything it can say. Breusch-Godfrey takes an <code>order</code> argument, so you can ask it about a quarter, or a year, or anything else you suspect, and it stays honest when a lagged outcome is sitting in the model.</p>
-</section>
-
-<section class="lesson-step" data-step="14" data-step-type="concept">
-<h2>How to choose the lag order for Breusch-Godfrey</h2>
-
-<p>The <code>order</code> argument is the one decision the test asks you to make, and it is a genuine trade-off. Too few lags and you miss structure that is really there. Too many and you spend degrees of freedom on lags that hold nothing, which costs you power.</p>
-
-<p>Three rules cover nearly every case:</p>
-
-<ol>
-
-<li><strong>Match the season.</strong> Monthly data goes to 12, quarterly to 4, weekly to 52. If there is an annual rhythm, this is the order that finds it.</li>
-
-<li><strong>Follow the ACF.</strong> Bars that poke outside the band tell you where the memory lives. Ours pointed at the early lags and again at 12.</li>
-
-<li><strong>Fall back on a rule of thumb.</strong> With no domain knowledge, <code>min(10, n / 4)</code> is the standard default. With 120 months that gives 10.</li>
-
-</ol>
-
-<p>Let's run the three interesting orders on our model and set them side by side: one month, one quarter, one year.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Compare the Breusch-Godfrey verdict at one month, one quarter and one year of lags
-orders &lt;- c(1, 4, 12)
-tests  &lt;- lapply(orders, function(k) bgtest(model, order = k))
-
-data.frame(
-  order   = orders,
-  LM      = round(sapply(tests, function(x) unname(x$statistic)), 2),
-  p_value = signif(sapply(tests, function(x) x$p.value), 3)
-)
-#&gt;   order    LM  p_value
-#&gt; 1     1 81.91 1.42e-19
-#&gt; 2     4 87.51 4.46e-18
-#&gt; 3    12 96.87 2.28e-15</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The statistic climbs as you add lags, 81.91 to 87.51 to 96.87, because there really is more structure out there for the extra lags to find. The p-values rise a little at the same time, which is the price of the extra degrees of freedom, and here it changes nothing. Every order rejects, comfortably.</p>
-
-<p>That is the usual outcome and it is worth expecting. Order selection tends to decide how much detail you learn about the shape of the memory, not whether you conclude there is memory.</p>
-</section>
-
-<section class="lesson-step" data-step="15" data-step-type="quiz" data-gate="1">
-<h2>Quick check: which test does this model need?</h2>
-
-<p>You are modelling monthly signups for a subscription product. Last month's signups are one of your predictors, and you also suspect the business has a yearly rhythm.</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step15" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Durbin-Watson, since it is the standard test for serial correlation.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Durbin-Watson, but read against a lag of 12 because the data is monthly.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Breusch-Godfrey with order 12.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Neither, because a lagged outcome absorbs the autocorrelation already.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Both reasons point the same way. A lagged outcome on the right-hand side biases Durbin-Watson toward 2, and an annual rhythm lives at lag 12, which Durbin-Watson never looks at.</div><div class="lesson-qfb lesson-qfb-no">Two separate things rule Durbin-Watson out here. It cannot be trusted at all when the outcome's own past is a predictor, and it only ever inspects lag 1, so a yearly pattern is invisible to it. A lagged predictor is a reason to test more carefully, never a reason to skip testing.</div></div>
-</section>
-</section>
-
-<section class="lesson-step" data-step="16" data-step-type="concept">
-<h2>The repair: Newey-West standard errors</h2>
-
-<p>You have a diagnosis. Now for the fix, and the first one to reach for is almost always Newey-West.</p>
-
-<p>The name for this family is HAC, short for heteroskedasticity and autocorrelation consistent. The idea is small and precise. It does not touch your model, your coefficients or your predictions. It replaces the formula OLS uses for the uncertainty around those coefficients with one that allows nearby observations to carry the same information, instead of insisting they are independent.</p>
-
-<p><code>NeweyWest()</code> from <code>sandwich</code> builds the corrected covariance matrix, and <code>coeftest()</code> prints a fresh coefficient table using it. Setting <code>prewhite = FALSE</code> switches off an extra filtering step so you see the plain estimator.</p>
-
-<p>Here are the two tables together, the naive one and the repaired one.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Rebuild the standard errors so they allow for the memory in the residuals
-suppressMessages(library(sandwich))
-
-round(summary(model)$coefficients, 4)      # the naive OLS table
-#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept) 349.4807     9.9770 35.0287   0.0000
-#&gt; ad_spend      0.5039     0.1585  3.1793   0.0019
-#&gt; promo_days    8.1265     0.4254 19.1038   0.0000
+naive &lt;- summary(model)$coefficients
+naive
+#&gt;               Estimate Std. Error   t value     Pr(&gt;|t|)
+#&gt; (Intercept) 102.389468  7.1851310 14.250188 1.331769e-20
+#&gt; ad_spend      1.287885  0.2226371  5.784681 3.078094e-07
 
 coeftest(model, vcov = NeweyWest(model, prewhite = FALSE))
-#&gt;
+#&gt; 
 #&gt; t test of coefficients:
-#&gt;
-#&gt;              Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept) 349.48069   21.15500  16.520   &lt;2e-16 ***
-#&gt; ad_spend      0.50387    0.31007   1.625   0.1069
-#&gt; promo_days    8.12648    0.31778  25.573   &lt;2e-16 ***
+#&gt; 
+#&gt;              Estimate Std. Error t value  Pr(&gt;|t|)    
+#&gt; (Intercept) 102.38947   10.13873 10.0988 2.153e-14 ***
+#&gt; ad_spend      1.28788    0.32301  3.9871 0.0001896 ***
 #&gt; ---
 #&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
     <div class="webr-buttons">
@@ -607,152 +224,102 @@ coeftest(model, vcov = NeweyWest(model, prewhite = FALSE))
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Look at the Estimate column in both tables. 0.5039 against 0.50387, and 8.1265 against 8.12648. Not one coefficient moved.</p>
+<p>Look at the ad_spend row in both tables. The coefficient, 1.29, is identical in both. The standard error widens from 0.223 to 0.323, about 1.45 times over. That pushes the t-statistic down from 5.78 to 3.99, and the p-value up from 3.08 times ten to the minus 7 to 0.00019. Still a real effect, since 0.00019 is well under any usual threshold, but far less certain than the naive p-value made it look.</p>
 
-<p>Now look at the <code>ad_spend</code> row. The standard error went from 0.1585 to 0.31007, which is roughly double. The t-value fell from 3.18 to 1.63. And the p-value went from 0.0019 to 0.1069, which is on the wrong side of every threshold anybody uses. The stars are gone.</p>
+<p><code>prewhite = FALSE</code> tells <code>NeweyWest()</code> to build the correction directly from the residuals, without first fitting an extra autoregressive model to them. It is a reasonable default here since the autocorrelation is already strong and well characterised by the Durbin-Watson test.</p>
 
-<p>That is the honest reading of the evidence for advertising in this store, and we know it is honest, because we built the store with ad spend having no effect whatsoever.</p>
-
-<p>Doubling a standard error means quadrupling a variance, which is the headcount problem finally showing its arithmetic. Those 120 months were carrying about thirty months' worth of independent information about ad spend, and OLS charged full price for all 120.</p>
-
-<p>Then look at <code>promo_days</code>, which went the other way. Its standard error came down, from 0.4254 to 0.31778, and its t-value rose to 25.6. Promotion days are drawn fresh every month with no memory in them, so there is nothing there for the correction to inflate. A HAC standard error is an estimate, not a penalty, and it moves in whichever direction the data actually calls for.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Newey-West keeps every coefficient exactly where OLS left it and rebuilds only the uncertainty around it. A real effect stays significant. What disappears is the significance you never earned.</div></div>
+<p>HAC standard errors are not the only fix, and they are not always enough. When the autocorrelation is this strong, or when the goal is also to forecast the series, three other approaches model the dependence directly rather than only correcting its standard error: adding lagged predictors to the regression, fitting the model with <code>nlme::gls(correlation = corAR1())</code>, or building an ARIMA-errors regression with <code>forecast::Arima()</code>. Each of those changes what the model estimates, not just how its uncertainty is reported.</p>
 </section>
 
-<section class="lesson-step" data-step="17" data-step-type="concept">
-<h2>What Newey-West fixes, and the three deeper repairs</h2>
+<section class="lesson-step" data-step="7" data-step-type="complete">
+<h2>The full workflow, start to finish</h2>
 
-<p>It is worth being exact about what you have and have not repaired.</p>
+<p>Here is the entire pipeline in one place: fit the model, test its residuals, and correct the inference if the test rejects independence.</p>
 
-<p>You have a correct standard error. You do not have a better model. The fitted values are unchanged, the predictions are unchanged, and the residuals still carry every bit of the pattern they carried before. HAC does not remove the autocorrelation, it stops you being misled by it.</p>
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The full workflow: fit, test for autocorrelation, then correct the standard errors
+model &lt;- lm(sales ~ ad_spend)
 
-<p>Often that is all you need, because the question was inference: is this coefficient real, and how wide is the range around it? But if the question is forecasting, or if the autocorrelation is pointing at something you could model directly, then you want one of the deeper repairs.</p>
+dwtest(model)
+#&gt; 
+#&gt;   Durbin-Watson test
+#&gt; 
+#&gt; data:  model
+#&gt; DW = 0.6384, p-value = 1.817e-10
+#&gt; alternative hypothesis: true autocorrelation is greater than 0
 
-<table class="table table-striped">
-<thead>
-<tr>
-<th>What you do</th>
-<th>What it changes</th>
-<th>When to reach for it</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Newey-West (HAC) standard errors</td>
-<td>standard errors, t-values, p-values, intervals</td>
-<td>you want honest inference from the model you already have</td>
-</tr>
-<tr>
-<td>Add lagged or seasonal terms to the model</td>
-<td>coefficients, fitted values and residuals</td>
-<td>the pattern is pointing at a driver you left out</td>
-</tr>
-<tr>
-<td>Generalised least squares with an AR(1) correlation structure</td>
-<td>coefficients and standard errors together</td>
-<td>you want one estimator that builds the memory in</td>
-</tr>
-<tr>
-<td>Regression with ARIMA errors</td>
-<td>coefficients, and gives you forecasts</td>
-<td>you need to predict the series, not just describe it</td>
-</tr>
-</tbody>
-</table>
+coeftest(model, vcov = NeweyWest(model, prewhite = FALSE))
+#&gt; 
+#&gt; t test of coefficients:
+#&gt; 
+#&gt;              Estimate Std. Error t value  Pr(&gt;|t|)    
+#&gt; (Intercept) 102.38947   10.13873 10.0988 2.153e-14 ***
+#&gt; ad_spend      1.28788    0.32301  3.9871 0.0001896 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<p>Our store makes the second row concrete. The residuals bounced at lag 12 because November and December were left out of the model. Put a month indicator in and that bounce has somewhere to live other than the errors.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">Reach for HAC when you want to report. Model the dynamics when you want to predict. Doing both is normal, and neither one makes the other redundant.</div></div>
+<p>The whole workflow is three calls, one decision path. Fit the model the usual way. Test the residuals with <code>dwtest()</code>. If that test rejects independence the way it just did here, recompute the standard errors with <code>NeweyWest()</code> and <code>coeftest()</code> before you trust any p-value in the plain summary.</p>
 </section>
 
-<section class="lesson-step" data-step="18" data-step-type="tryit" data-gate="1">
-<h2>Your turn: which of the two intervals contains zero?</h2>
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading a Durbin-Watson result</h2>
 
-<p>P-values are one way to say this. Confidence intervals are the clearer way, because they show you the whole range of true values the data is compatible with.</p>
-
-<p>Build both 95% intervals for the <code>ad_spend</code> coefficient. <code>confint()</code> gives you the naive OLS one. <code>coefci()</code> from <code>lmtest</code> takes the same <code>vcov =</code> argument that <code>coeftest()</code> took, so it gives you the HAC one. Ask each for the <code>ad_spend</code> row only.</p>
-
-<p>Then answer the question that decides the meeting: which interval contains zero?</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step18" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="coefci[(]\s*model"><textarea class="lesson-tryit-input" spellcheck="false"># Compare the naive and the HAC interval for ad_spend
-# model is fitted, and sandwich and lmtest are both loaded.
-# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole thing in two lines. The naive interval runs 0.190 to 0.818, so zero is nowhere near it. The HAC interval runs -0.110 to 1.118, and zero sits comfortably inside. Same data, same coefficient, opposite conclusion, and we know the second one is right because we built this store so that ad spend does nothing.</span><span class="lesson-tryit-fb lesson-tryit-no">Two lines. Take the ad_spend row of confint(model) for the naive interval, then the ad_spend row of coefci(model, vcov = NeweyWest(model, prewhite = FALSE)) for the HAC one.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Put the naive and the HAC 95% interval for ad spend side by side
-round(confint(model)[&quot;ad_spend&quot;, ], 3)
-#&gt;  2.5 % 97.5 %
-#&gt;  0.190  0.818
-
-round(coefci(model, vcov = NeweyWest(model, prewhite = FALSE))[&quot;ad_spend&quot;, ], 3)
-#&gt;  2.5 % 97.5 %
-#&gt; -0.110  1.118</code></pre></details></div>
-</section>
-<p>Notice how much wider the second interval is. That width is not the correction being pessimistic. It is what 120 months of correlated data was always worth, finally written down.</p>
-</section>
-
-<section class="lesson-step" data-step="19" data-step-type="quiz" data-gate="1">
-<h2>Quick check: a Durbin-Watson of 1.98 on a model with a lagged sales term</h2>
-
-<p>A colleague fits <code>sales ~ ad_spend + lag_sales</code>, where <code>lag_sales</code> is last month's sales. The Durbin-Watson test returns d = 1.98 and they tell you the residuals are clean. What should you say?</p>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step19" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Agree with them. 1.98 is as close to 2 as anyone could ask for.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Very little follows from it. A lagged outcome in the model pulls d toward 2 whether or not the errors are correlated, so run Breusch-Godfrey before believing anything.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The residuals show mild negative autocorrelation, since d sits a shade under 2.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The model is misspecified, because d should land exactly on 2 when the errors are independent.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Yes, and this is the failure mode that matters most, because it is silent. A biased statistic does not warn you. It just reports the answer you were hoping for.</div><div class="lesson-qfb lesson-qfb-no">A d near 2 is what independence looks like, and no statistic lands exactly on its expected value. The real problem is that this particular d cannot be read at all here: with the outcome's own past as a predictor, Durbin-Watson is biased toward 2 and will report clean residuals whether or not they are.</div></div>
+<p>A different monthly regression reports DW = 0.35 and a naive p-value of 0.002 for its key predictor. Which reading is correct?</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The coefficient is biased, and the model should be refit from scratch.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">DW = 0.35 means no autocorrelation, since it sits below the midpoint of the 0 to 4 scale.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The coefficient is probably still reasonable, but the naive p-value of 0.002 is likely too small, and should be re-checked with Newey-West HAC standard errors.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Since 0.002 is well below 0.05, the naive result can be trusted as it stands.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Autocorrelation does not touch the coefficient, only the standard error used to judge it, so refitting the model would not fix anything on its own. The naive p-value comes from a standard error that ignores the correlation in the residuals, and recomputing it with NeweyWest() and coeftest() is the correct next step.</div><div class="lesson-qfb lesson-qfb-no">A DW of 0.35 is far below 2, the value that would mean no lag-1 autocorrelation, so this residual series is strongly autocorrelated, not independent. That does not bias the coefficient, but it does mean the naive standard error, and the p-value built from it, understate the real uncertainty. The right move is to keep the coefficient and recompute its standard error with Newey-West, not to refit the model or accept the naive p-value as it stands.</div></div>
 </section>
 </section>
 
-<section class="lesson-step" data-step="20" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what did the Newey-West column change?</h2>
-<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step20" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both the estimates and the standard errors moved.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Only the standard errors, and the t-values, p-values and intervals that come from them. The estimates were identical to four decimal places.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Only the p-values. The standard errors were untouched.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Everything, including the fitted values and R-squared.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right, and one of the standard errors went down rather than up. Promotion days had no memory to correct for, so its error shrank and its t-value rose to 25.6.</div><div class="lesson-qfb lesson-qfb-no">The correction never touches the model. Coefficients, fitted values and R-squared come out identical, which is the point of it: you keep the model you fitted, and only the uncertainty statement is rebuilt. And the change is not always upward.</div></div>
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<h2>Your turn: compare naive and HAC standard errors on both coefficients</h2>
+
+<p>The <code>model</code> object is still the one fitted earlier, <code>sales ~ ad_spend</code> on the same 60 months. You already used <code>dwtest()</code> a few steps back, and <code>NeweyWest()</code> together with <code>coeftest()</code> right after that. This time, put them to work without being shown the exact call.</p>
+<section class="exercise" data-exercise-id="Regression-Health-Mini-2-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*NeweyWest)(?=[\s\S]*coeftest)"><textarea class="lesson-tryit-input" spellcheck="false"># naive holds the vanilla OLS coefficients table for `model`.
+# Compute the HAC standard errors with NeweyWest() and coeftest(),
+# then divide each HAC standard error by the matching naive one,
+# for both the intercept and the ad_spend slope.
+naive &lt;- summary(model)$coefficients
+# your code here</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: the ad_spend slope's standard error widened about 1.45 times over, from 0.223 to 0.323, and the intercept's widened about 1.41 times over. Both were understated before, and the slope moved a touch more.</span><span class="lesson-tryit-fb lesson-tryit-no">Call sandwich::NeweyWest(model, prewhite = FALSE) to build the corrected covariance matrix, pass it to lmtest::coeftest(model, vcov = ...), then divide each row's HAC standard error by the matching row in naive.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Compute HAC standard errors and compare them against the naive ones
+naive &lt;- summary(model)$coefficients
+hac   &lt;- coeftest(model, vcov = NeweyWest(model, prewhite = FALSE))
+round(hac[, &quot;Std. Error&quot;] / naive[, &quot;Std. Error&quot;], 2)
+#&gt; (Intercept)    ad_spend 
+#&gt;        1.41        1.45 </code></pre></details></div>
 </section>
+<p>The ad_spend slope's standard error moved a little more than the intercept's, 1.45 times over against 1.41 times over, though both widened by a similar amount. Either way, the naive standard errors overstated how certain both coefficients looked, the intercept as well as the ad_spend slope you had been tracking.</p>
 </section>
 
-<section class="lesson-step" data-step="21" data-step-type="concept">
+<section class="lesson-step" data-step="10" data-step-type="concept">
 <h2>References</h2>
 
 <ul>
 
-<li><a href="https://doi.org/10.1093/biomet/37.3-4.409">Testing for Serial Correlation in Least Squares Regression I</a> - Durbin and Watson (1950), Biometrika 37(3-4), 409-428. The paper the statistic comes from.</li>
+<li>Durbin, J. & Watson, G. S. (1950). <a href="https://www.jstor.org/stable/2332391">Testing for Serial Correlation in Least Squares Regression I</a>. Biometrika 37(3-4), 409-428. The original paper behind the test and the statistic you computed by hand.</li>
 
-<li><a href="https://doi.org/10.1111/j.1467-8454.1978.tb00635.x">Testing for Autocorrelation in Dynamic Linear Models</a> - Breusch (1978), Australian Economic Papers 17(31), 334-355.</li>
+<li>Newey, W. K. & West, K. D. (1987). A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix. Econometrica 55(3), 703-708. The paper behind the HAC standard errors computed here with NeweyWest().</li>
 
-<li><a href="https://doi.org/10.2307/1913829">Testing Against General Autoregressive and Moving Average Error Models When the Regressors Include Lagged Dependent Variables</a> - Godfrey (1978), Econometrica 46(6), 1293-1301. The lagged-outcome case, in full.</li>
+<li>Zeileis, A. & Hothorn, T. (2002). <a href="https://cran.r-project.org/package=lmtest">Diagnostic Checking in Regression Relationships</a>. R News 2(3), 7-10. Documents the lmtest package, home of dwtest() and coeftest().</li>
 
-<li><a href="https://doi.org/10.2307/1913610">A Simple, Positive Semi-Definite, Heteroskedasticity and Autocorrelation Consistent Covariance Matrix</a> - Newey and West (1987), Econometrica 55(3), 703-708.</li>
+<li>Zeileis, A. (2004). <a href="https://cran.r-project.org/package=sandwich">Econometric Computing with HC and HAC Covariance Matrix Estimators</a>. Journal of Statistical Software 11(10). Documents the sandwich package, home of NeweyWest().</li>
 
-<li><a href="https://doi.org/10.18637/jss.v011.i10">Econometric Computing with HC and HAC Covariance Matrix Estimators</a> - Zeileis (2004), Journal of Statistical Software 11(10). The implementation behind <code>sandwich</code>.</li>
-
-</ul>
-</section>
-
-<section class="lesson-step" data-step="22" data-step-type="complete">
-<h2>Quick recap</h2>
-
-<p>You took a regression that looked healthy and found the one thing wrong with it that no line of <code>summary()</code> output would ever have told you.</p>
-
-<ul>
-
-<li><strong>The pattern.</strong> Residuals plotted in month order travelled instead of scattering: thirty-one months on one side of zero, and only 25 sign changes where independence would give about sixty. Paired with their own neighbours they correlated at 0.828.</li>
-
-<li><strong>The damage.</strong> Autocorrelation leaves coefficients, fitted values and R-squared alone. It eats the standard error, because OLS counts 120 correlated months as 120 independent facts.</li>
-
-<li><strong>The two tests.</strong> Durbin-Watson compresses lag-1 dependence into one number on a 0 to 4 scale, and you built it by hand: 0.34. Breusch-Godfrey tests any set of lags jointly and survives a lagged outcome on the right-hand side, which Durbin-Watson does not.</li>
-
-<li><strong>The repair.</strong> Newey-West standard errors keep every coefficient and rebuild the uncertainty. Ad spend went from a standard error of 0.16 to 0.31, and from p = 0.0019 to p = 0.11.</li>
+<li>Fox, J. & Weisberg, S. (2019). <a href="https://socialsciences.mcmaster.ca/jfox/Books/Companion/">An R Companion to Applied Regression</a>, 3rd ed. Sage. A broader treatment of regression diagnostics, including serial correlation.</li>
 
 </ul>
-
-<p>And the sentence you would say about advertising in that meeting now:</p>
-
-<p>"Ad spend comes out at half a unit per thousand, but once the standard errors allow for the fact that months are not independent, the 95% interval runs from -0.11 to 1.12. Zero is well inside it. We cannot say from this data that the advertising is doing anything."</p>
-
-<p>Which is exactly right, because it never was.</p>
 </section>
 
 {% endraw %}
