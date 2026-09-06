@@ -221,7 +221,7 @@ def voice_pass(slug, fmt, indep):
         prompt = VOICE_PROMPT.format(slug=slug, flags=voice_flags(slug)) + indep
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-voice-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
-        log('voice pass (Opus 5) starting' if attempt == 1 else 'voice pass retry (frozen parts were altered)')
+        log((f'voice pass ({MODEL}) starting') if attempt == 1 else 'voice pass retry (frozen parts were altered)')
         r = claude(prompt, 3600, os.path.join(BRIEFS, f'windowed-{slug}-voice.log'))
         if api_died(r):
             log('FAIL: voice pass never ran (API retries exhausted)')
@@ -253,7 +253,7 @@ def api_died(r):
     return any(m in out for m in API_DEATH_MARKERS) and len(out.strip()) < 600
 
 
-MODEL = os.environ.get('BW_MODEL', 'claude-opus-5')
+MODEL = os.environ.get('BW_MODEL', 'claude-sonnet-5')
 
 
 def claude(stdin_text, timeout, log_path):
@@ -414,7 +414,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         prompt = PLAN_PROMPT.format(**fmt) + indep
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-plan-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
-        log(f'seq {seq} -> {slug}: planner (Opus 5) starting')
+        log(f'seq {seq} -> {slug}: planner ({MODEL}) starting')
         r = claude(prompt, 3600, os.path.join(BRIEFS, f'windowed-{slug}-plan.log'))
         if not os.path.exists(plan_path):
             log(f'FAIL: planner produced no plan (see briefs/windowed-{slug}-plan.log)')
@@ -448,7 +448,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
         prompt = PROMPT.format(**fmt) + indep
         io.open(os.path.join(BRIEFS, f'windowed-{slug}-prompt.md'), 'w',
                 encoding='utf-8', newline='\n').write(prompt)
-        log('plan approved; builder (Opus 5) starting')
+        log(f'plan approved; builder ({MODEL}) starting')
         r = claude(prompt, 6000, os.path.join(BRIEFS, f'windowed-{slug}-run.log'))
         if not os.path.exists(lesson_md):
             log(f'FAIL: builder produced no lesson (see briefs/windowed-{slug}-run.log)')
@@ -610,7 +610,7 @@ def build_one(seq_item, reg, copy, out_slug=None, resume=False, rebuild=False, v
            f'canonical lesson is unchanged.') if out_slug else (
            ('Voice pass on' if voice_only else 'Rebuild' if rebuild else 'Publish') + f' windowed lesson {slug} (seq {seq}): {title}\n\n'
            f'Part {part["part"]} of {course["title"]}. Plan -> plan-review ->\n'
-           f'build in fresh Opus 5 sessions + fresh reviewer, both gates green,\n'
+           f'build in fresh {MODEL} sessions + fresh reviewer, both gates green,\n'
            f'windowed attrs and sitemap exclusion asserted, registry updated.')
     for cmd in (['git', 'add'] + add_paths,
                 ['git', 'commit', '-q', '-m', msg],
