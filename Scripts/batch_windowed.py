@@ -253,6 +253,9 @@ def api_died(r):
     return any(m in out for m in API_DEATH_MARKERS) and len(out.strip()) < 600
 
 
+MODEL = os.environ.get('BW_MODEL', 'claude-opus-5')
+
+
 def claude(stdin_text, timeout, log_path):
     """Run one fresh claude -p session with the given brief. Retries a
     server-side API death (529 Overloaded, 500, mid-response errors) up to
@@ -260,7 +263,7 @@ def claude(stdin_text, timeout, log_path):
     reads a single file and are not a verdict on anything. Writes the last
     attempt's transcript to log_path."""
     for attempt in range(1, 4):
-        r = sh('claude --model claude-opus-5 -p --dangerously-skip-permissions',
+        r = sh(f'claude --model {MODEL} -p --dangerously-skip-permissions',
                cwd=PROJ, timeout=timeout, stdin_text=stdin_text)
         io.open(log_path, 'w', encoding='utf-8', newline='\n').write(
             r.stdout + '\n--- stderr ---\n' + r.stderr)
