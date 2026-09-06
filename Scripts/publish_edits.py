@@ -33,7 +33,11 @@ PAIRS_FILE = os.path.join(SKILLS_REPO, 'skills', 'write-lesson', 'owner-edits.md
 MAX_PAIRS = 50
 
 def run(cmd, **kw):
-    return subprocess.run(cmd, capture_output=True, text=True, **kw)
+    # encoding='utf-8' is load-bearing: on Windows, text=True alone decodes
+    # git's UTF-8 output as cp1252, which turns em dashes into mojibake and
+    # silently defeats the dash rail and corrupts harvested pairs.
+    return subprocess.run(cmd, capture_output=True, text=True,
+                          encoding='utf-8', errors='replace', **kw)
 
 def die(msg):
     print('REFUSED: ' + msg)
