@@ -1,11 +1,11 @@
 ---
 title: "Power analysis: find the sample size you need"
 slug: "Inference-Mini-4"
-description: "Work out the power of a study before you run it: count how often 40 patients catch a real 10 mmHg drop, then find the sample size that reaches 80% power."
-keywords: "power analysis, statistical power, sample size calculation, power.t.test in R, Cohen's d, type II error, minimum detectable effect, post-hoc power"
+description: "A 40-patient trial can miss a real 10 mmHg effect. Simulate the study, count how often it reaches significance, and solve for the sample size you need."
+keywords: "power analysis in R, statistical power, sample size calculation, power.t.test, effect size, Cohen's d, type II error, simulate power in R"
 mathjax: true
 webr: true
-date: "2026-08-31"
+date: "2026-09-06"
 post_type: "LESSON"
 course_id: "inference-from-zero"
 course_title: "Inference from Zero"
@@ -16,363 +16,408 @@ course_prev: "Inference-Mini-3"
 course_next: ""
 curriculum_id: "0.0.7"
 lesson_access: "windowed"
-catalog_blurb: "How many patients a study needs before it is worth running."
+catalog_blurb: "How many patients a study needs before it can detect a real effect."
 ---
 
 === step === cover
-::eyebrow Inference from Zero
 ## Power analysis: find the sample size you need
 
-Let's say a cardiologist, Dr. Rao, is planning a twelve week trial at her small clinic: supervised exercise for her patients with high blood pressure. Three numbers sit on her planning sheet.
+Today let's work out how many patients a study needs, before a single one of them signs up.
 
-She can recruit forty patients in a year, twenty into the exercise program and twenty into usual care. She wants to catch a drop of 10 mmHg in systolic pressure, because anything smaller would not change how she treats anybody. And any one patient's reading lands about 14 mmHg away from the average of the group they are in.
+A clinic wants to test a 12-week exercise program against usual care. Blood pressure is measured on the day each patient joins and again at the end, and what gets recorded is the drop in systolic pressure in mmHg. From published trials of programs like this one, the clinic expects the exercise arm to drop about 10 mmHg further than the usual-care arm. Patients differ a lot though, and that drop varies from one patient to the next with a standard deviation of around 15 mmHg.
 
-Those three numbers already answer a question she has not thought to ask. Suppose the program really works, exactly as well as she hopes. She runs the trial. How often would it come back saying nothing happened?
+The budget stretches to 40 patients, 20 in each arm. At the end the two arms get compared with a t-test at the usual 0.05 threshold.
 
-The answer is not never, and it is not anywhere close to never. A study can be right about the world and still come back empty, simply because it was too small to see what it went looking for. The share of the time it does see it is called power, and you can work it out on paper before a single patient walks in.
+So here is the question worth asking now rather than a year from now: if the program really does lower pressure by 10 mmHg, will a study this small actually come back significant?
 
-So here is what we are going to do with her three numbers.
+That question has a number for an answer, and you can compute it before spending anything. Getting it takes three steps.
 
-::widget process-flow {"steps":[{"title":"Name the drop worth catching","sub":"10 mmHg of systolic pressure, and nothing smaller"},{"title":"Measure how noisy the readings are","sub":"patients scatter by about 14 mmHg within an arm"},{"title":"Count the trials that catch it","sub":"run the trial 5,000 times, count the significant ones"}]}
+::widget process-flow {"steps":[{"title":"Build the planned trial","sub":"20 patients per arm, a 10 mmHg effect, a standard deviation of 15"},{"title":"Simulate it many times","sub":"generate the data again and again with the effect present"},{"title":"Count the significant runs","sub":"the share that come back under 0.05"}]}
 
-Two answers come out of it: how often 40 patients catch a real 10 point drop, and how many patients it takes to push that to 80 in every 100. Both come from one R function, and you will know what every argument in it is doing.
+Everything that follows is doing those three steps on the clinic's design.
 
 === step === concept
-## The trial the clinic is about to run
+## One simulated run of the planned trial
 
-Let's start by writing the trial down as numbers we can draw from.
+The clinic has no patients yet, so we make some. We generate each arm from a normal distribution, and we pick the two means so that the effect the clinic hopes for is true by construction.
 
-On usual care, systolic pressure in her patients sits around 150 mmHg. If the program works the way she hopes, the twenty patients on it finish week twelve around 140, ten points lower. Individual patients scatter around whichever average applies to them by about 14 mmHg either way, and that number comes from four years of her own clinic records, not from a guess.
-
-That is enough to draw one trial. `rnorm(20, mean = 150, sd = 14)` gives twenty usual-care patients, each with a plausible week-twelve reading, and the second call gives the twenty on the program with their average sitting 10 points lower. Then `t.test()` compares the two arms the way the clinic would.
+Usual care gets a mean drop of 0 mmHg and the program gets a mean drop of 10 mmHg. Both arms get a standard deviation of 15, which is how much one patient's drop differs from another's. Then we hand the two arms to `t.test()`, exactly as the clinic would with real patients.
 
 Press Run.
 
 ```r
-# Draw one run of the trial and test the exercise arm against usual care
-set.seed(20)
-usual   <- rnorm(20, mean = 150, sd = 14)   # usual care, systolic BP at week 12
-program <- rnorm(20, mean = 140, sd = 14)   # exercise program, truly 10 points lower
+# Simulate one run of the planned trial and compare the two arms
+set.seed(2)
+usual   <- rnorm(20, mean = 0,  sd = 15)   # drop in systolic BP, mmHg, usual care
+program <- rnorm(20, mean = 10, sd = 15)   # drop in systolic BP, mmHg, exercise program
 
-mean(usual) - mean(program)                 # the drop this trial measured, in mmHg
-#> [1] 9.777166
-
-t.test(program, usual, var.equal = TRUE)
-#>
-#> 	Two Sample t-test
-#>
+tt <- t.test(program, usual)
+tt
+#> 
+#> 	Welch Two Sample t-test
+#> 
 #> data:  program and usual
-#> t = -2.0097, df = 38, p-value = 0.0516
+#> t = 1.3282, df = 37.557, p-value = 0.1921
 #> alternative hypothesis: true difference in means is not equal to 0
 #> 95 percent confidence interval:
-#>  -19.62576034   0.07142863
+#>  -3.706397 17.834114
 #> sample estimates:
-#> mean of x mean of y
-#>  137.5941  147.3713
+#> mean of x mean of y 
+#>  9.995774  2.931916
+
+round(mean(program) - mean(usual), 2)
+#> [1] 7.06
 ```
 
-`set.seed(20)` fixes the random draw, so your forty patients are the same forty as mine.
+`set.seed(2)` fixes the random number generator, so your 40 patients are the same as mine.
 
-The program arm came out 9.78 mmHg below usual care. The truth we built into the draw was exactly 10, so this trial landed about as close to the right answer as anyone could ask for.
+Read the two means at the bottom first. The program arm dropped 10.0 mmHg on average and the usual-care arm dropped 2.9, a gap of 7.06 mmHg. The 10 mmHg effect is in there, but 20 patients per arm are not enough to reproduce it exactly, and this particular draw came in low.
 
-Now read the p-value: 0.0516.
+Now read `p-value = 0.1921`. That is the probability of seeing a gap at least this large if the two arms really had the same mean. It is nowhere near 0.05, so the clinic would report no significant difference and shelve the program.
 
-That number answers one narrow question. If the exercise program did nothing at all, how often would chance alone open a gap this wide between two groups of twenty? About 5.16 times in every 100. Nearly everybody calls a result significant when that figure falls below 0.05, and 0.0516 does not.
+Look at what just happened. The effect is real, we put it there ourselves, and the study missed it.
 
-So the program worked, the trial measured it almost perfectly, and the write-up still has to say there was no significant benefit. Nothing went wrong anywhere in that chain. That is simply what a trial of forty patients buys you.
+[NOTE]
+`t.test()` runs the Welch version by default, which does not assume the two arms have the same spread. That is why the degrees of freedom come out at 37.557 instead of a whole number.
 
 === step === concept
-## Power is the share of trials that catch a real effect
+## The same trial, run twelve times
 
-One trial is one trial. The particular forty people who walked through the door decided that 0.0516, and a different forty would have handed back something else entirely.
+One simulated trial is one draw. Another 20 patients would give different numbers, so the interesting question is what this design does across many runs, not what it did on the run we happened to see.
 
-So let's stop arguing about this one and run the whole thing again. And again. Five thousand times, with the real 10 point drop switched on in every single run, exactly as we set it up. The only thing that changes from run to run is which patients we happen to draw.
-
-`replicate()` does the repeating, and we keep only the p-value out of each trial.
+The code below wraps the whole trial into a function that takes the per-arm sample size, simulates both arms, and returns just the p-value. Then it runs that function 12 times.
 
 ```r
-# Run the same trial 5,000 times and count how many reach p below 0.05
+# Run the same planned trial 12 times and read the p-value each time
+one_trial <- function(n) {
+  usual   <- rnorm(n, mean = 0,  sd = 15)
+  program <- rnorm(n, mean = 10, sd = 15)
+  t.test(program, usual)$p.value
+}
+
 set.seed(7)
-pvals <- replicate(5000, {
-  u <- rnorm(20, mean = 150, sd = 14)
-  p <- rnorm(20, mean = 140, sd = 14)
-  t.test(p, u, var.equal = TRUE)$p.value
-})
+p12 <- replicate(12, one_trial(20))
+round(p12, 3)
+#>  [1] 0.337 0.024 0.001 0.520 0.058 0.067 0.000 0.015 0.206 0.165 0.059 0.003
 
-sum(pvals < 0.05)     # trials that cleared the 0.05 bar
-#> [1] 3003
-mean(pvals < 0.05)    # the same count as a share of all 5,000
-#> [1] 0.6006
+sum(p12 < 0.05)
+#> [1] 5
+```
 
-hist(pvals, breaks = 40, col = "grey85", border = "white",
-     main = "5,000 trials, every one with a real 10 point drop",
+The 10 mmHg effect is present in all 12 of those trials. Every one of them.
+
+But the p-values run from 0.000 to 0.520, and only 5 of the 12 came in under 0.05. The other 7 would have been written up as "no significant difference between the arms", which is the wrong conclusion drawn from a study that was simply too small.
+
+Missing a real effect like that has a name. The null hypothesis here, written H0, is that the two arms have the same mean. Failing to reject it when it is false is a **Type II error**, and seven of these twelve trials made one.
+
+So this design does not have an answer. It has a hit rate, and 12 runs are enough to see that the hit rate exists but not enough to measure it.
+
+=== step === concept
+## What statistical power is, and how to compute it by simulation
+
+That hit rate is what statisticians call the **power** of a design: the probability that the test comes back significant when the effect really is there. Significant means p below alpha, the threshold you pick before the study starts. The clinic picked the usual 0.05.
+
+\[ \text{power} \;=\; P(\,p \lt \alpha \;\mid\; \text{the effect is real}\,) \;=\; 1 - \beta \]
+
+Here \(\beta\) is the Type II error rate, the probability of missing the effect. Power and beta are the same fact stated from the two ends, so a design with 0.60 power misses a real effect 40% of the time.
+
+Estimating it is just the 12 runs again, with a bigger number. We run the planned trial 2,000 times and count the share that reach significance.
+
+```r
+# Estimate the power of the 20-per-arm design from 2,000 simulated trials
+set.seed(11)
+p2000 <- replicate(2000, one_trial(20))
+
+hist(p2000, breaks = 40, col = "grey85", border = "white",
+     main = "2,000 trials of the planned design, effect present in every one",
      xlab = "p-value")
 abline(v = 0.05, col = "red", lwd = 3)
+
+mean(p2000 < 0.05)
+#> [1] 0.5235
 ```
 
-3,003 of the 5,000 trials came back under 0.05. As a share, 0.6006.
+The bars to the left of the red line are the trials that reached significance. Every trial to the right of it made a Type II error. Notice how much of the pile sits on the wrong side, and how far right some of it goes: plenty of these trials, all of them run on a program that genuinely works, came back with p above 0.4.
 
-That share is the power of this study design. Sixty times in every hundred, a clinic running this exact trial, on a program that genuinely lowers pressure by 10 points, would end the year with a significant result. The other forty times they would do everything right and report nothing.
+The share on the good side is 0.5235. That number is the power of the clinic's design, estimated by counting.
 
-The histogram shows where those forty misses went. The p-values pile up hard against zero, which is what a real effect does, and then a long tail spreads out to the right of the red line at 0.05. Every bar out in that tail is a year of recruiting, twelve weeks of supervised exercise, and a conclusion that the program showed no benefit.
-
-Missing an effect that is really there has a name. It is a **Type II error**, and power is one minus how often you make one. Here that rate is 0.3994, so the clinic has a two in five chance of doing everything right and finding nothing.
-
-[KEY INSIGHT]
-Power is the share of repeats that come back significant when the effect is genuinely there. You did not have to take that definition on trust. You counted it: 3,003 out of 5,000.
-
-=== step === concept
-## The five numbers a power calculation ties together
-
-Counting 5,000 trials is the honest way to see what power is. It is not how anybody works it out at a desk.
-
-Base R ships `power.t.test()`, and it holds five numbers together in one relationship:
-
-1. `n`, the number of patients in each arm
-2. `delta`, the difference in means worth detecting, in the units you measured
-3. `sd`, how much individual readings scatter inside an arm
-4. `sig.level`, the p-value cut-off you will judge against, usually 0.05
-5. `power`, the share of trials that clear that cut-off
-
-Give it any four of the five and it solves for the one you left out. So hand it the four numbers the clinic already knows, and it hands back the fifth.
+You do not have to simulate to get it. Base R solves the same quantity in one line with `power.t.test()`.
 
 ```r
-# Ask for the power of the clinic design instead of simulating it 5,000 times
-power.t.test(n = 20, delta = 10, sd = 14, sig.level = 0.05)
-#>
-#>      Two-sample t test power calculation
-#>
+# The same power from the formula instead of the simulation
+power.t.test(n = 20, delta = 10, sd = 15)
+#> 
+#>      Two-sample t test power calculation 
+#> 
 #>               n = 20
 #>           delta = 10
-#>              sd = 14
+#>              sd = 15
 #>       sig.level = 0.05
-#>           power = 0.5954089
+#>           power = 0.5377573
 #>     alternative = two.sided
-#>
+#> 
 #> NOTE: n is number in *each* group
 ```
 
-0.5954. The five thousand simulated trials gave 0.6006. Those two agree to two decimal places because they answer the identical question, and the only difference is that one of them took five thousand trials to get there.
+`n` is the sample size per arm, `delta` is the true difference in means, and `sd` is the standard deviation within an arm. `sig.level` was not supplied so it defaulted to 0.05, and `power` was not supplied either, which is why power is the thing that came back: 0.5378.
 
-Read the last line of the output before moving on, because it catches people out. `n = 20` means twenty patients in each arm. Forty in total.
+Our count gave 0.5235 and the formula gives 0.5378. They land in the same place without matching exactly, for two reasons worth knowing. 2,000 runs pin a share like this down to about one percentage point either way, and `t.test()` ran the Welch version while `power.t.test()` assumes both arms share one standard deviation.
 
-The line above it says the test was two-sided. A rise in pressure would register just as readily as a drop, which is what `t.test()` did on the single trial without being asked.
+[KEY INSIGHT]
+Power belongs to the design, not to the data. It is fixed by four things you choose before recruiting anyone: the effect you want to catch, the noise in the measurement, the sample size, and alpha.
 
-=== step === quiz
-## Quick check: what does power of 0.60 mean?
+=== step === widget
+## Why a trial of 20 per arm detects this effect only half the time
 
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- There is a 60% chance the exercise program really does lower blood pressure. ::no
-- If the program really does lower pressure by 10 points, about 60 out of every 100 trials this size would come back significant. ::ok Exactly. Power belongs to the design, not to the result. It was settled the moment the clinic chose 20 patients per arm, a 10 point target and a spread of 14, and you can read it off before anybody is recruited.
-- The p-value this trial produced can be trusted about 60% of the time. ::no
-- About 40% of trials like this one would report a benefit that was never really there. ::no Power says nothing at all about whether the program works, and it is not a confidence rating attached to a p-value. It assumes the 10 point drop is real and reports how often a trial this size would catch it, which is 60 times in 100. The 40 that miss are not false alarms either. They are real effects going unreported.
+0.54 is a strange number to land on. It is worth seeing where it comes from, because that is what tells you which quantity to change.
 
-=== step === concept
-## Why the effect only counts relative to the noise
-
-Two of those five numbers never act on their own. `delta` and `sd` only ever reach the calculation as a ratio, and the quickest way to see that is to double both of them at once.
+A t-test does not look at the 10 mmHg gap on its own. It divides that gap by its standard error, which is how much the measured gap bounces around from trial to trial. For a difference between two arms of `n` patients each, that standard error is `sd * sqrt(2/n)`.
 
 ```r
-# Compare two designs that share an effect-to-noise ratio but not the raw numbers
-power.t.test(n = 20, delta = 10, sd = 14, sig.level = 0.05)$power
-#> [1] 0.5954089
+# The expected size of the t statistic for the planned trial
+se_diff    <- 15 * sqrt(2 / 20)        # standard error of the difference, mmHg
+expected_t <- 10 / se_diff             # the 10 mmHg effect measured in standard errors
+critical_t <- qt(0.975, df = 38)       # the value t has to beat at alpha 0.05
 
-power.t.test(n = 20, delta = 20, sd = 28, sig.level = 0.05)$power
-#> [1] 0.5954089
-
-# the ratio itself, for the clinic
-10 / 14
-#> [1] 0.7142857
+round(c(se = se_diff, expected_t = expected_t, critical_t = critical_t), 3)
+#>         se expected_t critical_t 
+#>      4.743      2.108      2.024
 ```
 
-A 20 point drop in patients who scatter by 28 mmHg is exactly as hard to detect as a 10 point drop in patients who scatter by 14. Not roughly as hard. The same number to seven decimal places.
+So the gap the clinic expects, 10 mmHg, is worth 2.108 standard errors. And to clear 0.05 with 38 degrees of freedom, the t statistic has to reach 2.024.
 
-The ratio those two designs share has a name, and it is what a published sample-size calculation is quoting when it says how big an effect the study was powered for.
+Those two numbers are almost on top of each other. That is the whole story of this design.
 
-\[ d = \frac{\text{delta}}{\text{sd}} = \frac{10}{14} = 0.714 \]
+The plot below draws the distribution the test compares against, with the observed t marked and its two-sided tail shaded. Drag the slider to move the observed t.
 
-That is **Cohen's d**, the effect measured in standard deviations instead of in mmHg. The clinic is chasing a drop worth 0.714 standard deviations of the thing they are measuring.
+::widget null-distribution {"tails": 2, "start": 2.10, "label": "observed t"}
 
-So the five numbers are really four. And notice what that does to the effect size. It becomes a question about the outcome you chose to measure as much as about the treatment you are testing. Ten points is a comfortable target in a clinic whose readings scatter by 14 mmHg. Take the same program to a population whose pressure swings twice as widely, d halves, and everything downstream of it gets more expensive.
+The curve is the standard normal, which sits very close to the t distribution with 38 degrees of freedom this trial uses. The axis is the t statistic, so 0 means the two arms came out level and 2 means the measured gap was twice its standard error.
+
+The slider opens as near as it goes to our expected t of 2.108, and the shaded tail reads 0.036. That is a significant result. Now pull the slider back to 1.50, the t from a perfectly ordinary trial where the measured gap came in a bit under expectation. The tail swells to 0.134 and the result is gone.
+
+That is what a power of 0.54 looks like from the inside. The clinic's trial has an expected t of 2.108 sitting barely above the bar of 2.024, and each actual trial scatters either side of that expectation. A little above and it clears the bar, a little below and it does not. Slightly more than half of them land on the right side, which is the 0.5378.
+
+=== step === quiz
+## Quick check: what does a power of 0.54 mean?
+
+The clinic's planned design has a power of 0.54. Which sentence says what that number is?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
+- There is a 54% chance that the exercise program lowers blood pressure. ::no
+- If the program truly lowers pressure by 10 mmHg, about 54% of trials of this design come back with p below 0.05. ::ok Exactly. Power is a probability about the trial, computed inside a world where the effect is already assumed to be real. Nothing about it says how likely the program is to work.
+- The design has a 46% Type I error rate, so nearly half its significant results are false alarms. ::no
+- The true effect is probably about half the 10 mmHg the clinic hoped for. ::no Power says nothing about whether the program works or how big its effect is. It answers one question only: assuming the effect is exactly the size you specified, how often does a trial of this size and this noise reach your alpha? The 46% left over is the Type II error rate, the share of trials that miss a real effect, and it has nothing to do with false alarms.
 
 === step === concept
-## How to solve for the sample size instead of the power
+## How many patients per arm reach 80% power?
 
-So far we have handed `power.t.test()` four numbers and let it return the power. The clinic wants it the other way round. They know the power they would like, and they want the sample size that buys it.
+A design that finds a real effect 54% of the time is close to a coin flip. The convention most funders and journals ask for is 80%, which still misses a real effect one time in five but is the usual bar.
 
-Which power, though? The convention is 0.80, and you will find it in almost every grant application and trial protocol ever written. There is nothing mathematical behind it. Cohen proposed it as a sensible default and the field kept it, so it is a habit with a good reason behind it rather than a law. In practice it means you accept a 1 in 5 chance of missing a real effect, which is a fair trade for a low-risk exercise program and much harder to justify for a cancer drug.
-
-To ask the question backwards, leave `n` out of the call and put `power` in instead.
+So the question turns around. Instead of asking what power 20 patients per arm buys, ask what sample size buys 80% power. We can get there by simulation first, running the trial 500 times at each of six sample sizes and counting the share that reach significance in each.
 
 ```r
-# Leave the sample size out and ask for the n that reaches 80% power
-power.t.test(delta = 10, sd = 14, sig.level = 0.05, power = 0.80)
-#>
-#>      Two-sample t test power calculation
-#>
-#>               n = 31.75716
+# Simulated power at six different sample sizes per arm
+set.seed(21)
+n_per_arm <- seq(10, 60, by = 10)
+sim_power <- sapply(n_per_arm, function(n) mean(replicate(500, one_trial(n)) < 0.05))
+
+data.frame(n_per_arm, sim_power)
+#>   n_per_arm sim_power
+#> 1        10     0.316
+#> 2        20     0.504
+#> 3        30     0.706
+#> 4        40     0.840
+#> 5        50     0.910
+#> 6        60     0.940
+```
+
+The 20-per-arm row, the design we started with, reads 0.504. That is the same number we counted at 0.5235 a moment ago, only from 500 runs instead of 2,000, so it wobbles a bit more. Power climbs steeply at first and then flattens out: going from 10 to 20 per arm buys 19 points, going from 50 to 60 buys 3. And 0.80 gets crossed somewhere between 30 and 40 per arm.
+
+`power.t.test()` gives the exact crossing point. This time we supply the power we want and leave `n` out.
+
+```r
+# Solve for the sample size that reaches 80% power
+power.t.test(delta = 10, sd = 15, power = 0.80)
+#> 
+#>      Two-sample t test power calculation 
+#> 
+#>               n = 36.3058
 #>           delta = 10
-#>              sd = 14
+#>              sd = 15
 #>       sig.level = 0.05
 #>           power = 0.8
 #>     alternative = two.sided
-#>
+#> 
 #> NOTE: n is number in *each* group
 ```
 
-31.76 patients per arm. You cannot recruit three quarters of a patient, and rounding down would leave the study short of its own target, so it rounds up to 32 per arm. Sixty-four patients in total.
+Read the output as a set of five quantities: `n`, `delta`, `sd`, `sig.level` and `power`. Give the function any four of them and it returns the fifth. That is the whole interface, and it is why the same function answered a completely different question a moment ago.
 
-Let's confirm the rounded number really does clear the bar.
+Here it returns `n = 36.3058` per arm. You cannot recruit a third of a patient, so round up: **37 per arm, 74 patients in total.**
+
+That is the answer the clinic came for. Against the 40 they budgeted, they are 34 patients short, and they now know that before writing a single consent form rather than after a year of recruitment.
+
+=== step === concept
+## What a trial of 20 per arm can detect, and what a looser alpha buys
+
+Often 74 is not on offer. The budget is 40 patients and no amount of arithmetic will change it. Two questions are worth asking in that situation, and `power.t.test()` answers both by leaving a different argument out.
+
+First, if we are stuck at 20 per arm, how big would the effect have to be for us to catch it reliably? Leave `delta` out and supply the power instead. Second, what happens if we relax alpha from 0.05 to 0.10?
 
 ```r
-# Check the power the clinic actually gets at the rounded-up size
-power.t.test(n = 32, delta = 10, sd = 14, sig.level = 0.05)$power
-#> [1] 0.803077
+# What 20 per arm can detect, and what a looser alpha changes
+mde_20    <- power.t.test(n = 20, sd = 15, power = 0.80)$delta
+power_a10 <- power.t.test(n = 20, delta = 10, sd = 15, sig.level = 0.10)$power
+n_a10     <- power.t.test(delta = 10, sd = 15, power = 0.80, sig.level = 0.10)$n
+
+data.frame(
+  quantity = c("smallest effect 20 per arm can detect, mmHg",
+               "power at 20 per arm when alpha is 0.10",
+               "n per arm for 80% power when alpha is 0.10"),
+  value = round(c(mde_20, power_a10, n_a10), 2)
+)
+#>                                      quantity value
+#> 1 smallest effect 20 per arm can detect, mmHg 13.64
+#> 2      power at 20 per arm when alpha is 0.10  0.66
+#> 3  n per arm for 80% power when alpha is 0.10 28.52
 ```
 
-0.803, a little over target, which is exactly what rounding up should do.
+The first row is the **minimum detectable effect**, and at 13.64 mmHg it is bigger than the 10 mmHg the clinic is actually looking for. A study built like this is tuned to find something larger than the thing it set out to find, which is a useful sentence to be able to say in a planning meeting.
 
-That is the answer the planning sheet was really asking for, and it is not 40. Twenty-four more patients, twelve in each arm, is the whole difference between a trial that misses two times in five and one worth running.
+The other two rows show what moving alpha does. Loosening it to 0.10 lifts power at 20 per arm from 0.54 to 0.66, and drops the sample size needed for 80% power from 36.3 to 28.5, so 29 per arm instead of 37. That looks like a bargain.
+
+[WARNING]
+Alpha is the false-alarm rate. Calling a difference real when there is none is a **Type I error**, and alpha is how often you agree to make one. Moving it from 0.05 to 0.10 means that if the exercise program does nothing at all, 1 trial in 10 still comes back significant instead of 1 in 20. The extra power was not created out of nothing. It was bought with Type I errors.
+
+=== step === concept
+## Why power computed after the study tells you nothing
+
+Suppose the clinic runs the trial anyway at 20 per arm and gets the result from the first run we simulated: a 7.06 mmHg difference and p = 0.192. A reviewer asks whether the study was big enough.
+
+It is tempting to do this: take the difference the study actually produced, feed it back into `power.t.test()`, and report the power that comes out. This is **post-hoc power**, sometimes called observed power, and it is one of the most common mistakes in applied statistics.
+
+```r
+# Post-hoc power from the observed difference, and the numbers to report instead.
+# usual, program and tt are the two arms and the t-test from the first run.
+obs_diff  <- mean(program) - mean(usual)
+pooled_sd <- sqrt((var(program) + var(usual)) / 2)
+round(c(obs_diff = obs_diff, pooled_sd = pooled_sd), 2)
+#>  obs_diff pooled_sd 
+#>      7.06     16.82
+
+power.t.test(n = 20, delta = obs_diff, sd = pooled_sd)$power
+#> [1] 0.252973
+
+round(as.numeric(tt$conf.int), 1)
+#> [1] -3.7 17.8
+```
+
+Post-hoc power comes out at 0.253, and it is worthless. At a fixed sample size and a fixed alpha, post-hoc power is a one-to-one function of the p-value: a large p always produces low observed power and a small p always produces high observed power. Reporting 0.253 next to p = 0.192 is reporting the same fact twice in two different units.
+
+It is also answering the wrong question. Power is about the effect you cared enough to design for, which was 10 mmHg. Post-hoc power uses the effect this one sample happened to produce, which was 7.06 and could just as easily have been 3 or 14.
+
+Two numbers do belong in that report. The first is the power the design had for the effect that mattered, 0.538, fixed before any patient was seen. The second is the confidence interval printed above, from -3.7 to 17.8 mmHg.
+
+Read that interval carefully. It contains 0, so this trial cannot rule out a program that does nothing. It also contains 10, so it cannot rule out the full effect the clinic hoped for. The honest summary is not "the program does not work". It is "this study was too small to tell".
 
 === step === widget
-## How the required sample size moves with the effect size
+## Effect size, and why a smaller effect needs many more patients
 
-The clinic sits at one point on a curve. Here is the whole curve.
+Every number so far has been in mmHg, which is fine inside one clinic and useless across studies. A 10 mmHg effect means nothing to someone measuring cholesterol or exam scores.
 
-Power runs up the vertical axis and the number of patients per arm runs along the bottom. The toggle switches between the three effect sizes Cohen offered as rough labels for the field, 0.2 for small, 0.5 for medium and 0.8 for large, and a red mark sits on the curve at the sample size that reaches 80% power. On the small setting there is no mark to find, because the curve has still not got there by 300 patients an arm.
+The fix is to divide the effect by the noise it has to be seen through. That ratio is the standardised effect size, **Cohen's d**.
+
+\[ d = \frac{\delta}{\sigma} = \frac{10}{15} = 0.67 \]
+
+The clinic's effect is 0.67 standard deviations. Cohen's rough conventions put 0.2 at small, 0.5 at medium and 0.8 at large, so this trial is chasing something between medium and large.
+
+The plot below carries those three conventional effect sizes rather than the clinic's own numbers. Switch between them and read the curve of power against sample size at alpha 0.05.
 
 ::widget power-curve {}
 
-Switch between medium and large and read the two sample sizes off. The clinic sits at 0.714, between those two settings, which is exactly why their 32 per arm landed between the two marks.
+A medium effect, d = 0.5, needs about 63 patients per group to reach 80% power. A large effect, d = 0.8, needs about 25. Our d = 0.67 sits between those two buttons, and `power.t.test()` put the exact figure at 37 per arm.
 
-Two things about the shape of that curve matter more than any single number on it.
+Notice how fast that number moves. Going from d = 0.8 to d = 0.5 is a modest change in the effect and it more than doubles the patients. The reason is that n scales with \(1/d^2\), so halving the effect roughly quadruples the sample.
 
-The first is that the curve climbs steeply through the middle and goes nearly flat once it passes 0.8. Twelve extra patients per arm took the clinic from 0.60 power to 0.80. The next twelve add about half that much, and the twelve after those about half again. That is why insisting on 95% power costs so much more than the last fifteen points look like they are worth.
-
-The second is that the whole curve slides left as the effect grows. Halve the effect size and you roughly quadruple the sample you need, because power tracks n times d squared rather than n times d. That is the most expensive fact in study design: a treatment half as good costs four times as much to prove.
-
-=== step === concept
-## The smallest drop 40 patients could ever detect
-
-The clinic may simply not get 64 patients. Budgets and waiting lists being what they are, forty may be a hard ceiling and not a first guess.
-
-There is a third way to run the same function, and it is the one to reach for when the sample size cannot move. Hold `n` at 20 per arm, hold the power target at 0.80, and this time leave `delta` out. The question stops being how many patients, and becomes how big a drop those patients could reliably catch.
+Watch that happen on the clinic's own design. Suppose the program only lowers pressure by 5 mmHg, not 10, with the same 15 mmHg standard deviation.
 
 ```r
-# Fix the 40 patients and solve for the smallest drop they could reliably catch
-power.t.test(n = 20, sd = 14, sig.level = 0.05, power = 0.80)
-#>
-#>      Two-sample t test power calculation
-#>
-#>               n = 20
-#>           delta = 12.72783
-#>              sd = 14
+# The sample size if the program only lowers pressure by 5 mmHg instead of 10
+power.t.test(delta = 5, sd = 15, power = 0.80)
+#> 
+#>      Two-sample t test power calculation 
+#> 
+#>               n = 142.2466
+#>           delta = 5
+#>              sd = 15
 #>       sig.level = 0.05
 #>           power = 0.8
 #>     alternative = two.sided
-#>
+#> 
 #> NOTE: n is number in *each* group
 ```
 
-12.73 mmHg.
-
-Hold that against the planning sheet. The clinic set out to detect a drop of 10 points. Forty patients can only reliably detect a drop of 12.73 points or more. The effect they care about sits underneath the smallest effect their study can see, and that was true before anybody was recruited, before anybody exercised, and before there was any data to analyse.
-
-That quantity is called the **minimum detectable effect**, and it is the number to compute whenever the sample size is not yours to choose. It turns an uncomfortable constraint into a plain sentence you can say out loud in a meeting. This trial can find a drop of thirteen points. It cannot reliably find a drop of ten.
-
-[KEY INSIGHT]
-Every fixed sample size implies a smallest effect it can reliably see. When that effect is larger than the one you actually care about, the study cannot answer your question, and no amount of careful analysis afterwards will rescue it.
-
-=== step === concept
-## Why power worked out after the study tells you nothing new
-
-Suppose the clinic runs the trial with its forty patients anyway, gets that p of 0.0516, and somebody in the meeting asks the obvious follow-up. Was the study underpowered? Let's work its power out from what actually happened.
-
-That sounds like the sensible thing to do. The trial handed us a drop of 9.78 mmHg and two arms we can compute the spread from directly, so we would be feeding in measurements instead of hopes. Watch what comes back.
-
-```r
-# Recompute power from the drop and the spread this trial actually observed
-obs_drop <- mean(usual) - mean(program)
-obs_sd   <- sqrt((var(usual) + var(program)) / 2)   # pooled SD, both arms are size 20
-
-round(c(drop = obs_drop, sd = obs_sd), 2)
-#>  drop    sd
-#>  9.78 15.38
-
-power.t.test(n = 20, delta = obs_drop, sd = obs_sd, sig.level = 0.05)$power
-#> [1] 0.4995412
-```
-
-0.4995. Almost exactly one half.
-
-That is not a coincidence, and it is not new information. Observed power is computed from the observed effect, and the observed effect is the very thing that produced the p-value. So observed power is the p-value stated again and nothing more. A p-value sitting right on the 0.05 line always returns an observed power near 0.5, and a smaller p-value always returns a higher one. It could not come out any other way, and that is exactly why it explains nothing.
-
-A non-significant result paired with a low observed power is one fact reported twice, not two facts backing each other up. The reasoning runs in a circle: the study missed, so it must have been underpowered, and we know it was underpowered because it missed.
-
-[WARNING]
-Never compute power from your own results. That calculation has a name, observed power, or post-hoc power, and it is your p-value in different arithmetic. A reviewer who knows the literature will say so. When a trial comes back with nothing, report the minimum detectable effect instead: this design could reliably find a drop of 12.73 mmHg, and it did not find one.
+Halving the effect took d from 0.67 to 0.33 and took the sample from 37 per arm to 143, so 286 patients instead of 74. Small effects are not slightly more expensive to prove. They are several times more expensive.
 
 === step === quiz
-## Quick check: reading a trial that missed
+## Quick check: reading a trial that came back at p = 0.19
 
-The clinic ran the trial with its forty patients. The exercise arm finished 9.78 mmHg lower, the test returned p = 0.0516, and somebody has to write the conclusion. Which reading is the right one?
+The clinic ran the 20-per-arm trial, got a 7.06 mmHg difference and p = 0.192, and now has to write it up. What is the right thing to say?
 
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The exercise program does not lower blood pressure, and this trial has shown it. ::no
-- The trial was never in a position to answer the question: forty patients could only reliably detect a drop of 12.73 mmHg, and the clinic cared about 10. ::ok Yes. The design was settled before any data existed, and it could never reliably see the drop the clinic went looking for. That sentence is the honest write-up, and it is also the one that gets the next study funded at 64 patients.
-- 0.0516 is close enough to 0.05 to call the program effective. ::no
-- Work the power out from the observed 9.78 point drop to find out whether the trial was big enough. ::no A trial that misses has not proved the effect is absent: forty patients here would miss a genuine 10 point drop about forty times in a hundred. Nudging 0.0516 across the line is just moving the bar after seeing the data. And recomputing power from the observed drop returns 0.4995, which is only the p-value stated again. The one number that says something new is the smallest drop this design could ever reliably find, 12.73 mmHg.
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- The exercise program does not lower blood pressure, since the test came back non-significant. ::no
+- Compute the power from the observed 7.06 mmHg difference, to show how underpowered the study was. ::no
+- A design that finds this effect about half the time cannot settle the question either way, so the result is uninformative rather than negative. ::ok Yes. The design had 0.538 power for the effect that mattered, and the interval ran from -3.7 to 17.8 mmHg, holding both 0 and 10. Nothing was ruled out.
+- Report the result at alpha 0.10, where a p of 0.192 is closer to the threshold. ::no The trial did not answer the question, and none of the other three options say so. A non-significant result from a design that misses real effects half the time is not evidence of no effect. Power computed from the observed difference only restates p. And moving alpha after seeing the data doubles the false-alarm rate to rescue a result, which is exactly backwards.
 
 === step === tryit
-## Your turn: size the trial when the readings are noisier
+## Your turn: what does a quieter measurement buy?
 
-One number moves now, and in practice it is the one that moves most often.
+The clinic cannot find 74 patients. But sample size is only one of the quantities in the calculation, and the noise is another.
 
-Dr. Rao looks again at who she will actually be recruiting. The 14 mmHg came from every patient on her books, and the ones eligible for this trial, the ones whose pressure is hardest to control, scatter by 18 mmHg. The drop worth catching is still 10 points and the cut-off is still 0.05. Two questions follow, and `power.t.test()` answers both.
+Blood pressure varies enormously between people, and a lot of that 15 mmHg standard deviation is variation between patients rather than anything to do with the program. Measuring each patient against their own baseline strips out much of it. Say that careful protocol brings the standard deviation of the drop down from 15 to 12 mmHg. The effect is still 10 mmHg and alpha is still 0.05.
 
-First, what power does the planned 32 patients per arm buy once the readings are that noisy? Second, what sample size gets back to 80%?
+Write two lines: first solve for the sample size per arm that now reaches 80% power, then compute the power that the original 20 per arm now buys.
 
 ```r
-# The clinic records now put the within-arm spread at 18 mmHg, not 14.
-# One: the power that n = 32 per arm buys at that spread.
-# Two: the n per arm that reaches 0.80 power at that spread.
-# Two calls to power.t.test. Press Check when you have them.
+# The effect is still 10 mmHg and alpha is still 0.05, but the standard
+# deviation of the drop is now 12 instead of 15.
+# Line 1: solve for the n per arm that reaches 80% power.
+# Line 2: the power that 20 per arm buys at the new standard deviation.
+# Two lines. Press Check when you have them.
 ```
-::check {"regex": "power[.]t[.]test[^)]*sd\\s*=\\s*18", "gate": true, "difficulty": "intermediate", "ok": "That is it. 32 per arm now buys only 0.590, and 80% power costs 51.84 per arm, so 52 each way and 104 patients in total. The spread rose by less than a third and the sample size needed rose by nearly two thirds.", "no": "Both calls keep delta = 10 and sig.level = 0.05 and change sd to 18. For the first, pass n = 32 and read the power back with a trailing $power. For the second, drop n from the call and pass power = 0.80 instead."}
+::check {"regex": "power[.]t[.]test[\\s\\S]*sd\\s*=\\s*12", "gate": true, "difficulty": "intermediate", "ok": "Right: 23.6 per arm, so 24, which is 48 patients in total against the 74 the noisier measurement needed. And 20 per arm now buys 0.728 power, much better, though still short of 0.80.", "no": "Both lines are power.t.test calls with sd = 12. For the first, give delta and power and leave n out. For the second, give n = 20 and delta and leave power out."}
 ::solution
 ```r
-# The power that 32 patients per arm buys when the spread is 18 mmHg
-power.t.test(n = 32, delta = 10, sd = 18, sig.level = 0.05)$power
-#> [1] 0.5900791
+# Re-solve the design when the standard deviation of the drop falls to 12 mmHg
+power.t.test(delta = 10, sd = 12, power = 0.80)$n
+#> [1] 23.60472
 
-# The sample size that gets back to 80% power at that spread
-power.t.test(delta = 10, sd = 18, sig.level = 0.05, power = 0.80)$n
-#> [1] 51.83884
+power.t.test(n = 20, delta = 10, sd = 12)$power
+#> [1] 0.7284655
 ```
 
-Nothing about the treatment changed there. The program still lowers pressure by 10 points and the cut-off is still 0.05. All that happened is the clinic worked out the spread among the patients it will actually enrol rather than among all of them, and the price of the study went from 64 patients to 104. That is why the spread is worth an hour of checking against the real recruitment list before anybody commits to a number.
+Cutting the standard deviation from 15 to 12 raised d from 0.67 to 0.83 and cut the trial from 74 patients to 48. A better measurement protocol is usually far cheaper than 26 more patients, and it is the option people forget they have.
 
 === step === concept
 ## References
 
-- [A Power Primer](https://doi.org/10.1037/0033-2909.112.1.155) - Cohen (1992), Psychological Bulletin 112(1), 155-159. The source of the small, medium and large labels the curve toggles between, and the paper that argues for 0.80 as a default rather than a rule.
-- Statistical Power Analysis for the Behavioral Sciences, 2nd edition - Cohen (1988), Lawrence Erlbaum. The book behind that primer, and still the clearest case for doing this arithmetic before collecting data instead of after.
-- [The Abuse of Power: The Pervasive Fallacy of Power Calculations for Data Analysis](https://doi.org/10.1198/000313001300339897) - Hoenig and Heisey (2001), The American Statistician 55(1), 19-24. The paper that works through why observed power is a rewrite of the p-value.
-- [Power failure: why small sample size undermines the reliability of neuroscience](https://doi.org/10.1038/nrn3475) - Button and colleagues (2013), Nature Reviews Neuroscience 14, 365-376. What an entire field looks like once underpowered studies become normal.
-- [Power calculations for two-sample t tests](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.t.test.html) - R Core Team, the documentation for the function used throughout.
+- [A Power Primer](https://doi.org/10.1037/0033-2909.112.1.155) - Cohen (1992), Psychological Bulletin 112(1), 155-159. Where the small, medium and large conventions for d come from, and how Cohen meant them to be used.
+- [The Abuse of Power: The Pervasive Fallacy of Power Calculations for Data Analysis](https://doi.org/10.1198/000313001300339897) - Hoenig and Heisey (2001), The American Statistician 55(1), 19-24. The full argument for why power computed from the observed effect diagnoses nothing.
+- [Power failure: why small sample size undermines the reliability of neuroscience](https://doi.org/10.1038/nrn3475) - Button and colleagues (2013), Nature Reviews Neuroscience 14, 365-376. What a research literature built out of underpowered studies looks like.
+- [Sample Size Justification](https://doi.org/10.1525/collabra.33267) - Lakens (2022), Collabra: Psychology 8(1), 33267. How to defend the effect size your power calculation is built on, which is the hard part in practice.
+- [power.t.test documentation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.t.test.html) - R Core Team. The five arguments, and the rule that exactly one of them is left out.
 
 === step === complete
 ## Quick recap
 
-You worked out the power of a study nobody has run yet, then turned the same calculation around twice to get the two numbers a clinic actually needs. To pull it together:
+You started with a planned trial and no patients, and you finished with a number the clinic can budget against. Here is the whole thing in five lines.
 
-- Power is the share of repeats that come back significant when the effect is real. You counted it rather than looking it up: 3,003 trials out of 5,000, which is 0.6006.
-- `power.t.test()` ties five numbers together, `n`, `delta`, `sd`, `sig.level` and `power`. Give it four and it returns the fifth, whichever one you leave out.
-- `delta` and `sd` only matter as a ratio. Ten points of drop against a spread of 14 is Cohen's d of 0.714, and a 20 point drop against a spread of 28 is the identical problem.
-- Forty patients bought this clinic 60% power. Sixty-four buy 80%, and the whole gap is twelve extra patients in each arm.
-- With the sample size fixed at forty, the smallest drop the trial could reliably catch was 12.73 mmHg, which is larger than the 10 points the clinic cared about.
-- Power computed after the results are in tells you nothing the p-value has not already said. Here it came back at 0.4995 for a p of 0.0516, and it always will.
+- **Power is the share of trials that reach significance when the effect really is there.** You counted it for the clinic's design: 0.5235 across 2,000 simulated trials, and `power.t.test()` gave 0.5378.
+- **40 patients was not enough.** That design buys 0.54 power for a 10 mmHg effect. It takes 74 patients, 37 per arm, to clear 0.80.
+- **Five quantities are locked together**: sample size, the effect you want to detect, the noise, alpha and power. Give `power.t.test()` any four of them and it returns the missing one.
+- **Sample size scales with \(1/d^2\).** Chasing 5 mmHg instead of 10 took the trial from 74 patients to 286. Cutting the noise from 15 to 12 took it down to 48.
+- **Power is a planning number.** Computed after the fact from the effect the data produced, it only restates the p-value, and it cannot tell you whether the study was big enough.
 
-So the next time somebody hands you a study plan with the sample size already written on it, you have one question to ask: what is the smallest effect this many patients could reliably find, and is it smaller than the effect we came here for?
-
-Congratulations, you made it through. Have a great day!
+The next time someone hands you a study design, you have a concrete thing to ask for: the effect worth detecting, the noise around it, and the power the design has to catch it. If nobody has worked those out, the sample size is a guess.
