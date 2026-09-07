@@ -1,11 +1,11 @@
 ---
 title: "Which statistical test to use? A 5-question decision flowchart"
 slug: "Which-Test-Mini-1"
-description: "Five plain questions about your data pick the right statistical test. Run 90 coffee shop orders through them in R and land on the one test that really fits."
-keywords: "which statistical test to use, statistical test decision flowchart, choosing a statistical test in R, kruskal test in R, paired vs independent t-test, shapiro test normality, effect size"
+description: "Five plain questions about outcome type, group count, pairing and normality lead you to the right R statistical test, worked through on one real dataset."
+keywords: "which statistical test to use, statistical test decision flowchart, choosing a statistical test in R, Kruskal-Wallis test in R, parametric vs non-parametric test, hypothesis test selection"
 mathjax: false
 webr: true
-date: "2026-09-05"
+date: "2026-09-07"
 post_type: "LESSON"
 course_id: "which-test"
 course_title: "Which Test Do I Run?"
@@ -16,445 +16,292 @@ course_prev: ""
 course_next: ""
 curriculum_id: "0.0.8"
 lesson_access: "windowed"
-catalog_blurb: "Five questions about your data that pick the right test."
+catalog_blurb: "Answer five plain questions about your data and find the right R test."
 ---
 
 === step === cover
 ## Which statistical test to use? A 5-question decision flowchart
 
-Today we will work out which statistical test a dataset needs, by asking the data five questions and following the answers.
+Today, let's build a plain decision flowchart that tells you exactly which statistical test to reach for, no memorising required.
 
-Here is the dataset. A small coffee chain runs three branches, and we have 30 completed orders from each one. The average order comes to $8.16 at Central, $10.56 at Riverside and $9.87 at Airport.
+Here is the setup. A retail store hands you its last 75 orders from three branches, Downtown, Mall and Airport, 25 orders from each. Every order carries two things: the dollar value of what was bought, and how the customer paid, card or cash. The question on the table is simple: does one branch actually sell more than the others, or is what you are seeing just noise?
 
-Riverside is ahead by $2.40. But 90 orders is not many, and averages move around on their own even when nothing is different, so the question is whether that gap is bigger than 90 orders could have produced by chance.
+Dozens of tests could plausibly apply here, a t-test, an ANOVA, a chi-square test, and a handful you may have only half heard of. Pick the wrong one and the answer you hand back is worthless, no matter how carefully you ran the numbers.
 
-There is a test that answers exactly that. The stats package that ships with R holds a long list of other tests too, each answering something slightly different, and picking one of those gives you a p-value for a question you never asked.
+Here is a way out of that guesswork: work through five questions about the data, in order, and let each one rule out everything that no longer fits.
 
-The five questions below cut that list down to one. Every one of them is about the data itself and not about coffee, so the same five work on whatever you bring them.
+1. What kind of outcome are you measuring, continuous or categorical?
+2. How many groups are you comparing?
+3. Are those groups paired or independent?
+4. Is the data close to a normal distribution?
+5. What does all of that add up to, and how big is the difference really?
 
-::widget process-flow {"steps": [{"title": "What kind of outcome", "sub": "a measurement on a scale, or a label"}, {"title": "How many groups", "sub": "one, two, or three and more"}, {"title": "Are the numbers linked", "sub": "same customers measured twice, or different ones"}, {"title": "Is each group roughly normal", "sub": "a shape check on every group"}, {"title": "How big is the difference", "sub": "an effect size beside the p-value"}]}
+Once all five are answered, only one test survives every round of elimination. Here is the shape of that decision, narrowed down to a few of the tests you will meet along the way.
 
-We will put all five to the coffee chain's orders, one question at a time, and see which test the answers leave us with.
+::widget tree-diagram {"root": "Continuous outcome?", "l": "Data close to normal?", "r": "2 independent groups?", "leaves": ["Parametric test (t-test or ANOVA)", "Non-parametric test (Kruskal-Wallis)", "Chi-square test", "Fisher exact test"]}
 
-=== step === concept
-## The order data, and what a p-value tells you
-
-We need the 90 orders in front of us before we can ask anything about them.
-
-Each branch records the value of every completed order in dollars. The code below draws 30 of them per branch and stacks all 90 into one data frame, with a branch label beside each value.
-
-```r
-# Build 90 completed orders, 30 from each branch, and summarise their values
-set.seed(21)
-central   <- round(rnorm(30, 8.2, 1.5), 2)
-riverside <- round(rnorm(30, 10.0, 1.6), 2)
-airport   <- round(6.5 + rexp(30, 1/3.2), 2)
-
-orders <- data.frame(
-  branch = factor(rep(c("Central", "Riverside", "Airport"), each = 30),
-                  levels = c("Central", "Riverside", "Airport")),
-  value  = c(central, riverside, airport)
-)
-
-data.frame(
-  branch       = levels(orders$branch),
-  orders       = as.vector(table(orders$branch)),
-  mean_value   = round(as.vector(tapply(orders$value, orders$branch, mean)), 2),
-  median_value = round(as.vector(tapply(orders$value, orders$branch, median)), 2)
-)
-#>      branch orders mean_value median_value
-#> 1   Central     30       8.16         8.28
-#> 2 Riverside     30      10.56        10.23
-#> 3   Airport     30       9.87         8.48
-```
-
-`rnorm(30, 8.2, 1.5)` draws 30 values centred on 8.2, and `rexp()` draws values that bunch up at the low end with a few large ones trailing off to the right, which is the shape we want Airport to have. `set.seed(21)` fixes those draws so your numbers match mine.
-
-Riverside takes $2.40 more per order than Central. Airport sits between the two at $9.87, but look at its median: $8.48, more than a dollar below its own mean. A mean sitting well above the median is the sign of a few large values pulling it up.
-
-A statistical test takes a gap like this and gives back a p-value, which is how often a gap this big would turn up if the three branches were really alike. Small means rarely. Most people treat 0.05 as the line, and below it they stop explaining the gap as chance.
-
-So the p-value is the number we are after. Which test produces it comes down to four properties of the data, and the questions ahead read them off one at a time.
+The store's order values are continuous, so they start down that left branch. Which leaf they land on, and why, is what the next few questions work out.
 
 === step === concept
-## Question 1: what kind of outcome are you measuring?
+## What kind of outcome are you measuring?
 
-The outcome is the thing you are measuring and want to explain. Here it is the value of an order. Get this question wrong and every later answer is wasted, because the two kinds of outcome are served by two separate families of tests.
+Every one of the five questions starts here, with the outcome, the thing you are actually measuring. Get this one wrong and every question after it gets answered for the wrong test entirely.
 
-An outcome is continuous when it is a measurement on a scale, so that the distance between two values means something: $8.16 and $10.56 are $2.40 apart. An outcome is categorical when it is a label that sorts each row into a group, like whether a pastry went into the order, yes or no. You can count labels, but you cannot average them.
+An outcome falls into one of two kinds. A continuous outcome is a numeric measurement, something that could in principle take any value in a range: order value in dollars, height in centimetres, a temperature reading. A categorical outcome is a label that sorts an observation into one of a small number of groups: card or cash, pass or fail, red or blue.
 
-`class()` tells you which one you have, and `str()` shows the type of every column at once.
+The store's data has one of each. Order value is continuous. Payment method, card or cash, is categorical. Create the data once, then check both columns with class(), the function R uses to report what kind of thing a column holds.
 
 ```r
-# Check the type of the outcome column, and of every column in the data
-class(orders$value)
+# Create the store's order data, then check the type of two of its columns
+set.seed(707)
+branch <- factor(rep(c("Downtown", "Mall", "Airport"), each = 25),
+                  levels = c("Downtown", "Mall", "Airport"))
+order_value <- c(
+  rlnorm(25, meanlog = log(45), sdlog = 0.45),
+  rlnorm(25, meanlog = log(58), sdlog = 0.45),
+  rlnorm(25, meanlog = log(72), sdlog = 0.45)
+)
+payment_method <- sample(c("card", "cash"), 75, replace = TRUE)
+orders <- data.frame(branch, order_value, payment_method)
+
+class(orders$order_value)
 #> [1] "numeric"
-
-str(orders)
-#> 'data.frame':	90 obs. of  2 variables:
-#>  $ branch: Factor w/ 3 levels "Central","Riverside",..: 1 1 1 1 1 1 1 1 1 1 ...
-#>  $ value : num  9.39 8.98 10.82 6.29 11.5 ...
+class(orders$payment_method)
+#> [1] "character"
 ```
 
-`value` comes back as `num`, so our outcome is continuous. That puts us in the family of tests built on averages and ranks, where `t.test()` and `aov()` live.
+class() reports "numeric" for order_value and "character" for payment_method. That is R confirming what you already knew from looking at the two columns: one is a measurement, the other is a label.
 
-Had we been asking about pastries instead, the outcome would have been a label per order and `class()` would have returned `"character"` or `"factor"`. That is the other family, where `chisq.test()` and `fisher.test()` compare counts in a table.
-
-One question answered, four to go.
+Why does this matter so much? Because it decides the entire family of test you reach for next. A continuous outcome points you toward t-tests, ANOVA, and their non-parametric counterparts. A categorical outcome points you toward chi-square tests instead, a different family with its own rules. The store's question, does order value differ by branch, is about a continuous outcome, so the comparison follows that branch from here on.
 
 === step === concept
-## Question 2: how many groups are you comparing?
+## How many groups are you comparing?
 
-Count the groups you want to compare. One group means you are holding it against a fixed reference value, like asking whether a branch beats the $9 average the chain budgets for. Two groups means a test that compares them directly. Three or more groups means a single test that looks at all of them together, and that last case is where people slip.
+Once the outcome type is settled, the next question is how many groups you are comparing. That decides whether you need a one-sample test, a two-sample test, or something built for three or more groups at once.
+
+One group means comparing a single sample against a fixed, known value, for instance checking whether the store's average order value differs from a company-wide target. Two groups means comparing two samples directly, say Downtown against Mall alone. Three or more groups means comparing several samples at the same time, which is exactly the store's situation: Downtown, Mall and Airport, all at once.
 
 ```r
-# Count the orders in each branch
+# Count how many branches are in the data, and how many orders each has
 table(orders$branch)
 #>
-#>   Central Riverside   Airport
-#>        30        30        30
+#> Downtown     Mall  Airport 
+#>       25       25       25 
+length(unique(orders$branch))
+#> [1] 3
 ```
 
-That is three branches with 30 orders each, so we are in the three-or-more case.
+table() counts how many orders fall into each branch and confirms the design is balanced, 25 apiece. length(unique(...)) counts the distinct branches themselves: 3.
 
-The tempting alternative is to compare the branches two at a time with a tool you already know. Three branches make three pairs, so that is three t-tests.
+[TIP]
+Never compare 3 or more groups by running separate two-sample tests on every pair. Three branches means three pairwise comparisons, and each one carries its own 5% chance of a false alarm. Run all three and the real chance of at least one false alarm climbs to about 14%. A test built for 3 or more groups at once controls that error rate instead.
+
+With 3 groups on the table, a two-sample test is already out of the running. The branches' comparison needs a test from the multi-group family.
+
+=== step === concept
+## Are your groups paired or independent?
+
+::prose-only the distinction is explained through the same branches story with a hypothetical extension, no new data or chart needed
+
+There are two ways two or more groups can relate to each other: paired or independent. Which one you have changes what a test is allowed to assume about the data.
+
+Groups are paired, also called dependent, when each observation in one group has a specific matching observation in another. The classic case is the same person measured twice, once before a change and once after. Every "before" has exactly one "after" that belongs to it, and nothing else.
+
+Groups are independent when the observations in each group come from different subjects entirely, with no such matching. That is the store's situation. The 75 orders come from different customers walking into different branches, so nobody's Downtown order is paired with anybody's Mall order.
+
+To see the contrast, picture a different version of this same store. Suppose instead of 75 different customers, the same 25 regular customers visited their usual branch twice, once before a renovation and once after. Now each "before" order has a specific "after" order that belongs to the same person, and that would be a paired design, needing the paired version of a test instead of the independent one.
+
+The store's actual data has no such structure: different customers, no matching between branches. So the branches' comparison is independent.
+
+=== step === concept
+## Is your data close to normal?
+
+The fourth question decides which family of test you get to use inside "3 or more independent groups": one built assuming the data follows something close to a normal, bell-shaped distribution, or one that makes no such assumption at all.
+
+Why does that matter? Tests like the one-way ANOVA compute their p-values using the mathematics of the normal distribution. If the actual data departs a long way from that shape, those p-values are no longer valid, so you check before you pick.
+
+The standard formal check is the Shapiro-Wilk test, run with shapiro.test(). It tests whether your data could plausibly have come from a normal distribution. A small p-value, conventionally below 0.05, means the data departs from normal by more than chance alone would explain.
+
+Look at the shape of the store's order values first.
+
+::widget chart-plotter {"data": [{"x":25.3},{"x":34.1},{"x":61.6},{"x":75.1},{"x":31.1},{"x":28.2},{"x":114.1},{"x":54.9},{"x":26.4},{"x":100.7},{"x":54.3},{"x":74.5},{"x":48.5},{"x":30.1},{"x":32.6},{"x":26.7},{"x":88.6},{"x":53.5},{"x":46.4},{"x":72.6},{"x":34.2},{"x":29.3},{"x":45.8},{"x":47.5},{"x":63.8},{"x":160},{"x":53.8},{"x":108},{"x":46.4},{"x":71.5},{"x":76.1},{"x":102.3},{"x":88.4},{"x":46.1},{"x":60.9},{"x":81},{"x":50.2},{"x":50.3},{"x":65.7},{"x":56.7},{"x":35.7},{"x":73.2},{"x":62.6},{"x":69.5},{"x":37.4},{"x":52.4},{"x":147.4},{"x":63.4},{"x":91.1},{"x":46.4},{"x":78.3},{"x":79.9},{"x":27.9},{"x":68.1},{"x":62.7},{"x":51.3},{"x":45.2},{"x":116.8},{"x":48},{"x":53.5},{"x":231.5},{"x":66},{"x":67},{"x":50.6},{"x":53.9},{"x":60.5},{"x":109.2},{"x":69.3},{"x":59.7},{"x":48.5},{"x":66.7},{"x":124.6},{"x":149.9},{"x":93.6},{"x":96.7}], "geoms": ["histogram"], "x": "order_value"}
+
+The bars pile up on the left and thin into a long tail stretching out to the right, toward a handful of large orders. That shape has a name: right-skewed. A normal distribution is symmetric, so a shape like this is already a warning sign.
+
+Now run the formal test on the same values.
 
 ```r
-# Run a separate t-test on each of the three pairs of branches
-pairs <- list(c("Central", "Riverside"), c("Central", "Airport"), c("Riverside", "Airport"))
-
-pair_p <- sapply(pairs, function(p) {
-  a <- orders$value[orders$branch == p[1]]
-  b <- orders$value[orders$branch == p[2]]
-  t.test(a, b)$p.value
-})
-
-data.frame(
-  comparison = c("Central vs Riverside", "Central vs Airport", "Riverside vs Airport"),
-  p_value    = format(signif(pair_p, 3), scientific = FALSE, drop0trailing = TRUE)
-)
-#>             comparison     p_value
-#> 1 Central vs Riverside 0.000000277
-#> 2   Central vs Airport      0.0233
-#> 3 Riverside vs Airport       0.354
+# Test whether order value is close to a normal distribution
+shapiro.test(orders$order_value)
+#>
+#> 	Shapiro-Wilk normality test
+#>
+#> data:  orders$order_value
+#> W = 0.84098, p-value = 1.674e-07
+#>
 ```
 
-Two of the three land under 0.05, and it reads like a clean result: Riverside beats Central, Airport beats Central, and the top two are too close to call.
+The p-value, 1.674e-07, is nowhere near 0.05, it is far smaller. That rejects normality about as firmly as a Shapiro-Wilk test can. The histogram's long right tail and the test's tiny p-value are telling you the same thing two different ways.
 
-The trouble is that we asked one question and answered it three times, then kept whichever answers came back small. Every extra test is another chance for luck alone to give you something under 0.05, and those chances pile up.
-
-=== step === widget
-## Why three t-tests is not the same as one test
-
-Setting the threshold at 0.05 is an agreement about how often you are willing to be wrong. When there really is no difference, a test at 0.05 still reports one 5 times in 100. That is the false-positive rate you signed up for, and for a single test it is exactly 5%.
-
-Run three tests and the question changes shape. You are no longer asking whether one test is wrong, you are asking whether any of the three is wrong. Each one is right 95% of the time, so all three are right 0.95^3 of the time, which is 0.857, and the chance that at least one is a false positive is 1 - 0.857, or 14.3%.
-
-The widget below runs 4,000 simulated studies in which nothing is different anywhere, so every result it counts as significant is a false positive. The slider is the number of tests in one study, and each of those tests is an independent shot at a false positive. Read k = 3 as the three branch-pair comparisons we just ran, which share data and so are not quite independent, but pile up the same way.
-
-::widget multiplicity-sim {"kStart": 3, "kMax": 12, "alpha": 0.05, "nStudies": 4000, "corrections": ["none", "bonferroni"]}
-
-At k = 3 the simulation reports 14.4% of studies with at least one false positive, right on the 14.3% the arithmetic predicts. Drag k out to 12 and it climbs to 45.4%. Measure a dozen things on one dataset and almost half the time one of them will look significant when nothing is.
-
-Press Bonferroni and the curve flattens back to about 5%. Bonferroni moves the bar for each test to 0.05 / 3 = 0.017 instead of 0.05, so the three tests together carry the 5% risk you meant to take. It is not free: a stricter bar also makes a real difference harder to catch.
-
-There is a cleaner option when the three comparisons are really one question. Ask that question once, with one test across all three branches, and there is no family of results to correct in the first place.
+So the branches' order values fail the normality check. That rules out the parametric option, one-way ANOVA, for this comparison and points to its non-parametric counterpart instead.
 
 === step === quiz
-## Quick check: three branches, 90 different customers
+## Quick check: parametric or non-parametric?
 
-::prose-only a gated quiz on the false-positive arithmetic the simulation just drew
-
-The chain wants one answer about its three branches, and the 90 orders behind it came from 90 different customers.
+A shapiro.test() on a different sample comes back with p = 0.002. What should you conclude?
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- Run a paired test that matches each Central order to a Riverside order, since the branches belong to one chain. ::no
-- Run one test across all three branches at once. ::ok Yes. One question gets one test. All three branches go into a single comparison, there is no set of results to sift through afterwards, and the 5% risk stays 5%.
-- Pick the two branches whose averages sit furthest apart and t-test those two. ::no
-- Run a t-test on each pair of branches and report the ones that come in under 0.05. ::no Three tests for one question is the trap. Each test is wrong 5% of the time when nothing is different, so across three the chance of at least one false positive is 1 - 0.95^3, which is 14.3%. Keeping only the small ones makes it worse still, because you are choosing your results after seeing them.
+- The groups are significantly different, since the p-value is this small. ::no
+- The data departs from a normal distribution, which points toward a non-parametric test. ::ok Right. shapiro.test() only ever tests one thing, whether a sample could plausibly be normal. A p-value this small rejects that, and it has nothing to say about whether groups differ or how big any difference is.
+- The sample is too small for a Shapiro-Wilk result to be trusted, so ignore it. ::no A Shapiro-Wilk p-value tests normality only, never how different the groups are, and a sample size in the dozens is easily large enough for a valid result. It is the shape of the data that decides parametric or non-parametric, not the sample size.
 
 === step === concept
-## Question 3: are the numbers linked, or from different people?
+## Reading the decision map: from four answers to one test
 
-Two groups of numbers are independent when nothing connects a particular value in one group to a particular value in the other. Our 90 orders came from 90 different customers, so there is no sense in which the third Central order goes with the third Riverside order. They are independent.
+Four questions down: the outcome is continuous, there are 3 or more groups, the groups are independent, and the data is not close to normal. Put those four answers together and exactly one test is left.
 
-Numbers are paired when each value in one group belongs with exactly one value in the other, usually because the same person, shop or machine was measured twice. The chain has data like that as well. When the app added a re-order button, 12 Central regulars had their order value recorded in the week before and again in the week after.
-
-```r
-# Record 12 regulars the week before and the week after the re-order button
-set.seed(8)
-before <- round(rnorm(12, 8.4, 1.6), 2)
-after  <- round(before + rnorm(12, 0.85, 0.45), 2)
-
-regulars <- data.frame(before = before,
-                       after  = after,
-                       gain   = round(after - before, 2))
-regulars
-#>    before after gain
-#> 1    8.26  9.30 1.04
-#> 2    9.74 10.01 0.27
-#> 3    7.66  8.54 0.88
-#> 4    7.52  8.00 0.48
-#> 5    9.58 11.11 1.53
-#> 6    8.23  8.96 0.73
-#> 7    8.13  9.68 1.55
-#> 8    6.66  7.40 0.74
-#> 9    3.58  5.01 1.43
-#> 10   7.45  8.30 0.85
-#> 11   7.18  7.85 0.67
-#> 12   8.87  9.73 0.86
-
-round(c(before_mean = mean(before), after_mean = mean(after),
-        mean_gain = mean(after - before)), 2)
-#> before_mean  after_mean   mean_gain
-#>        7.74        8.66        0.92
-```
-
-Every row is one customer, and every one of the 12 went up. The gains run from 27 cents to $1.55 and average 92 cents.
-
-Now watch what the pairing answer is worth. The same 24 numbers go into two tests. The first keeps each customer matched with themselves.
+Statisticians keep a map for exactly this, matching every combination of answers to one named test, the R function that runs it, and the right way to measure how big the effect is. Narrowed down to just the rows that fit a continuous outcome with 3 or more independent groups, it looks like this.
 
 ```r
-# Test the 24 numbers as 12 matched pairs
-t.test(after, before, paired = TRUE)
-#>
-#>	Paired t-test
-#>
-#> data:  after and before
-#> t = 7.8698, df = 11, p-value = 7.633e-06
-#> alternative hypothesis: true mean difference is not equal to 0
-#> 95 percent confidence interval:
-#>  0.6620976 1.1762357
-#> sample estimates:
-#> mean difference
-#>       0.9191667
+# Print the two rows of the decision map that fit a continuous outcome with 3+ independent groups
+decision_map <- data.frame(
+  Outcome = c("Continuous", "Continuous"),
+  Groups = c("3+", "3+"),
+  Paired = c("No", "No"),
+  Normal = c("Yes", "No"),
+  Test = c("One-way ANOVA", "Kruskal-Wallis"),
+  R_function = c("aov(y ~ g)", "kruskal.test(y ~ g)"),
+  Effect_size = c("Eta-squared", "Epsilon-squared")
+)
+print(decision_map)
+#>      Outcome Groups Paired Normal           Test          R_function
+#> 1 Continuous     3+     No    Yes  One-way ANOVA          aov(y ~ g)
+#> 2 Continuous     3+     No     No Kruskal-Wallis kruskal.test(y ~ g)
+#>       Effect_size
+#> 1     Eta-squared
+#> 2 Epsilon-squared
 ```
 
-The p-value is 7.633e-06, which is R shorthand for 0.0000076. A gain that consistent almost never comes out of chance.
+The branches' answers, continuous, 3+, independent, not normal, land on the second row: Kruskal-Wallis, run with kruskal.test(), measured with an effect size called epsilon-squared.
 
-The second test throws the pairing away. It treats the 12 before values and the 12 after values as 24 unrelated numbers, exactly the way it would treat 12 Central orders against 12 Riverside orders.
+Kruskal-Wallis is the non-parametric version of a one-way ANOVA. Instead of comparing means directly the way ANOVA does, it converts every order value to its rank across the whole dataset, smallest to largest, and compares the average rank in each branch. That avoids the normality assumption entirely, since ranks do not depend on the shape of the original values.
+
+=== step === concept
+## Running the Kruskal-Wallis test on the branch data
+
+Run the test the decision map pointed to, comparing order value across the three branches.
 
 ```r
-# Test the same 24 numbers as two unrelated groups
-t.test(after, before)
+# Run the Kruskal-Wallis test comparing order value across the three branches
+kw_result <- kruskal.test(order_value ~ branch, data = orders)
+kw_result
 #>
-#>	Welch Two Sample t-test
+#> 	Kruskal-Wallis rank sum test
 #>
-#> data:  after and before
-#> t = 1.4252, df = 21.981, p-value = 0.1681
-#> alternative hypothesis: true difference in means is not equal to 0
-#> 95 percent confidence interval:
-#>  -0.4184237  2.2567570
-#> sample estimates:
-#> mean of x mean of y
-#>  8.657500  7.738333
+#> data:  order_value by branch
+#> Kruskal-Wallis chi-squared = 9.8285, df = 2, p-value = 0.007341
+#>
 ```
 
-0.1681. The same data, the same 92 cent gain, and now it does not clear 0.05.
+The formula order_value ~ branch reads as "order value explained by branch," the same shape of formula you would hand to aov() or lm(). kruskal.test() returns a chi-squared statistic (9.8285), its degrees of freedom (2, one less than the 3 branches), and a p-value (0.007341).
 
-The difference is what each test has to see through. Before the button, those 12 order values ranged from $3.58 to $9.74, a spread many times wider than the gain we are hunting for. The independent test has to pick the 92 cents out against all of that. The paired test never has to, because subtracting each customer's before value from their after cancels that spread, and what remains is the 12 gains, every one of them positive.
-
-[WARNING]
-Pairing is not a setting you adjust until the p-value looks right. It is a fact about how the data was collected. Call paired data independent and you throw away the very thing that makes the comparison sharp. Call independent data paired and you claim a link between rows that does not exist.
+That p-value sits well under the usual 0.05 cutoff, so you reject the idea that the three branches all draw from the same distribution of order values. Branch is associated with how much a customer spends: Downtown's orders average $52, Mall's $72, and Airport's $79.
 
 === step === widget
-## Question 4: is each group roughly normal?
+## A significant p-value is not the same as a big difference
 
-The tests built on averages, `t.test()` and `aov()`, assume something about each group: that its values are roughly normal in shape, meaning bunched around the middle, reaching about as far out on one side as the other, with thin tails. When that holds, the mean is a fair summary of the group. When one group trails a long tail on one side, the mean stops describing a typical order and the test starts answering a question about a number nobody actually spends.
+A p-value of 0.007 tells you the branch differences are unlikely to be pure noise. It says nothing about how large that difference actually is. For that you need an effect size, a separate number that measures the size of an effect on a scale that does not depend on how many orders you collected.
 
-`shapiro.test()` puts a number on it, one group at a time. It starts from the assumption that the values did come from a normal shape, and its p-value says how ordinary the data would be under that assumption. So you interpret it the opposite way to what you might expect: a large p-value means no evidence against a normal shape, and a small one means the shape is off.
+Start with the general idea a p-value is built on. Every hypothesis test assumes nothing is going on, then measures how far out your actual test statistic sits from what that assumption would typically produce. The further out it sits, the smaller the slice of area left beyond it in the tail, and that tail area is the p-value.
 
-```r
-# Test each branch for a normal shape, then compare Airport mean with its median
-shapiro_p <- sapply(list(Central = central, Riverside = riverside, Airport = airport),
-                    function(v) shapiro.test(v)$p.value)
+::widget null-distribution {"tails": 1, "max": 4, "start": 2.4, "label": "observed statistic"}
 
-data.frame(branch    = names(shapiro_p),
-           shapiro_p = format(signif(shapiro_p, 3), scientific = FALSE, drop0trailing = TRUE),
-           row.names = NULL)
-#>      branch shapiro_p
-#> 1   Central     0.983
-#> 2 Riverside     0.549
-#> 3   Airport 0.0000395
+Drag the slider outward, away from zero, and watch the shaded tail shrink. A statistic further from the centre leaves less room beyond it, so the p-value it produces gets smaller. Pull it back toward zero and the shaded slice grows again. Further out means a smaller tail means a smaller p-value, and that relationship is what every one of these tests, including the Kruskal-Wallis test you just ran, is built on.
 
-round(c(mean = mean(airport), median = median(airport), largest = max(airport)), 2)
-#>    mean  median largest
-#>    9.87    8.48   22.07
-```
-
-Central at 0.983 and Riverside at 0.549 give no reason to doubt their shape. Airport comes back at 0.0000395, far below 0.05, so its orders are not normal.
-
-The second line says why. Airport's median order is $8.48 while its mean is $9.87, and its largest single order is $22.07. A handful of big orders is dragging the mean about $1.40 above the median, which is what a typical customer there actually spends.
-
-A normal Q-Q plot shows the same thing as a picture. It plots the sorted orders against the values a normal shape would have produced, so a normal group puts its points on the straight line.
+None of that says how big the branch differences are in dollars. For that, compute epsilon-squared, the effect size the decision map named for Kruskal-Wallis. It is built from three numbers you already have, the test statistic H, the number of groups k, and the number of orders n, as epsilon-squared = (H - k + 1) / (n - k).
 
 ```r
-# Plot Airport orders against the straight line a normal shape would follow
-qqnorm(airport, main = "Airport orders against a normal shape")
-qqline(airport, col = "red", lwd = 2)
+# Compute epsilon-squared: how much of the order-value variation the branch explains
+H <- kw_result$statistic
+k <- 3
+n <- nrow(orders)
+epsilon_sq <- (H - k + 1) / (n - k)
+cat("Epsilon-squared:", round(epsilon_sq, 3), "\n")
+#> Epsilon-squared: 0.109
 ```
-
-Through the middle of the data the points sit close to the red line. At the right end they climb well clear of it, and that upward bend is the long right tail: Airport's biggest orders are far bigger than a normal shape would have put there. The left end lifts a little too, because these orders have a floor and a normal shape does not.
-
-A failed shape check leaves two routes. The first is to transform the values, which means replacing each order with its logarithm or another function that pulls a long tail in, then testing the transformed numbers. The widget below carries its own right-skewed sample, built with the same kind of long right tail Airport has, so you can try the usual transforms on it.
-
-::widget transform-shaper {}
-
-Skewness is one number for how lopsided a set of values is, where 0 is symmetric and positive means a tail to the right. The raw sample reads 1.97. Press Box-Cox and it drops to 0.06, near enough symmetric. Press log and it overshoots to -0.55, a mild tail on the left instead. The sqrt button gets part of the way there, at 0.66.
-
-Transforming works, but it changes what you are testing. The test is now about log dollars, and a difference in log dollars does not convert back to dollars without extra work. The second route keeps the original values and swaps the test for one that assumes no shape at all, and that is the route we will take.
-
-[NOTE]
-Groups of about 30 or more tolerate mild skew, because the mean of a group settles into a normal shape even when the individual values do not. Airport has 30 orders, but its skew is not mild: one order at $22.07 against a median of $8.48.
-
-=== step === concept
-## Question 5: the test the four answers point to, and how big the gap is
-
-Four answers are in: the outcome is continuous, there are three groups, they are independent, and one group is not normal. The continuous outcome and the independent groups are what put us in the chart below. The other two answers, three groups and one of them not normal, pick the branches inside it.
-
-::widget tree-diagram {"root": "3 or more groups?", "l": "normal shape?", "r": "normal shape?", "leaves": ["aov()", "kruskal.test", "t.test", "wilcox.test"]}
-
-Read the left half first, since we have three groups. If every group were roughly normal we would take `aov()`, which is one-way ANOVA. One group is not, so we land on the other leaf: `kruskal.test()`, the Kruskal-Wallis test.
-
-The right half is the two-group version of the same choice, `t.test()` when the shapes hold and `wilcox.test()` when they do not. That is the pattern behind the whole chart. Every test built on averages has a counterpart built on ranks sitting beside it at the same group count.
-
-Kruskal-Wallis works on ranks. It sets the 90 dollar values aside and replaces them with their positions in the sorted list, 1 for the smallest order up to 90 for the largest, then asks whether one branch holds more of the high positions than a random shuffle would give it. Ranks do not care how far out the largest order is, only that it is the largest, so a single $22.07 order cannot drag the answer around.
-
-```r
-# Run the test the four answers point to
-kruskal.test(value ~ branch, data = orders)
-#>
-#>	Kruskal-Wallis rank sum test
-#>
-#> data:  value by branch
-#> Kruskal-Wallis chi-squared = 21.532, df = 2, p-value = 2.11e-05
-```
-
-The p-value is 2.11e-05, well under 0.05. The three branches do not all sit at the same level, and 90 orders is enough to say so.
-
-That is where most write-ups stop, and stopping there throws away the more useful half of the answer. A p-value says the gap is hard to explain by chance, and it says nothing at all about how big the gap is. The size measure that goes with Kruskal-Wallis is epsilon-squared, which rescales the test statistic to sit between 0 and 1.
-
-```r
-# Measure how big the difference between branches is, and where it sits
-kw   <- kruskal.test(value ~ branch, data = orders)
-n    <- nrow(orders)
-eps2 <- unname(kw$statistic) / ((n^2 - 1) / (n + 1))
-
-round(eps2, 3)
-#> [1] 0.242
-
-round(tapply(orders$value, orders$branch, median), 2)
-#>   Central Riverside   Airport
-#>      8.28     10.23      8.48
-```
-
-That divisor is worth a second look, because `(n^2 - 1) / (n + 1)` is just `n - 1`, so epsilon-squared is the test statistic divided by 89. It comes to 0.242, meaning branch accounts for about 24% of the variation in the ranks. The usual marks for a measure like this are 0.01 for small, 0.06 for medium and 0.14 for large, so 0.242 is a large difference, not a small one that only cleared the bar because we collected 90 orders.
-
-The medians say where the difference lives. Riverside sits at $10.23 against $8.28 for Central and $8.48 for Airport, so Riverside is out on its own and the other two are nearly level. Airport's mean of $9.87 had made it look like a middle performer, but that came from its tail rather than from its typical order.
-
-One last comparison. Had Airport passed the shape check, `aov()` would have been the choice, so it is worth seeing what it says about the same data.
-
-```r
-# Run the mean-based test on the same data for comparison
-summary(aov(value ~ branch, data = orders))
-#>             Df Sum Sq Mean Sq F value  Pr(>F)
-#> branch       2   91.6   45.81    7.43 0.00105 **
-#> Residuals   87  536.4    6.17
-#> ---
-#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-```
-
-F = 7.43 on 2 and 87 degrees of freedom, p = 0.00105. It flags a difference too, so here the two tests agree.
 
 [KEY INSIGHT]
-The reason to report the rank test is Airport's shape, not its smaller p-value. Picking the test after seeing which one gives the better number is the same mistake as running three t-tests and keeping the small ones.
-
-=== step === tryit
-## Your turn: Riverside against Airport on its own
-
-The chain now asks a narrower question. Forget Central: is Riverside really ahead of Airport?
-
-Put that comparison through the questions yourself. The outcome is still order value in dollars. There are two groups this time, `riverside` and `airport`, both already in the session with 30 orders each. They come from different customers, and Airport is the branch whose shape failed, with the long right tail that pulled its mean above its median.
-
-Pick the test those answers point to, run it on the two vectors, then print the median of each branch so you can say how big the gap is.
-
-```r
-# riverside and airport each hold 30 order values, from different customers.
-# Airport has the long right tail, so a test built on averages does not fit.
-# Run the two-group test that works on ranks instead,
-# then print the median of each branch.
-# Two lines. Press Check when you have them.
-```
-::check {"regex": "wilcox[.]test", "gate": true, "difficulty": "beginner", "ok": "Right: W = 618 and p = 0.01238, so Riverside really is ahead. The medians put the gap at 10.225 against 8.485, a little under two dollars an order.", "no": "You have two groups, from different customers, with one of them not normal in shape. That is the wilcox.test leaf of the chart, so run wilcox.test(riverside, airport), then median(riverside) and median(airport)."}
-::solution
-```r
-# Compare Riverside and Airport with the rank-based test, then read the medians
-wilcox.test(riverside, airport)
-#>
-#>	Wilcoxon rank sum exact test
-#>
-#> data:  riverside and airport
-#> W = 618, p-value = 0.01238
-#> alternative hypothesis: true location shift is not equal to 0
-
-c(Riverside = median(riverside), Airport = median(airport))
-#> Riverside   Airport
-#>    10.225     8.485
-```
-
-Now put the mean-based test on the very same two branches and see what it makes of them.
-
-```r
-# Compare with the test built on averages, on the same two branches
-signif(t.test(riverside, airport)$p.value, 3)
-#> [1] 0.354
-```
-
-0.354, nowhere near 0.05. Both tests saw the same 60 orders. The t-test compares averages, and Airport's tail lifts its mean to $9.87, within easy reach of Riverside's $10.56. The rank test compares positions in the sorted list, where Airport's typical order sits well below Riverside's. Question 4 did real work here, it decided the answer.
+Epsilon-squared runs from 0 to 1, and the usual benchmarks for this family of effect size call 0.01 small, 0.06 medium and 0.14 large. At 0.109, branch sits between medium and large, closer to large: which branch a customer walks into explains a real, though not overwhelming, share of how much they spend. The p-value told you the difference is probably real. Epsilon-squared told you how much it actually matters, and a study needs both.
 
 === step === quiz
-## Quick check: the same regulars, measured twice
+## Quick check: apply the flowchart to a new scenario
 
-::prose-only a gated quiz that routes a fresh scenario through all four questions
+A different team ran an experiment on two independent groups of users, variant A and variant B. The outcome is categorical: each user either completed onboarding, a pass, or did not, a fail. Which test applies here, and does a small p-value from it automatically mean the two variants differ by a lot in practice?
 
-The chain runs the re-order button trial again, this time at Riverside. Forty regulars have their order value recorded in the week before and again in the week after, and both sets of 40 pass `shapiro.test()` comfortably. Which line answers whether the button changed anything?
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- A chi-square test on the pass and fail counts, and no, a significant result would not by itself mean the difference is large, that still needs an effect size. ::ok Right on both counts. Pass or fail is categorical with two independent groups, exactly what a chi-square test is for. And significance only ever says a difference is unlikely to be noise, never how big it is, the same distinction epsilon-squared drew for the branches.
+- A two-sample t-test, since a t-test can compare any two groups. ::no
+- A chi-square test, and yes, since the result is significant, the difference must be large in practice. ::no
+- A paired test, since the same experiment design is being run on both groups. ::no A t-test needs a continuous outcome, and pass or fail is categorical, so that option is out. "Paired" describes matched subjects across groups, not "the same design run twice," so two independent groups of users are not paired. And a small p-value only ever says a difference is unlikely to be chance, never how large it is, you would still need an effect size like Cramer's V to answer that.
 
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- `aov(value ~ week, data = regulars)`, since there are two time points to compare. ::no
-- `kruskal.test(list(before, after))`, since a rank test assumes no shape and so is always the safer pick. ::no A rank test does assume less, but that is not free. When the shapes really are normal, it has less chance of catching a difference that is genuinely there than the matching test built on averages. Assume less where you have a reason to, not by default.
-- `t.test(after, before, paired = TRUE)` ::ok Yes. The outcome is continuous, there are two groups, the same 40 people were measured twice, and both sets are normal in shape. Four answers, one leaf.
-- `t.test(after, before)`, since before and after are two separate columns of numbers. ::no Two columns is not the same as two independent groups. Each after value belongs to the customer who produced the before value beside it, and dropping that link is what moved the p-value for the 12 Central regulars from 0.0000076 to 0.168.
+=== step === tryit
+## Your turn: pick and run the right test
+
+One more scenario. A company runs two independent support desks, A and B, and measures each caller's satisfaction score on a continuous scale. Each desk has twenty ratings, and both look roughly normal.
+
+```r
+# Two independent groups: satisfaction scores at two support desks, roughly normal
+set.seed(55)
+desk_a <- rnorm(20, mean = 82, sd = 6)
+desk_b <- rnorm(20, mean = 78, sd = 6)
+```
+
+A continuous outcome, two independent groups, roughly normal: that combination calls for a two-sample t-test, the parametric option for exactly two groups. Complete the line below to run it on desk_a and desk_b.
+
+```r
+# Your turn: run the correct test for two independent, roughly normal groups
+
+```
+::check {"regex": "^(?![\\s\\S]*paired\\s*=\\s*TRUE)[\\s\\S]*t\\.test[(]\\s*desk_a\\s*,\\s*desk_b", "gate": true, "difficulty": "intermediate", "ok": "Right: t.test(desk_a, desk_b) is the two-sample t-test for two independent, roughly normal groups. Its p-value here comes out well above 0.05, so this pair of desks shows no evidence of a real difference.", "no": "Two continuous, independent, roughly normal groups call for t.test(desk_a, desk_b), with no paired argument at all, since these are two different desks, not the same one measured twice."}
+::solution
+```r
+# Run the two-sample t-test on the two desks
+t.test(desk_a, desk_b)
+#>
+#> 	Welch Two Sample t-test
+#>
+#> data:  desk_a and desk_b
+#> t = 1.348, df = 37.74, p-value = 0.1857
+#> alternative hypothesis: true difference in means is not equal to 0
+#> 95 percent confidence interval:
+#>  -1.260375  6.280710
+#> sample estimates:
+#> mean of x mean of y 
+#>  81.64775  79.13758 
+#>
+```
+
+This time the p-value, 0.1857, sits well above 0.05. Desk A's average score does look a bit higher, 81.6 against 79.1, but the correct test finds no strong evidence the two desks really differ, a gap this size is well within what 20 ratings each could produce by chance. Picking the right test does not guarantee a significant result, and that is exactly the point: the test tells you what the data can and cannot support.
 
 === step === concept
 ## References
 
-- [The ASA Statement on p-Values: Context, Process, and Purpose](https://doi.org/10.1080/00031305.2016.1154108) - Wasserstein and Lazar (2016), The American Statistician 70(2), 129-133. Why a p-value should never be reported on its own, and why an effect size belongs beside it.
-- [Statistical Power Analysis for the Behavioral Sciences](https://doi.org/10.4324/9780203771587) - Cohen (1988), 2nd edition, Lawrence Erlbaum. The origin of the small, medium and large marks used to read an effect size.
-- Tomczak and Tomczak (2014), The need to report effect size estimates revisited: an overview of some recommended measures of effect size, Trends in Sport Sciences 1(21), 19-25. The epsilon-squared formula used here for Kruskal-Wallis.
-- [Nonparametric Statistical Methods](https://doi.org/10.1002/9781119196037) - Hollander, Wolfe and Chicken (2014), 3rd edition, Wiley. The Kruskal-Wallis and Wilcoxon rank-sum tests in full.
-- [The R stats package reference index](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/00Index.html) - R Core Team. Documentation for kruskal.test, shapiro.test, wilcox.test and aov.
+- [Discovering Statistics Using R](https://us.sagepub.com/en-us/nam/discovering-statistics-using-r/book236067) - Field, Miles and Field (2012), Sage Publications.
+- [shapiro.test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/shapiro.test.html) and [kruskal.test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kruskal.test.html) - R Core Team, the stats package documentation, CRAN R manuals.
+- [Statistical Power Analysis for the Behavioral Sciences](https://www.routledge.com/Statistical-Power-Analysis-for-the-Behavioral-Sciences/Cohen/p/book/9780805802832) - Cohen (1988, 2nd ed.), Routledge.
+- [The need to report effect size estimates revisited](https://tss.awf.poznan.pl/The-need-to-report-effect-size-estimates-revisited-An-overview-of-some-recommended,188960,0,2.html) - Tomczak and Tomczak (2014), Trends in Sport Sciences, 21(1), 19-25.
 
 === step === complete
-## Quick recap
+## The five questions, recapped
 
-You took one dataset and five questions, and the questions picked the test. Here is what the coffee chain's orders answered to each.
+Five questions, one flowchart, and now a checklist you can reuse on the next dataset that lands on your desk.
 
-1. **What kind of outcome?** Order value in dollars, a measurement, so the family built on averages and ranks rather than the one built on counts.
-2. **How many groups?** Three branches, so one test across all three, because three separate tests at 0.05 leave about a 14.3% chance that one comes back significant when nothing is different.
-3. **Linked or not?** 90 orders from 90 different customers, so independent. The 12 regulars measured twice were paired, and treating them as independent moved the p-value from 0.0000076 to 0.168.
-4. **Roughly normal?** Central and Riverside yes, Airport no, at 0.0000395, with a median of $8.48 sitting under a mean of $9.87.
-5. **How big is it?** Epsilon-squared 0.242, a large difference, with Riverside's median order at $10.23 against $8.28 and $8.48.
+1. What kind of outcome are you measuring, continuous or categorical? Checked with class().
+2. How many groups are you comparing? Checked with table() and length(unique(...)).
+3. Are the groups paired or independent? Decided by how the data was collected, not by looking at the numbers.
+4. Is the data close to normal? Checked with shapiro.test() and the shape of a histogram.
+5. What does all of that point to, and how big is the effect? Read the test off a decision map, then measure its size with an effect size, never the p-value alone.
 
-Those properties of the data pick a leaf, and the leaves come in pairs: the test built on averages, and its counterpart built on ranks for when the shape does not hold.
+For the store's three branches: continuous outcome, 3 independent groups, not normal, so Kruskal-Wallis. kruskal.test() came back with p = 0.007341, evidence the branches are not all alike. Epsilon-squared came out at 0.109, branch explaining a real but middling share of how much a customer spends, between a medium and a large effect by the usual benchmarks.
 
-| What you are comparing | Built on averages | Built on ranks |
-|---|---|---|
-| Two groups of measurements | `t.test()` | `wilcox.test()` |
-| Three or more groups of measurements | `aov()` | `kruskal.test()` |
-| The same people measured twice | `t.test(paired = TRUE)` | `wilcox.test(paired = TRUE)` |
-
-Counted labels are the other family, and they split on a different question: `chisq.test()` when every cell of the table holds enough orders, and `fisher.test()` when some cells are thin.
-
-So the next time someone puts three averages in front of you and asks whether the difference is real, you have five questions to ask the data before you pick anything.
-
-There is one more wrinkle inside Question 4. Every group can pass the shape check and the groups can still have very different spreads, which changes which version of the test you want. That is a question for another day.
+Run the same five questions again on whatever you are staring at right now, and the right test falls out the same way it just did for the branches.
