@@ -1,7 +1,7 @@
 ---
 title: "Interaction effects: test and interpret them"
-description: "A coupon lifted new customers by 16.54 dollars and returning ones by only 1.02. Fit, test and read the interaction term in R that tells the two groups apart."
-keywords: "interaction effects in R, interaction term lm, interpret interaction coefficient, test interaction anova, categorical interaction R, moderation in R, hierarchical principle"
+description: "An interaction means one predictor's effect depends on another. Learn to test it in R with anova() and AIC, and report each group's own real effect clearly."
+keywords: "interaction effects in R, interaction terms lm, test interaction anova, AIC model comparison, categorical interaction R, interpreting regression coefficients"
 mathjax: false
 webr: true
 curriculum_id: "0.0.5"
@@ -14,7 +14,7 @@ course_landing: "/dashboard.html"
 course_next: "Regression-Reading-Mini-2"
 course_prev: ""
 lesson_access: "windowed"
-catalog_blurb: "How to tell when a predictor works differently across groups, and report it."
+catalog_blurb: "Spot a real interaction, test it properly, and report it so it helps."
 ---
 {% raw %}
 <!-- md2lesson:generated -->
@@ -22,42 +22,50 @@ catalog_blurb: "How to tell when a predictor works differently across groups, an
 <section class="lesson-step" data-step="1" data-step-type="cover">
 <h2>Interaction effects: test and interpret them</h2>
 
-<p>Today let's work through what to do when a predictor does not have the same effect on everyone in your data.</p>
+<p>Today's topic is the interaction effect: the case where one variable's effect on an outcome depends on a second variable, rather than staying one fixed number.</p>
 
-<p>An online store ran a coupon campaign. 800 customers took part, 400 of them new to the store and 400 returning, and inside each of those two groups 200 people were emailed a 10 percent coupon and 200 were emailed nothing. The store then recorded what every one of them spent over the following 30 days.</p>
+<p>An online sports-gear store ran a one-day sale with a $10 site-wide coupon. Some shoppers got it, some did not, and the store also knows which shoppers were returning customers and which were new. That makes four groups, one order value per shopper.</p>
 
-<p>The customers with a coupon spent 67.18 dollars on average. The ones without spent 58.40. So the coupon looks like it is worth 8.78 dollars a customer, and that is the number a simple model will report.</p>
-
-<p>Now split the same 800 customers by whether they were new or returning. The coupon is worth 16.54 dollars to a new customer and 1.02 to a returning one. 8.78 sits between those two and matches neither of them.</p>
-
-<p>When the effect of one predictor changes with the value of another, that is called an <strong>interaction</strong>. Here is the path from the pooled 8.78 to the two numbers that are true.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Estimate inside each group","sub":"the coupon effect for new customers and for returning ones"},{"title":"Add the interaction term","sub":"one extra column that lets the two effects differ"},{"title":"Test it, then report both","sub":"a t test and an F test, then both effects with intervals"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>Each of those three is a short piece of R, run on this one campaign's data.</p>
+<p>Here is what those four groups spent, on average.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"returning","y":82.05,"fill":"no"},{"x":"returning","y":87.63,"fill":"yes"},{"x":"new","y":50.96,"fill":"no"},{"x":"new","y":73.2,"fill":"yes"}],"geoms":["bar"],"x":"customer_type","y":"order_value","code":{"bar":"ggplot(cell_means, aes(x = customer_type, y = order_value, fill = coupon)) +\n  geom_col(position = \"dodge\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at the two returning-customer bars first, then the two new-customer bars. The coupon barely moves the returning bars. It moves the new-customer bars a lot more. That gap between the bars is the interaction the coupon creates.</p>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<h2>The campaign data and the pooled coupon effect</h2>
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>What makes an effect interactive?</h2>
 
-<p>The campaign data has two columns describing each customer and one measuring them. <code>customer_type</code> says whether the person was new to the store or returning, <code>coupon</code> says whether they were sent the 10 percent code, and <code>spend</code> is what they spent over the 30 days that followed. The first two are factors, which is how R stores a category.</p>
+<p>Most of the time, you expect a predictor to do roughly the same thing regardless of what else is going on. A $10 coupon should lift order value by about the same amount for everybody. That is called an additive effect, and it is the assumption behind an ordinary regression with no interaction term.</p>
 
-<p>Press Run to build it.</p>
+<p>An interaction is what you have when that assumption breaks. The coupon's lift is not one fixed number; it depends on who receives it. In this kind of study, statisticians call the coupon the treatment, the thing whose effect you are studying, and customer type the moderator, the variable that changes how big the treatment's effect turns out to be.</p>
+
+<p>Here are the real numbers behind those four bars. This code builds the store's data and averages <code>order_value</code> inside each of the four groups.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Build the coupon campaign: 800 customers, 200 in each customer type and coupon group
+    <div class="webr-editor" data-language="r"># Simulate 240 orders across a 2x2 coupon by customer_type design
 set.seed(42)
-campaign &lt;- data.frame(
-  customer_type = factor(rep(c(&quot;new&quot;, &quot;returning&quot;), each = 400)),
-  coupon        = factor(rep(rep(c(&quot;no&quot;, &quot;yes&quot;), each = 200), 2))
+n &lt;- 60
+coupon        &lt;- rep(c(&quot;yes&quot;, &quot;no&quot;), each = 2 * n)
+customer_type &lt;- rep(rep(c(&quot;returning&quot;, &quot;new&quot;), each = n), times = 2)
+
+pop_mean &lt;- ifelse(customer_type == &quot;returning&quot; &amp; coupon == &quot;no&quot;, 84,
+             ifelse(customer_type == &quot;returning&quot; &amp; coupon == &quot;yes&quot;, 88,
+             ifelse(customer_type == &quot;new&quot; &amp; coupon == &quot;no&quot;, 52, 72)))
+
+orders &lt;- data.frame(
+  coupon = factor(coupon, levels = c(&quot;no&quot;, &quot;yes&quot;)),
+  customer_type = factor(customer_type, levels = c(&quot;returning&quot;, &quot;new&quot;)),
+  order_value = round(rnorm(240, mean = pop_mean, sd = 14), 2)
 )
-campaign$spend &lt;- round(rnorm(800, mean = rep(c(48, 64, 70, 72), each = 200), sd = 14), 2)
 
-table(customer_type = campaign$customer_type, coupon = campaign$coupon)
-#&gt;              coupon
-#&gt; customer_type  no yes
-#&gt;     new       200 200
-#&gt;     returning 200 200</div>
+aggregate(order_value ~ coupon + customer_type, data = orders, FUN = function(x) round(mean(x), 2))
+#&gt;   coupon customer_type order_value
+#&gt; 1     no     returning       82.05
+#&gt; 2    yes     returning       87.63
+#&gt; 3     no           new       50.96
+#&gt; 4    yes           new       73.20</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -67,51 +75,30 @@ table(customer_type = campaign$customer_type, coupon = campaign$coupon)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The four groups are the same size, 200 customers each, so nothing that follows comes from one group simply being bigger than another.</p>
+<p>Sixty shoppers sit in each of the four groups, 240 in total. Now do the subtraction in your head. Among returning customers, the coupon moves the average from 82.05 up to 87.63, a lift of about 5.58. Among new customers, it moves 50.96 up to 73.20, a lift of about 22.24.</p>
 
-<p>Now let's come to the question the store actually asked. Did the coupon lift spending?</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Average spend with and without a coupon, and the single coupon effect lm() estimates
-round(tapply(campaign$spend, campaign$coupon, mean), 2)
-#&gt;    no   yes
-#&gt; 58.40 67.18
-
-pooled &lt;- lm(spend ~ coupon, data = campaign)
-round(coef(summary(pooled))[, c(&quot;Estimate&quot;, &quot;Std. Error&quot;)], 2)
-#&gt;             Estimate Std. Error
-#&gt; (Intercept)    58.40       0.79
-#&gt; couponyes       8.78       1.11</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The two averages are 58.40 dollars without a coupon and 67.18 with one, a gap of 8.78. <code>lm(spend ~ coupon)</code> estimates exactly that gap. The intercept, 58.40, is the average spend of the no-coupon group, and <code>couponyes</code>, 8.78, is how much higher the coupon group sits. Next to it, 1.11 is the standard error: roughly how much the 8.78 would move if the store reran the campaign on a fresh 800 customers.</p>
-
-<p>So that is one model with one predictor and one answer. The coupon is worth 8.78 dollars a customer.</p>
+<p>The coupon was the same and the discount was the same, yet the two lifts came out very different. That is an interaction: the coupon's effect changes depending on the level of a second variable, customer type. If the lift had been about 5 or 6 for both groups, there would be no interaction to talk about, just one additive coupon effect. The gap between 5.58 and 22.24 is the interaction itself.</p>
 </section>
 
 <section class="lesson-step" data-step="3" data-step-type="concept">
-<h2>The same coupon, split by customer type</h2>
+<div class="lesson-step-eyebrow">The formula</div>
+<h2>Writing an interaction into the model formula</h2>
 
-<p>Nothing in that fit knows half these customers were new to the store. So let's use both columns at once and take the average spend inside each of the four groups.</p>
+<p>To let R estimate this properly, you cannot just fit <code>coupon</code> and <code>customer_type</code> on their own. That would only ever give you one coupon effect, averaged over both groups, hiding the real difference between the 5.58 and 22.24 lifts.</p>
+
+<p>Instead you write the two predictors with a <code>*</code> between them.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Average spend in each of the four groups: coupon by customer type
-cell_means &lt;- tapply(campaign$spend, list(campaign$coupon, campaign$customer_type), mean)
-round(cell_means, 2)
-#&gt;       new returning
-#&gt; no  47.62     69.19
-#&gt; yes 64.16     70.21</div>
+    <div class="webr-editor" data-language="r"># Fit the interaction model and look at its four coefficients
+m1 &lt;- lm(order_value ~ coupon * customer_type, data = orders)
+round(coef(summary(m1)), 4)
+#&gt;                            Estimate Std. Error  t value Pr(&gt;|t|)
+#&gt; (Intercept)                 82.0458     1.7521  46.8269   0.0000
+#&gt; couponyes                    5.5810     2.4779   2.2523   0.0252
+#&gt; customer_typenew           -31.0850     2.4779 -12.5451   0.0000
+#&gt; couponyes:customer_typenew  16.6618     3.5042   4.7548   0.0000</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -121,318 +108,83 @@ round(cell_means, 2)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Read it as a 2 by 2 grid. The rows are the coupon and the columns are the customer type, so a new customer with no coupon spent 47.62 dollars on average and a new customer with a coupon spent 64.16. Returning customers spent 69.19 and 70.21.</p>
+<p><code>coupon * customer_type</code> is shorthand. R expands it into three terms: <code>coupon</code>, <code>customer_type</code>, and <code>coupon:customer_type</code>, the last one being the interaction. Writing <code>coupon + customer_type + coupon:customer_type</code> by hand would fit the exact same model; <code>*</code> just saves the typing.</p>
 
-<p>Subtracting down each column gives the coupon effect estimated inside each group on its own.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The coupon effect estimated inside each customer group
-round(cell_means[&quot;yes&quot;, ] - cell_means[&quot;no&quot;, ], 2)
-#&gt;       new returning
-#&gt;     16.54      1.02</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>16.54 dollars for a new customer and 1.02 for a returning one. Those two are not near each other, and the pooled 8.78 is simply their average.</p>
-
-<p>The same four numbers are plotted below, with the coupon on the x axis (0 is no coupon, 1 is a coupon) and average spend on the y. Press <code>facet_wrap(~customer type)</code> to give each customer group a panel of its own.</p>
-<div class="lesson-widget" data-widget-type="facet-grid" data-widget-config='{"data":[{"x":0,"y":47.62,"facet":"new","fill":"new"},{"x":1,"y":64.16,"facet":"new","fill":"new"},{"x":0,"y":69.19,"facet":"returning","fill":"returning"},{"x":1,"y":70.21,"facet":"returning","fill":"returning"}],"geom":"point","x":"coupon","y":"mean spend","facetVar":"customer type"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>One chart puts all four averages on the same axes. Split them and the difference is plain: the new-customer panel climbs from 47.62 to 64.16, while the returning-customer panel is nearly flat at 69.19 and 70.21. The coupon moved one group a long way and the other hardly at all.</p>
+<p>Four rows come out because both <code>coupon</code> and <code>customer_type</code> have two levels each, and the interaction of two two-level factors adds exactly one new row. What each of those four rows actually means is worth reading carefully.</p>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="concept">
-<h2>What a model without an interaction term can and cannot say</h2>
+<div class="lesson-step-eyebrow">The coefficient table</div>
+<h2>Reading the four rows of the coefficient table</h2>
 
-<p>The obvious fix is to put both predictors into the model. Let's do that and read the coupon effect back out.</p>
+<p>Every row in that table answers a specific question, and the four questions build on each other.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"lm(order_value ~ coupon * customer_type, data = orders)","caption":"Adding the interaction term turns the three-row additive table into a four-row table. The new row is the interaction.","before":{"cols":["term","estimate"],"rows":[["(Intercept)",77.88],["couponyes",13.91],["customer_typenew",-22.75]]},"after":{"cols":["term","estimate"],"rows":[["(Intercept)",82.05],["couponyes",5.58],["customer_typenew",-31.09],["couponyes:customer_typenew",16.66]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Here is what each row of the interaction model (the "after" table) means:</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Fit the model without an interaction term and read its coupon effect
-add &lt;- lm(spend ~ coupon + customer_type, data = campaign)
-round(coef(summary(add))[, c(&quot;Estimate&quot;, &quot;Std. Error&quot;)], 2)
-#&gt;                        Estimate Std. Error
-#&gt; (Intercept)               51.50       0.87
-#&gt; couponyes                  8.78       1.00
-#&gt; customer_typereturning    13.81       1.00</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<ul>
 
-<p><code>couponyes</code> is 8.78 again. Adding <code>customer_type</code> moved the intercept and brought in a <code>customer_typereturning</code> row worth 13.81, but the coupon effect did not move. It is still one number for everybody.</p>
+<li><strong>(Intercept), 82.05.</strong> This is the baseline cell: a returning customer who did not get the coupon. It matches the aggregate() number exactly.</li>
 
-<p>That is not the fit going wrong. It is what the formula asked for. <code>spend ~ coupon + customer_type</code> says: start from a baseline, add a fixed amount if the customer got a coupon, add another fixed amount if the customer is returning. There is no slot in that sentence for "and the coupon amount is different for returning customers", so the model has no way to say it.</p>
+<li><strong>couponyes, 5.58.</strong> This is the coupon's effect, but only for the reference group, returning customers. On its own this row already has a real p-value of 0.025, so it is not nothing, but read on before you call it "the" coupon effect.</li>
 
-<p>Here is what that costs. Take the fitted model's predictions for each of the four groups and put them beside the averages we observed.</p>
+<li><strong>customer_typenew, -31.09.</strong> This is the gap between new and returning customers when neither got a coupon: 50.96 minus 82.05.</li>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Compare what the additive model predicts for each group with the observed averages
-grid &lt;- expand.grid(coupon = c(&quot;no&quot;, &quot;yes&quot;), customer_type = c(&quot;new&quot;, &quot;returning&quot;))
-grid$observed &lt;- round(as.vector(cell_means), 2)
-grid$additive &lt;- round(predict(add, grid), 2)
-grid$gap      &lt;- round(grid$additive - grid$observed, 2)
-grid
-#&gt;   coupon customer_type observed additive   gap
-#&gt; 1     no           new    47.62    51.50  3.88
-#&gt; 2    yes           new    64.16    60.28 -3.88
-#&gt; 3     no     returning    69.19    65.31 -3.88
-#&gt; 4    yes     returning    70.21    74.09  3.88</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
+<li><strong>couponyes:customer_typenew, 16.66.</strong> This is the extra lift new customers get on top of the 5.58 that returning customers get. It is the interaction row, the one number that tells you the coupon behaves differently for the two groups.</li>
 
-<p>Look at the <code>gap</code> column. Every one of the four predictions is off by 3.88 dollars, and the sign alternates: too high, too low, too low, too high. The model is not slightly wrong in one corner. It is wrong in all four corners, by the same amount, in a pattern.</p>
+</ul>
 
-<p>Plotting it shows why.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Plot the four observed group averages with the additive model fitted values on top
-plot(c(1, 2), cell_means[, &quot;new&quot;], type = &quot;b&quot;, pch = 19, col = &quot;grey25&quot;, lwd = 2,
-     xlim = c(0.9, 2.6), ylim = c(42, 80), xaxt = &quot;n&quot;,
-     xlab = &quot;coupon&quot;, ylab = &quot;average spend in dollars&quot;,
-     main = &quot;Observed group averages and what the additive model fits&quot;)
-axis(1, at = c(1, 2), labels = c(&quot;no&quot;, &quot;yes&quot;))
-lines(c(1, 2), cell_means[, &quot;returning&quot;], type = &quot;b&quot;, pch = 19, col = &quot;grey25&quot;, lwd = 2)
-lines(c(1, 2), grid$additive[grid$customer_type == &quot;new&quot;],
-      type = &quot;b&quot;, pch = 1, lty = 2, col = &quot;red&quot;, lwd = 2)
-lines(c(1, 2), grid$additive[grid$customer_type == &quot;returning&quot;],
-      type = &quot;b&quot;, pch = 1, lty = 2, col = &quot;red&quot;, lwd = 2)
-text(2.05, cell_means[&quot;yes&quot;, &quot;new&quot;], &quot;new&quot;, pos = 4, cex = 0.9)
-text(2.05, cell_means[&quot;yes&quot;, &quot;returning&quot;], &quot;returning&quot;, pos = 4, cex = 0.9)
-legend(&quot;topleft&quot;, legend = c(&quot;observed average&quot;, &quot;additive model&quot;),
-       col = c(&quot;grey25&quot;, &quot;red&quot;), lty = c(1, 2), pch = c(19, 1), lwd = 2, bty = &quot;n&quot;)</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The two solid grey lines are the observed averages, one per customer group, and their slopes are visibly different. The two dashed red lines are the additive model, and they are parallel. They have to be. Both rise from the no-coupon point to the coupon point by exactly <code>couponyes</code>, and <code>couponyes</code> is a single number, so the same rise gets applied twice. Parallel is the only shape this model can draw.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">An additive model does not test whether two groups respond alike. It assumes they do. Its coupon coefficient is an average across both groups, and it comes out looking the same whether the groups agree or not.</div></div>
+<p>Notice that the additive, no-interaction table only has three rows, and none of them captures "the coupon works differently for new customers." That is exactly the gap the interaction row fills.</p>
 </section>
 
-<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what the additive model claims about the two groups</h2>
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The key move</div>
+<h2>The interaction coefficient is a difference of differences</h2>
 
-<p>In <code>lm(spend ~ coupon + customer_type)</code> the <code>couponyes</code> coefficient came out at 8.78. Which sentence reads it correctly?</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step5" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both customer groups spent about 8.78 dollars more when they were sent a coupon.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The model gives 8.78 to both groups, because it holds no term that could give them different coupon effects.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The <code>customer_typereturning</code> coefficient, 13.81, is the coupon effect for returning customers.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">8.78 is not a real estimate, because the new customers on their own show 16.54.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. 8.78 is one number applied to every customer, and the formula <code>coupon + customer_type</code> has no second slot for a group-specific coupon effect.</div><div class="lesson-qfb lesson-qfb-no">8.78 is a real estimate, and it is the best single number this model can produce: with equal group sizes it is the average of 16.54 and 1.02. What it is not is a description of either group. And <code>customer_typereturning</code> is a different quantity altogether, the gap between returning and new customers, not a coupon effect.</div></div>
+<p>The interaction row does not give you a group's real coupon effect by itself. You get a group's real effect by adding rows together.</p>
+
+<p>For returning customers, the reference group, the coupon's effect is just the <code>couponyes</code> row on its own: 5.58. For new customers, you add the interaction on top of that: 5.58 + 16.66 = 22.24.</p>
+
+<p>Check that against the raw cell means from the very first table, no coefficients involved: 87.63 minus 82.05 is 5.58, and 73.20 minus 50.96 is 22.24. Same two numbers, computed two different ways. The interaction coefficient, 16.66, is exactly the gap between them: 22.24 minus 5.58.</p>
+
+<p>That is why it is called a difference of differences. The coupon creates a difference within each group (with coupon minus without). The interaction is the difference between those two differences.</p>
+
+<p>Here is that fan-out drawn as two lines, one per customer type.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"no","y":82.05,"fill":"returning"},{"x":"yes","y":87.63,"fill":"returning"},{"x":"no","y":50.96,"fill":"new"},{"x":"yes","y":73.2,"fill":"new"}],"geoms":["line"],"x":"coupon","y":"order_value","code":{"line":"ggplot(cell_means, aes(x = coupon, y = order_value, colour = customer_type, group = customer_type)) +\n  geom_line(linewidth = 1) +\n  geom_point(size = 2)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Both lines start together at "no". The returning-customer line stays almost flat from "no" to "yes". The new-customer line climbs steeply. Parallel lines would have meant no interaction: whatever the coupon did, it would do the same amount to both groups. These lines fan apart instead, and how far they fan apart, in dollars, is exactly the interaction coefficient.</p>
 </section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Quick check</div>
+<h2>Quick check: reading a group's real effect</h2>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">$5.58</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">$16.66</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">$22.24</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A group's real effect is the main effect plus whatever interaction applies to that group: 5.58 + 16.66 = 22.24 for new customers.</div><div class="lesson-qfb lesson-qfb-no">Neither of those is the new customers' own effect. The couponyes row, 5.58, belongs to returning customers. Add the interaction on top of it, 5.58 + 16.66, and you get the new customers' real effect: 22.24.</div></div>
 </section>
-
-<section class="lesson-step" data-step="6" data-step-type="concept">
-<h2>What coupon * customer_type adds to the model</h2>
-
-<p>What is missing is a term whose value depends on both predictors at once. In an R formula you write it with <code>*</code>.</p>
-
-<p><code>coupon * customer_type</code> is shorthand. It expands to <code>coupon + customer_type + coupon:customer_type</code>: the two original predictors on their own, which are called the main effects, plus a cross term written with a colon. The cross term is the new one, and it is the interaction.</p>
-
-<p>To see what it adds, look at the columns <code>lm()</code> builds from the formula. Every model turns a formula into a matrix of numbers, one column per coefficient, and there are only four distinct rows here because there are only four groups.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The columns coupon * customer_type actually adds to the model
-int &lt;- lm(spend ~ coupon * customer_type, data = campaign)
-mm  &lt;- unique(model.matrix(int))
-rownames(mm) &lt;- c(&quot;new, no coupon&quot;, &quot;new, coupon&quot;, &quot;returning, no coupon&quot;, &quot;returning, coupon&quot;)
-mm
-#&gt;                      (Intercept) couponyes customer_typereturning
-#&gt; new, no coupon                 1         0                      0
-#&gt; new, coupon                    1         1                      0
-#&gt; returning, no coupon           1         0                      1
-#&gt; returning, coupon              1         1                      1
-#&gt;                      couponyes:customer_typereturning
-#&gt; new, no coupon                                      0
-#&gt; new, coupon                                         0
-#&gt; returning, no coupon                                0
-#&gt; returning, coupon                                   1</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The first three columns are what the additive model already had: an intercept column of 1s, a <code>couponyes</code> column that is 1 whenever the customer got a coupon, and a <code>customer_typereturning</code> column that is 1 for returning customers.</p>
-
-<p>The fourth column is the interaction, and it is 1 in exactly one row, returning customers who got a coupon. It is the product of the two columns before it, which is why it is 1 only where both of those are. That single 1 is what lets the model give the returning-with-coupon group a value of its own instead of forcing it to be the sum of the two separate effects.</p>
-
-<p>You can also write the cross term on its own with a colon, and <code>spend ~ coupon + customer_type + coupon:customer_type</code> fits exactly the same model as <code>spend ~ coupon * customer_type</code>.</p>
-
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Keep both main effects in the model whenever the interaction is in it. This is called the hierarchical principle. Drop one of them and the fit starts to depend on which level R happened to treat as the reference, so the interaction coefficient stops measuring the difference between two coupon effects.</div></div>
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="concept">
-<h2>Reading the four coefficients</h2>
+<div class="lesson-step-eyebrow">The test</div>
+<h2>Is the interaction real, or could it be noise?</h2>
 
-<p>Fitting <code>spend ~ coupon * customer_type</code> gives four coefficients. Each one is a step away from a single baseline group, and reading them one at a time is the whole skill.</p>
+<p>A gap that looks big in a chart is not automatically real. With only 60 shoppers per group, some of that 16.66 could be sampling noise. Before you trust it, test it.</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The four coefficients of the interaction model
-round(coef(int), 2)
-#&gt;                      (Intercept)                        couponyes
-#&gt;                            47.62                            16.54
-#&gt;           customer_typereturning couponyes:customer_typereturning
-#&gt;                            21.58                           -15.53</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Take them in order.</p>
-
-<p><code>(Intercept)</code> is 47.62. Both factors sit at their reference level here, which R picks alphabetically: <code>new</code> for customer type and <code>no</code> for coupon. So this is the average spend of a new customer with no coupon, and every other number is measured from it.</p>
-
-<p><code>couponyes</code> is 16.54. In the additive model this was the coupon effect for everybody. Here it is the coupon effect for new customers only, because it is the step you take when <code>coupon</code> moves to <code>yes</code> and <code>customer_type</code> stays at its reference level.</p>
-
-<p><code>customer_typereturning</code> is 21.58. Same idea in the other direction. It is how much more a returning customer spends than a new one, among customers who got no coupon.</p>
-
-<p><code>couponyes:customer_typereturning</code> is -15.53. This is the interaction, and it is the one that needs a second look, because it is not the coupon effect for returning customers. It is how much smaller their coupon effect is than the new customers' one. So the returning customers' coupon effect is 16.54 minus 15.53, which is 1.02, the same number we got by subtracting their two group averages.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Once an interaction is in the model, every coefficient is conditional on where the other predictor sits. <code>couponyes</code> is no longer "the coupon effect". It is the coupon effect at the reference level of <code>customer_type</code>.</div></div>
-
-<p>Now check the arithmetic the whole way through. Adding the right coefficients together should reproduce each of the four group averages exactly.</p>
+<p>The standard way is to compare two models: one without the interaction, one with it. Because every term in the smaller model also shows up in the bigger one, the smaller model is called nested inside the bigger one, and the comparison a nested F-test. If letting the coupon's effect vary by customer type barely improves the fit, the interaction term is not worth keeping.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Rebuild each group's average spend from the four coefficients
-grid$interaction &lt;- round(predict(int, grid), 2)
-grid[, c(&quot;coupon&quot;, &quot;customer_type&quot;, &quot;observed&quot;, &quot;additive&quot;, &quot;interaction&quot;)]
-#&gt;   coupon customer_type observed additive interaction
-#&gt; 1     no           new    47.62    51.50       47.62
-#&gt; 2    yes           new    64.16    60.28       64.16
-#&gt; 3     no     returning    69.19    65.31       69.19
-#&gt; 4    yes     returning    70.21    74.09       70.21</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The <code>interaction</code> column matches <code>observed</code> in all four rows, to the last decimal, while <code>additive</code> is still 3.88 out everywhere. Four groups, four coefficients: the interaction model has exactly enough freedom to land on every group average. Returning customers with a coupon, for instance, are 47.62 + 16.54 + 21.58 - 15.53 = 70.21.</p>
-</section>
-
-<section class="lesson-step" data-step="8" data-step-type="concept">
-<h2>Testing the interaction term: the t test and the F test</h2>
-
-<p>We have a model that reproduces all four groups. But a 15.53 dollar gap between two estimated effects could still come from noise, so it has to be tested. An interaction term is tested the same way any other coefficient is, in the coefficient table.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Test the interaction term: its estimate, standard error, t value and p-value
-summary(int)
-#&gt;
-#&gt; Call:
-#&gt; lm(formula = spend ~ coupon * customer_type, data = campaign)
-#&gt;
-#&gt; Residuals:
-#&gt;     Min      1Q  Median      3Q     Max
-#&gt; -41.515  -8.956  -0.125   9.385  46.018
-#&gt;
-#&gt; Coefficients:
-#&gt;                                  Estimate Std. Error t value Pr(&gt;|t|)
-#&gt; (Intercept)                       47.6152     0.9641  49.390  &lt; 2e-16 ***
-#&gt; couponyes                         16.5427     1.3634  12.133  &lt; 2e-16 ***
-#&gt; customer_typereturning            21.5768     1.3634  15.826  &lt; 2e-16 ***
-#&gt; couponyes:customer_typereturning -15.5269     1.9281  -8.053 2.95e-15 ***
-#&gt; ---
-#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-#&gt;
-#&gt; Residual standard error: 13.63 on 796 degrees of freedom
-#&gt; Multiple R-squared:  0.3073,	Adjusted R-squared:  0.3047
-#&gt; F-statistic: 117.7 on 3 and 796 DF,  p-value: &lt; 2.2e-16</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The bottom row is the one to read. The estimate is -15.5269 with a standard error of 1.9281, so the t value is -15.5269 divided by 1.9281, which is -8.053, and the p-value is 2.95e-15. In a world where both groups share one coupon effect, a difference between them this large would essentially never turn up.</p>
-
-<p>The confidence intervals say it in dollars.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The 95 percent confidence interval for every coefficient
-round(confint(int), 2)
-#&gt;                                   2.5 % 97.5 %
-#&gt; (Intercept)                       45.72  49.51
-#&gt; couponyes                         13.87  19.22
-#&gt; customer_typereturning            18.90  24.25
-#&gt; couponyes:customer_typereturning -19.31 -11.74</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The interaction runs from -19.31 to -11.74, nowhere near 0. And the <code>couponyes</code> row, 13.87 to 19.22, is the interval for the new customers' coupon effect, which is one of the two numbers the store wants reported.</p>
-
-<p>There is a second way to ask the same question, and it is the one to reach for when a factor has more than two levels. Rather than test a single coefficient, compare the model that has the interaction against the model that does not.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Test the same term by comparing the additive model with the interaction model
-anova(add, int)
+    <div class="webr-editor" data-language="r"># Fit the additive model and test the interaction with a nested F-test
+m0 &lt;- lm(order_value ~ coupon + customer_type, data = orders)
+anova(m0, m1)
 #&gt; Analysis of Variance Table
 #&gt;
-#&gt; Model 1: spend ~ coupon + customer_type
-#&gt; Model 2: spend ~ coupon * customer_type
-#&gt;   Res.Df    RSS Df Sum of Sq      F    Pr(&gt;F)
-#&gt; 1    797 160019
-#&gt; 2    796 147965  1     12054 64.848 2.945e-15 ***
+#&gt; Model 1: order_value ~ coupon + customer_type
+#&gt; Model 2: order_value ~ coupon * customer_type
+#&gt;   Res.Df   RSS Df Sum of Sq      F    Pr(&gt;F)    
+#&gt; 1    237 47634                                  
+#&gt; 2    236 43470  1    4164.3 22.608 3.457e-06 ***
 #&gt; ---
 #&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
     <div class="webr-buttons">
@@ -444,42 +196,34 @@ anova(add, int)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The two models differ by one term, which is the <code>Df</code> of 1. Adding that term cuts the residual sum of squares from 160019 to 147965, and the F statistic for the improvement is 64.848 on 1 and 796 degrees of freedom, with the same p-value as before, 2.945e-15.</p>
+<p><code>m0</code> is the additive model, coupon and customer type each get one fixed effect, no interaction. <code>anova(m0, m1)</code> asks whether adding the interaction term to <code>m0</code> explains more of the variation in <code>order_value</code> than you would expect from adding one more term by chance alone. The answer is an F-statistic of 22.61 on 1 and 236 degrees of freedom, with p = 3.46e-06.</p>
 
-<p>That match is not luck. On one degree of freedom, the F statistic is the t statistic squared.</p>
+<p>Here is where that F comes from. The interaction row's own t-statistic in the coefficient table was 4.75. Square it: 4.75 squared is about 22.6, the same F you just saw. That is not a coincidence. For a single interaction row like this one, the nested F-test and the coefficient's own t-test are asking the same question.</p>
 
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The F statistic is the t value squared
-t_int &lt;- coef(summary(int))[&quot;couponyes:customer_typereturning&quot;, &quot;t value&quot;]
-round(t_int^2, 2)
-#&gt; [1] 64.85</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>64.85 either way. With a two-level factor like this one the two tests are one test written twice, so read whichever output you prefer. The difference appears when the factor has more levels. A customer type with four levels would add three interaction coefficients and three separate t tests, leaving you with three p-values and no single verdict, while <code>anova()</code> still returns one F test for the interaction as a whole.</p>
+<p>Here is that t-statistic against the range of t-values pure chance alone would produce.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":1,"max":6,"start":4.75,"label":"how far the interaction t-statistic sits from zero, square it for your F"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the marker down toward zero and the shaded tail swells, meaning a t that small would be unremarkable under pure chance. Our interaction's t sits way out at 4.75, in the thin part of the curve. p = 3.46e-06 means that if the coupon truly worked the same for both groups, results this extreme would turn up only a few times in a million tests. That is not noise.</p>
 </section>
 
-<section class="lesson-step" data-step="9" data-step-type="concept">
-<h2>Why an interaction needs more data than a main effect</h2>
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Reporting it</div>
+<h2>Reporting an interaction in plain English</h2>
 
-<p>Interactions have a reputation for being hard to find, and the reason sits in the standard errors. Put the two side by side.</p>
+<p>You now know the interaction is real. The last skill is turning it into a sentence a colleague making the pricing decision can act on.</p>
+
+<p>A line like "couponyes:customer_typenew = 16.66, p < .001" tells a reader nothing they can use. It names a difference of differences without saying what either difference actually is. Nobody making a pricing decision wants to do that subtraction themselves.</p>
+
+<p>The useful version states both groups' real effects, the numbers built from the coefficient rows.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Compare the standard error of the pooled coupon effect with that of the interaction term
-round(c(coupon      = coef(summary(add))[&quot;couponyes&quot;, &quot;Std. Error&quot;],
-        interaction = coef(summary(int))[&quot;couponyes:customer_typereturning&quot;, &quot;Std. Error&quot;]), 2)
-#&gt;      coupon interaction
-#&gt;        1.00        1.93</div>
+    <div class="webr-editor" data-language="r"># Turn the interaction into a plain-English line naming both groups' effects
+ret_effect &lt;- round(coef(m1)[&quot;couponyes&quot;], 2)
+new_effect &lt;- round(coef(m1)[&quot;couponyes&quot;] + coef(m1)[&quot;couponyes:customer_typenew&quot;], 2)
+sprintf(&quot;Returning customers gain about $%.2f from the coupon. New customers gain about $%.2f, roughly %.1f times as much.&quot;,
+        ret_effect, new_effect, new_effect / ret_effect)
+#&gt; [1] &quot;Returning customers gain about $5.58 from the coupon. New customers gain about $22.24, roughly 4.0 times as much.&quot;</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -489,161 +233,85 @@ round(c(coupon      = coef(summary(add))[&quot;couponyes&quot;, &quot;Std. Error
   <div class="webr-plot-output"></div>
 </div>
 
-<p>1.00 for the coupon effect in the additive model, 1.93 for the interaction. Out of the same 800 customers, the interaction is estimated about twice as loosely.</p>
+<p>That sentence says exactly what a reader needs: how much each group actually gains, and how different those gains are from each other. It never quotes the bare 16.66. If you only had one sentence to spend on this result, this is the one to spend it on.</p>
 
-<p>That follows from what an interaction is. <code>couponyes</code> in the additive model is one difference, coupon minus no coupon, taken over everybody. The interaction is a difference between two differences, one per customer group.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The interaction estimate is a difference between two differences
-round((cell_means[&quot;yes&quot;, &quot;returning&quot;] - cell_means[&quot;no&quot;, &quot;returning&quot;]) -
-      (cell_means[&quot;yes&quot;, &quot;new&quot;] - cell_means[&quot;no&quot;, &quot;new&quot;]), 2)
-#&gt; [1] -15.53</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Each of those inner differences carries its own noise, and each is computed on half the customers. Subtract one from the other and the noise accumulates.</p>
-
-<p>That extra noise has a cost. Precision improves with the square root of the sample size, so a standard error twice as large takes four times as many customers to bring back down. Refitting the same model on 60 customers per group instead of 200 shows what that feels like.</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># Refit the interaction model on 60 customers per group instead of 200
-small     &lt;- campaign[c(1:60, 201:260, 401:460, 601:660), ]
-int_small &lt;- lm(spend ~ coupon * customer_type, data = small)
-round(coef(summary(int_small))[&quot;couponyes:customer_typereturning&quot;,
-                               c(&quot;Estimate&quot;, &quot;Std. Error&quot;)], 2)
-#&gt;   Estimate Std. Error
-#&gt;     -12.99       3.79</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>The estimate is still large and negative, -12.99, but the standard error has gone from 1.93 to 3.79. An estimate has to clear roughly two standard errors to come in under 0.05, and at this size that bar sits here:</p>
-
-<div class="webr-container">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># The smallest gap that would clear 0.05 at 60 customers per group
-se_small &lt;- coef(summary(int_small))[&quot;couponyes:customer_typereturning&quot;, &quot;Std. Error&quot;]
-round(1.96 * se_small, 2)
-#&gt; [1] 7.43</div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>At 60 customers a group, an estimated gap smaller than about 7.43 dollars does not clear 0.05, however real the difference behind it is.</p>
-
-<p>The general shape of that trade is worth seeing on its own. The power curve below carries its own data rather than the campaign's: two groups compared with a t test, with the effect measured in standard deviations instead of dollars, which stands for the single comparison of coupon against no coupon inside one customer group. Switch the effect size and read off the sample size that reaches 80 percent power, meaning a campaign that size would come back under 0.05 four times out of five when the effect is really there.</p>
-<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
-<p>A large effect, 0.8 standard deviations, needs about 25 customers per group. A medium one, 0.5, needs about 63. A small one, 0.2, needs close to 400. Halving the effect roughly quadruples the sample, which is the four-times rule again from the other side.</p>
-
-<p>And an interaction is usually the smallest effect in the model, because it is a difference between two effects that were already hard to pin down.</p>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Never report only the interaction coefficient. It measures a gap between two groups' effects, not either group's own effect. Report both group effects, the way the sentence above does, and let the interaction stay in the background as the reason those two numbers differ.</div></div>
 </section>
 
-<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
-<h2>Quick check: what a non-significant interaction proves</h2>
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Closing quiz</div>
+<h2>Closing quiz: what anova() adds beyond a single p-value</h2>
+<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">You shouldn't bother with anova(). The coefficient's own p-value already tells you everything anova() would.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">anova() tests whether the interaction, as a whole, improves the model. A single coefficient's p-value only covers its own row, which happens to be the entire interaction here because each factor has just two levels.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Running anova() is really just a formality, since adding any term to a model always improves the fit a little.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. With two levels per factor, the interaction is one row, so the two tests happen to land on the same number. Add a third customer type and the interaction becomes several rows: only anova() checks all of them at once.</div><div class="lesson-qfb lesson-qfb-no">Adding any term does lower the residual sum of squares a little, even pure noise would do that, which is exactly why a coefficient's own p-value is not always enough. anova() is what confirms the improvement is bigger than that, and with more than two levels per factor it is also the only test that covers every interaction row at once, not just one.</div></div>
+</section>
+</section>
 
-<p>Suppose the store had run the campaign on 60 customers per group, and the interaction had come back at p = 0.09. What follows from that?</p>
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Closing exercise: confirm it with AIC and report it</h2>
+
+<p>You have tested the interaction with a nested F-test. AIC gives you a second, independent check, one that rewards a better fit but penalizes the extra parameter the interaction costs. A drop of more than about 4 points is usually taken as a real improvement.</p>
+
+<p>Compare <code>m0</code> and <code>m1</code> with <code>AIC()</code>, then reuse the reporting line from before to name both groups' real effects.</p>
 <section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step10" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The coupon works about equally well for new and for returning customers.</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The 15.53 gap seen on the full campaign was a fluke, since the smaller campaign did not reproduce it.</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Very little. At that size the standard error is 3.79, so an estimated gap under about 7.43 dollars fails the test, real or not. Report the estimate with its interval.</span></button>
-<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The interaction term should be dropped and the additive model reported instead.</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. A test that could not reliably have caught a gap that size says nothing about whether one exists. The estimate and its confidence interval show what the campaign data could and could not rule out.</div><div class="lesson-qfb lesson-qfb-no">A p-value above 0.05 is not evidence that the two groups respond alike. It says the campaign was not big enough to separate them. At 60 customers a group the interaction's standard error is 3.79, so an estimated gap under about 7.43 dollars comes back non-significant, and a true gap smaller than that is missed more often than not. What gets reported is the estimate with its interval, not a decision to pool the groups.</div></div>
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*AIC[(]\s*m0\s*,\s*m1\s*[)])(?=[\s\S]*ret_effect)(?=[\s\S]*new_effect)"><textarea class="lesson-tryit-input" spellcheck="false"># Compare m0 and m1 with AIC, then report both groups' real effects
+AIC(____, ____)
+
+ret_effect &lt;- round(coef(m1)[&quot;couponyes&quot;], 2)
+new_effect &lt;- round(coef(m1)[&quot;couponyes&quot;] + coef(m1)[&quot;couponyes:customer_typenew&quot;], 2)
+cat(&quot;Returning customers gain about $&quot;, ____, &quot;. New customers gain about $&quot;, ____, &quot;.\n&quot;, sep = &quot;&quot;)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That's it. AIC drops from 1958.85 to 1938.89, a difference well past the rule-of-thumb of 4 points, and the printed line spells out what that means for each group in dollars.</span><span class="lesson-tryit-fb lesson-tryit-no">Two things are missing. Call AIC on both models together, AIC(m0, m1). Then drop ret_effect and new_effect into the two blanks in the cat() line, so the sentence names both groups' real effects.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Compare m0 and m1 with AIC, then report both groups' real effects
+AIC(m0, m1)
+#&gt;    df      AIC
+#&gt; m0  4 1958.849
+#&gt; m1  5 1938.894
+
+ret_effect &lt;- round(coef(m1)[&quot;couponyes&quot;], 2)
+new_effect &lt;- round(coef(m1)[&quot;couponyes&quot;] + coef(m1)[&quot;couponyes:customer_typenew&quot;], 2)
+cat(&quot;Returning customers gain about $&quot;, ret_effect, &quot;. New customers gain about $&quot;, new_effect, &quot;.\n&quot;, sep = &quot;&quot;)
+#&gt; Returning customers gain about $5.58. New customers gain about $22.24.</code></pre></details></div>
 </section>
-</section>
-
-<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
-<h2>Your turn: read the coupon effect for returning customers</h2>
-
-<p>The model gives you the coupon effect for new customers directly, as <code>couponyes</code> = 16.54. Returning customers take arithmetic: 16.54 minus 15.53. There is a way to make R do that arithmetic, and to give you the standard error and confidence interval with it.</p>
-
-<p><code>relevel()</code> moves a factor's reference level. Move <code>customer_type</code> so that <code>returning</code> is the reference, refit the same interaction model on that data, and print its coefficient table. Nothing about the data changes, only the group that the <code>couponyes</code> row answers for.</p>
-<section class="exercise" data-exercise-id="Regression-Reading-Mini-1-step11" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-tryit" data-check-regex="relevel[(]"><textarea class="lesson-tryit-input" spellcheck="false"># campaign holds the 800 customers, and customer_type has the levels new and returning.
-# Copy campaign, relevel customer_type on the copy so returning is the reference,
-# refit spend ~ coupon * customer_type on it, and print the coefficient table.
-# Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. <code>couponyes</code> is now 1.02, the coupon effect for returning customers, with p = 0.456 and an interval of -1.66 to 3.69 that sits across 0. The interaction row is the same size as before with its sign flipped, 15.53, because now it is the new customers who differ from the reference.</span><span class="lesson-tryit-fb lesson-tryit-no">Copy the data frame first, then call <code>relevel()</code> on its <code>customer_type</code> column with <code>ref</code> set to returning, and refit <code>lm(spend ~ coupon * customer_type)</code> on the copy.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Refit the same interaction model with returning customers as the reference level
-campaign_ret &lt;- campaign
-campaign_ret$customer_type &lt;- relevel(campaign_ret$customer_type, ref = &quot;returning&quot;)
-int_ret &lt;- lm(spend ~ coupon * customer_type, data = campaign_ret)
-round(coef(summary(int_ret))[, c(&quot;Estimate&quot;, &quot;Std. Error&quot;, &quot;Pr(&gt;|t|)&quot;)], 3)
-#&gt;                            Estimate Std. Error Pr(&gt;|t|)
-#&gt; (Intercept)                  69.192      0.964    0.000
-#&gt; couponyes                     1.016      1.363    0.456
-#&gt; customer_typenew            -21.577      1.363    0.000
-#&gt; couponyes:customer_typenew   15.527      1.928    0.000
-
-round(confint(int_ret)[&quot;couponyes&quot;, ], 2)
-#&gt;  2.5 % 97.5 %
-#&gt;  -1.66   3.69</code></pre></details></div>
-</section>
-<p>The 800 rows of spending are untouched, and so is the fit. The intercept is now 69.192, which is the average spend of a returning customer with no coupon, and taking 21.577 off it gives back 47.615, the new customers with no coupon. Only the reference level moved, and with it the question that <code>couponyes</code> answers. That is the cheapest way to report both coupon effects with proper intervals instead of doing the subtraction by hand.</p>
+<p>AIC moves from 1958.85 down to 1938.89, a drop of about 19.96, far past the 4-point rule of thumb. The nested F-test, the AIC comparison, and the plain-English line all show the same conclusion: this interaction is real, and it is worth about four times as much to a new customer as it is to a returning one.</p>
 </section>
 
-<section class="lesson-step" data-step="12" data-step-type="concept">
+<section class="lesson-step" data-step="11" data-step-type="concept">
 <h2>References</h2>
 
 <ul>
 
-<li><a href="https://avehtari.github.io/ROS-Examples/">Regression and Other Stories</a> - Gelman, Hill and Vehtari (2020), Cambridge University Press. Chapter 10 covers interactions and why every coefficient in an interaction model is conditional.</li>
+<li><a href="https://cran.r-project.org/package=faraway">faraway: the CRAN package supporting Linear Models with R</a> - Faraway, J. (2014), 2nd Edition, Chapman & Hall, Chapter 6, Interactions in Regression.</li>
 
-<li><a href="https://doi.org/10.1093/pan/mpi014">Understanding Interaction Models: Improving Empirical Analyses</a> - Brambor, Clark and Golder (2006), Political Analysis 14(1), 63-82. The argument for keeping both main effects in the model.</li>
+<li><a href="https://cran.r-project.org/package=car">car: the CRAN package supporting An R Companion to Applied Regression</a> - Fox, J., & Weisberg, S. (2018), 3rd Edition, Sage. Models with categorical and continuous predictors.</li>
 
-<li><a href="https://statmodeling.stat.columbia.edu/2018/03/15/need-16-times-sample-size-estimate-interaction-estimate-main-effect/">You need 16 times the sample size to estimate an interaction than to estimate a main effect</a> - Gelman (2018). Why an interaction is so much more expensive to estimate than a main effect.</li>
+<li><a href="https://doi.org/10.1037/0033-2909.114.2.376">Statistical difficulties of detecting interactions and moderator effects</a> - McClelland, G. H., & Judd, C. M. (1993), Psychological Bulletin 114(2), 376-390.</li>
 
-<li><a href="https://psycnet.apa.org/record/1991-97932-000">Multiple Regression: Testing and Interpreting Interactions</a> - Aiken and West (1991), Sage. The standard reference on simple slopes and on centering predictors.</li>
-
-<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html">Model Formulae</a> - R Core Team. How the <code>*</code> and <code>:</code> operators expand inside an R formula.</li>
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/formula.html">Formulas for Statistical Models</a> - R Core Team, the documentation for <code>formula</code> and <code>lm</code>.</li>
 
 </ul>
 </section>
 
-<section class="lesson-step" data-step="13" data-step-type="complete">
-<h2>Quick recap</h2>
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What you can now do with an interaction</h2>
 
-<p>You started with one coupon effect and finished with two, each with an interval you can put in a report. To summarize:</p>
+<p>You can now take a predictor whose effect might depend on a second variable, and handle it end to end.</p>
 
 <ul>
 
-<li>One pooled number, 8.78 dollars, described neither group. The coupon was worth 16.54 to a new customer and 1.02 to a returning one.</li>
+<li>Write it with <code>*</code>: <code>lm(y ~ x * z)</code> expands to both main effects plus the cross term.</li>
 
-<li>Adding <code>customer_type</code> to the formula does not fix that. <code>spend ~ coupon + customer_type</code> holds no term for two different coupon effects, so it fits parallel lines and misses all four group averages by 3.88.</li>
+<li>Read the four-row table: the intercept and main effects describe the reference group, the interaction row is the extra lift on top of that.</li>
 
-<li><code>coupon * customer_type</code> adds one product column, which is 1 only for returning customers with a coupon. That column is the interaction.</li>
+<li>Compute a group's own effect by adding rows, never by reading one row alone.</li>
 
-<li>Every coefficient is then conditional. <code>couponyes</code> is the coupon effect at the reference level of the other predictor, and the interaction term is the difference between the two groups' effects, not one group's effect.</li>
+<li>Test whether the interaction is real with a nested F-test, <code>anova(m0, m1)</code>, and confirm it with AIC.</li>
 
-<li>Test it with the t test in <code>summary()</code> or with <code>anova()</code> on the two models. For a two-level factor they are the same test, and F is t squared: 64.85 either way.</li>
-
-<li>The interaction is a difference between two differences, so it is the noisiest number in the model. Its standard error was 1.93 against 1.00 for the main effect, and closing that gap takes four times the customers.</li>
+<li>Report both groups' effects in plain numbers. The interaction coefficient explains why those two numbers differ; it is not something to quote by itself.</li>
 
 </ul>
 
-<p>So when someone asks whether the coupon worked:</p>
-
-<p>"It is worth 16.54 dollars to a new customer (13.87 to 19.22) and 1.02 to a returning one (-1.66 to 3.69). The 15.53 gap between the two is real, F(1, 796) = 64.85, p below 0.001."</p>
-
-<p>Coming up next is what a linear model assumes about your data without ever saying so, and the five checks that tell you when one of those assumptions has broken.</p>
+<p>Interaction effects are one way a regression's output gets misread.</p>
 </section>
 
 {% endraw %}
