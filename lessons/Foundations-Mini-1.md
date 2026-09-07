@@ -1,11 +1,11 @@
 ---
 title: "Conditional probability: P(A given B), made concrete"
 slug: "Foundations-Mini-1"
-description: "A disease that 1 in 1,000 people have, a test that is 99% accurate, one positive result. Count 100,000 people in R and see what P(A given B) really says."
-keywords: "conditional probability, P(A given B), conditional probability in R, positive predictive value, base rate, sensitivity and specificity, false positives, Bayes rule"
+description: "A 99% accurate test still gets most positives wrong. See why by splitting a screening population into counts, then compute P(A given B) yourself in R."
+keywords: "conditional probability, P(A given B), Bayes theorem basics, base rate fallacy, medical test probability, independent events in R, probability formula"
 mathjax: true
 webr: true
-date: "2026-09-05"
+date: "2026-09-07"
 post_type: "LESSON"
 course_id: "foundations-extras"
 course_title: "Probability Foundations"
@@ -13,283 +13,211 @@ course_lesson: "1"
 course_total: "6"
 course_landing: "/dashboard.html"
 course_prev: ""
-course_next: "Foundations-Mini-2"
+course_next: ""
 curriculum_id: "0.0.9"
 lesson_access: "windowed"
-catalog_blurb: "What a positive test result really means when the disease is rare."
+catalog_blurb: "Why a positive test can still mean you probably don't have the disease."
 ---
 
 === step === cover
 ## Conditional probability: P(A given B), made concrete
 
-Today let's work out what a positive test result actually tells you, and pick up conditional probability while we do it.
+Today let's understand conditional probability, the idea of how knowing one fact changes the chance of another.
 
-Here is the situation. A clinic screens people for a disease that 1 in 1,000 people have. The test it uses is right 99% of the time in both directions: 99 out of every 100 people who have the disease test positive, and 99 out of every 100 people who do not have it test negative.
+Here is the example: a disease that affects 100 out of every 100,000 people, and a test for it that is right 99% of the time, whether the person tested is actually sick or actually healthy.
 
-A person is screened, and the test says positive. How likely is it that they have the disease?
+The diagram below splits all 100,000 people first by whether they have the disease, then by what the test told each of them.
 
-Almost everybody says 99%, and that includes plenty of people who handle test results every day. Count the people and it comes out under 10%.
+::widget tree-diagram {"root": "Has the disease?", "l": "Tested positive?", "r": "Tested positive?", "leaves": ["99 people", "1 person", "999 people", "98,901 people"]}
 
-We are not going to take that on trust. We will build all 100,000 people, count them, and read the answer off the counts.
-
-::widget process-flow {"steps":[{"title":"Build 100,000 people","sub":"turn the three rates into exact counts of people"},{"title":"Count every positive result","sub":"how many of the 100,000 test positive"},{"title":"Keep the positives and count the ill ones","sub":"the share of that group with the disease is the answer"}]}
-
-Three counts in that order, and the third one answers the question.
+Follow the branches down: everyone starts at the top, splits into the 100 who have the disease and the 99,900 who don't, and each of those groups splits again by what the test said.
 
 === step === concept
-## Turning the three rates into 100,000 people
+## The plain probability of having the disease
 
-The situation gave us three rates, and each one has a name worth knowing.
+Every probability starts from the same idea. Count how many times something happens, then divide by how many times it could have happened.
 
-The first is the **prevalence**, the share of people who have the disease before anybody is tested. Here it is 1 in 1,000, or 0.001.
-
-The second is the **sensitivity**, the share of people who have the disease that the test picks up. Here it is 0.99.
-
-The third is the **specificity**, the share of people who do not have the disease that the test clears. Here it is 0.99 as well, so 1% of healthy people get a positive result anyway.
-
-Rates that small are hard to hold in your head. Counts of people are not. So let's take a population big enough to make every count a whole number, and write the three rates into it.
-
-Out of 100,000 people, 100 have the disease and 99,900 do not. Of the 100 who have it, 99 test positive and 1 tests negative. Of the 99,900 who do not, 1% is 999 who test positive, leaving 98,901 who test negative.
-
-Press Run to build them.
+Here is that count for the disease in the tree above: 100 sick people out of the full 100,000.
 
 ```r
-# Build 100,000 screened people, one row per person, with disease status and test result
-people <- data.frame(
-  disease = rep(c("yes", "no"), c(100, 99900)),
-  test    = c(rep(c("positive", "negative"), c(99, 1)),       # the 100 who have the disease
-              rep(c("positive", "negative"), c(999, 98901)))  # the 99,900 who do not
-)
-
-nrow(people)
-#> [1] 100000
-sum(people$disease == "yes")
-#> [1] 100
+# Compute the plain probability of having the disease
+sick <- 100
+total <- 100000
+p_disease <- sick / total
+p_disease
+#> [1] 0.001
 ```
 
-`rep()` repeats a value as many times as you ask, so `rep(c("yes", "no"), c(100, 99900))` writes "yes" 100 times and then "no" 99,900 times. There is no random draw anywhere in that block, which is why the counts come out exact.
-
-`people` now holds 100,000 rows and two columns. Every row is one person, with whether they have the disease and what their test said.
-
-[NOTE]
-These are constructed numbers, picked so the arithmetic stays clean. A real screening programme measures its sensitivity and specificity from data, and reports both with a margin of error around them.
+P(Disease) comes out to 0.001, exactly the 1-in-1,000 prevalence from the tree. This is the probability before you know anything else about the person, before any test result. It has a name: the unconditional probability, the chance of an event on its own, with no other information attached.
 
 === step === concept
-## Where the 1,098 positive results come from
+## What restricting to a positive result actually tells you
 
-Put the two columns against each other and every one of the 100,000 people lands in one of four boxes.
+So far you have the plain probability of having the disease, with no test result involved. Now suppose the person's test comes back positive. Does that change the probability?
 
-```r
-# Count the 100,000 people by disease status and test result
-table(disease = people$disease, test = people$test)
-#>        test
-#> disease negative positive
-#>     no     98901      999
-#>     yes        1       99
-```
+To answer that, restrict your view to only the people who tested positive, and ask the same kind of question again: what fraction of this smaller group has the disease?
 
-Read the four counts one at a time. 99 people have the disease and tested positive, the results the test got right. 1 person has the disease and tested negative, a **false negative**. 999 people do not have the disease and tested positive anyway, the **false positives**. And 98,901 people do not have it and were correctly cleared.
+That is what conditional probability means. Statisticians write it as P(A given B), sometimes shortened to P(A|B), and it asks for the probability of A once you already know B is true. That relationship has a formula:
 
-Now add up the positive results: 99 plus 999 is 1,098 people who walked out with a positive test.
+$$P(A \mid B) = \frac{P(A \text{ and } B)}{P(B)}$$
 
-Only 99 of those 1,098 are correct. Look at where the 999 came from and it stops being surprising. The test is wrong about 1% of the time on healthy people, but there are 99,900 healthy people, and 1% of 99,900 is 999. It is right 99% of the time on ill people, and there are only 100 of those, so it can never produce more than 100 correct positives.
+Here, A is "has the disease" and B is "tested positive." P(A and B) is called the joint probability, the chance that both things are true at once. P(B) is the probability of the event you are conditioning on, the one you already know happened.
 
-A small error rate applied to an enormous group beats a large success rate applied to a tiny one.
+Restrict the same 100,000-person population to only the people who tested positive.
 
-=== step === widget
-## Conditioning: keeping only the people who tested positive
+::widget table-transform {"code": "df %>% filter(test_result == \"Positive\")", "caption": "Restricting to the 1,098 people who tested positive", "before": {"cols": ["disease_status", "test_result", "people"], "rows": [["Sick", "Positive", 99], ["Sick", "Negative", 1], ["Healthy", "Positive", 999], ["Healthy", "Negative", 98901]]}, "after": {"cols": ["disease_status", "test_result", "people"], "rows": [["Sick", "Positive", 99], ["Healthy", "Positive", 999]]}}
 
-The question we started with is not about all 100,000 people. It is about one person whose result came back positive, which puts them in the group of 1,098.
+Out of the 1,098 people who tested positive, only 99 actually have the disease. So P(Disease and Positive) = 99/100,000 = 0.00099, and P(Positive) = 1,098/100,000 = 0.01098.
 
-That restriction is the whole idea. To answer a question about people who tested positive, you throw away every row where the test said negative, then count inside what is left. The four counts themselves never change. The group you count in does.
-
-Here are the four counts as four rows, with the line of R that keeps only the positive ones.
-
-::widget table-transform {"code":"subset(df, test == \"positive\")","caption":"Conditioning on a positive result keeps the two positive rows and drops the two negative ones. The counts inside the rows that stay are untouched.","before":{"cols":["disease","test","count"],"rows":[["yes","positive",99],["yes","negative",1],["no","positive",999],["no","negative",98901]]},"after":{"cols":["disease","test","count"],"rows":[["yes","positive",99],["no","positive",999]]}}
-
-Two rows survive, 99 and 999. Press Show what changed and the two rows for negative results are struck out, which is exactly what conditioning does to them.
-
-Now run the same restriction across all 100,000 rows and count what is left.
+Divide those two numbers the way the formula says to.
 
 ```r
-# Keep only the people who tested positive, then count how many of them have the disease
-positives <- subset(people, test == "positive")
-
-nrow(positives)
-#> [1] 1098
-mean(positives$disease == "yes")
-#> [1] 0.09016393
+# Compute P(Disease given Positive) by restricting to the people who tested positive
+disease_and_positive <- 99
+total_positive <- 1098
+p_disease_given_positive <- disease_and_positive / total_positive
+round(p_disease_given_positive, 4)
+#> [1] 0.0902
 ```
 
-`subset()` keeps the rows where the condition is TRUE, so `positives` holds 1,098 people. `mean()` on a vector of TRUE and FALSE is the share that are TRUE, so `mean(positives$disease == "yes")` is the share of those 1,098 who have the disease.
-
-That share is 0.09016, about 9%. So a person holding a positive result from this test has roughly a 1 in 11 chance of having the disease, not 99 in 100.
+P(Disease given Positive) comes out to about 0.0902, just over 9%. That is far below the test's own 99% figure, and it can feel wrong at first. Here is why: among the 99,900 healthy people, even a small 1% false-positive rate produces 999 false alarms, about ten times more than the 99 real cases the test correctly caught. So most of the 1,098 positive results belong to healthy people, not sick ones.
 
 [KEY INSIGHT]
-Conditioning does not change any count. It changes which people you divide by. Here it swapped a denominator of 100,000 for a denominator of 1,098, and that single swap is the whole calculation.
+A rare condition means the unaffected population vastly outnumbers the affected one. So even a small error rate among the unaffected group can produce more false alarms than the affected group produces correct detections.
 
 === step === concept
-## The formula for P(A given B), and where each piece comes from
+## P(A given B) is not P(B given A)
 
-What we just did has a name and a notation, and both are worth having.
+Now restrict the same table a different way: to only the people who are sick, instead of only the people who tested positive.
 
-Call A the event that the person has the disease, and call B the event that they tested positive. The quantity we computed is the **conditional probability** of A given B, written \(P(A \mid B)\) and said out loud as "the probability of A given B".
+::widget table-transform {"code": "df %>% filter(disease_status == \"Sick\")", "caption": "Restricting to the 100 people who are sick", "before": {"cols": ["disease_status", "test_result", "people"], "rows": [["Sick", "Positive", 99], ["Sick", "Negative", 1], ["Healthy", "Positive", 999], ["Healthy", "Negative", 98901]]}, "after": {"cols": ["disease_status", "test_result", "people"], "rows": [["Sick", "Positive", 99], ["Sick", "Negative", 1]]}}
 
-Its definition is one line.
+Among those 100 people, 99 tested positive. So P(Positive given Disease) = 99/100 = 0.99, which is the test's own accuracy figure.
 
-\[ P(A \mid B) = \frac{P(A \text{ and } B)}{P(B)} \]
+Compare that with the result from restricting to positive results a moment ago. P(Disease given Positive) was 0.0902. P(Positive given Disease) is 0.99.
 
-Both pieces on the right are shares of the full 100,000. \(P(A \text{ and } B)\), the **joint** probability because it asks for both things at once, is the share of everybody who has the disease **and** tested positive, which is 99 out of 100,000. \(P(B)\), the **marginal** probability because it ignores everything except the test result, is the share of everybody who tested positive, which is 1,098 out of 100,000. Let's compute both and divide.
-
-```r
-# Get the same answer from the joint and the marginal probability
-p_joint    <- mean(people$disease == "yes" & people$test == "positive")
-p_positive <- mean(people$test == "positive")
-
-c(joint = p_joint, positive = p_positive, ratio = p_joint / p_positive)
-#>      joint   positive      ratio
-#> 0.00099000 0.01098000 0.09016393
-```
-
-`p_joint` is 0.00099 and `p_positive` is 0.01098, and their ratio is 0.09016. The same number the counting gave.
-
-That agreement is not a coincidence. Dividing 0.00099 by 0.01098 is dividing 99/100,000 by 1,098/100,000, and the 100,000 cancels, leaving 99/1,098. The formula and the restriction are the same operation written two ways.
-
-The definition also runs backwards, which is handy. Multiply both sides by \(P(B)\) and you get \(P(A \text{ and } B) = P(A \mid B) \times P(B)\): the chance of both things happening is the chance of B times the chance of A given B.
+Same two events, sick and positive, but the conditioning runs in the opposite direction, and the two numbers are nowhere close. The test's 99% figure is P(Positive given Disease), not P(Disease given Positive), and mixing up the two is exactly what makes this topic feel confusing at first.
 
 === step === quiz
-## Quick check: which group is the denominator?
-
-You want the chance that a person has the disease, knowing their result came back positive. Which group goes on the bottom of that fraction?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- All 100,000 people who were screened. ::no
-- The 100 people who have the disease. ::no
-- The 1,098 people whose result came back positive. ::ok Exactly. The condition names the group, and here the condition is a positive result. 99 of those 1,098 have the disease, which gives 0.090.
-- The 999 people without the disease who tested positive. ::no The condition names the group you count inside, and the condition here is a positive result, so the denominator is all 1,098 people who got one. Divide by 100,000 instead and you get 0.00099, the chance of both things at once rather than one given the other. Divide by the 100 people who have the disease and you are answering a different question altogether.
-
-=== step === widget
-## The other direction: how often does an ill person test positive?
-
-The same four counts answer a second question, and it pays to see how little has to change.
-
-This time the condition is having the disease rather than testing positive. So keep the rows where `disease` is "yes" and throw away the rest.
-
-::widget table-transform {"code":"subset(df, disease == \"yes\")","caption":"Conditioning on disease status keeps the two rows for people who have the disease. Same four counts, a different group to divide by.","before":{"cols":["disease","test","count"],"rows":[["yes","positive",99],["yes","negative",1],["no","positive",999],["no","negative",98901]]},"after":{"cols":["disease","test","count"],"rows":[["yes","positive",99],["yes","negative",1]]}}
-
-Two rows survive again, but different ones: 99 and 1. Press Show what changed and it is now the two rows for people without the disease that get struck out.
-
-Run the same restriction across all 100,000 people.
-
-```r
-# Keep only the people who have the disease, then count the positive results
-mean(people$test[people$disease == "yes"] == "positive")
-#> [1] 0.99
-```
-
-That is 0.99, which is the sensitivity we started with. In notation it is \(P(B \mid A)\), the probability of a positive result given the disease.
-
-Compare the two calculations. The numerator was 99 both times. The denominator was 1,098 in one and 100 in the other, and that is the only difference between 0.090 and 0.99.
-
-Notice which of the two a "99% accurate" claim reports. Sensitivity and specificity are both measured on people whose disease status is already known, so both of them condition on that status. Neither conditions on the test result, which is the only thing the person holding that result actually knows.
-
-[WARNING]
-\(P(A \mid B)\) and \(P(B \mid A)\) are two different numbers. Reading the accuracy claim as though it answered the first question turns a 9% chance into a near certainty, off by a factor of eleven, from the very same four counts.
-
-=== step === concept
-## What the base rate does to a positive result
-
-The 0.090 has a standard name: it is the **positive predictive value**, the share of positive results that are correct.
-
-It came out low here because the disease is rare, and that is worth showing rather than asserting. Write the two pieces of the formula as rates instead of counts, and the prevalence becomes something we can vary.
-
-The people who correctly test positive are `prev * sens` of the population. The people who wrongly test positive are `(1 - prev) * (1 - spec)`. Everybody with a positive result is one or the other, so the positive predictive value is the first over the sum of both. Hold sensitivity and specificity at 0.99 and try four different base rates.
-
-```r
-# Work out the chance of disease after a positive result at four base rates
-ppv <- function(prev, sens = 0.99, spec = 0.99) {
-  prev * sens / (prev * sens + (1 - prev) * (1 - spec))
-}
-
-base_rates <- c(0.001, 0.01, 0.05, 0.20)
-
-data.frame(
-  people_with_the_disease = c("1 in 1,000", "1 in 100", "1 in 20", "1 in 5"),
-  prevalence              = base_rates,
-  chance_of_disease       = round(ppv(base_rates), 3)
-)
-#>   people_with_the_disease prevalence chance_of_disease
-#> 1              1 in 1,000      0.001             0.090
-#> 2                1 in 100      0.010             0.500
-#> 3                 1 in 20      0.050             0.839
-#> 4                  1 in 5      0.200             0.961
-```
-
-Read the last column downwards: 0.090, then 0.500, then 0.839, then 0.961. The top row is the case we counted by hand, 99 out of 1,098, so the formula is doing the same job the restriction did. The same positive result is worth almost nothing at the top of that column and close to a certainty at the bottom.
-
-Nothing about the test moved. Sensitivity and specificity are 0.99 in every row. The only thing that changed is how common the disease is among the people being screened.
-
-Look at the middle row again. At 1 in 100 the answer is exactly 0.5, because the correct positives work out at 0.01 times 0.99 and the wrong ones at 0.99 times 0.01. Those are the same product, so the two groups are the same size and a positive result is a coin toss.
-
-[KEY INSIGHT]
-How accurate a test is does not by itself tell you what a positive result means. You need the base rate as well. That is also why screening is aimed at high-risk groups: raising the prevalence among the people tested is what makes a positive result worth acting on.
-
-=== step === quiz
-## Quick check: reading one positive result
-
-One of the 100,000 gets a positive result and asks you what it means. Which answer is right, and right for the right reason?
+## Quick check: why a 99% accurate test still misleads
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- About 99%, because the test is right 99% of the time. ::no
-- About 9%, because 999 of the 1,098 positive results come from people who do not have the disease. ::ok Yes. Restrict to the 1,098 people who tested positive, count the 99 among them who have the disease, and you get 0.090.
-- Still about 1 in 1,000, because one test cannot tell you much. ::no
-- About 50%, because at these accuracy rates a positive result leaves it a coin toss. ::no The answer is about 9%, and the way to get there is to count inside the 1,098 people who tested positive. 99% is the share of ill people the test catches, which is a different question. One in 1,000 is the chance before testing, and a positive result really does raise it, from 1 in 1,000 to about 1 in 11. And 0.5 is the correct answer only when the disease is a hundred times more common than it is here.
+- Because the test is 99% accurate, so P(Disease given Positive) should also land around 99%. ::no
+- Because among the 99,900 healthy people, the 1% false-positive rate alone produces 999 false alarms, about ten times more than the 99 real cases the test caught among the sick people. ::ok Exactly right. The test sounds accurate, but the healthy population is so much bigger than the sick population that even a small error rate on the healthy side produces more false alarms than the sick side produces true positives.
+- Because P(Disease given Positive) and P(Positive given Disease) are actually the same number, both equal to 99%. ::no
+- Because the false positives and the false negatives cancel out, leaving the answer close to the original 99% figure. ::no Nothing cancels here; the two mistakes above are the common ones. The test's own accuracy, P(Positive given Disease) = 99%, comes from restricting to the 100 sick people. P(Disease given Positive) comes from restricting to the 1,098 people who tested positive, a mix of 99 truly sick people and 999 healthy people caught by the 1% false-positive rate, which pulls the answer down to about 9%.
+
+=== step === concept
+## The multiplication rule: from conditional to joint
+
+The same formula can also run in the other direction. Rearranged, it looks like this:
+
+$$P(A \text{ and } B) = P(A \mid B) \times P(B)$$
+
+Apply that here, using P(Positive given Disease) = 0.99 and P(Disease) = 0.001.
+
+Multiplying those two numbers should hand back the same joint probability you already know.
+
+```r
+# Recover the joint probability using the multiplication rule
+p_positive_given_disease <- 0.99   # from restricting to the sick people in the previous step
+p_disease_and_positive <- p_positive_given_disease * p_disease
+p_disease_and_positive
+#> [1] 0.00099
+```
+
+That is 0.00099, exactly 99 divided by 100,000, the same joint probability sitting in the tree diagram above. The multiplication rule and the earlier restrict-and-divide method are the same formula, just rearranged and run in different directions.
+
+=== step === concept
+## Independent events: when one outcome tells you nothing about another
+
+Not every condition changes the answer. Some events are independent, meaning knowing one tells you nothing new about the other.
+
+A clean example is two fair coin flips. There are 4 equally likely outcomes: both heads, first heads then tails, first tails then heads, and both tails.
+
+List all 4 outcomes, then compare the plain probability of the second flip being heads with that same probability once you already know the first flip was heads.
+
+```r
+# List the 4 equally likely outcomes of two coin flips and compare the two probabilities
+coin_outcomes <- expand.grid(flip1 = c("H", "T"), flip2 = c("H", "T"))
+coin_outcomes
+#>   flip1 flip2
+#> 1     H     H
+#> 2     T     H
+#> 3     H     T
+#> 4     T     T
+
+p_second_heads <- mean(coin_outcomes$flip2 == "H")
+p_second_heads
+#> [1] 0.5
+
+p_second_heads_given_first_heads <- mean(coin_outcomes$flip2[coin_outcomes$flip1 == "H"] == "H")
+p_second_heads_given_first_heads
+#> [1] 0.5
+```
+
+Both numbers come out to 0.5. Restricting to just the outcomes where the first flip was heads, rows 1 and 2, still leaves the second flip heads exactly half the time. Knowing the first flip changed nothing about the second.
+
+That is the opposite of what happened with the disease and the test. There, restricting to a positive result moved the probability from 0.001 all the way up to 0.0902, a big change. When conditioning changes the probability like that, the two events are dependent. When conditioning changes nothing, like the two coin flips, the events are independent.
+
+=== step === quiz
+## Quiz: putting conditional probability together
+
+Here is one more scenario, to see if the method travels. A company has 200 applicants. 80 of them hold a coding certificate, and 60 of those 80 get hired. Of the remaining 120 applicants without a certificate, 30 get hired.
+
+Which of these is P(Hired given Certificate)?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- 0.4, since 80 of the 200 applicants hold a certificate. ::no
+- 0.75, since 60 of the 80 applicants with a certificate got hired. ::ok Right. Restricting to the 80 applicants who hold a certificate and asking what fraction of them got hired gives 60/80 = 0.75. That is P(Hired given Certificate).
+- 0.667, since 60 of the 90 hired applicants held a certificate. ::no
+- 0.45, since certificate status makes no difference to hiring. ::no 0.45 is just the overall hire rate, 90 of 200, and it does not mean certificate status makes no difference. Restricting to certificate holders (60 of 80 = 0.75) versus restricting to hired applicants (60 of 90 = 0.667) give two different numbers, so the two events are not independent, and P(Hired given Certificate) is not the same as P(Certificate given Hired). Restrict to the 80 applicants who hold a certificate, then ask what fraction of them got hired: 60/80 = 0.75.
 
 === step === tryit
-## Your turn: what does a second positive test do?
+## Your turn: a more common disease, the same formula
 
-Suppose the clinic retests all 1,098 people whose result came back positive, using the same test again.
+Try the same method on a different disease, one that is much more common: 1 in 20 people have it, instead of 1 in 1,000. Everything else about the test stays the same, right 99% of the time on both sick and healthy people.
 
-Inside that group the chance of having the disease is no longer 1 in 1,000. It is 99/1098, about 0.0902. So that is the base rate the second test starts from, and `ppv()` will take it from there.
+Out of 100,000 people, that is 5,000 sick and 95,000 healthy.
 
-Work out the chance of having the disease after a second positive result.
+Fill in the same restrict-and-divide steps you used earlier for this new population.
 
 ```r
-# ppv(prev) gives the chance of disease after a positive result, at sensitivity
-# and specificity 0.99.
-# Among the people who already tested positive, the chance of disease is 99/1098,
-# so that is the base rate the second test starts from.
-# One line. Press Check when you have it.
+# A new population: 100,000 people, but this disease affects 1 in 20, not 1 in 1,000
+ex_sick <- 5000
+ex_healthy <- 95000
+
+# The test is still right 99% of the time on both sick and healthy people.
+# Compute the true positives (ex_tp) and the false positives (ex_fp),
+# then P(Disease given Positive) = ex_tp / (ex_tp + ex_fp)
+# Three lines. Press Check when you have them.
 ```
-::check {"regex": "ppv\\s*[(]\\s*(99\\s*/\\s*1098|0?\\.09)", "gate": true, "difficulty": "intermediate", "ok": "Right: 0.907. The first positive result carried the chance from 0.001 to 0.090, and the second carries it from 0.090 to 0.907. That holds only if the second test errs independently of the first, which for a repeat of the same test on the same person is a strong assumption.", "no": "Feed the answer from one positive result back in as the base rate for the next one: `ppv(99 / 1098)`, or `ppv(0.0902)`. Wrap it in `round(..., 3)` to read it off cleanly."}
+::check {"regex": "ex_tp\\s*/\\s*[(]\\s*ex_tp\\s*\\+\\s*ex_fp\\s*[)]", "gate": true, "difficulty": "intermediate", "ok": "Right: about 0.839. With 1 in 20 people sick instead of 1 in 1,000, the sick population is much closer in size to the healthy population, so the 950 false alarms no longer swamp the 4,950 real cases the way 999 swamped 99 before.", "no": "Restrict the same way you did earlier: true positives are 99% of the sick people (ex_sick * 0.99), false positives are 1% of the healthy people (ex_healthy * 0.01), then divide the true positives by their sum."}
 ::solution
 ```r
-# Use the chance after the first positive result as the base rate for the second test
-round(ppv(99 / 1098), 3)
-#> [1] 0.907
+# Recompute true positives, false positives, and P(Disease given Positive) for the 1-in-20 case
+ex_tp <- ex_sick * 0.99
+ex_fp <- ex_healthy * 0.01
+ex_tp / (ex_tp + ex_fp)
+#> [1] 0.8389831
 ```
 
-Two positive results in a row are far better evidence than one, and the reason is the base rate again. The second test is run on a group where the disease is 90 times more common than it was in the clinic queue. The 0.907 also takes for granted that the second test errs independently of the first. Run the same test twice on the same person and that is a strong thing to take for granted.
-
-Carrying an answer forward as the base rate for the next piece of evidence is what Bayesian updating means. It is conditioning done twice.
+That is 0.839, far higher than the 0.0902 you got with the rarer disease. The formula never changed: restrict to the positive group, then divide. What changed was the base rate. When the disease is common enough, the sick population is no longer swamped by false alarms from a much larger healthy population.
 
 === step === concept
 ## References
 
-- [Simple tools for understanding risks: from innumeracy to insight](https://doi.org/10.1136/bmj.327.7417.741) - Gigerenzer and Edwards (2003), BMJ 327:741-744. Shows that counts of people, the 100,000 we built, fix the errors that rates alone produce.
-- [Judgment under Uncertainty: Heuristics and Biases](https://doi.org/10.1017/CBO9780511809477) - Kahneman, Slovic and Tversky (1982). Eddy's chapter on probabilistic reasoning in clinical medicine is where most physicians were found reading P(positive given disease) as P(disease given positive).
-- [Introduction to Probability, Second Edition](https://doi.org/10.1201/9780429428357) - Blitzstein and Hwang (2019). Chapter 2 defines conditional probability exactly as it is defined here, and calls the swap of P(A given B) for P(B given A) the prosecutor's fallacy.
-- [Uses and abuses of screening tests](https://doi.org/10.1016/S0140-6736(02)07948-5) - Grimes and Schulz (2002), The Lancet 359:881-884. Sensitivity, specificity and predictive value as clinicians are asked to use them.
+- [How to Improve Bayesian Reasoning Without Instruction: Frequency Formats](https://doi.org/10.1037/0033-295X.102.4.684) - Gigerenzer and Hoffrage (1995), Psychological Review 102(4), 684-704.
+- [All of Statistics: A Concise Course in Statistical Inference](https://link.springer.com/book/10.1007/978-0-387-21736-9) - Wasserman (2004), Springer Texts in Statistics, Chapter 1 on probability.
+- [Statistical Inference](https://search.worldcat.org/title/statistical-inference/oclc/46538638) - Casella and Berger (2002), 2nd edition, Duxbury Press, Chapter 1.
+- [Conditional probability and independence](https://www.khanacademy.org/math/statistics-probability/probability-library/conditional-probability-independence/a/check-independence-conditional-probability) - Khan Academy, Statistics and Probability course.
+- [Ten Great Ideas About Chance](https://press.princeton.edu/books/hardcover/9780691174167/ten-great-ideas-about-chance) - Diaconis and Skyrms (2018), Princeton University Press, Chapter 3.
 
 === step === complete
-## Quick recap
+## What conditional probability gives you
 
-You took one screening question and answered it by counting people, then put the standard names on what you had done.
+You now have a complete method for conditional probability, and it only ever takes three moves.
 
-- Conditioning restricts the group and recounts. None of the four counts changed; only the denominator did.
-- The same four counts answer two different questions: 99/1098 = 0.090 is the chance of disease given a positive result, and 99/100 = 0.99 is the chance of a positive result given the disease.
-- A "99% accurate" claim reports the second one. On its own it says nothing about what a positive result is worth.
-- \(P(A \mid B) = P(A \text{ and } B) / P(B)\) is that counting written down: 0.00099 divided by 0.01098.
-- The base rate decides how far apart the two answers sit. With the same test, the chance after a positive result runs from 0.090 at 1 in 1,000 up to 0.961 at 1 in 5.
+First, define a probability as a count over a total, the way you did for the plain P(Disease) = 0.001. Second, restrict that total to the people who match a known condition, the way you restricted to the 1,098 positive results. Third, divide again inside that smaller group, which is what turned 99 into 0.0902.
 
-So the next time a test result arrives with an accuracy figure attached, you know that figure alone cannot answer the question, and you know which two numbers to ask for.
+The same three moves also explain why direction matters. Restricting to the sick people gave you the test's own accuracy, 0.99. Restricting to the positive people gave you something else entirely, 0.0902. And when restricting changes nothing at all, like it didn't for the two coin flips, that is what independence looks like.
