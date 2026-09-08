@@ -1,11 +1,11 @@
 ---
 title: "Hypothesis testing: the framework, explained"
 slug: "Inference-Mini-5"
-description: "Run one hypothesis test end to end: state H0 and H1, compute the t statistic, read the p-value, decide at a fixed level, and see both ways it goes wrong."
-keywords: "hypothesis testing in R, null hypothesis, alternative hypothesis, test statistic, p-value, significance level, Type I error, Type II error, statistical power"
+description: "Learn hypothesis testing as one framework: state H0 and H1, compute a test statistic, read a p-value under the null, and tell Type I from Type II error."
+keywords: "hypothesis testing, null hypothesis, alternative hypothesis, p-value, test statistic, significance level, Type I error, Type II error, t-test in R"
 mathjax: true
 webr: true
-date: "2026-09-05"
+date: "2026-09-09"
 post_type: "LESSON"
 course_id: "inference-from-zero"
 course_title: "Inference from Zero"
@@ -16,418 +16,252 @@ course_prev: "Inference-Mini-4"
 course_next: ""
 curriculum_id: "0.0.12"
 lesson_access: "windowed"
-catalog_blurb: "The five steps behind every statistical test, and its two error types."
+catalog_blurb: "How to test whether a gap in your data is real or just noise."
 ---
 
 === step === cover
 ## Hypothesis testing: the framework, explained
 
-Today we will run one hypothesis test from start to finish, and see exactly what each part of it decides.
+Today, let's understand hypothesis testing as one complete framework, the same five decisions repeated underneath every statistical test you run in R.
 
-A coffee plant packs ground coffee on a filling line, and every bag it fills has 250 g printed on the side. The line is set to put 250 g in. On Tuesday morning quality control pulls 30 bags off that line and weighs them one at a time, and those 30 bags average 247.6 g.
+Take R's built in `mtcars` dataset, 32 cars road tested for a 1974 Motor Trend article. Split them by engine size: 11 four-cylinder cars and 7 six-cylinder cars. The four-cylinder cars average 26.66 miles per gallon. The six-cylinder cars average 19.74. That's a 6.92 mpg gap.
 
-That is 2.4 g under the label. So has the line drifted light, or did 30 bags simply come out on the low side this morning?
+Is that gap a real difference between the two engine types, or could it just be the ordinary wobble you'd expect from looking at 18 particular cars rather than every car ever built? Hypothesis testing is the procedure that turns a question like that into a yes or no answer, with a known chance of getting it wrong.
 
-Staring harder at 247.6 will not tell you. Single bags off this line ran anywhere from 233.6 g to 255.2 g, so the average of any thirty of them was never going to land exactly on 250. What decides the question is a procedure, and the procedure is the same five steps every time.
+The chart below plots mpg for both groups as a boxplot, so you can see the gap for yourself before any test runs.
 
-::widget process-flow {"steps":[{"title":"State the two hypotheses","sub":"the line fills to 250 g, or it does not"},{"title":"Compute the test statistic","sub":"the 2.4 g shortfall in units of sampling variation"},{"title":"Get the p-value","sub":"how often a correct line gives a sample this far out"},{"title":"Compare it with the significance level","sub":"the bar you fixed before weighing anything"},{"title":"Report the decision","sub":"the decision, the average fill and its interval"}]}
+::widget chart-plotter {"data": [{"x": "4-cyl", "y": 22.8}, {"x": "4-cyl", "y": 24.4}, {"x": "4-cyl", "y": 22.8}, {"x": "4-cyl", "y": 32.4}, {"x": "4-cyl", "y": 30.4}, {"x": "4-cyl", "y": 33.9}, {"x": "4-cyl", "y": 21.5}, {"x": "4-cyl", "y": 27.3}, {"x": "4-cyl", "y": 26.0}, {"x": "4-cyl", "y": 30.4}, {"x": "4-cyl", "y": 21.4}, {"x": "6-cyl", "y": 21.0}, {"x": "6-cyl", "y": 21.0}, {"x": "6-cyl", "y": 21.4}, {"x": "6-cyl", "y": 18.1}, {"x": "6-cyl", "y": 19.2}, {"x": "6-cyl", "y": 17.8}, {"x": "6-cyl", "y": 19.7}], "geoms": ["boxplot"], "x": "cylinders", "y": "mpg"}
 
-That is the whole framework. Everything from here is running those five on the 30 bags, one at a time, and finding out what each one is really deciding.
-
-=== step === concept
-## The 30 bags and the 2.4 gram shortfall
-
-Let's start with the morning's weights, because every number from here comes out of these 30 values.
-
-Each value below is one bag's fill weight in grams, straight off the scale.
-
-```r
-# Weigh 30 bags off the line and measure the shortfall against the 250 g label
-bags <- c(245.2, 252.9, 245.2, 252.4, 249.3, 245.6, 246.0, 247.3,
-          254.5, 243.2, 254.0, 246.3, 241.9, 246.0, 255.1, 255.2,
-          249.2, 249.1, 244.9, 250.4, 252.7, 251.7, 233.6, 244.2,
-          251.2, 241.9, 247.1, 242.9, 240.2, 248.8)
-
-round(c(bags = length(bags), mean = mean(bags), sd = sd(bags),
-        lightest = min(bags), heaviest = max(bags),
-        shortfall = mean(bags) - 250), 3)
-#>      bags      mean        sd  lightest  heaviest shortfall
-#>    30.000   247.600     5.001   233.600   255.200    -2.400
-```
-
-The mean of the 30 weights is 247.6 g, so the shortfall against the label is 2.4 g. That single number is what the whole question is about.
-
-Now look at the standard deviation, 5.001 g. That is how far one bag's weight typically sits from the average, and it is about twice the size of the shortfall we are trying to judge.
-
-Plotting the 30 weights shows the same thing.
-
-```r
-# Plot the 30 fill weights against the 250 g the label promises
-hist(bags, breaks = 12, col = "grey85", border = "white",
-     main = "30 bags off the packing line",
-     xlab = "Fill weight in grams")
-abline(v = 250, col = "red", lwd = 3)
-```
-
-The red line is 250 g. More bags sit to the left of it than to the right, which is where the 2.4 g shortfall comes from, but plenty of bags sit to the right, one bag reached 255.2 g and another came in at 233.6 g.
-
-So the sample mean on its own settles nothing. A line filling perfectly to 250 g would also hand you a 30-bag average that misses 250 by something. The real question is whether it would miss by this much.
+Look at how little the two boxes overlap. A test statistic and a p-value are about to put an exact number on how surprising a gap that size really is.
 
 === step === concept
-## The null and alternative hypotheses, written before the test
-::prose-only the two claims are one line of notation each, written down before anything is computed
+## The null hypothesis: the claim that needs evidence to overturn
 
-A test begins with two claims, and both are written down before any computation happens.
+Before computing anything, hypothesis testing asks you to write down two competing claims, and to write them down before you look at how the test turns out.
 
-The first is the **null hypothesis**, written \(H_0\) and said out loud as "H nought". It is the claim that nothing is going on: the line's mean fill is 250 g, exactly what it is set to.
+The first is the **null hypothesis**, written H0. It is the boring, default claim: nothing is going on. For our two groups, H0 says the four-cylinder and six-cylinder cars share one mean mpg in the population these 18 cars came from: mu(4-cyl) = mu(6-cyl).
 
-The second is the **alternative hypothesis**, written \(H_1\). It is what you are left with if the data pushes you off \(H_0\), and here it is that the line's mean fill is not 250 g.
+The second is the **alternative hypothesis**, written H1. It is the claim the data would have to convince you of instead: mu(4-cyl) does not equal mu(6-cyl), the two engine types genuinely differ in mean mpg.
 
-\[H_0: \mu = 250 \qquad H_1: \mu \neq 250\]
+::prose-only the courtroom analogy is verbal here; the next step supplies the numeric visual for the null distribution
 
-The symbol \(\mu\) is the mean fill of the line itself, across every bag it would ever fill. It is not the average of the 30 bags we weighed. Those 30 bags are the evidence, their average of 247.6 g is the **sample mean**, and the sample mean is our estimate of \(\mu\).
+Why does H0 get to be the default? Picture a courtroom. Nobody has to argue that the defendant is innocent, that's simply where the trial starts. The prosecution is the one with work to do, building a case out of evidence solid enough to flip that starting assumption to guilty.
 
-Notice that \(H_1\) points both ways. The claim is that \(\mu\) is not 250, which covers a line running light and a line running heavy, because the plant wants to know either way. A test written like this is called **two-sided**.
-
-Now, why is \(H_0\) the one we assume rather than the one we set out to prove? Because it is the only one of the two that is fully specified. "The mean fill is exactly 250 g" tells you enough to work out what samples of 30 bags off such a line look like.
-
-"The mean fill is not 250 g" tells you almost nothing. It could be 249.9 g or it could be 210 g, and you cannot compute anything from a claim that loose. So everything from here is computed inside the world where \(H_0\) is true, and that is the only reason there is anything to compute at all.
-
-Both claims go on paper before the test runs. A hypothesis picked after looking at the numbers is no longer being tested by those numbers.
+H0 works the same way. It stands by default, and only the data can overturn it. That is why H0 needs no justification to start with, while H1 does, it is what the data has to show.
 
 === step === concept
-## The test statistic: the shortfall measured in standard errors
+## Compressing a gap into one number: the test statistic
 
-The shortfall is 2.4 g. Whether that is a lot depends on how much a 30-bag average moves around in the first place, so the next job is to measure the shortfall in units of that movement.
+You now have two claims and one gap to judge between them, 6.92 mpg. But a raw gap in mpg can't be compared straight against a cutoff, because it doesn't say whether 6.92 is a lot or a little, relative to how much numbers like this naturally wobble from sample to sample.
 
-That unit has a name. The **standard error** is the standard deviation of the sample mean, that is, how far a 30-bag average typically lands from the line's true mean. You get it by dividing the sample standard deviation by the square root of the sample size.
+A **test statistic** fixes that. It rescales the gap into standard-error units, so a value of 2 means "this gap is twice the size of the typical noise for a sample this size," no matter what units the raw data are in. For two independent groups:
 
-The **test statistic** is then the shortfall divided by the standard error, and for this kind of question it is called t.
+$$t = \frac{\bar{x}_1 - \bar{x}_2}{SE}$$
 
-\[t = \frac{\bar{x} - \mu_0}{s / \sqrt{n}}\]
+Here \(\bar{x}_1\) and \(\bar{x}_2\) are the two group means, and SE is the standard error of that difference, how much the gap between two sample means would typically wobble if you drew the samples again.
 
-Here \(\bar{x}\) is the sample mean of 247.6, \(\mu_0\) is the 250 that \(H_0\) claims, \(s\) is the sample standard deviation of 5.001, and \(n\) is 30.
-
-```r
-# Work out the standard error and the test statistic by hand
-n  <- length(bags)
-se <- sd(bags) / sqrt(n)
-se
-#> [1] 0.9129842
-
-t_hand <- (mean(bags) - 250) / se
-t_hand
-#> [1] -2.628742
-```
-
-One standard error is 0.913 g. So a 30-bag average off a correctly set line usually lands within about a gram of 250, which is far tighter than the 5.001 g spread of single bags. Averaging thirty of them is what shrinks the spread that far.
-
-And our sample mean sits 2.6287 standard errors below 250. That is what t says, and it is all it says: the distance from \(H_0\), counted in units of ordinary sampling variation.
-
-R does the same arithmetic in one call.
+Let's compute it by hand for our two mpg groups, then confirm it against R's own `t.test()`.
 
 ```r
-# Check the hand computation against the one-sample t-test
-bag_test <- t.test(bags, mu = 250)
-bag_test$statistic
-#>         t
-#> -2.628742
+# Compute the Welch t-statistic by hand from the two mpg groups
+cars_4_6 <- subset(mtcars, cyl %in% c(4, 6))
+mpg_4 <- cars_4_6$mpg[cars_4_6$cyl == 4]
+mpg_6 <- cars_4_6$mpg[cars_4_6$cyl == 6]
+
+se_gap <- sqrt(sd(mpg_4)^2 / length(mpg_4) + sd(mpg_6)^2 / length(mpg_6))
+t_manual <- (mean(mpg_4) - mean(mpg_6)) / se_gap
+t_manual
+#> [1] 4.719059
+
+# Confirm the manual t against R's own two-sample t-test
+t_obj <- t.test(mpg ~ cyl, data = cars_4_6)
+t_obj
+#> 
+#> 	Welch Two Sample t-test
+#> 
+#> data:  mpg by cyl
+#> t = 4.7191, df = 12.956, p-value = 0.0004048
+#> alternative hypothesis: true difference in means between group 4 and group 6 is not equal to 0
+#> 95 percent confidence interval:
+#>   3.751376 10.090182
+#> sample estimates:
+#> mean in group 4 mean in group 6 
+#>        26.66364        19.74286 
 ```
 
-Read `t.test(bags, mu = 250)` as "test these 30 weights against a claimed mean of 250". The statistic it reports is the same -2.628742 we worked out by hand, digit for digit.
+The two numbers agree to six decimal places: 4.719059. Our 6.92 mpg gap is worth about 4.72 standard errors, once you account for how much these two group means would naturally wobble from sample to sample.
 
-=== step === concept
-## The null distribution, and where the p-value comes from
-
-A distance of 2.63 standard errors means nothing until you know what distances a correctly set line produces on its own. So let's produce them.
-
-\(H_0\) is specified enough to simulate: a line whose mean fill is 250 g, with the same 5 g spread between bags. Draw 10,000 samples of 30 bags each from that line, and compute t for every one of them exactly as we just did by hand.
-
-```r
-# Simulate 10,000 samples of 30 bags from a line that really does fill to 250 g
-set.seed(11)
-null_t <- replicate(10000, {
-  one_sample <- rnorm(30, mean = 250, sd = 5)
-  (mean(one_sample) - 250) / (sd(one_sample) / sqrt(30))
-})
-
-hist(null_t, breaks = 40, col = "grey85", border = "white",
-     main = "10,000 samples from a line set to 250 g",
-     xlab = "t: standard errors between the sample mean and 250")
-abline(v = t_hand, col = "red", lwd = 3)
-```
-
-`rnorm(30, mean = 250, sd = 5)` draws one morning's 30 bags off that line, `replicate()` repeats that whole draw 10,000 times and keeps the t it produced each time, and `set.seed(11)` fixes the draws so your numbers match mine.
-
-The grey pile is the **null distribution**: every value of t a correctly set line produces, and how often it produces each one. It centres on 0, because a correct line usually gives an average near 250, and it thins out past 3 in both directions, because sometimes thirty bags land oddly.
-
-The red line is our sample's t, at -2.63. It is inside the pile rather than off the chart, but it sits out where the bars are short.
-
-How short? Count them.
-
-```r
-# Count the simulated samples at least as far from zero as the real one
-sum(abs(null_t) >= abs(t_hand))
-#> [1] 147
-mean(abs(null_t) >= abs(t_hand))
-#> [1] 0.0147
-```
-
-147 of the 10,000 samples came out at least as far from 250 as ours did, which is a share of 0.0147. `abs()` counts both directions, because \(H_1\) said "not 250", so a 2.63 overfill would have been just as surprising as a 2.63 shortfall.
-
-That share is the **p-value**.
-
-[KEY INSIGHT]
-A p-value is the share of samples, drawn from a world where the null hypothesis is true, that sit at least as far from it as the one you got. It says nothing about how likely the null hypothesis is. It says how ordinary or unusual your data would be if the null hypothesis held.
-
-You do not have to simulate to get it. The t distribution describes that same pile exactly, given the **degrees of freedom**, which is the sample size minus 1, or 29 here.
-
-```r
-# Read the exact p-value off the t distribution instead of the simulation
-bag_test$p.value
-#> [1] 0.01356353
-```
-
-The exact p-value is 0.01356, against our simulated 0.0147. Both are answering the identical question, and neither is more correct than the other. Simulating ten thousand samples makes the answer visible, and the t distribution makes it exact.
+R's `t.test()` also reports 12.956 degrees of freedom, a Welch-specific adjustment used because it doesn't assume the two groups spread out equally. That number, and the p-value beside it, say exactly how surprising this gap would be if H0 were true.
 
 === step === widget
-## How small does the p-value have to be?
+## How surprising is that number, if there really is no difference?
 
-Below is the same pile, smoothed into a curve. The total area under it is 1, and the shaded area in the tails is the p-value: the share of samples at least that far from 0, counted on both sides.
+H0 says the two groups share one mean mpg. If that's true, the test statistic you compute from 18 particular cars won't always land on exactly 4.72. It follows a known curve, the **null distribution**, the spread of t values that sampling noise alone would produce if H0 held.
 
-::widget null-distribution {"tails": 2, "start": 2.63, "label": "standard errors between the sample mean and 250"}
+The **p-value** is the area under that curve at least as far from zero as your own statistic, added from both tails since the gap could have gone either direction. It answers one exact question: if H0 were true, how often would sampling noise alone produce a statistic this extreme or more?
 
-The marker opens at 2.65, the nearest notch to our 2.63, and the readout under the curve gives a p-value of 0.008.
+The chart below draws that null curve and shades the tail beyond wherever the slider is set.
 
-That curve is the standard normal, which is the large-sample version of the null distribution. The exact reference for 30 bags is the t distribution on 29 degrees of freedom, whose tails are a little heavier, and that is why our exact p-value came out at 0.014 rather than 0.008. What the shaded area does as you move the marker is the same on both.
+::widget null-distribution {"tails": 2, "max": 5, "start": 4.72, "label": "t statistic"}
 
-So move it. Push the marker out and the shaded slice shrinks, because a sample that far from 250 is one a correct line produces less often. Pull it back in to 1.95 and the p-value climbs to 0.051, and the line under the curve flips to "fail to reject H0".
+Push the slider out toward 4.72, close to where our own statistic sits, and the shaded sliver nearly disappears. Pull it back toward zero and the sliver swells into a much bigger share of the curve, because an ordinary, unremarkable gap should be common under H0, not rare.
 
-Something changed there, and it was not the data. It was a threshold.
+R already gave us this exact area for our real t, on the same 12.956 degrees of freedom that `t.test()` reported: p = 0.0004048. If four-cylinder and six-cylinder cars truly shared one mean mpg, a gap this large or larger would appear in only about 4 of every 10,000 samples of 18 cars like ours.
 
-That threshold is the **significance level**, written \(\alpha\). It is the p-value below which you agree, in advance, to reject \(H_0\). The convention is 0.05, and it is only a convention, but the part that matters is that you fix it before you run the test. A threshold picked after seeing the p-value is not a threshold at all.
+[KEY INSIGHT]
+A p-value is computed entirely inside the H0 world. It never measures the probability that H0 is true, only how ordinary your data would look if H0 were.
 
-Every level has a matching cutoff on the t statistic, so you can also make the decision without looking at the p-value. The test is two-sided, so 0.05 leaves 0.025 in each tail and its cutoff sits at the 0.975 point of the t distribution, while 0.01 leaves 0.005 and sits at 0.995. `qt()` looks both points up.
+=== step === quiz
+## Quick check: reading a p-value correctly
+
+Our test came back p = 0.0004048. Which sentence reads that number correctly?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
+- There is only a 0.04% chance that H0, equal mean mpg, is actually true. ::no
+- The gap itself, 6.92 mpg, is what 0.0004048 measures. ::no A p-value is not the size of the effect and it is not the probability that H0 is true. It is the chance, computed inside the H0 world, of seeing a gap this large or larger by sampling noise alone. The gap's size is 6.92 mpg; how ordinary that size would be under H0 is 0.0004048.
+- If H0 were true, a gap this large or larger would show up in roughly 4 of every 10,000 comparisons like this one. ::ok Exactly. It assumes the boring claim first, then reports how ordinary our data would look inside that assumption.
+
+=== step === concept
+## The decision rule: alpha and the reject/fail-to-reject choice
+
+A p-value alone doesn't make a decision. You need one more thing: a cutoff, fixed before you look at the data, that says how rare is rare enough. That cutoff is the **significance level**, written alpha (α), and the common default is 0.05.
+
+The decision rule is short: reject H0 if the p-value is below alpha, otherwise fail to reject it. In the courtroom analogy, alpha is the strength of evidence the jury requires before it convicts, set in advance, not adjusted once the trial is under way.
+
+For our two engine groups, p = 0.0004048 and alpha = 0.05. Since 0.0004048 is well below 0.05, the decision is to reject H0.
+
+Let's turn that comparison into a plain sentence in R, straight from the t-test object.
 
 ```r
-# Compare the test statistic with the cutoffs for the 0.05 and 0.01 levels
-qt(c(0.975, 0.995), df = n - 1)
-#> [1] 2.045230 2.756386
+# Turn the p-value into a plain-English decision at alpha = 0.05
+alpha <- 0.05
+if (t_obj$p.value < alpha) {
+  "Reject H0: the mean mpg gap between 4-cylinder and 6-cylinder cars is unlikely to be due to chance alone."
+} else {
+  "Fail to reject H0: no evidence the mean mpg differs."
+}
+#> [1] "Reject H0: the mean mpg gap between 4-cylinder and 6-cylinder cars is unlikely to be due to chance alone."
 ```
 
-Our t is -2.6287, so its distance from 0 is 2.6287. That clears 2.045, so at \(\alpha\) = 0.05 we reject \(H_0\) and stop the line. It does not clear 2.756, so at \(\alpha\) = 0.01 we fail to reject \(H_0\) and leave the line running.
+That matches what you worked out by hand above. Notice the wording: "reject H0," not "H1 is proven." A hypothesis test never proves anything. It only says the p-value fell below, or didn't fall below, the cutoff you set in advance.
 
-The same 30 bags and the same 247.6 g gave two opposite decisions. The evidence did not move, the bar did.
+=== step === widget
+## How often a true null gets rejected by chance alone
+
+Here's an uncomfortable fact about that alpha = 0.05 cutoff: even when H0 is completely true, this exact decision rule will still reject it sometimes, purely by chance. Let's see how often.
+
+Simulate 1,000 t-tests where H0 truly holds, both samples really do come from a population with mean 0, and count how many still get rejected at alpha = 0.05.
+
+```r
+# Simulate 1000 t-tests where H0 truly holds and count false rejections
+set.seed(42)
+type1_rejects <- replicate(1000, {
+  sample_data <- rnorm(30, mean = 0, sd = 1)
+  t.test(sample_data, mu = 0)$p.value < 0.05
+})
+
+mean(type1_rejects)
+#> [1] 0.056
+```
+
+Out of 1,000 tests run on data where nothing was actually different, 56 of them still came back with p below 0.05, a false rejection. That's 5.6%, close to the 5% you fixed as alpha. This isn't a flaw in the test. It's exactly what alpha means: the long-run rate at which a correct decision rule, applied to a true H0, still rejects it by chance.
+
+The widget below runs a related pure-chance game: a guesser with no skill at all, calling 10 coin flips, counting how often pure luck alone reaches 9 or more correct out of 10.
+
+::widget luck-simulator {}
+
+Press "Run 1,000" a couple of times and watch the win rate settle in. With a coin that's right half the time, reaching 9 or more out of 10 by pure luck happens only about 1% of the long run, rare, but not impossible. That's the same shape of fact as alpha: even when nothing special is going on, an unusually extreme result still turns up its own small, knowable share of the time. Alpha is that share, fixed by you in advance, for the test you're actually running.
+
+=== step === concept
+## The two ways a decision can be wrong: Type I and Type II error
+
+Rejecting H0 by chance, like the 56 false alarms from those 1,000 simulated tests, has a name: a **Type I error**, rejecting a true H0. Its long-run rate is exactly alpha, by construction, which is why it landed near 5.6% and not some other number.
+
+There's a second, opposite way to be wrong. A **Type II error** is failing to reject H0 when H1 is actually true, missing a real effect. Its rate is called **beta** (β).
+
+In the courtroom analogy, a Type I error convicts an innocent defendant. A Type II error lets a guilty one go free. No single alpha makes both mistakes disappear at once.
+
+Let's measure beta directly. Simulate 1,000 t-tests where H1 is actually true this time, the real population mean is 0.5, not 0, and count how many still fail to reject H0.
+
+```r
+# Simulate 1000 t-tests where H0 is false (true mean 0.5) and count rejections
+set.seed(42)
+power_rejects <- replicate(1000, {
+  sample_data <- rnorm(30, mean = 0.5, sd = 1)
+  t.test(sample_data, mu = 0)$p.value < 0.05
+})
+
+mean(power_rejects)
+#> [1] 0.738
+
+# Type II error rate: the share that still failed to reject a false H0
+1 - mean(power_rejects)
+#> [1] 0.262
+```
+
+738 of the 1,000 tests correctly rejected H0 here, catching a real effect. That fraction, 73.8%, is called the test's **power**, the chance of catching a real effect when one exists. The other 262 tests, 26.2%, missed it. Those are the Type II errors: beta = 0.262, for this particular effect size and sample size of 30.
 
 [NOTE]
-"Fail to reject \(H_0\)" is not the same as "\(H_0\) is true". It means this sample did not carry enough evidence to rule out 250 g at the level you set. The line can still be light.
-
-=== step === quiz
-## Quick check: what p = 0.014 says about the packing line
-
-The 30 bags came back 2.4 g light with p = 0.014. Which sentence reads that number correctly?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- There is a 1.4% probability that the line is set correctly. ::no
-- There is a 98.6% probability that the line is running light. ::no
-- If the line really did fill to 250 g on average, a 30-bag sample would land at least 2.4 g away about 1.4% of the time. ::ok Exactly. The p-value is computed inside the world where H0 holds, so it reports how ordinary our data would be if the line were correct, never how likely the line is to be correct.
-- The line is running about 1.4% light. ::no Three of these four put the probability on the line itself, or turn the p-value into the size of the shortfall. A p-value only ever runs the other way: assume H0, then report how often data like ours turns up. The shortfall here is 2.4 g, and 0.014 is how rare a shortfall that big would be on a line that was set correctly.
+Push alpha down to catch fewer false alarms, and beta goes up, because the cutoff for rejecting H0 sits further out, even for a real effect. Push alpha up, and beta comes down, but more true nulls get rejected by accident. Picking alpha is a real decision about which mistake costs more, not a formality.
 
 === step === concept
-## Type I error: how often a correctly set line is rejected
+## The five-step structure behind every hypothesis test in R
 
-At \(\alpha\) = 0.05 we rejected \(H_0\) and stopped the line. That decision can be wrong, and it can be wrong in two different directions. Here is the first.
+Every test, whether it's a t-test, a proportion test, or a chi-square test, follows the same five steps in the same order.
 
-Suppose the line is set perfectly and does fill to 250 g on average. Run the same test on 2,000 mornings of 30 bags each, and count how often it tells the plant to stop a line that was fine all along.
+The diagram below lays out that sequence.
 
-```r
-# Run 2,000 tests on samples from a line that genuinely fills to 250 g
-set.seed(5)
-false_alarms <- replicate(2000, {
-  correct_line <- rnorm(30, mean = 250, sd = 5)
-  t.test(correct_line, mu = 250)$p.value
-})
+::widget process-flow {"steps": [{"title": "State H0 and H1", "sub": "write the default claim and its challenger before looking at outcomes"}, {"title": "Collect the data", "sub": "gather the sample the test will run on"}, {"title": "Compute a test statistic", "sub": "express the gap in standard-error units"}, {"title": "Compute a p-value", "sub": "read the tail area under the null distribution"}, {"title": "Compare p to alpha and decide", "sub": "reject H0 if p is below alpha, otherwise fail to reject"}]}
 
-sum(false_alarms < 0.05)
-#> [1] 94
-mean(false_alarms < 0.05)
-#> [1] 0.047
-```
+State H0 and H1 before looking at outcomes. Collect the data. Compute a test statistic that expresses the gap in standard-error units. Compute a p-value from that statistic's position on the null distribution. Compare the p-value to alpha and decide.
 
-94 of the 2,000 tests came in under 0.05 and rejected \(H_0\). But \(H_0\) was true in all 2,000 runs, by construction, so all 94 of those rejections are wrong. Each one is a **Type I error**: rejecting \(H_0\) when \(H_0\) is true.
-
-The rate is 0.047. That is 0.05 handed back to us, and it is no coincidence.
-
-[KEY INSIGHT]
-The significance level is the Type I error rate. Setting \(\alpha\) = 0.05 is agreeing, in advance, to stop a correctly set line about 5 times in every 100 tests. Move it to 0.01 and false alarms drop to about 1 in 100, which is what the stricter cutoff of 2.756 was doing.
-
-There are four ways the decision and the truth can line up, and two of them are mistakes.
-
-| | The line really fills to 250 g | The line really is off 250 g |
-|---|---|---|
-| Test rejects H0 | Type I error, a false alarm | Correct decision |
-| Test does not reject H0 | Correct decision | Type II error, a miss |
-
-Those 94 rejections sit in the top left cell. The bottom right cell is the other mistake, and it is the one nobody stumbles into by accident, because nothing in the output flags it.
-
-=== step === widget
-## Type II error and power: how often a light line passes the test
-
-Now the other direction. This time the line really is light, filling to 247.6 g on average, off by exactly the 2.4 g we measured. Run 2,000 tests on that line and count how often the test catches it.
-
-```r
-# Run 2,000 tests on a line that really is 2.4 g light
-set.seed(6)
-light_line <- replicate(2000, {
-  one_sample <- rnorm(30, mean = 247.6, sd = 5)
-  t.test(one_sample, mu = 250)$p.value
-})
-
-sum(light_line < 0.05)
-#> [1] 1432
-mean(light_line < 0.05)
-#> [1] 0.716
-```
-
-1,432 of the 2,000 tests rejected \(H_0\) and caught the light line. The other 568 did not, and every one of those is a **Type II error**: failing to reject \(H_0\) when \(H_0\) is false.
-
-The catch rate, 0.716, has a name of its own. It is the **power** of the test: the probability of rejecting \(H_0\) when \(H_0\) really is false. Power and the Type II error rate add to 1, so a power of 0.716 means a genuine 2.4 g shortfall slips past this test about 28% of the time.
-
-Both figures are available without simulating anything.
-
-```r
-# Ask for the power of 30 bags, and for the sample size 80 percent power needs
-power.t.test(n = 30, delta = 2.4, sd = 5, sig.level = 0.05, type = "one.sample")$power
-#> [1] 0.7194598
-power.t.test(delta = 2.4, sd = 5, sig.level = 0.05, power = 0.80, type = "one.sample")$n
-#> [1] 36.03426
-```
-
-`delta` is the shortfall you want to be able to catch and `sd` is the spread between bags. With 30 bags the power is 0.719, which matches the 0.716 we simulated. To reach the usual target of 0.80, the calculation puts the sample at 36.03 bags, which in practice means 37.
-
-Power depends on three things: the size of the effect you are trying to catch, the number of observations, and the significance level. The curve below fixes the level, steps the effect, and moves the sample size.
-
-::widget power-curve
-
-That curve carries its own numbers rather than the bag weights. It plots power against sample size for a comparison of two groups, at three effect sizes measured in standard deviations. Our case in those units is 2.4 / 5 = 0.48, which is its medium setting, and the readout there gives 63 per group. That is more than our 37 because comparing two groups costs more observations than comparing one group against a fixed number.
-
-What carries over is the shape of the curve. Power climbs steeply while the sample is small and then flattens near the top, so the first extra bags add far more power than the last ones, and halving the effect you want to catch roughly quadruples the sample you need.
-
-[WARNING]
-A test that does not reject \(H_0\) is not evidence that \(H_0\) is true. With 30 bags this test misses a real 2.4 g shortfall 28% of the time, so "we found nothing" and "there is nothing" are different statements. Report the power next to the decision and the difference is visible to whoever reads it.
-
-=== step === concept
-## One framework, three tests: t.test, binom.test, prop.test
-
-The five steps have not changed once so far, and they do not change when the question does. Two more questions from the same plant make that concrete.
-
-The filler jams sometimes, and the plant's target is a jam rate of 2%. Over 500 bags there were 18 jams. That is a count out of a total rather than a set of measurements, and the test that matches that shape is `binom.test()`.
-
-The plant also runs a day shift and a night shift. Of 200 bags checked on days, 12 were underweight, against 25 of the 200 checked on nights. Two counts out of two totals, which is `prop.test()`.
-
-```r
-# Run the same five steps on two more questions from the same plant
-jam_test   <- binom.test(18, 500, p = 0.02)
-shift_test <- prop.test(c(12, 25), c(200, 200))
-
-c(fill = bag_test$p.value, jam = jam_test$p.value, shift = shift_test$p.value)
-#>       fill        jam      shift
-#> 0.01356353 0.01598222 0.03836906
-```
-
-Read `binom.test(18, 500, p = 0.02)` as "18 jams in 500 bags, against a claimed rate of 0.02", and `prop.test(c(12, 25), c(200, 200))` as "12 out of 200 against 25 out of 200". Each one carries its own \(H_0\): the jam rate is 0.02, and the two shifts produce underweight bags at the same rate.
-
-All three p-values sit under 0.05. At that level the plant stops the filling line, accepts that the jam rate is above target, and accepts that the two shifts differ.
-
-Here are the shapes of data you meet most often, and the function each one calls for.
-
-| What you measured | The question | R function |
-|---|---|---|
-| One numeric sample | Is the mean a fixed value? | `t.test(x, mu = ...)` |
-| Two numeric samples | Do the two means differ? | `t.test(x ~ group)` |
-| One count out of a total | Is the rate a fixed value? | `binom.test(x, n, p = ...)` |
-| Two counts out of two totals | Do the two rates differ? | `prop.test(c(x1, x2), c(n1, n2))` |
-| Two categorical variables | Are the two related? | `chisq.test(table(a, b))` |
-
-The shape of the data changes and the name of the function changes with it. What sits underneath is identical every time.
-
-The results line up the same way too. Each object carries the same named pieces: the test statistic, the p-value, the estimate and a confidence interval, whichever test produced it.
-
-```r
-# Pull the interval out of two different result objects
-round(as.numeric(bag_test$conf.int), 2)
-#> [1] 245.73 249.47
-round(as.numeric(jam_test$conf.int), 4)
-#> [1] 0.0215 0.0563
-```
-
-The **confidence interval** is the range of values for the quantity under test that this sample does not rule out at the 0.05 level. For the line's mean fill it runs from 245.73 g to 249.47 g, and 250 sits outside it, which is the same rejection read from the other side. For the jam rate it runs from 0.0215 to 0.0563, entirely above the 2% target.
-
-[TIP]
-Report the estimate and the interval first, and the p-value last. The p-value says whether \(H_0\) is ruled out. The interval says what the number might actually be, and that is what the plant needs before it can decide how far to adjust the filler.
+That's why every test object R returns, from `t.test()` to `prop.test()` to `chisq.test()` to `wilcox.test()`, carries the same two fields, `$statistic` and `$p.value`. Only the formula for the statistic and the shape of its null distribution change from test to test. The five-step structure around it stays exactly the same.
 
 === step === quiz
-## Quick check: reading a test that comes back at p = 0.21
+## Quick check: which error is this?
 
-The plant weighs 30 bags off a second filling line and runs the same test against 250 g. This one comes back at p = 0.21. What has it established?
+A t-test rejects H0. But unknown to the analyst running it, the two population means really are equal. What kind of mistake is this?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- The second line is set correctly. ::no
-- There is a 21% probability that the second line fills to 250 g on average. ::no
-- No evidence at this sample size that the second line is off 250 g, which is not the same as evidence that it is fine: a real 2.4 g shortfall would slip past about 28% of the time. ::ok Yes. A large p-value is a failure to rule out H0, not a confirmation of it, and 30 bags miss a genuine 2.4 g shortfall more than a quarter of the time.
-- The second line is off 250 g, but by too little to matter. ::no A p-value never puts a probability on the line, and it never measures the size of anything. p = 0.21 means a correctly set line would produce a sample this far out about 21% of the time, which is ordinary, so nothing has been ruled out. With power of 0.716 against a 2.4 g shortfall, this result is also perfectly consistent with a line that really is light.
+- A Type II error, since a false H0 was wrongly kept. ::no
+- Not an error. The test behaved exactly as it should. ::no Even a correctly applied decision rule can still reject a true H0. The rule guarantees a false-positive rate of alpha, not zero false positives. Here H0 was true and got rejected anyway, that is a Type I error by definition, not a sign anything went wrong with the test.
+- A Type I error, since a true H0 was wrongly rejected. ::ok Right. H0 was actually true here, and the test rejected it anyway, exactly the mistake alpha measures the rate of.
 
 === step === tryit
-## Your turn: decide all three tests at the 0.01 level
+## Your turn: run the framework on a new comparison
 
-The plant's engineering manager will not stop anything on evidence weaker than 0.01. All three results are still in memory as `bag_test`, `jam_test` and `shift_test`, so decide each of them again at that stricter level, then find how many bags 80 percent power would need there.
+`mtcars` also records transmission type, `am`, 0 for automatic and 1 for manual. Run the same five-step framework on a new question: does mean mpg differ between automatic and manual cars?
 
 ```r
-# bag_test, jam_test and shift_test hold the three results already computed.
-# Compare the p-value in each one against 0.01.
-# Then ask power.t.test how many bags 80 percent power needs at that level,
-# for the same 2.4 g shortfall and the same 5 g spread between bags.
-# Two lines. Press Check when you have them.
+# Your turn: run the framework on automatic vs manual transmissions
+# H0: ____________________
+# H1: ____________________
+# Write two lines: run the t-test, then compare its p-value to alpha = 0.05
 ```
-::check {"regex": "sig\\.level\\s*=\\s*0?\\.01", "gate": true, "difficulty": "intermediate", "ok": "Right: 0.0136, 0.0160 and 0.0384, and not one of them clears 0.01, though all three cleared 0.05. And 80 percent power at 0.01 needs 54.04 bags, so 55 of them, against the 37 that 0.05 needed. A stricter level costs you sample size.", "no": "Compare the three stored p-values against the stricter bar first, then rerun the same power calculation with sig.level = 0.01 in place of 0.05."}
+::check {"regex": "t[.]test[(]mpg\\s*~\\s*am[\\s\\S]*0[.]05", "gate": true, "difficulty": "intermediate", "ok": "p is well under 0.05, so H0 is rejected: automatic and manual cars have different mean mpg in this data. That is a decision at your chosen alpha, not proof of exactly how big the true gap is.", "no": "Two lines: t.test(mpg ~ am, data = mtcars) to get the test object, then compare its $p.value to 0.05."}
 ::solution
 ```r
-# Decide all three tests at the 0.01 level, then size the sample it would need
-c(fill = bag_test$p.value, jam = jam_test$p.value, shift = shift_test$p.value) < 0.01
-#>  fill   jam shift
-#> FALSE FALSE FALSE
+# H0: mean mpg is the same for automatic and manual transmissions
+# H1: mean mpg differs between automatic and manual transmissions
+my_am_test <- t.test(mpg ~ am, data = mtcars)
+my_am_test$p.value
+#> [1] 0.001373638
 
-power.t.test(delta = 2.4, sd = 5, sig.level = 0.01, power = 0.80, type = "one.sample")$n
-#> [1] 54.03664
+my_am_test$p.value < 0.05
+#> [1] TRUE
 ```
-
-Every one of the three decisions flipped, and no data was collected in between. The level you fix beforehand is as much a part of the result as the measurements are.
 
 === step === concept
 ## References
 
-- [On the Problem of the Most Efficient Tests of Statistical Hypotheses](https://doi.org/10.1098/rsta.1933.0009) - Neyman and Pearson (1933), Philosophical Transactions of the Royal Society A 231, 289-337. Where the two error types come from, and the argument for fixing them in advance.
-- [The ASA Statement on p-Values: Context, Process, and Purpose](https://doi.org/10.1080/00031305.2016.1154108) - Wasserstein and Lazar (2016), The American Statistician 70(2), 129-133. Six principles, including the flat statement that a p-value does not measure the probability that the hypothesis is true.
-- [Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations](https://doi.org/10.1007/s10654-016-0149-3) - Greenland and colleagues (2016), European Journal of Epidemiology 31, 337-350. Twenty-five misreadings, corrected one at a time.
-- [The Earth Is Round (p less than .05)](https://doi.org/10.1037/0003-066X.49.12.997) - Cohen (1994), American Psychologist 49(12), 997-1003. On what a p-value cannot tell you, and on why power keeps getting left out of the report.
-- [Student's t-Test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) - R Core Team, the reference page for `t.test()`, including what each field of the result object holds.
+- [stats::t.test, R documentation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
+- Casella, G. & Berger, R. L. (2002). *Statistical Inference* (2nd ed.), Duxbury. Chapter 8, hypothesis testing.
+- [NIST/SEMATECH e-Handbook of Statistical Methods, 7.1, "What are the basic types of hypothesis tests?"](https://www.itl.nist.gov/div898/handbook/)
+- [stats::prop.test and stats::chisq.test, R documentation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html)
 
 === step === complete
-## Quick recap
+## The 6.9 mpg gap, answered with a decision rule
 
-You ran a hypothesis test end to end on 30 bags of coffee, and then watched both ways it can go wrong. Here is the framework again, with the numbers it produced:
+You started with an 11-car group and a 7-car group, a 6.92 mpg gap between them, and one open question: is that gap real, or just noise? You now have the full answer. The test statistic was 4.72. The p-value, the chance of seeing a gap this large under H0, was 0.0004048. Against alpha = 0.05, that rejects H0: four-cylinder and six-cylinder cars differ in mean mpg in this data.
 
-1. **State the two hypotheses.** H0: the line's mean fill is 250 g. H1: it is not.
-2. **Compute the test statistic.** The 2.4 g shortfall over a standard error of 0.913 g gives t = -2.6287.
-3. **Get the p-value.** 147 of 10,000 samples from a correct line landed at least that far out, and the exact figure on 29 degrees of freedom is 0.01356.
-4. **Compare it with the significance level.** Fixed at 0.05 beforehand, 0.01356 clears it and H0 is rejected. Fixed at 0.01, the same number does not.
-5. **Report the decision.** Mean fill 247.6 g, 95% interval 245.73 g to 249.47 g, p = 0.01356, rejected at 0.05.
-
-And the two ways the decision goes wrong:
-
-- A **Type I error** rejects a true H0. On a line that was set correctly, 94 of 2,000 tests did exactly that, a rate of 0.047, which is the significance level we chose.
-- A **Type II error** misses a false H0. Against a line that really was 2.4 g light, 1,432 of 2,000 tests caught it, so the power was 0.716 and more than a quarter of real shortfalls went through undetected.
-
-Change the shape of the data and the function changes with it, and nothing else does. The same framework ran `binom.test()` on a jam rate and `prop.test()` on two shifts, and it will run whatever test your next question turns out to need.
-
-Congratulations, you made it through. Have a great day!
+More than that, you now have the five-step structure behind every hypothesis test you'll run in R: state the hypotheses, collect the data, compute a statistic, compute a p-value, compare it to alpha. Whatever test function you reach for next, that same sequence is what it's doing underneath.
