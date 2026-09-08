@@ -22,21 +22,23 @@ catalog_blurb: "What a 95% confidence interval promises, and the two ways people
 === step === cover
 ## Confidence intervals: what they really mean
 
+Let's understand Confidence intervals very clearly with simple examples. 
+
 Rosa runs a small pizza shop and logs how long every delivery takes, in minutes. She pulls her last 40 orders and finds an average delivery time of 28.1 minutes.
 
-An average alone does not say how sure she can be about it, so she runs a standard calculation on those 40 times. It hands back a range instead of one number: 25.2 to 31.1 minutes, at 95% confidence.
+But an average alone does not say how sure she can be about it, so she runs a standard calculation on those 40 time measurements. It gives back a range instead of one number: 25.2 to 31.1 minutes, at 95% confidence.
 
-The table below is exactly what that calculation produced.
+The table below is exactly what that calculation gave.
 
 ::widget styled-table {"cols": ["metric", "value"], "rows": [["orders in the batch (n)", "40"], ["mean delivery time (minutes)", "28.1"], ["standard deviation (minutes)", "9.2"], ["95% CI lower bound (minutes)", "25.2"], ["95% CI upper bound (minutes)", "31.1"]], "title": "40 delivery times, one batch", "note": "Computed by t.test() at 95% confidence."}
 
-Every number in that table came out of one function call. What the 95% actually means, and what it does not, is what comes next.
+Every number in that table came out of one function call. Today, we will understand what the 95% actually means, what it does not and basically everything about it.
 
 === step === concept
 ## What "95% confident" does not mean
 ::prose-only the correct reading is demonstrated concretely two steps ahead, in the coverage simulation
 
-Look at Rosa's interval again: 25.2 to 31.1 minutes, at 95% confidence. Say that sentence out loud and two interpretations probably come to mind, and both of them are wrong.
+Look at Rosa's interval again: 25.2 to 31.1 minutes, at 95% confidence. There are two very common misinterpretations of this.
 
 The first is: "there is a 95% probability the true average delivery time is between 25.2 and 31.1." That statement describes something called a credible interval, a different calculation built on different assumptions than the one `t.test()` just ran. It is not what a 95% confidence interval means.
 
@@ -50,7 +52,7 @@ So what does the 95% actually refer to? Instead of telling you, here is how to s
 
 Before that experiment makes sense, two numbers need to stay separate in your head: the sample mean and the population mean.
 
-The sample mean is 28.1, the average of the 40 orders Rosa happened to look at. Pull a different 40 orders from the same shop next week and you would get a different sample mean, maybe 27.6 or 28.9. It moves around because which 40 orders you happen to draw is partly down to chance.
+Here, the sample mean is 28.1, the average of the 40 orders Rosa happened to look at. Pull a different 40 orders from the same shop next week and you would get a different sample mean, maybe 27.6 or 28.9. It moves around because which 40 orders you happen to draw is partly down to chance.
 
 The population mean is different. It is the fixed, true average delivery time across every order Rosa's shop will ever make, past, present and future. It does not move around, but Rosa can never observe it directly, she would have to time every delivery she will ever run.
 

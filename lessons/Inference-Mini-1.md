@@ -22,9 +22,13 @@ catalog_blurb: "How to tell whether a surprising result is real skill or just lu
 === step === cover
 ## How statistical inference works, no formulas yet
 
-Today you are going to learn how to tell whether a surprising result is real, or nothing more than luck, and you will do the whole thing without touching a single formula.
+Today you are going to learn how to tell whether an observed result is real, or just pure luck. This will form the intuition behind all the statistics will be doing in future.
 
-Here is the situation. Priya swears her palate never misses: hand her any cola without the label and she will name the brand. You test her properly: 10 cups, each filled in secret with one drink or the other, poured in an order she cannot see. She tastes every cup and calls it. She gets 9 of the 10 right.
+So here's the situation. 
+
+Priya swears her palate never misses: Give her any cola drink without the label and she will guess the brand correctly just by tasting it. We then test her: Give her 10 cups, each filled in secret with one drink or the other, poured in an order she cannot see. She tastes every cup and calls it. And she gets 9 of the 10 right.
+
+So is she really skilled? Appears so right?
 
 9 out of 10 is a lot of correct guesses. But before you believe Priya has a real skill, you have to ask an honest question: could someone with no ability to tell the drinks apart at all land on 9 correct just by luck?
 
@@ -32,18 +36,18 @@ Answering that question, for Priya's tasting test or for any experiment you will
 
 ::widget process-flow {"steps":[{"title":"State the real result","sub":"Priya named 9 of the 10 cups correctly"},{"title":"Imagine pure chance","sub":"picture a guesser with no ability at all, right half the time by luck"},{"title":"Simulate pure chance many times","sub":"build a large crowd of such guessers and see where their scores land"},{"title":"Compare and judge","sub":"check how rare a score of 9 would be inside that crowd"}]}
 
-That is the whole shape of it. Everything from here builds one piece of that picture, using Priya's test as the running example throughout.
+That is all there is to it. Everything from here on builds on this, using Priya's test as the running example throughout.
 
 === step === concept
 ## Skill or luck: simulating one pure-chance guesser
 
-Before you can judge Priya's result, you need to be precise about what you are comparing it against.
+Before you can judge Priya's ability, you need to be precise about what you are comparing and with what.
 
-There are exactly two explanations for 9 correct guesses out of 10. Either Priya can genuinely tell Coke from Pepsi apart, or she has no ability at all and got lucky.
+There are only two possible explanations for 9 correct guesses out of 10. (a) Either Priya can genuinely tell Coke from Pepsi apart, or (b) she has no ability at all and got lucky.
 
-To check which one holds up, you need to know what "no ability at all" would actually look like in this test. If Priya truly cannot tell the two drinks apart, then on each cup she is really just flipping a coin in her head: right half the time, wrong half the time, and one cup's result has no bearing on the next.
+To check which one is true, you need to know what "no ability at all" would actually look like in this test. If Priya truly cannot tell the two drinks apart, then on each cup she is really just flipping a coin in her head: right half the time, wrong half the time, and one cup's result has no influence on the next.
 
-Let's build exactly that: one taster with zero ability, guessing at 10 cups. Press Run.
+Let's build exactly that: one taster with zero ability to identify the drinks with just the taste, guessing the 10 cups. Press Run.
 
 ```r
 # Simulate one pure-luck guesser tasting 10 cups
@@ -56,7 +60,7 @@ sum(guess == truth)
 
 `truth` is which drink actually filled each of the 10 cups, decided at random. `guess` is what our zero-ability taster calls each cup, also decided at random and completely unconnected to `truth`. `sum(guess == truth)` counts how many of the 10 guesses happened to match.
 
-This particular run of pure luck landed on 4 correct out of 10. Run the code again with a different seed and you would get a different number: maybe 6, maybe 2, maybe even 9. A guesser with zero ability does not always score 5. Chance alone spreads results out.
+This particular run of pure luck landed on 4 correct out of 10. Run the code again with a different seed and you would get a different number: maybe 6, maybe 2, maybe even 9. A guesser with zero ability does not always score 5. Chance alone spreads the results out.
 
 === step === concept
 ## Building a crowd of ten thousand pure-luck guessers

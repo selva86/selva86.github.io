@@ -22,7 +22,7 @@ catalog_blurb: "How many patients your study actually needs, worked out with one
 === step === cover
 ## Power analysis: find the sample size you need
 
-Today, let's work out exactly how many patients a study needs before you ever run it.
+Today, let's work out exactly how many patients a study needs in order to reliably measure a given effect.
 
 Say a clinic wants to test whether an 8 week exercise program lowers blood pressure. Forty patients have signed up: 20 will follow the program, 20 will carry on with usual care. The clinic expects the program group's blood pressure to drop about 10 mmHg more than the usual care group's over those 8 weeks.
 
@@ -30,7 +30,7 @@ Here is the whole plan the clinic is running, in four steps.
 
 ::widget process-flow {"steps": [{"title": "Recruit 40 patients", "sub": "eligible adults willing to join the 8 week study"}, {"title": "Randomize into two groups", "sub": "20 assigned to the exercise program, 20 to usual care"}, {"title": "Measure blood pressure", "sub": "record systolic BP before the program starts and again after 8 weeks"}, {"title": "Compare the average drop", "sub": "average change in the program group against average change in the usual care group"}]}
 
-That is the whole plan. The question this lesson answers: does 40 patients give that comparison a fair shot at a reliable result?
+That is the whole plan. The question this lesson answers: does performing this on only 40 patients give that comparison a fair shot at a reliable result?
 
 === step === concept
 ## Forty patients, two groups: is that enough?
@@ -71,7 +71,7 @@ bp_patients
 
 Each row is one patient: their blood pressure before, after, and the change between the two. This is only 8 patients and made up to show the shape of the data, not the real study, so do not read too much into these particular numbers. From here on, the planning numbers are the ones the clinic actually expects: a gap of 10 mmHg between the two groups' average change, with a standard deviation of about 15 mmHg on each patient's own change.
 
-So here is the real question underneath all this. With only 20 patients in each group, if that hoped-for 10 mmHg gap is really there, will the study's own test actually catch it? Or could the trial come back with nothing to show, even though the program works?
+So here is the real question underneath all this: With only 20 patients in each group, if that hoped-for 10 mmHg gap is really there, will the study's own test actually catch it? Or could the trial come back with nothing to show, even though the program works?
 
 === step === widget
 ## Type I error, Type II error, and what power means

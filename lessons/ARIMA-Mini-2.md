@@ -22,13 +22,15 @@ catalog_blurb: "Read ACF and PACF plots to find a series' AR and MA orders."
 === step === cover
 ## ACF and PACF: how to read the plots for ARIMA orders
 
-Today you are going to learn to read two plots, the ACF and the PACF, and turn their shape straight into the AR and MA orders a time series needs.
+Today let's learn to read the following plots: the ACF and the PACF, and use that to determing the AR and MA orders a given time series needs.
 
 Location A is a coffee shop chain's flagship store. It has been logging its daily order count for 200 days running. Here are the most recent three weeks of it.
 
 ::widget chart-plotter {"data": [{"x":1,"y":212},{"x":2,"y":223},{"x":3,"y":221},{"x":4,"y":213},{"x":5,"y":258},{"x":6,"y":255},{"x":7,"y":263},{"x":8,"y":263},{"x":9,"y":253},{"x":10,"y":237},{"x":11,"y":195},{"x":12,"y":186},{"x":13,"y":145},{"x":14,"y":195},{"x":15,"y":202},{"x":16,"y":230},{"x":17,"y":212},{"x":18,"y":201},{"x":19,"y":206},{"x":20,"y":194},{"x":21,"y":201}], "geoms": ["line"], "x": "day", "y": "orders"}
 
-Look at that line for a second. Busy runs seem to sit next to busy runs, and quiet runs sit next to quiet runs, days 11 through 14 for instance. That pattern raises the real question: how many days back does a busy day's influence actually carry, and how do you read that off a plot instead of guessing at it?
+Look at that line for a second. 
+
+Busy runs seem to sit next to busy runs, and quiet runs sit next to quiet runs, days 11 through 14 for instance. That pattern raises the real question: how many days back does a busy day's influence actually carry, and how do you read that off a plot instead of guessing at it?
 
 === step === concept
 ## What the ACF actually measures

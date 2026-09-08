@@ -22,11 +22,11 @@ catalog_blurb: "Answer five plain questions about your data and find the right R
 === step === cover
 ## Which statistical test to use? A 5-question decision flowchart
 
-Today, let's build a plain decision flowchart that tells you exactly which statistical test to reach for, no memorising required.
+Today, let's build a plain decision flowchart that tells you exactly which statistical test to reach for in various situations, no memorising required.
 
-Here is the setup. A retail store hands you its last 75 orders from three branches, Downtown, Mall and Airport, 25 orders from each. Every order carries two things: the dollar value of what was bought, and how the customer paid, card or cash. The question on the table is simple: does one branch actually sell more than the others, or is what you are seeing just noise?
+Here is the setup. A retail store gives you its last 75 orders from three branches, Downtown, Mall and Airport, 25 orders from each. Every order carries two things: the dollar value of what was bought, and how the customer paid, card or cash. The question on the table is simple: does one branch actually sell more than the others, or is what you are seeing just noise?
 
-Dozens of tests could plausibly apply here, a t-test, an ANOVA, a chi-square test, and a handful you may have only half heard of. Pick the wrong one and the answer you hand back is worthless, no matter how carefully you ran the numbers.
+Dozens of tests could plausibly apply here, a t-test, an ANOVA, a chi-square test, and a handful you may have only half heard of. If you pick the wrong one, the answer you get is worthless, no matter how carefully you ran the numbers.
 
 Here is a way out of that guesswork: work through five questions about the data, in order, and let each one rule out everything that no longer fits.
 
@@ -72,7 +72,9 @@ class(orders$payment_method)
 
 class() reports "numeric" for order_value and "character" for payment_method. That is R confirming what you already knew from looking at the two columns: one is a measurement, the other is a label.
 
-Why does this matter so much? Because it decides the entire family of test you reach for next. A continuous outcome points you toward t-tests, ANOVA, and their non-parametric counterparts. A categorical outcome points you toward chi-square tests instead, a different family with its own rules. The store's question, does order value differ by branch, is about a continuous outcome, so the comparison follows that branch from here on.
+Why does this matter so much? Because it decides the entire family of test you reach for next. 
+
+A continuous outcome points you toward t-tests, ANOVA, and their non-parametric counterparts. A categorical outcome points you toward chi-square tests instead, a different family with its own rules. The store's question, does order value differ by branch, is about a continuous outcome, so the comparison follows that branch from here on.
 
 === step === concept
 ## How many groups are you comparing?

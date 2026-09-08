@@ -22,14 +22,14 @@ catalog_blurb: "See what AR, I, and MA each explain in one real coffee-shop sale
 === step === cover
 ## ARIMA: what AR, I, and MA actually mean
 
-Today you are going to take the three letters in ARIMA apart, one at a time, until each one turns into something you can point at in a real series.
+Today let's understand ARIMA very clearly, using simple and practical examples.
 
 Miller Street Coffee, a small independent shop, tracked its daily cup sales for 100 days. Day 1's count was 148 cups. Day 100's was 204 cups, and the average kept climbing the whole way through: 134 cups a day in the first third of that stretch, 161 in the middle third, and 190 in the last third. But the climb was never smooth. Cups still jumped up and down from one day to the next, all the way along that rising path.
 
-That one series carries all three letters of ARIMA inside it.
+That one series carries all three components of AR-I-MA inside it.
 
 - When Miller Street sells a lot of cups one day, the next day's count tends to land high too, and a slow day tends to be followed by another slow one. That pull from one day into the next is what AR (autoregressive) explains.
-- The overall climb is a trend, and before ARIMA can find any pattern in the day-to-day bouncing, that trend has to come out first. Removing it is what I (integrated) does.
+- The overall climb is a trend, and before ARIMA can find any pattern in the day-to-day bouncing, that trend has to be removed first. Removing it is what I (integrated) does.
 - Even after AR accounts for the carryover, a little bit of one day's surprise, the part AR could not explain, still echoes into the next day's count. That echo is what MA (moving average) explains.
 
 The diagram below lays out those three pieces as one pipeline, ending in the forecast they produce together.
@@ -52,7 +52,7 @@ plot(miller_st_sales, type = "l", xlab = "day", ylab = "cups sold",
      main = "Miller Street Coffee: 100 days of cup sales")
 ```
 
-The line climbs overall, but it is not a straight climb. It wobbles up and down around that rising path, day after day.
+The line climbs overall, but it is not a straight climb. It fluctuates up and down around that rising path, day after day.
 
 Now check that climb in numbers, alongside where the series starts and ends.
 

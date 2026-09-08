@@ -22,22 +22,26 @@ catalog_blurb: "What a p-value actually measures, and the mistake almost everyon
 === step === cover
 ## What p-values mean
 
-A p-value is one of the most reported numbers in data work, and one of the least understood. Work through one real test from beginning to end, and you will know exactly what that number is telling you and what it is not.
+A p-value is one of the most reported numbers in data work, and also one of the least understood. Let's understand what exactly is p-value and what it tells and more importantly what it does not.
 
-An online store tests a new checkout page against its old one. Over one stretch, 2,000 visitors see the old page and 140 of them buy something, a rate of 7.0%. Another 2,000 visitors see the new page, and 178 buy, a rate of 8.9%. A statistical test comparing the two pages returns p = 0.03.
+An online store is testing a new checkout page against its old one. Over one stretch, 2,000 visitors see the old page and 140 of them buy something, a rate of 7.0%. Another 2,000 visitors see the new page, and 178 buy, a rate of 8.9%, which seems to be an improvement.
+
+A statistical test comparing the two pages performances returns p = 0.03.
 
 Here are those same counts, side by side.
 
 ::widget styled-table {"cols": ["page", "visitors", "buyers", "conversion rate"], "rows": [["Old page", 2000, 140, 0.07], ["New page", 2000, 178, 0.089]], "formats": {"conversion rate": "pct"}, "title": "Checkout page test, raw counts", "note": "2,000 visitors saw each page."}
 
-That table holds everything the test saw: the visitors, the buyers, and the one p-value the comparison returned, 0.03.
+That table has all the information about the test: the visitors, the buyers, and the one p-value the comparison returned, 0.03.
 
 === step === concept
 ## The null hypothesis behind the checkout test
 
-Before you can judge what p = 0.03 means, you need to state exactly what world it is being measured against. That world is called the null hypothesis, and it has to be stated precisely before anything else makes sense.
+Before we can tell what p = 0.03 actually means, we need to state exactly what world it is being measured against. That world is called 'the null hypothesis', and it has to be understood precisely.
 
-For this test, the null hypothesis says both pages truly convert at one shared rate, and the gap you saw is just an accident of which 2,000 visitors happened to land on which page. That shared rate is the pooled rate: every buyer from both pages, divided by every visitor from both pages.
+Simply put, null hypothesis is a world where the thing we are measuring does not make any difference. 
+
+For this test, the null hypothesis says both versions of the checkout pages truly convert at one shared rate, and the gap you saw is just by chance where 2,000 visitors happened to land on which page. That shared rate is the pooled rate: every buyer from both pages, divided by every visitor from both pages.
 
 Set up the counts and compute that pooled rate.
 
@@ -70,7 +74,7 @@ prop.test(c(old_x, new_x), c(old_n, new_n))
 #>  0.070  0.089 
 ```
 
-The line to read is X-squared = 4.68, p-value = 0.03057. The test statistic, X-squared, measures how far the two observed rates sit from the pooled rate the null hypothesis assumes. Rounded, that p-value is 0.0306, matching the 0.03 you saw at the start.
+Observe X-squared = 4.68, p-value = 0.03057. The test statistic, X-squared, measures how far the two observed rates sit from the pooled rate the null hypothesis assumes. Rounded, that p-value is 0.0306, matching the 0.03 you saw at the start.
 
 === step === widget
 ## What the shaded tail under the null actually shows

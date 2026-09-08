@@ -22,9 +22,9 @@ catalog_blurb: "Why a positive test can still mean you probably don't have the d
 === step === cover
 ## Conditional probability: P(A given B), made concrete
 
-Today let's understand conditional probability, the idea of how knowing one fact changes the chance of another.
+Today let's understand conditional probability, the idea of how knowing one fact changes the probability of another.
 
-Here is the example: a disease that affects 100 out of every 100,000 people, and a test for it that is right 99% of the time, whether the person tested is actually sick or actually healthy.
+Here is an example: Given a disease that affects 100 out of every 100,000 people, and a test for it that is right 99% of the time, we want to know whether the person tested is actually sick or actually healthy.
 
 The diagram below splits all 100,000 people first by whether they have the disease, then by what the test told each of them.
 
@@ -35,7 +35,7 @@ Follow the branches down: everyone starts at the top, splits into the 100 who ha
 === step === concept
 ## The plain probability of having the disease
 
-Every probability starts from the same idea. Count how many times something happens, then divide by how many times it could have happened.
+Every probability starts from the same idea: Count how many times something happens, then divide by how many times it could have happened.
 
 Here is that count for the disease in the tree above: 100 sick people out of the full 100,000.
 
