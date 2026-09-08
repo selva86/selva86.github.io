@@ -1,11 +1,11 @@
 ---
-title: "Probability Foundations Lesson 2: Expected value and variance, explained"
+title: "Expected value and variance, explained"
 slug: "Foundations-Mini-2"
-description: "Expected value is the probability-weighted average of an outcome, and variance is the spread around it. Build both from a scratch card, in R, no calculus."
-keywords: "expected value, variance, standard deviation, discrete random variable, expected value in R, variance formula, probability weighted average, spread of a random variable"
+description: "Expected value tells you what a bet pays on average; variance tells you how far one result can land from it. Build both from a scratch card and simulations."
+keywords: "expected value, variance, probability, scratch card, R, simulation, risk"
 mathjax: true
 webr: true
-date: "2026-09-06"
+date: "2026-09-09"
 post_type: "LESSON"
 course_id: "foundations-extras"
 course_title: "Probability Foundations"
@@ -16,325 +16,245 @@ course_prev: "Foundations-Mini-1"
 course_next: ""
 curriculum_id: "0.0.16"
 lesson_access: "windowed"
-catalog_blurb: "How to compute a long-run average and the spread around it."
+catalog_blurb: "Learn the two numbers that tell you what a bet is really worth."
 ---
 
 === step === cover
 ## Expected value and variance, explained
 
-Today we will work out the two numbers that describe any random quantity: what it returns on average, and how far a single result usually falls from that average.
+Today we are going to work out expected value and variance, the two numbers that tell you what a bet is really worth, and how much its result can swing around that number.
 
-Here is the card we will work them out for. A corner shop sells a scratch card for \$2, and the back of the card prints its prize structure. Per 1,000 tickets printed, 899 pay nothing, 100 pay \$5, and exactly 1 pays \$500.
+A gas station sells a scratch card for \$2. Wipe off the panel and you get one of three results: nothing, \$5, or a \$500 top prize.
 
-That is the whole card. It lists three prizes and how often each one turns up.
+Nothing turns up on about 8 out of 10 cards. The \$5 shows up on about 1 in 5. The \$500 top prize lands on roughly 1 in 1,000.
 
-Two questions follow from it. Over many cards, what does one card return on average? And how far from that average does a single card usually land? The first number is the expected value, the second is the variance, and both are computed from the same three rows.
+Buy one, and is it worth it? That is the first thing to work out.
 
-::widget process-flow {"steps":[{"title":"The prize table","sub":"the three prizes and how likely each one is"},{"title":"Expected value","sub":"weight every prize by its probability, then add"},{"title":"Variance","sub":"weight every squared distance from the average"}]}
+There is a second question sitting right behind it. Two bets can share the exact same average payout and still feel nothing alike to play, one steady, one wild. Telling those two apart is the second thing to work out.
 
-Both numbers come out of the same weighted sum. The only thing that changes between them is what you weight.
+Press the buttons below and watch a computer play this exact card, over and over. Watch how rarely that top prize actually shows up, even after hundreds of tries.
+
+::widget luck-simulator {"trials": 1, "p": 0.001, "observed": 1, "unit": "top prize wins"}
+
+Notice how many tries it takes before that top prize shows up even once. Rare wins like that are exactly why you cannot judge this card by its best possible outcome alone.
 
 === step === concept
-## The prize table printed on the card
+## What expected value means for the scratch card
 
-The prize on one card is unknown until you scratch it, and it can only be one of three amounts. A quantity like that is a **discrete random variable**: a fixed list of possible outcomes, each carrying the probability of turning up.
-
-The card gives us both halves of that list. Ticket counts per 1,000 become probabilities when you divide by 1,000, so 899 becomes 0.899, 100 becomes 0.100, and 1 becomes 0.001.
-
-Let's put the card into R as a small data frame, one row per prize.
+Start by writing the card down in R terms: every payout it can pay, and how often each one happens.
 
 ```r
-# Build the card prize table and check the probabilities add up to 1
-cards <- data.frame(
-  prize   = c(0, 5, 500),           # dollars this row pays
-  tickets = c(899, 100, 1),         # tickets per 1,000 that pay it
-  prob    = c(0.899, 0.100, 0.001)  # tickets divided by 1,000
-)
-
-cards
-#>   prize tickets  prob
-#> 1     0     899 0.899
-#> 2     5     100 0.100
-#> 3   500       1 0.001
-
-sum(cards$prob)
-#> [1] 1
+# Define the scratch card's payouts and their probabilities
+card_vals <- c(0, 5, 500)
+card_probs <- c(0.799, 0.2, 0.001)
 ```
 
-That last line matters more than it looks. The probabilities add to exactly 1, which says the three rows cover every outcome a card can have. Nothing else can happen, so nothing is missing from the table.
+`card_vals` holds the three amounts the card can pay: \$0, \$5, and \$500. `card_probs` holds how often each one happens, in that same order: 79.9%, 20%, and 0.1%.
 
-Everything from here on comes out of two columns, `prize` and `prob`. No other data is needed.
+Expected value takes each payout, multiplies it by how often it happens, and adds the results together. It is a probability-weighted average: the more likely an outcome is, the more it counts toward the total.
 
-=== step === widget
-## How to compute the expected value from the prize table
+$$E[X] = \sum_{i} x_i \cdot P(X = x_i)$$
 
-The expected value of a random variable is the average of its outcomes, weighted by how likely each outcome is. Written out for a discrete variable \(X\):
+Each \(x_i\) is one payout, and \(P(X = x_i)\) is that payout's own probability. For the scratch card, there are three payouts, so three terms to add:
 
-\[ E[X] = \sum_i x_i \cdot P(X = x_i) \]
+$$E[X] = 500(0.001) + 5(0.2) + 0(0.799) = 0.5 + 1 + 0 = 1.5$$
 
-Read that as an instruction. Take each prize, multiply it by its own probability, and add the results.
-
-Run the transform below and watch the new `weighted` column appear.
-
-::widget table-transform {"code": "mutate(df, weighted = prize * prob)", "caption": "Every prize multiplied by its own probability. Add the weighted column and you have the expected value.", "before": {"cols": ["prize", "tickets", "prob"], "rows": [[0, 899, 0.899], [5, 100, 0.1], [500, 1, 0.001]]}, "after": {"cols": ["prize", "tickets", "prob", "weighted"], "rows": [[0, 899, 0.899, 0], [5, 100, 0.1, 0.5], [500, 1, 0.001, 0.5]]}}
-
-Three numbers come out: 0, 0.50 and 0.50. Add them and the expected value is \$1.00 a card.
-
-Now look at where that dollar comes from. Half of it is the \$5 prize, which is small but lands on 1 card in 10. The other half is the \$500 jackpot, which is large but lands on 1 card in 1,000. Two prizes as different as they could be contribute exactly 50 cents each.
-
-And the card sells for \$2. Buy a lot of them and you are paying \$2 a card to get \$1.00 a card back, so the shop keeps the other dollar.
-
-=== step === concept
-## Why no card ever pays the expected value
-
-Look at the prize column again: 0, 5, 500. The number 1.00 is not on it. No card in that shop pays \$1.00, and none ever will.
-
-So what is the \$1.00 describing? It is the long-run average per card. Buy a lot of cards, add up everything they pay, divide by how many you bought, and the answer settles near 1.00. It is a property of the whole table, not a prize any single card produces.
-
-The fastest way to see that is to buy a lot of cards. `sample()` draws prizes from the table, and the `prob` argument gives each prize its right frequency.
+In R, that whole sum is one line.
 
 ```r
-# Draw 200,000 cards from the prize table and average what they paid
+# Expected value: each payout times its own probability, summed
+sum(card_vals * card_probs)
+#> [1] 1.5
+```
+
+\$1.50. That is the expected value of the card. On average, every \$2 you spend on it comes back as \$1.50, a 25% expected loss.
+
+[KEY INSIGHT]
+Expected value is not a payout you will ever see on one card. This card only ever pays \$0, \$5, or \$500. \$1.50 is the number those three payouts average to if you played the card forever.
+
+=== step === widget
+## Simulating many scratch cards
+
+\$1.50 is the theoretical answer, worked out from the formula. Does it actually hold up if you deal out real cards? Simulation is how you check.
+
+The widget below plays this exact card, one draw at a time. Its chance of hitting is set to the card's own 20% probability of paying exactly \$5, so every click is one real card decided by that same 0.2 chance.
+
+::widget luck-simulator {"trials": 1, "p": 0.2, "observed": 1, "unit": "five dollar payouts"}
+
+Click Run 1,000 a few times. The running percentage bounces around early on, then settles in close to 20%, which is exactly `card_probs[2]`, the probability you set for the \$5 payout.
+
+The same idea works in R directly. Draw 5,000 cards from the same distribution, using the payouts and probabilities you already defined, and compare the sample average against the theoretical \$1.50.
+
+```r
+# Simulate 5000 scratch cards and compare the sample average to the theoretical 1.5
 set.seed(1)
-draws <- sample(cards$prize, size = 2e5, replace = TRUE, prob = cards$prob)
+card_draws <- sample(card_vals, size = 5000, replace = TRUE, prob = card_probs)
 
-head(draws, 20)
-#>  [1] 0 0 0 5 0 0 5 0 0 0 0 0 0 0 0 0 0 5 0 0
-
-mean(draws)
-#> [1] 0.9827
-
-table(draws)
-#> draws
-#>      0      5    500 
-#> 179898  19908    194 
+mean(card_draws)
+#> [1] 1.448
 ```
 
-`set.seed(1)` fixes the random number generator, so your numbers match mine.
+The simulated average landed at \$1.448 against a theoretical \$1.50, close but not exact. 5,000 cards is not infinite, and this card's occasional \$500 win swings the average around more than a card without a big rare prize would. Run more cards, real or simulated, and that gap keeps shrinking.
 
-The first 20 cards paid nothing 17 times and \$5 three times. That is what buying scratch cards actually looks like. Not one of those 20 paid \$1.00, and not one of the 200,000 did either.
-
-Now read `mean(draws)`. Across all 200,000 cards the average prize was 0.9827, near the 1.00 the two columns gave us.
-
-And `table(draws)` shows why. 179,898 cards paid nothing, 19,908 paid \$5, and 194 hit the jackpot. Those three counts are the 899 / 100 / 1 shape printed on the card, scaled up 200 times.
-
-=== step === quiz
-## Quick check: what does an expected value of 1 dollar mean?
-
-The card returns \$1.00 on average, and 200,000 draws came back at 0.9827. Which sentence reads that correctly?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- \$1.00 is the most likely prize, so more cards pay it than pay anything else. ::no
-- Over many cards, the total prize money divided by the number of cards settles near \$1.00, and no single card pays it. ::ok Exactly. It is an average over the whole table, and the weighted column shows how it is built: 0 from the losing row, 0.50 from the \$5 row, 0.50 from the jackpot.
-- Every card returns roughly \$1.00, give or take a little. ::no
-- The expected value is positive, so the card is worth buying. ::no An expected value is a long-run average of the prizes. It is not a likely prize, not what a single card returns, and not a reason to buy. It is also only half of the comparison: the card costs \$2 and returns \$1.00 in the long run, so buying a lot of them loses about half of what you spend.
+::quiz {"correct": 1, "gate": true, "difficulty": "beginner"}
+- Because with enough cards, the share that pays exactly \$5 converges toward its true probability, 0.2. ::ok Exactly. This is the law of large numbers: the more draws you take, the closer the observed share of an outcome lands to its real probability. It says nothing about what any single card will do.
+- Because after a run of \$0 results, a \$5 payout becomes overdue. ::no
+- Because 20% is close to the card's \$1.50 expected value, so most cards should land near that number. ::no
+- Because the simulator drifts toward whichever result it produced first. ::no The fraction settles near 20% because of the law of large numbers, not because of streaks, luck owed, or an anchor to the first result. Each card is an independent draw from the same three probabilities every time, and more draws just make the observed share a better estimate of the true 0.2.
 
 === step === concept
-## What is variance, and how to get it from the same table
+## Why the average alone can mislead
 
-The expected value says where the prizes centre. It says nothing about how far one card lands from that centre, and for this card that is the more interesting question.
+\$1.50 tells you what this card returns on average. It does not tell you what any one card actually pays. This card only ever pays \$0, \$5, or \$500, never \$1.50.
 
-Variance measures exactly that distance. For each outcome, take how far it sits from the expected value, square it, and weight it by its probability. It is the same weighted sum, applied to squared distances:
+So the average alone leaves out something important: how far a typical result sits from that average. A card that always paid exactly \$1.50 and a card that pays \$0 most of the time but occasionally hands you \$500 can share the exact same expected value and still feel completely different to hold in your hand.
 
-\[ \mathrm{Var}(X) = E[(X - \mu)^2] = \sum_i (x_i - \mu)^2 \cdot P(X = x_i) \]
+That gap, how far outcomes tend to sit from the mean, is what variance measures.
 
-where \(\mu\) is the expected value, 1.00 here.
+Variance is the average of the squared distance between each outcome and the mean. It is squared so that a payout below the mean and a payout above the mean do not cancel each other out.
 
-Why square the distances? Because without squaring they cancel out. The losing prize sits 1.00 below the average and the jackpot sits 499 above it, and signed distances weighted by their probabilities always add to exactly zero. Squaring makes every distance positive, so the two sides pile up instead of cancelling.
-
-There is a second formula that reaches the same number with less arithmetic:
-
-\[ \mathrm{Var}(X) = E[X^2] - (E[X])^2 \]
-
-Take the expected value of the squared prizes, then subtract the square of the expected value. Both formulas run below.
-
-```r
-# Compute the variance of one card both ways, then its standard deviation
-ev <- sum(cards$prize * cards$prob)   # the expected value, 1.00
-
-var_x <- sum((cards$prize - ev)^2 * cards$prob)
-var_x
-#> [1] 251.5
-
-ex2 <- sum(cards$prize^2 * cards$prob)
-ex2
-#> [1] 252.5
-
-ex2 - ev^2
-#> [1] 251.5
-
-sd_x <- sqrt(var_x)
-sd_x
-#> [1] 15.85875
-
-sd(draws)
-#> [1] 15.62127
-```
-
-Both formulas land on 251.5. The shortcut gets there as 252.5 minus 1.
-
-But 251.5 is in squared dollars, and nobody can picture a squared dollar. Take the square root and you get the **standard deviation**, 15.86, back in the units the card is priced in. That is the typical distance between one card and the \$1.00 average, and it is about 16 times the average itself.
-
-The last line is the check. `sd(draws)` measures the spread of the 200,000 cards we actually drew, and gives 15.62 against the 15.86 the formula gives. The small gap comes from the jackpot draws: 194 of them turned up where the probabilities imply about 200, and at 499 above the average each, a few either way move the spread.
+A \$500 win sits \$498.50 above the mean, and a \$0 result sits \$1.50 below it. Left unsquared, those distances could offset each other and hide exactly the spread you are trying to measure. Squared, every distance adds to the total no matter which direction it points.
 
 === step === concept
-## How the expected value and the variance change over n cards
+## The variance formula, worked by hand
 
-Nobody buys one card. So take n cards, bought independently, and ask what the two numbers do.
+Squaring every distance from the mean and averaging it works, but there is a shortcut that skips computing each individual distance first.
 
-Expected values always add. The expected total over n cards is n times 1.00, with no conditions attached.
+$$\text{Var}(X) = E[(X - \mu)^2] = E[X^2] - (E[X])^2$$
 
-Variances add too, but only when the draws are independent. Separate cards out of a big print run are independent, so the variance of the total over n cards is n times 251.5. Standard deviation is the square root of a variance, so the sd of the total is 15.86 times the square root of n.
+Here \(\mu\) is the mean, the same \(E[X]\) you already computed. \(E[X^2]\) is new: take each payout, square it, multiply by its own probability, and add those up. It is the same probability-weighted average as before, just applied to the squared payouts instead of the payouts themselves.
 
-The number a buyer actually feels is the average per card, and that one goes the other way. Divide the total by n and its sd divides by n as well, which leaves 15.86 times the square root of n, over n. The square root of n over n is 1 over the square root of n, so the sd of the average per card is 15.86 divided by the square root of n.
+For the scratch card:
 
-```r
-# Scale both numbers from a single card up to n cards
-n <- c(10, 100, 10000)
+$$E[X^2] = 500^2(0.001) + 5^2(0.2) + 0^2(0.799) = 250 + 5 + 0 = 255$$
 
-data.frame(
-  cards          = n,
-  expected_total = n * ev,
-  sd_of_total    = sd_x * sqrt(n),
-  sd_of_average  = sd_x / sqrt(n)
-)
-#>   cards expected_total sd_of_total sd_of_average
-#> 1    10             10    50.14978     5.0149776
-#> 2   100            100   158.58752     1.5858752
-#> 3 10000          10000  1585.87515     0.1585875
-```
+$$\text{Var}(X) = 255 - 1.5^2 = 255 - 2.25 = 252.75$$
 
-Read the two right-hand columns against each other. The sd of the total climbs from 50 to 1,586, because more cards put more dollars in play. The sd of the average falls, from 5.01 at 10 cards to 0.16 at 10,000.
+Now compare that against a steadier \$2 card, one that pays either \$1 or \$2, each with equal 50% probability.
 
-Buy 10 cards and your average per card is anybody's guess. Buy 10,000 and it is 1.00 give or take about 16 cents.
+$$E[X] = 1(0.5) + 2(0.5) = 1.5$$
 
-The 200,000 cards we drew show that squeeze happening purchase by purchase. `cumsum(draws) / seq_along(draws)` is the average prize so far after each card.
+This is the same \$1.50 average as the scratch card. But watch its variance:
+
+$$E[X^2] = 1^2(0.5) + 2^2(0.5) = 0.5 + 2 = 2.5$$
+
+$$\text{Var}(X) = 2.5 - 1.5^2 = 2.5 - 2.25 = 0.25$$
+
+Define the steadier card in R next to the scratch card, and compute both variances with the shortcut formula in one block.
 
 ```r
-# Track the running average prize as the number of cards bought grows
-run_avg <- cumsum(draws) / seq_along(draws)
+# Compute variance for both cards with the shortcut formula: E[X^2] - (E[X])^2
+steady_vals <- c(1, 2)
+steady_probs <- c(0.5, 0.5)
 
-plot(seq_along(draws), run_avg, type = "l", log = "x", col = "#4b4eab",
-     xlab = "Cards bought so far (log scale)",
-     ylab = "Average prize per card",
-     main = "The per-card average settles on 1.00")
-abline(h = 1, col = "#c0392b", lwd = 2, lty = 2)
+card_var <- sum(card_vals^2 * card_probs) - sum(card_vals * card_probs)^2
+steady_var <- sum(steady_vals^2 * steady_probs) - sum(steady_vals * steady_probs)^2
+
+c(card_var = card_var, steady_var = steady_var)
+#>   card_var steady_var 
+#>     252.75       0.25 
 ```
 
-Read the line from the left. The first few cards bounce, because one \$5 prize divided by five cards is a dollar all by itself. By a hundred cards or so the bouncing has died down and the line runs along below the dashed 1.00, built out of nothing but zeros and \$5 prizes, which on their own average about 50 cents a card. Then, somewhere before the thousandth card, a jackpot lands, and \$500 divided by that many cards lifts the average clear above 1.00 in one step. From there each new card moves the line less, because there is more to divide by, so it sags back through the dashed line and spends a long stretch creeping up from underneath. Only at the right-hand edge, 200,000 cards in, has it closed on the 0.9827 we already read.
-
-=== step === concept
-## Why the shop's total is nearly certain and a 10-card buy is not
-
-Two people stand on either side of the same counter. The same two numbers say completely different things about their evening.
-
-Start with the shop, which sells the full print run of 1,000,000 cards. It takes \$2,000,000 at the till and expects to hand back 1,000,000 times 1.00. The spread on that payout is the square root of 1,000,000 times 251.5.
-
-```r
-# The shop's payout across a print run of 1,000,000 cards
-n_shop <- 1e6
-
-round(c(expected_payout = n_shop * ev, sd_of_payout = sqrt(n_shop * var_x)))
-#> expected_payout    sd_of_payout 
-#>         1000000           15859 
-```
-
-The expected payout is \$1,000,000, with a standard deviation of \$15,859. That spread is 1.6% of the payout itself.
-
-So the shop collects \$2,000,000 and hands back something very close to \$1,000,000, and the closeness is the entire business model. The shop is not gambling. At a million cards the outcome is arithmetic.
-
-Now stand on the other side of the counter and buy 10 cards for \$20. Rather than a formula, simulate 10,000 people doing exactly that. `replicate()` runs the same 10-card purchase over and over and keeps the total each one paid out.
-
-```r
-# Simulate 10,000 buyers who each take 10 cards, then summarise what they got
-set.seed(3)
-buyers <- replicate(10000, sum(sample(cards$prize, 10, replace = TRUE, prob = cards$prob)))
-
-c(mean = mean(buyers), sd = sd(buyers), median = median(buyers), share_zero = mean(buyers == 0))
-#>       mean         sd     median share_zero 
-#>    9.60550   48.72298    5.00000    0.34190 
-```
-
-The average buyer got \$9.61 back on \$20 spent, near the \$10 that 1.00 a card predicts. The rest of that line is what a variance of 251.5 does at n = 10. The standard deviation is \$48.72, five times the average. The median buyer got \$5, and 34.19% of the 10,000 buyers got nothing at all.
-
-The card is the same and so is the expected value per card, but the two experiences have nothing in common. The only thing that differs is n. Insurance companies and casinos are built on that asymmetry: they hold the large n and their customers hold the small one.
+Both cards share the same \$1.50 mean. But their variances are 252.75 against 0.25, a thousand-fold difference. The scratch card's occasional \$500 win, rare as it is, drags that number up enormously. The shortcut formula squares every distance from the mean, and \$500 is a very long way from \$1.50.
 
 === step === widget
-## Which prize carries almost all of the variance
+## Same average, very different variance
 
-A variance is a sum over the rows of the table, so 251.5 can be taken apart row by row. Each row contributes its squared distance from 1.00, weighted by its probability.
+Run the steadier card through the same kind of simulator, and the difference between 252.75 and 0.25 stops being just two numbers on a page.
 
-Run the transform to see all three contributions at once.
+This time the chance of a hit is set to 0.5, the steadier card's own probability of landing on its higher payout, \$2.
 
-::widget table-transform {"code": "mutate(df, dev_sq = (prize - 1)^2, weighted = dev_sq * prob)", "caption": "Squared distance from the 1.00 average, then weighted by probability. The three weighted values add to the variance, 251.5.", "before": {"cols": ["prize", "prob"], "rows": [[0, 0.899], [5, 0.1], [500, 0.001]]}, "after": {"cols": ["prize", "prob", "dev_sq", "weighted"], "rows": [[0, 0.899, 1, 0.899], [5, 0.1, 16, 1.6], [500, 0.001, 249001, 249.001]]}}
+::widget luck-simulator {"trials": 1, "p": 0.5, "observed": 1, "unit": "two dollar payouts"}
 
-The three contributions are 0.899, 1.600 and 249.001, and they add to 251.5. The jackpot row alone supplies 249.001 of that, which is 99.0% of the variance, off 1 ticket in 1,000.
+Click Run 1,000 a few times and watch the running percentage settle near 50%, not 20%. Every other card, roughly, pays \$2 instead of \$1.
 
-Squaring is what does it. The jackpot sits 499 above the average, and 499 squared is 249,001. Multiply by a probability of 0.001 and 249.001 is still left. A probability that small cannot pull down a number that large.
+Put the two widgets side by side in your head. The scratch card's \$5 result showed up close to one time in five, and its \$500 win was rare enough that you may not have seen it at all.
 
-So the standard deviation of \$15.86 is a summary of an outcome that 999 buyers in 1,000 never see. It is still a real number about the card, and it is exactly why the 10-card buyers came back with a spread of \$48.72 while a third of them got nothing.
+The steadier card's higher payout, \$2, turns up about every other card. Both cards average \$1.50.
+
+One of them wanders far from that average on a regular basis. The other barely leaves it. That difference is exactly what the variance numbers, 252.75 against 0.25, were describing before you watched it happen.
 
 === step === quiz
-## Quick check: what a variance of 251.5 says about one card
+## Reading variance: which card is the risky one
 
-The variance of one card is 251.5, the standard deviation is \$15.86, and 249.001 of that variance comes off the jackpot row. Which sentence uses those numbers correctly?
+Both cards cost \$2. Both average \$1.50 back. By the mean alone, they look identical. But you have now watched both of them run: one settling calmly near its \$2 payout half the time, the other swinging between a common \$0, an occasional \$5, and a rare \$500.
 
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- A standard deviation of \$15.86 means a typical card pays around \$15.86. ::no
-- A variance that large means the expected value of \$1.00 must be wrong. ::no
-- Almost all of the spread comes from a prize that almost nobody sees, so \$15.86 describes hardly any individual card. 999 cards in 1,000 pay \$0 or \$5. ::ok Right. The jackpot row supplies 99.0% of the 251.5 off 1 ticket in 1,000, so the standard deviation is driven by an outcome that is missing from nearly every purchase.
-- Take the jackpot row out and the expected value and the variance would both fall by the same proportion. ::no A standard deviation is a typical distance from the average, never a typical payout, and it neither contradicts the average nor rescales with it. Squaring is why: the jackpot sits 499 from the average and 499 squared is 249,001, so dropping that row takes almost all of the variance away while removing only half of the \$1.00 expected value.
+Variance is the number that tells you which one is riskier before you ever have to watch it play out. The scratch card's variance is 252.75. The steadier card's is 0.25.
+
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- The scratch card is riskier. Its variance, 252.75, is far larger than the steadier card's 0.25, meaning its outcomes typically sit much further from the \$1.50 average. ::ok Right. Same mean, wildly different variance. A larger variance means outcomes routinely land far from the average, which is exactly the scratch card's mostly-\$0, rarely-\$500 pattern. The steadier card almost never strays from \$1.50 by more than fifty cents.
+- The steadier card is riskier, because its payout changes on almost every single card. ::no
+- Neither card is riskier than the other, since both average \$1.50. ::no
+- The scratch card is riskier simply because \$500 is a large number. ::no The size of one payout, on its own, does not decide risk. Variance measures how far outcomes typically sit from the mean, weighted by how likely each one is. The steadier card's payout changes every card too, but only by fifty cents from the mean each time, which is why its variance stays tiny at 0.25 against the scratch card's 252.75.
 
 === step === tryit
-## Your turn: same expected value, a smaller standard deviation
+## Your turn: a raffle ticket
 
-The shop prints a second card, sold at the same \$2. Per 1,000 tickets, 800 pay nothing and 200 pay \$5. There is no jackpot at all.
+One more payout, this time you do the work. A \$5 raffle ticket pays \$0 with probability 0.9, \$20 with probability 0.08, or \$200 with probability 0.02.
 
-Compute its expected value, then its variance through \(E[X^2] - (E[X])^2\), then its standard deviation. Finish with the standard deviation of the average prize over 10 of these cards.
+Define its payouts and probabilities, then compute E[X] and Var(X) with the same shortcut formula you just used twice. Finish by simulating 5,000 tickets to check your numbers.
 
 ```r
-# A new card: per 1,000 tickets, 800 pay nothing and 200 pay 5 dollars
-prize2 <- c(0, 5)
-prob2  <- c(0.8, 0.2)
+# A $5 raffle ticket: define its payouts and probabilities, then find E[X] and Var(X)
+raffle_vals <- c(0, 20, 200)
+raffle_probs <- c(0.9, 0.08, 0.02)
 
-# Compute the expected value, then E[X squared], then the variance and the sd.
-# Then give the sd of the average prize over 10 of these cards.
-# Press Check when you have them.
+# Compute E[X] and Var(X) here using the shortcut formula
+
+
+# Simulate 5000 tickets to check your answer
+set.seed(2)
+raffle_draws <- sample(raffle_vals, size = 5000, replace = TRUE, prob = raffle_probs)
 ```
-::check {"regex": "(?=[\\s\\S]*prize2\\s*\\^\\s*2\\s*\\*\\s*prob2)(?=[\\s\\S]*sqrt[(]10[)])", "gate": true, "difficulty": "beginner", "ok": "Correct. The expected value is 1.00, identical to the first card, but the variance is 4 and the standard deviation 2.00 against 15.86. Over 10 cards the average has an sd of 2.00 / sqrt(10) = 0.63. It costs the same and returns the same in the long run, with a fraction of the spread, because the jackpot row is gone.", "no": "Two pieces are needed. Use sum(prize2^2 * prob2) for E[X squared] and subtract the square of the expected value, then divide the standard deviation by sqrt(10) for the average over 10 cards."}
+::check {"regex": "(?=[\\s\\S]*raffle_vals\\s*\\*\\s*raffle_probs)(?=[\\s\\S]*raffle_vals\\s*\\^\\s*2)", "gate": true, "difficulty": "intermediate", "ok": "Both numbers check out: E[X] = 5.6, Var(X) = 800.64. The ticket costs 5 dollars and returns 5.60 back on average, just barely worth it before you even weigh the risk.", "no": "Use the same shortcut you used for the two cards: sum(raffle_vals * raffle_probs) for E[X], then sum(raffle_vals^2 * raffle_probs) minus E[X] squared for the variance."}
 ::solution
 ```r
-# Expected value, variance and sd of the new card, then the sd over 10 cards
-ev2   <- sum(prize2 * prob2)
-ex2_2 <- sum(prize2^2 * prob2)
-var2  <- ex2_2 - ev2^2
+# Solve the raffle ticket with the shortcut formula, then simulate to check it
+raffle_vals <- c(0, 20, 200)
+raffle_probs <- c(0.9, 0.08, 0.02)
 
-c(expected = ev2, variance = var2, sd = sqrt(var2))
-#> expected variance       sd 
-#>        1        4        2 
+raffle_mean <- sum(raffle_vals * raffle_probs)
+raffle_var <- sum(raffle_vals^2 * raffle_probs) - raffle_mean^2
 
-sqrt(var2) / sqrt(10)
-#> [1] 0.6324555
+c(mean = raffle_mean, variance = raffle_var)
+#>     mean variance 
+#>     5.60   800.64 
+
+set.seed(2)
+raffle_draws <- sample(raffle_vals, size = 5000, replace = TRUE, prob = raffle_probs)
+c(sample_mean = mean(raffle_draws), sample_var = var(raffle_draws))
+#> sample_mean  sample_var 
+#>      6.0920    884.1044 
 ```
 
-The expected value did not move. Both cards return 1.00 against a \$2 price, so on that number alone there is nothing to choose between them. The standard deviation dropped from 15.86 to 2.00, because the 499 distance that produced 249.001 of the old variance is no longer on the table.
+The theoretical numbers: a \$5.60 expected return on a \$5 ticket, and a variance of 800.64, even bigger than the scratch card's 252.75, because \$200 sits even further from the mean than \$500 did on the cheaper card.
+
+5,000 tickets is a lot, but with a variance this large, do not expect a razor-exact match. The sample mean landed at \$6.09 and the sample variance at 884.10, both in the right neighborhood but visibly bouncing around the theoretical \$5.60 and 800.64. That bounce is not a mistake in the code. It is variance itself, doing exactly what a variance of 800.64 predicts a few thousand draws should look like.
 
 === step === concept
 ## References
 
-- [Introduction to Probability, Second Edition](https://doi.org/10.1201/9780429428357) - Blitzstein and Hwang (2019), CRC Press. Chapter 4 covers expectation, variance and the law of the unconscious statistician for discrete random variables.
-- [Introduction to Probability](https://math.dartmouth.edu/~prob/prob/prob.pdf) - Grinstead and Snell (1997), American Mathematical Society, free full text. Chapter 6 derives expected value and variance, and chapter 8 covers the law of large numbers behind the running average.
-- [All of Statistics: A Concise Course in Statistical Inference](https://link.springer.com/book/10.1007/978-0-387-21736-9) - Wasserman (2004), Springer. Chapters 3 and 5 cover expectation, variance and how sample averages behave as n grows.
-- R Core Team documentation for [sample()](https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html) and [var()](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.html) - weighted sampling through the `prob` argument, and the n minus 1 denominator that makes `var()` a sample variance rather than the probability-weighted one computed here.
+- [All of Statistics: A Concise Course in Statistical Inference](https://doi.org/10.1007/978-0-387-21736-9) - Wasserman, L. (2004), Springer Texts in Statistics, Chapter 3: Expectation.
+- Casella, G. and Berger, R., *Statistical Inference* (2nd ed., 2002), Section 2.2: Expected Values.
+- Wackerly, D., Mendenhall, W., and Scheaffer, R., *Mathematical Statistics with Applications* (7th ed.), Chapter 4: Mathematical Expectation.
+- [Random Samples and Permutations](https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html) - R Core Team, the documentation for `sample()`.
+- [Sample Variance](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/var.html) - R Core Team, the documentation for `var()`.
+- Khan Academy, "Expected value" and "Variance of a random variable" units, Statistics and Probability course.
 
 === step === complete
-## Quick recap
+## What expected value and variance tell you together
 
-You built both numbers by hand from a three-row prize table, then checked each one against a simulation.
+These two cards lead to one shared takeaway. Both the scratch card and the steadier card cost \$2. Both average \$1.50 back, a 25% expected loss either way. On the mean alone, they are identical.
 
-- The expected value is the probability-weighted average of the outcomes, `sum(cards$prize * cards$prob)`. For this card it is \$1.00, against a \$2 price. No card pays it, and 200,000 draws averaged 0.9827.
-- The variance is that same weighted sum applied to squared distances from the average: 251.5, or \$15.86 as a standard deviation. Squaring keeps distances on both sides from cancelling, and it is why a single row can dominate.
-- 249.001 of the 251.5 comes off the jackpot, 99.0% of the spread off 1 ticket in 1,000. That row is what a standard deviation of \$15.86 is mostly made of.
-- Over n independent cards the expected total is n times 1.00 and the variance is n times 251.5, so the average per card has a standard deviation of 15.86 divided by the square root of n. At 1,000,000 cards the spread on the shop's payout is 1.6% of the payout. At 10 cards, a third of buyers get nothing.
+| | Expected value | Variance |
+|---|---|---|
+| Scratch card (\$0 / \$5 / \$500) | \$1.50 | 252.75 |
+| Steadier card (\$1 / \$2) | \$1.50 | 0.25 |
 
-Given any outcome-and-probability table, you can now write down both numbers, say what each one means in the units of the problem, and work out what happens to them as n grows.
+Expected value answers "what does this pay on average." Variance answers a completely different question: "how far can a single result land from that average."
+
+Neither number can stand in for the other. A payout described only by its mean hides whether it is calm or wild. A payout described only by its variance says nothing about whether it is worth playing in the first place.
+
+Read together, they describe a payout completely. \$1.50 and 252.75 tell you the scratch card returns fifty cents less than you paid, on average, and that any one card can land almost anywhere from \$0 to \$500. \$1.50 and 0.25 tell you the steadier card returns that same fifty cents less on average, but almost never surprises you along the way.
+
+Whenever you meet a new payout, whether it is a bet, a business decision, or a model's prediction, ask for both numbers before you judge it. The average alone does not tell you everything.
