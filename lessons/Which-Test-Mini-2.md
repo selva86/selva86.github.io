@@ -1,11 +1,11 @@
 ---
-title: "Which Test Do I Run? Lesson 2: Welch's ANOVA: the test for unequal group variances"
+title: "Welch's ANOVA: the test for unequal group variances"
 slug: "Which-Test-Mini-2"
-description: "The classic one-way ANOVA pools every group variance into one number. See where that breaks, then run Welch's ANOVA on departments with unequal pay spread."
-keywords: "Welch's ANOVA in R, oneway.test, unequal variances ANOVA, homogeneity of variance, Bartlett test in R, one-way ANOVA assumptions, Satterthwaite degrees of freedom"
+description: "Classic ANOVA assumes every group has similar spread, and it fails quietly when one does not. Learn to test that assumption and run Welch's ANOVA instead."
+keywords: "Welch's ANOVA, oneway.test, unequal variances, Bartlett's test, heteroscedasticity, one-way ANOVA, Satterthwaite correction, R"
 mathjax: true
 webr: true
-date: "2026-09-05"
+date: "2026-09-09"
 post_type: "LESSON"
 course_id: "which-test"
 course_title: "Which Test Do I Run?"
@@ -13,425 +13,288 @@ course_lesson: "2"
 course_total: "11"
 course_landing: "/dashboard.html"
 course_prev: "Which-Test-Mini-1"
-course_next: ""
+course_next: "Which-Test-Mini-3"
 curriculum_id: "0.0.13"
 lesson_access: "windowed"
-catalog_blurb: "How to compare group averages when one group is far more spread out."
+catalog_blurb: "Classic ANOVA can be misled by one noisy group; Welch's corrects for it."
 ---
 
 === step === cover
 ## Welch's ANOVA: the test for unequal group variances
 
-Today we are going to take one company's payroll and find out why the usual test for comparing three group averages reports a difference on it that is not there.
+Today let's understand Welch's ANOVA, the test you reach for the moment one group in your comparison is far noisier than the rest.
 
-Here is the situation. One company has 72 employees in three departments. Support has 30 people, Marketing has 30, and Engineering has 12. For every person we have one number: annual pay, in thousands of dollars.
+Here is the setup. A company with 90 employees splits evenly into three departments, Marketing, Support and Engineering, 30 people each. You want to know whether the three departments really earn different average salaries.
 
-Support and Marketing are ordinary salaried teams, so almost everyone in them earns something close to the middle of their band. Engineering is not like that. Its 12 people run from a first-year graduate up to two specialists on a band of their own, so their salaries sit much further apart.
+::widget chart-plotter {"data": [{"x":"Marketing","y":70082},{"x":"Marketing","y":63681},{"x":"Marketing","y":68557},{"x":"Marketing","y":67661},{"x":"Marketing","y":65333},{"x":"Marketing","y":57936},{"x":"Marketing","y":65059},{"x":"Marketing","y":63920},{"x":"Marketing","y":68454},{"x":"Marketing","y":66105},{"x":"Marketing","y":66367},{"x":"Marketing","y":65078},{"x":"Marketing","y":67114},{"x":"Marketing","y":67097},{"x":"Marketing","y":57812},{"x":"Marketing","y":73388},{"x":"Marketing","y":70466},{"x":"Marketing","y":68870},{"x":"Marketing","y":64781},{"x":"Marketing","y":70759},{"x":"Marketing","y":66685},{"x":"Marketing","y":67341},{"x":"Marketing","y":62432},{"x":"Marketing","y":73863},{"x":"Marketing","y":68193},{"x":"Marketing","y":75632},{"x":"Marketing","y":74924},{"x":"Marketing","y":68233},{"x":"Marketing","y":70581},{"x":"Marketing","y":74903},{"x":"Support","y":68620},{"x":"Support","y":71749},{"x":"Support","y":69854},{"x":"Support","y":72498},{"x":"Support","y":71821},{"x":"Support","y":76241},{"x":"Support","y":73671},{"x":"Support","y":66987},{"x":"Support","y":73598},{"x":"Support","y":67288},{"x":"Support","y":65792},{"x":"Support","y":74501},{"x":"Support","y":65581},{"x":"Support","y":72380},{"x":"Support","y":67249},{"x":"Support","y":77382},{"x":"Support","y":74203},{"x":"Support","y":69189},{"x":"Support","y":74597},{"x":"Support","y":72919},{"x":"Support","y":65735},{"x":"Support","y":70072},{"x":"Support","y":66812},{"x":"Support","y":73022},{"x":"Support","y":68098},{"x":"Support","y":69959},{"x":"Support","y":65436},{"x":"Support","y":66676},{"x":"Support","y":71603},{"x":"Support","y":66504},{"x":"Engineering","y":88463},{"x":"Engineering","y":96183},{"x":"Engineering","y":87030},{"x":"Engineering","y":84720},{"x":"Engineering","y":48640},{"x":"Engineering","y":85182},{"x":"Engineering","y":47002},{"x":"Engineering","y":120819},{"x":"Engineering","y":66917},{"x":"Engineering","y":95705},{"x":"Engineering","y":104987},{"x":"Engineering","y":92136},{"x":"Engineering","y":125676},{"x":"Engineering","y":70824},{"x":"Engineering","y":103085},{"x":"Engineering","y":67571},{"x":"Engineering","y":145112},{"x":"Engineering","y":109192},{"x":"Engineering","y":83416},{"x":"Engineering","y":111629},{"x":"Engineering","y":63111},{"x":"Engineering","y":129723},{"x":"Engineering","y":63113},{"x":"Engineering","y":53080},{"x":"Engineering","y":90619},{"x":"Engineering","y":113230},{"x":"Engineering","y":91723},{"x":"Engineering","y":72992},{"x":"Engineering","y":121395},{"x":"Engineering","y":152361}], "geoms": ["boxplot"], "x": "department", "y": "salary"}
 
-That gap in spread is what the choice of test turns on. The classic one-way ANOVA is built on the idea that every group has the same spread, and once that is false its p-value no longer means what it is supposed to mean.
+Look at the three boxes. Marketing and Support sit in a similar tight band. Engineering's box is far taller, stretching from under \$50,000 to well past \$150,000. Engineering pays most people about what the other two departments pay, but a few of its specialists earn several times that, and those few salaries widen the whole box.
 
-Getting there takes three steps, all on the same 72 salaries.
-
-::widget process-flow {"steps":[{"title":"Look at the spread in each department","sub":"the size, mean and variance of each one"},{"title":"Run the classic one-way F-test","sub":"it replaces all three spreads with one pooled number"},{"title":"Run the Welch version","sub":"it weights each department by its own variance"}]}
-
-The first one is just looking. The other two are one R function each.
+That gap, tight for two departments and wide for the third, is exactly what makes the question hard to answer honestly.
 
 === step === concept
-## The pay data from three departments
+## What one-way ANOVA assumes about your groups' spread
 
-Let's build the data first, because every number from here on comes out of it.
+A one-way ANOVA compares three or more group means by weighing how much the group averages differ from each other (the between-group variation) against how much individual values scatter inside each group (the within-group variation). If the averages differ by a lot more than individuals scatter within a group, that's evidence the groups are genuinely different.
 
-The salaries are simulated with `rnorm()`, and that is deliberate: it lets us fix the truth ourselves. All three departments get the same true mean, 62 thousand. What differs is the true standard deviation, which is 4 for Support, 5 for Marketing, and 20 for Engineering.
-
-So we already know the right answer to the question "do these three departments differ in average pay?". They do not. Any test that says they do is wrong, and we are going to watch one do exactly that.
-
-Press Run.
+To do that weighing, the classic F-test pools every group's variance into one shared number. That pooling is only sound when the groups' real spread is similar to begin with. Let's check whether it is here.
 
 ```r
-# Build the pay data for the three departments and summarise each one
-set.seed(171)
-salary <- data.frame(
-  dept = factor(rep(c("Support", "Marketing", "Engineering"), times = c(30, 30, 12)),
-                levels = c("Support", "Marketing", "Engineering")),
-  pay  = c(rnorm(30, mean = 62, sd = 4),      # Support: 30 people, narrow band
-           rnorm(30, mean = 62, sd = 5),      # Marketing: 30 people, narrow band
-           rnorm(12, mean = 62, sd = 20))     # Engineering: 12 people, wide band
+# Build the department salary data and summarise it by group
+library(dplyr)
+
+set.seed(2026)
+salaries <- data.frame(
+  dept = factor(rep(c("Marketing", "Support", "Engineering"), each = 30),
+                levels = c("Marketing", "Support", "Engineering")),
+  salary = c(rnorm(30, 68000, 4000),
+             rnorm(30, 71000, 4500),
+             rnorm(30, 92000, 25000))
 )
 
-summ <- data.frame(
-  n    = tapply(salary$pay, salary$dept, length),
-  mean = tapply(salary$pay, salary$dept, mean),
-  sd   = tapply(salary$pay, salary$dept, sd),
-  var  = tapply(salary$pay, salary$dept, var)
-)
-round(summ, 1)
-#>              n mean   sd   var
-#> Support     30 61.5  4.6  21.6
-#> Marketing   30 61.9  4.5  20.2
-#> Engineering 12 68.5 15.8 249.1
+group_stats <- salaries |>
+  group_by(dept) |>
+  summarise(n = n(), mean = round(mean(salary), 0), sd = round(sd(salary), 0), var = round(var(salary), 0))
+group_stats
+#> # A tibble: 3 × 5
+#>   dept            n  mean    sd       var
+#>   <fct>       <int> <dbl> <dbl>     <dbl>
+#> 1 Marketing      30 67710  4382  19205397
+#> 2 Support        30 70335  3494  12204987
+#> 3 Engineering    30 92855 27219 740872648
+
+round(max(group_stats$var) / min(group_stats$var), 1)
+#> [1] 60.7
 ```
 
-`tapply()` splits `pay` by `dept` and applies a function to each piece, so one call gives one number per department. `summ` holds the full precision and we round only for printing, because the by-hand arithmetic later needs the exact values.
+Look at the `var` column. Marketing's variance sits at 19.2 million, Support's at 12.2 million, and Engineering's at 740.9 million. Dividing the largest variance by the smallest gives 60.7.
 
-Now read the mean column. Support's mean came out at 61.5, Marketing's at 61.9, and Engineering's at 68.5. Engineering's mean sits 7.0 above Support's even though all three were built around the same 62.
+A common rule of thumb says the classic F-test stays trustworthy as long as that ratio stays under 4. Ours is more than fifteen times past that line.
 
-That gap is sampling noise and nothing else. It is large because Engineering has only 12 people drawn from a wide band, and a department like that can land 7 points off the truth without anything unusual happening.
+[NOTE]
+Variance is in dollars squared, which is why the numbers look so large. The standard deviations in the `sd` column, \$4,382, \$3,494 and \$27,219, are in the same units as salary itself and are easier to read directly.
 
-The sd column is where the trouble starts.
+=== step === widget
+## What happens to the classic test when that assumption breaks
+
+Before running any formal test, it helps to see what an equal-variance violation actually does, using a general demonstration rather than our own data.
+
+The widget below fits a straight line to simulated data, thousands of times over, and tracks two things on every run: whether the reported 95% confidence interval actually contains the true slope (the interval's real coverage), and how well the line fits overall (R-squared). At the dial's far left, the scatter around the line is the same width everywhere. Drag the dial to the right and the scatter fans out wider and wider at one end than the other, the same shape a variance mismatch takes.
+
+::widget assumption-dial {"assumption": "heteroskedasticity"}
+
+Watch the two curves as you drag. R-squared barely moves. But coverage, the share of intervals that actually contain the truth, falls well under the nominal 95% level. Push the dial to its last notch and the widget's own label reports the widest end of the scatter running about 81 times the narrowest, even more extreme than our own departments' 60.7 times.
+
+That's the danger in one sentence. An unequal-variance violation does not make the fit look worse. It makes the reported confidence wrong, while nothing about the printed output changes to warn you.
+
+=== step === quiz
+## Quick check: what a variance mismatch actually does
+
+The dial just showed coverage collapse while R-squared barely moved, and all along the classic test's own printed numbers looked no different than usual. What does an unequal-variance violation actually do to a classic ANOVA?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- It biases the group means themselves, so the classic ANOVA reports the wrong averages. ::no
+- R throws a warning or an error the moment the variances stop matching, so you would notice right away. ::no
+- It leaves the printed F, degrees of freedom and p-value looking exactly the same as always, while the test's real error rate quietly climbs above the level it's supposed to hold. ::ok Exactly. That is the trap. Nothing in the classic test's own output flags the problem. The coverage collapse you watched in the dial is invisible from the printed result alone, which is exactly why you check variance directly instead of trusting the output to flag it.
+- It only matters when the group sizes are also unequal. ::no None of these describe what actually happens. The means are not biased and R does not warn you. The real danger is that the test's own reported numbers give no hint that its error rate has moved, which is why you check the assumption directly rather than trusting the output to flag it.
 
 === step === concept
-## How unequal the three spreads are
+## Testing equal variance directly: Bartlett's test
 
-Look at the var column again: 21.6 for Support, 20.2 for Marketing, and 249.1 for Engineering. Divide the largest by the smallest and you get 12.3, so Engineering's variance is more than twelve times Marketing's.
-
-Variance is the average squared distance from a group's own mean, and its square root is the standard deviation. Support's 4.6 and Engineering's 15.8 are that same quantity in thousands of dollars, which makes them easier to hold against each other than the squared versions.
-
-The boxplot below shows the same thing without any arithmetic. Each box covers the middle half of a department's salaries, from the 25th to the 75th percentile, and the line inside is the median.
-
-::widget chart-plotter {"x":"dept_num","y":"pay","geoms":["boxplot","point"],"code":{"boxplot":"ggplot(pay_plot, aes(x = group, y = pay)) +\n  geom_boxplot()","point":"ggplot(pay_plot, aes(x = group, y = pay)) +\n  geom_point()"},"data":[{"x":1,"y":58.1,"fill":"Support"},{"x":1,"y":62.8,"fill":"Support"},{"x":1,"y":66.2,"fill":"Support"},{"x":1,"y":57.3,"fill":"Support"},{"x":1,"y":66.2,"fill":"Support"},{"x":1,"y":62.2,"fill":"Support"},{"x":1,"y":53.8,"fill":"Support"},{"x":1,"y":64.2,"fill":"Support"},{"x":1,"y":70.4,"fill":"Support"},{"x":1,"y":63.6,"fill":"Support"},{"x":1,"y":64.2,"fill":"Support"},{"x":1,"y":53.4,"fill":"Support"},{"x":1,"y":61.8,"fill":"Support"},{"x":1,"y":68.3,"fill":"Support"},{"x":1,"y":65.4,"fill":"Support"},{"x":1,"y":69.0,"fill":"Support"},{"x":1,"y":58.4,"fill":"Support"},{"x":1,"y":62.9,"fill":"Support"},{"x":1,"y":59.9,"fill":"Support"},{"x":1,"y":58.7,"fill":"Support"},{"x":1,"y":63.0,"fill":"Support"},{"x":1,"y":64.2,"fill":"Support"},{"x":1,"y":55.2,"fill":"Support"},{"x":1,"y":56.4,"fill":"Support"},{"x":1,"y":58.6,"fill":"Support"},{"x":1,"y":57.0,"fill":"Support"},{"x":1,"y":62.8,"fill":"Support"},{"x":1,"y":67.5,"fill":"Support"},{"x":1,"y":59.5,"fill":"Support"},{"x":1,"y":55.1,"fill":"Support"},{"x":2,"y":57.3,"fill":"Marketing"},{"x":2,"y":62.9,"fill":"Marketing"},{"x":2,"y":64.4,"fill":"Marketing"},{"x":2,"y":66.7,"fill":"Marketing"},{"x":2,"y":66.0,"fill":"Marketing"},{"x":2,"y":60.3,"fill":"Marketing"},{"x":2,"y":50.2,"fill":"Marketing"},{"x":2,"y":69.6,"fill":"Marketing"},{"x":2,"y":61.0,"fill":"Marketing"},{"x":2,"y":57.0,"fill":"Marketing"},{"x":2,"y":65.4,"fill":"Marketing"},{"x":2,"y":63.2,"fill":"Marketing"},{"x":2,"y":64.0,"fill":"Marketing"},{"x":2,"y":62.3,"fill":"Marketing"},{"x":2,"y":62.8,"fill":"Marketing"},{"x":2,"y":60.8,"fill":"Marketing"},{"x":2,"y":57.6,"fill":"Marketing"},{"x":2,"y":64.9,"fill":"Marketing"},{"x":2,"y":65.7,"fill":"Marketing"},{"x":2,"y":56.7,"fill":"Marketing"},{"x":2,"y":59.7,"fill":"Marketing"},{"x":2,"y":67.8,"fill":"Marketing"},{"x":2,"y":62.6,"fill":"Marketing"},{"x":2,"y":58.7,"fill":"Marketing"},{"x":2,"y":60.7,"fill":"Marketing"},{"x":2,"y":57.0,"fill":"Marketing"},{"x":2,"y":56.6,"fill":"Marketing"},{"x":2,"y":67.1,"fill":"Marketing"},{"x":2,"y":59.2,"fill":"Marketing"},{"x":2,"y":70.0,"fill":"Marketing"},{"x":3,"y":49.8,"fill":"Engineering"},{"x":3,"y":77.7,"fill":"Engineering"},{"x":3,"y":77.1,"fill":"Engineering"},{"x":3,"y":59.7,"fill":"Engineering"},{"x":3,"y":74.5,"fill":"Engineering"},{"x":3,"y":66.1,"fill":"Engineering"},{"x":3,"y":53.6,"fill":"Engineering"},{"x":3,"y":49.3,"fill":"Engineering"},{"x":3,"y":78.1,"fill":"Engineering"},{"x":3,"y":58.1,"fill":"Engineering"},{"x":3,"y":104.5,"fill":"Engineering"},{"x":3,"y":73.6,"fill":"Engineering"}]}
-
-Support's middle half sits between 58.2 and 64.2. Engineering's runs from 56.9 to 77.2, and one engineer is out at 104.5. Switch the chart over to points and you can see those 12 salaries strung across a range the other two departments never reach.
-
-What we are looking at has a name. **Equal variance**, also called homogeneity of variance, is the assumption that every group in the comparison has the same true spread. It is one of the three assumptions behind the classic one-way ANOVA, alongside independent observations and roughly normal values inside each group.
-
-We can also test it. Bartlett's test starts from the null hypothesis that all the group variances are equal, and returns the probability of seeing spreads at least this uneven if that null were true.
+A dial and a rule of thumb are a good first check, but a formal test gives you a p-value you can actually report. Bartlett's test does exactly that: it tests the null hypothesis that every group shares the same variance.
 
 ```r
-# Test whether the three departments share one common variance
-bartlett.test(pay ~ dept, data = salary)
+# Test whether the three departments really have equal variance
+bartlett.test(salary ~ dept, data = salaries)
 #>
 #> 	Bartlett test of homogeneity of variances
 #>
-#> data:  pay by dept
-#> Bartlett's K-squared = 41.332, df = 2, p-value = 1.059e-09
+#> data:  salary by dept
+#> Bartlett's K-squared = 131.03, df = 2, p-value < 2.2e-16
 ```
 
-The p-value is 1.059e-09, which is R's shorthand for 0.000000001059. The equal variance assumption is not close to holding here.
+The p-value is far below 0.05, so we reject the null hypothesis of equal variance. That confirms, formally, what the 60.7 ratio and the dial already suggested.
 
 [NOTE]
-Bartlett's test is sensitive to non-normal data, so heavy tails on their own can make it flag unequal variances that are not really there. When your values are skewed, Levene's test, which compares distances from each group median instead, is the safer check. Our salaries are normal by construction, so Bartlett's is fine for this data.
-
-So the assumption fails. The next question is what the classic test actually does with those three variances.
+Bartlett's test is sensitive to non-normal data. When a dataset looks far from normal, Levene's test (`car::leveneTest()`) is the safer alternative. With a p-value this small, either test rejects equal variance, so it makes no difference here.
 
 === step === concept
-## What the classic one-way ANOVA pools together
+## Switching to Welch's correction with var.equal = FALSE
 
-The classic one-way ANOVA compares the spread between the department means against the spread inside the departments. A difference is believable when the gaps between the means are wide and the spread inside each department is small.
-
-For the second half of that sentence it needs one number for "the spread inside the departments". It does not have one. It has three: 21.6, 20.2 and 249.1. So it averages them, weighting each by its degrees of freedom, which for a variance is that department's size minus one.
-
-\[ s_p^2 \;=\; \frac{\sum_{i=1}^{k}(n_i - 1)\,s_i^2}{N - k} \]
-
-Here \(s_i^2\) is the variance of department \(i\), \(n_i\) is its size, \(k\) is the number of departments, and \(N\) is the total number of employees. The result is called the **pooled variance**, and it is the single spread the classic test then uses for all three departments.
-
-R prints it for us. Fit the classic ANOVA and read the Mean Sq entry on the Residuals row.
+`oneway.test()` runs both the classic and the corrected version of this test, from the exact same formula interface as `aov()`. The one argument that switches between them is `var.equal`.
 
 ```r
-# Fit the classic one-way ANOVA and read what it puts in the residual row
-aov_fit <- aov(pay ~ dept, data = salary)
-summary(aov_fit)
-#>             Df Sum Sq Mean Sq F value Pr(>F)
-#> dept         2    460  230.03   4.015 0.0224 *
-#> Residuals   69   3953   57.29
-#> ---
-#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-```
+# Compare the classic and Welch's versions of the same test
+classic_fit <- oneway.test(salary ~ dept, data = salaries, var.equal = TRUE)
+classic_fit
+#>
+#> 	One-way analysis of means
+#>
+#> data:  salary and dept
+#> F = 22.264, num df = 2, denom df = 87, p-value = 1.555e-08
 
-That 57.29 on the Residuals row is the pooled variance. Here is the same number built by hand out of the table we already have.
-
-```r
-# Rebuild the pooled variance by hand from the per-department table
-pooled_var <- sum((summ$n - 1) * summ$var) / (sum(summ$n) - 3)
-round(c(pooled_variance = pooled_var, pooled_sd = sqrt(pooled_var)), 2)
-#> pooled_variance       pooled_sd
-#>           57.29            7.57
-```
-
-So the classic test is working with one spread, 57.29, which is 7.57 thousand as a standard deviation. Hold that against the real three. It is too large for Support at 4.6 and Marketing at 4.5, and it is less than half of Engineering's 15.8.
-
-The direction of that mistake is what matters. The 7.0-point gap comes from Engineering, and the test is comparing that gap against a spread of 7.57 rather than 15.8. Any gap looks convincing when you measure it with a ruler that is too short.
-
-And that is what comes back. F is the spread between the department means divided by the spread inside them, 230.03 over 57.29, which is the 4.015 on the dept row. Written out with its two degrees of freedom that is F(2, 69) = 4.02, and p is 0.0224. Under the usual 0.05 threshold that counts as a real difference between the departments, on data where all three true means are 62.
-
-[KEY INSIGHT]
-The classic F-test does not merely assume equal variances as a formality. It replaces the real variances with a single pooled number, so a group that is genuinely noisier than the rest is compared against a spread that is too small for it, and its ordinary sampling noise is read as evidence.
-
-=== step === quiz
-## Quick check: what the pooled variance did here
-::prose-only the check itself is the step, and the three variances plus the pooled 57.29 it asks about are already computed and on the page
-
-The three department variances are 21.6, 20.2 and 249.1, and the classic F-test replaced all three with the single pooled value 57.29. What did that do to the evidence?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- It changed the department means, so the 7.0-point gap between Engineering and Support is not really there. ::no
-- It stood in for a variance of 249.1 with a number about four times too small, so Engineering's ordinary noise was counted as strong evidence. ::ok Exactly. Pooling never touches a mean. It sets the ruler the gap is measured against, and the number it used for Engineering was about a quarter of that department's real variance.
-- It made the test more cautious, because averaging in Engineering's 249.1 inflated the spread used for every department. ::no
-- It dropped the 104.5 salary as an outlier, so Engineering looks tighter than it really is. ::no The pooled variance keeps every salary and changes no mean. All it does is force one spread on all three departments: a little too large for Support and Marketing, far too small for Engineering. That last part is why a 7.0-point gap came back significant.
-
-=== step === concept
-## How Welch's ANOVA weights each department and adjusts the df
-
-Welch's ANOVA does not pool. It lets every department keep its own variance, then sets how much each one counts toward the result.
-
-The weight of department \(i\) is its size divided by its variance.
-
-\[ w_i \;=\; \frac{n_i}{s_i^2} \]
-
-A department that is large and has a narrow spread gets a big weight. A small one with a wide spread gets almost nothing.
-
-Everything else in the test is that weight carried through. The grand mean becomes a weighted mean instead of a plain one, the between-department term is weighted the same way, and the denominator degrees of freedom are cut down by a correction due to Satterthwaite.
-
-\[ F \;=\; \frac{\frac{1}{k-1}\sum_i w_i\,(\bar{x}_i - \tilde{\mu})^2}{1 + \frac{2(k-2)}{k^2-1}\,\Lambda}, \qquad \Lambda \;=\; \sum_i \frac{1}{n_i - 1}\left(1 - \frac{w_i}{\sum_j w_j}\right)^{2} \]
-
-\[ \mathrm{df}_2 \;=\; \frac{k^2 - 1}{3\,\Lambda} \]
-
-In those two lines, \(\bar{x}_i\) is the mean of department \(i\) and \(\tilde{\mu}\) is the weighted grand mean. \(\Lambda\) is the one quantity they share. It is built out of the weights and the group sizes and nothing else, and the bigger it gets, the smaller both the F and the denominator df become.
-
-In R all of that is one line, and the argument that switches it on is `var.equal = FALSE`.
-
-```r
-# Run Welch's ANOVA, which does not assume equal variances
-welch_fit <- oneway.test(pay ~ dept, data = salary, var.equal = FALSE)
+welch_fit <- oneway.test(salary ~ dept, data = salaries, var.equal = FALSE)
 welch_fit
 #>
 #> 	One-way analysis of means (not assuming equal variances)
 #>
-#> data:  pay and dept
-#> F = 1.1104, num df = 2.000, denom df = 25.213, p-value = 0.345
+#> data:  salary and dept
+#> F = 14.21, num df = 2.000, denom df = 51.061, p-value = 1.241e-05
 ```
 
-F is 1.1104 and p is 0.345. On the same 72 salaries, the classic test returned 0.0224 and Welch's returns 0.345. Only one of the two can be right, and we know which, because all three departments were built around a mean of 62.
+Same data, same formula, only the assumption changed, and three numbers moved. The classic version's denominator df is a clean 87, exactly `90 - 3` employees minus departments. Welch's version reports 51.061, a fraction, and a smaller F.
 
-The other thing to notice is the denominator df, 25.213 rather than 69. It is fractional, and that fraction is what Welch's correction does to the degrees of freedom. The numerator df stays at the number of groups minus one, which is 2.
-
-Now let's put the formulas to work and get both numbers out of the table by hand.
-
-```r
-# Reproduce Welch's F and its denominator df from the per-department table
-k   <- 3
-w_i <- setNames(summ$n / summ$var, rownames(summ))
-round(w_i, 3)
-#>     Support   Marketing Engineering
-#>       1.391       1.482       0.048
-
-grand_mean <- sum(w_i * summ$mean) / sum(w_i)              # the weighted grand mean
-lambda     <- sum((1 - w_i / sum(w_i))^2 / (summ$n - 1))   # the Satterthwaite term
-
-welch_F  <- (sum(w_i * (summ$mean - grand_mean)^2) / (k - 1)) /
-            (1 + 2 * (k - 2) * lambda / (k^2 - 1))
-welch_df <- (k^2 - 1) / (3 * lambda)
-
-cat("grand mean :", round(grand_mean, 2), "\n")
-cat("F          :", round(welch_F, 4), "\n")
-cat("denom df   :", round(welch_df, 3), "\n")
-#> grand mean : 61.85
-#> F          : 1.1104
-#> denom df   : 25.213
-```
-
-The same 1.1104 and the same 25.213 that `oneway.test()` printed, straight out of the per-department table.
-
-Read the weights first. Support gets 1.391 and Marketing 1.482, but Engineering gets 0.048, which is about a thirtieth of Marketing's. Engineering is still in the test and can still move the answer, but only in proportion to how precisely its mean was measured.
-
-That is also why the weighted grand mean is 61.85 and not 63.97, which is what you get by averaging 61.5, 61.9 and 68.5 as equals. Engineering's 68.5 barely pulls it.
-
-The denominator df says the same thing in another way. The classic test had 69 of them, one for every employee past the three department means. Welch's has 25.213, because a department whose mean is that imprecise cannot contribute a full share. Fewer denominator degrees of freedom means a wider F distribution, and that is what keeps the p-value from coming out too small.
-
-[KEY INSIGHT]
-Pooling and weighting are opposite answers to the same question. The classic test forces one spread on all three departments. Welch's lets each keep its own, weights each one by \(n_i / s_i^2\), and pays for the imprecision with fewer degrees of freedom.
+Both still reject the null hypothesis that the three departments earn the same average, but the strength of that evidence differs between them. Welch's is the version to go with here, because Bartlett's test already confirmed the equal-variance assumption the classic version depends on does not hold.
 
 === step === concept
-## How often each test flags a difference that is not there
+## Why Welch's denominator degrees of freedom comes out fractional
 
-One dataset is one dataset. Maybe this particular draw was unlucky and the classic test is fine in general. The way to settle that is to run the whole thing many times.
+That fractional 51.061 is not a rounding artifact. It comes from a specific correction, the Satterthwaite approximation, built from each department's own sample size and variance.
 
-A test that rejects at p below 0.05 is set up to do something specific. When there is no real difference, it will still report one about 5 times in 100. That is its false positive rate, also called the Type I error rate, and 0.05 is the rate we agreed to accept when we picked the threshold.
+Each department gets a weight, large when the department is big and has low variance, small when it is small or noisy:
 
-So let's build 1,000 companies in which the three departments genuinely have the same mean pay, run both tests on every one, and count how often each test rejects.
+$$w_i = \frac{n_i}{s_i^2}$$
 
-```r
-# Count how often each test reports a difference when there is none
-rate <- function(sizes, spreads, means = c(62, 62, 62), reps = 1000) {
-  dept <- factor(rep(c("Support", "Marketing", "Engineering"), times = sizes),
-                 levels = c("Support", "Marketing", "Engineering"))
-  p <- replicate(reps, {
-    pay <- c(rnorm(sizes[1], means[1], spreads[1]),
-             rnorm(sizes[2], means[2], spreads[2]),
-             rnorm(sizes[3], means[3], spreads[3]))
-    c(classic = oneway.test(pay ~ dept, var.equal = TRUE)$p.value,
-      welch   = oneway.test(pay ~ dept, var.equal = FALSE)$p.value)
-  })
-  round(100 * rowMeans(p < 0.05), 1)
-}
+Those weights then feed the denominator degrees of freedom directly:
 
-set.seed(7)
-rate(sizes = c(30, 30, 12), spreads = c(4, 5, 20))
-#> classic   welch
-#>    25.0     5.8
-```
+$$\text{df}_{\text{denom}} = \frac{k^2 - 1}{3 \displaystyle\sum_{i=1}^{k} \dfrac{\left(1 - w_i / W\right)^2}{n_i - 1}}, \qquad W = \sum_{i=1}^{k} w_i$$
 
-The classic test announced a difference in 250 of the 1,000 companies. Every one of those was a false alarm, because `means` was `c(62, 62, 62)` in all 1,000 of them. Welch's announced 58, which is what a 5% rule is supposed to deliver.
-
-25.0% in place of 5% is not a small miscalibration. Run the classic test on data shaped like ours and you are wrong five times as often as you believe you are.
-
-Now change one thing. Give all three departments the same spread of 5, keep the sizes and the means exactly as they were, and count again.
+Here $k$ is the number of groups, so $k = 3$. Let's walk the departments' own numbers through it.
 
 ```r
-# The same count when all three departments have the same spread
-set.seed(7)
-rate(sizes = c(30, 30, 12), spreads = c(5, 5, 5))
-#> classic   welch
-#>     5.1     5.5
+# Work out each department's Satterthwaite weight by hand
+weights <- group_stats$n / group_stats$var
+weights
+#> [1] 1.562061e-06 2.458012e-06 4.049279e-08
+
+sum_w <- sum(weights)
+share <- weights / sum_w
+share
+#> [1] 0.384690501 0.605337294 0.009972205
+
+terms <- (1 - share)^2 / (group_stats$n - 1)
+tmp <- sum(terms) / (3^2 - 1)
+df_denom_hand <- 1 / (3 * tmp)
+df_denom_hand
+#> [1] 51.0613
 ```
 
-5.1% and 5.5%. When the assumption holds, the two tests agree with each other and both land where the 0.05 threshold says they should.
+Look at `weights`. Engineering's weight, 4.05e-08, is nearly forty times smaller than Marketing's and sixty times smaller than Support's, purely because Engineering's variance is so much larger. `share` shows what that does: Engineering carries only about 1% of the total weight, against Marketing's 38% and Support's 61%.
 
-[KEY INSIGHT]
-Welch's ANOVA held its false positive rate near 5% whether the spreads were equal or not. The classic F-test held it only when the spreads were equal, and it has no way of telling you which of the two situations you are in.
+A department with almost no weight barely counts as an independent source of information in this formula, so the effective sample size behind the test shrinks. That is why `df_denom_hand` comes out at 51.0613, matching `welch_fit`'s own 51.061 exactly, and why it sits well below the classic test's 87.
 
 === step === widget
-## What unequal spread breaks, and what it leaves alone
+## Turning the F-statistic into a p-value
 
-Unequal spread does not damage everything in a model, and it is worth being exact about what it does and does not touch.
+An F-statistic on its own does not tell you whether to reject the null hypothesis. What turns it into a decision is comparing it against every F-value pure chance could produce if the null hypothesis were true, its null distribution. The p-value is simply how much of that distribution sits beyond your observed statistic.
 
-The dial below runs its own set of simulated studies at every severity setting. It uses one predictor and a straight line rather than three departments, but the assumption being broken is the same one, equal error variance.
+The picture below is not drawn to our exact F and df. It shows the shape every null distribution shares: a peak where "no effect" sits, and thinning tails as the observed statistic moves further out. Drag the statistic and watch the shaded tail, which is exactly what a p-value is, shrink as it moves right.
 
-At each setting it measures two things. Coverage is the share of 95% confidence intervals that really do contain the true value. R-squared is how well the line fits.
+::widget null-distribution {"tails": 1, "label": "test statistic"}
 
-::widget assumption-dial {"assumption":"heteroskedasticity","levels":11,"start":0}
-
-Start at the left, where the assumption holds. Coverage reads 95.1%, which is exactly what a 95% interval is supposed to do, and R-squared is 0.503.
-
-Now drag the dial all the way to the right. Coverage falls to 70.7%, so nearly three intervals in every ten miss the value they were built to capture. R-squared goes from 0.503 to 0.533, which is to say it barely moves at all.
-
-That split is the point. The estimate and the fit are unaffected. The uncertainty statement is not.
-
-Bring it back to the salaries. The three department means, 61.5, 61.9 and 68.5, are perfectly good estimates and unequal spread did nothing to them. What broke was the p-value on the comparison, and that is precisely the number the classic test got wrong.
+That shrinking shaded area is the same mechanism that turned `welch_fit`'s F of 14.21, on 2 and 51.06 degrees of freedom, into a p-value of 1.24e-05. That F sits so far into the tail of its own F-distribution that almost none of the distribution lies beyond it, which is exactly why the p-value came out so small.
 
 === step === concept
-## How to run and report Welch's ANOVA on your own data
+## Which departments actually differ from each other
 
-There are three things to do, in order, whenever you have three or more groups to compare.
+Welch's ANOVA tells you the three departments' means are not all equal. It does not tell you which pairs differ. For that, you need a follow-up pairwise test, and it needs to match the same Welch-style logic: no pooled variance across groups.
 
-1. Look at the spread in each group: the size, mean and standard deviation of each one, plus a boxplot. Add Bartlett's or Levene's test if you want a p-value beside it.
-2. Run `oneway.test(y ~ group, data = df, var.equal = FALSE)`.
-3. Report the F, both degrees of freedom and the p-value, with the fractional df left exactly as it came.
-
-That third one is where people slip. The fractional denominator df is not an untidy number waiting to be cleaned up, it is the correction itself, and rounding 25.213 to 25 throws away the thing that makes the result checkable by someone else.
-
-Build the reported line straight out of the fitted object, so no number is ever typed twice.
+`pairwise.t.test()` with `pool.sd = FALSE` runs exactly that, comparing every pair with its own variance rather than one pooled estimate. Adding a Bonferroni correction keeps the overall false-positive rate under control across the three comparisons being run at once.
 
 ```r
-# Write the Welch result the way it should be reported
-sprintf("Welch's F(%.0f, %.2f) = %.2f, p = %.3f",
-        welch_fit$parameter[1], welch_fit$parameter[2],
-        welch_fit$statistic, welch_fit$p.value)
-#> [1] "Welch's F(2, 25.21) = 1.11, p = 0.345"
+# Compare every pair of departments with Welch-style pairwise t-tests
+pairwise.t.test(salaries$salary, salaries$dept, p.adjust.method = "bonferroni", pool.sd = FALSE)
+#>
+#> 	Pairwise comparisons using t tests with non-pooled SD 
+#>
+#> data:  salaries$salary and salaries$dept 
+#>
+#>             Marketing Support
+#> Support     0.03922   -      
+#> Engineering 6.8e-05   0.00029
+#>
+#> P value adjustment method: bonferroni 
 ```
 
-`welch_fit$parameter` holds the two degrees of freedom and `welch_fit$statistic` holds the F, so the sentence updates itself if the data changes.
+Every one of the three p-values sits under 0.05. Marketing and Support differ (p = 0.039), Engineering and Marketing differ (p = 6.8e-05), and Engineering and Support differ (p = 0.00029). So it is not just Engineering that stands apart: all three departments differ from each other.
 
-That leaves one fair objection. If Welch's is going to be the default, what does it cost on data where the spreads really are equal?
-
-Here is that cost, measured. It is the same simulation as before with equal spreads of 5, except that Engineering is now genuinely 6 points ahead at a true mean of 68. The share of rejections is no longer a false positive rate, it is power: the chance of catching a difference that is really there.
-
-```r
-# What Welch's costs in power when the spreads really are equal
-set.seed(7)
-rate(sizes = c(30, 30, 12), spreads = c(5, 5, 5), means = c(62, 62, 68))
-#> classic   welch
-#>    92.0    91.2
-```
-
-92.0% against 91.2%. Using Welch's when you did not need it cost 0.8 percentage points of power. Using the classic test when you did need Welch's cost 19 percentage points of false alarms, from 5.8% up to 25.0%.
-
-[TIP]
-Do not test the variances first and then pick a test based on the result. That two-stage procedure has an error rate of its own, because a variance test can miss real inequality in small samples and flag harmless inequality in large ones, and whichever ANOVA follows inherits the mistake. Run Welch's by default and there is no decision left to get wrong.
+This particular test is a close approximation to the formal **Games-Howell** test, which uses the Studentized-range distribution instead of the t-distribution. In practice the two rarely differ.
 
 === step === quiz
-## Quick check: what the unequal spread actually broke
-::prose-only the check itself is the step, and both numbers it rests on, the 25.0% against 5.8% and the coverage on the dial, are already on the page
+## Quick check: reading a Welch's ANOVA result
 
-Across 1,000 companies where all three departments truly had the same mean pay, the classic test reported a difference 25.0% of the time and Welch's 5.8%. What exactly did the unequal spread damage?
+Say a different Welch's ANOVA comes back with F = 8.2, num df = 3, denom df = 42.7, p = 0.0002. What does that result actually license you to conclude?
 
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- It biased the department means upward, so Engineering only looked better paid than it was. ::no
-- It made both tests too cautious, so real differences were missed rather than invented. ::no
-- The means were estimated fine, and what broke was the p-value and the uncertainty behind it, which is why the classic test rejected in a quarter of companies that had no real difference. ::ok Yes. The dial showed the same split: coverage fell from 95.1% to 70.7% while R-squared barely moved. Unequal spread is a standard error problem, not an estimation problem.
-- Welch's fixes it by pulling the group means closer together before testing them. ::no Welch's never changes a group mean. It keeps every mean exactly as it is and changes only what each one is weighted by and the degrees of freedom the F is compared against. What unequal spread damages is the uncertainty statement, which is why 25.0% of companies with no real difference still came back significant.
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- p = 0.0002 tells you the size of the effect: the groups differ by about 0.02%. ::no
+- The groups' means are not all equal, and the fractional 42.7 denominator df is itself a sign the groups' variances were unequal, not a rounding artifact. ::ok Exactly right. An omnibus ANOVA, classic or Welch's, only ever tells you the means are not all the same. Which specific pair differs needs a pairwise test that compares each pair with its own variance rather than one pooled estimate. And 42.7 is not a typo. It is the Satterthwaite correction doing exactly what it did with our own departments.
+- One specific pair of groups must differ, since the F-statistic is so large. ::no
+- The denominator df should really be a whole number like 42 or 43, and R rounded it strangely. ::no An omnibus F-test, Welch's or classic, never names which pair differs on its own, and a p-value is not an effect size. The fractional denominator df is not a rounding quirk either: it is exactly what the Satterthwaite formula produces whenever the groups being compared do not share one common variance.
 
 === step === tryit
-## Your turn: run both tests when the departments are the same size
+## Your turn: run Welch's ANOVA on a new dataset
 
-Engineering had only 12 people. Some of the damage came from the unequal spread, and some came from the noisiest department also being the smallest. So what happens when all three departments have 30 people and the spreads are still 4, 5 and 20?
-
-The block below already builds `salary_eq`. Add two lines to it: the classic one-way F-test on `salary_eq`, then Welch's ANOVA on the same data.
+`PlantGrowth` is a built-in R dataset: the dried weight of 30 plants, 10 grown under a control condition and 10 under each of two treatments, in a numeric column `weight` and a three-level factor `group` (`ctrl`, `trt1`, `trt2`). Test whether this comparison actually needs Welch's correction, the way you just did for the departments.
 
 ```r
-# salary_eq holds 30 people in every department, with the same three spreads
-set.seed(171)
-salary_eq <- data.frame(
-  dept = factor(rep(c("Support", "Marketing", "Engineering"), times = c(30, 30, 30)),
-                levels = c("Support", "Marketing", "Engineering")),
-  pay  = c(rnorm(30, mean = 62, sd = 4),
-           rnorm(30, mean = 62, sd = 5),
-           rnorm(30, mean = 62, sd = 20))
-)
-# Run the classic one-way F-test on salary_eq, then Welch's ANOVA on it.
-# Two lines. Press Check when you have them.
+# PlantGrowth: dried weight of plants under a control and two treatments
+
+# your code here: test equal variance across the three groups with bartlett.test()
+
+# your code here: then run Welch's ANOVA with oneway.test(), var.equal = FALSE
 ```
-::check {"regex": "oneway[.]test[(][^)]*var[.]equal\\s*=\\s*FALSE", "gate": true, "difficulty": "beginner", "ok": "That is it. The classic test gives F(2, 87) = 3.45 with p = 0.0361, and Welch's gives F(2, 52.65) = 1.92 with p = 0.157. All three true means are 62 again, so the classic rejection is another false alarm, and the denominator df is 52.65 rather than 87.", "no": "Two calls to the same function, changing one argument between them: oneway.test(pay ~ dept, data = salary_eq, var.equal = TRUE), then the same line with var.equal = FALSE."}
+::check {"regex": "bartlett[.]test[(][^)]*group[^)]*[)][\\s\\S]*oneway[.]test[(][^)]*var[.]equal\\s*=\\s*FALSE", "gate": true, "difficulty": "beginner", "ok": "Right. Bartlett's test comes back at p = 0.237, so equal variance is not rejected here, and Welch's F = 5.18 on 2 and 17.13 degrees of freedom lands close to the classic F = 4.85 on 2 and 27.", "no": "Call bartlett.test(weight ~ group, data = PlantGrowth) first, then oneway.test(weight ~ group, data = PlantGrowth, var.equal = FALSE)."}
 ::solution
 ```r
-# Run both tests on the equal-sized departments
-oneway.test(pay ~ dept, data = salary_eq, var.equal = TRUE)
+# Check variance equality, then compare classic and Welch's ANOVA
+bartlett.test(weight ~ group, data = PlantGrowth)
+#>
+#> 	Bartlett test of homogeneity of variances
+#>
+#> data:  weight by group
+#> Bartlett's K-squared = 2.8786, df = 2, p-value = 0.2371
+
+pg_var <- tapply(PlantGrowth$weight, PlantGrowth$group, var)
+round(max(pg_var) / min(pg_var), 1)
+#> [1] 3.2
+
+oneway.test(weight ~ group, data = PlantGrowth, var.equal = TRUE)
 #>
 #> 	One-way analysis of means
 #>
-#> data:  pay and dept
-#> F = 3.4502, num df = 2, denom df = 87, p-value = 0.03615
-#>
+#> data:  weight and group
+#> F = 4.8461, num df = 2, denom df = 27, p-value = 0.01591
 
-oneway.test(pay ~ dept, data = salary_eq, var.equal = FALSE)
+oneway.test(weight ~ group, data = PlantGrowth, var.equal = FALSE)
 #>
 #> 	One-way analysis of means (not assuming equal variances)
 #>
-#> data:  pay and dept
-#> F = 1.9217, num df = 2.00, denom df = 52.65, p-value = 0.1565
+#> data:  weight and group
+#> F = 5.181, num df = 2.000, denom df = 17.128, p-value = 0.01739
 ```
 
-Equal group sizes help, but they do not remove the problem. Count the false alarms again with 30 people in every department and the gap is smaller but still there.
+Bartlett's test comes back at p = 0.237, so here you do not reject equal variance. The variance ratio behind that is only about 3.2, under the usual 4 rule of thumb. And that shows up exactly where the dial predicted it would: classic (F = 4.85, p = 0.016) and Welch's (F = 5.18, p = 0.017) land close together.
 
-```r
-# The false positive rate when all three departments have 30 people
-set.seed(7)
-rate(sizes = c(30, 30, 30), spreads = c(4, 5, 20))
-#> classic   welch
-#>     7.0     4.7
-```
-
-7.0% against 4.7%, so the classic rejection you just produced is one of that 7%.
+When variances really are similar, Welch's correction costs you almost nothing. It is only when they diverge, the way the three departments' did, that the two versions pull apart.
 
 === step === concept
 ## References
-::prose-only a list of sources, and the only links anywhere in the lesson
 
-- [On the comparison of several mean values: an alternative approach](https://doi.org/10.1093/biomet/38.3-4.330) - Welch (1951), Biometrika 38(3-4), 330-336. The test itself, and the Satterthwaite denominator df you computed by hand.
-- [Some theorems on quadratic forms applied in the study of analysis of variance problems, I](https://doi.org/10.1214/aoms/1177728786) - Box (1954), Annals of Mathematical Statistics 25(2), 290-302. What unequal variances do to the classic one-way F-test, worked out in full.
-- [A note on preliminary tests of equality of variances](https://doi.org/10.1348/000711004849222) - Zimmerman (2004), British Journal of Mathematical and Statistical Psychology 57(1), 173-181. Why testing the variances first and then choosing a test does not work.
-- [Why psychologists should by default use Welch's t-test instead of Student's t-test](https://doi.org/10.5334/irsp.82) - Delacre, Lakens and Leys (2017), International Review of Social Psychology 30(1), 92-101. The argument for making the Welch version the default, made for the two-group case.
-- [Test for equal means in a one-way layout](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/oneway.test.html) - R Core Team, the documentation for `oneway.test()`.
+- [On the Comparison of Several Mean Values: An Alternative Approach](https://doi.org/10.1093/biomet/38.3-4.330) - Welch, B. L. (1951), Biometrika, 38(3/4), 330-336. The original paper behind the correction this lesson runs.
+- [Taking Parametric Assumptions Seriously: Arguments for the Use of Welch's F-test instead of the Classical F-test in One-Way ANOVA](https://doi.org/10.5334/irsp.198) - Delacre, M., Leys, C., Mora, Y. L., & Lakens, D. (2019), International Review of Social Psychology, 32(1), 13. The case for using Welch's by default.
+- [Comparison of ANOVA alternatives under variance heterogeneity and specific noncentrality structures](https://doi.org/10.1037/0033-2909.99.1.90) - Tomarken, A. J., & Serlin, R. C. (1986), Psychological Bulletin, 99(1), 90-99.
+- [rstatix: games_howell_test](https://cran.r-project.org/package=rstatix) - CRAN documentation for the formal Games-Howell post-hoc test, the method the pairwise Welch t-tests in this lesson approximate.
+- [R documentation: stats::oneway.test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/oneway.test.html) - R Core Team, the function behind both the classic and Welch's ANOVA in this lesson.
 
 === step === complete
-## Quick recap
+## The equal-variance check, recapped
 
-We had three departments and 72 salaries, all built around the same true mean of 62. Here is what the two tests made of that.
+You worked through one full decision, start to finish, on the departments' salaries.
 
-- The classic one-way F-test replaced variances of 21.6, 20.2 and 249.1 with a single pooled 57.29 and returned F(2, 69) = 4.02 with p = 0.0224, which is a difference that does not exist.
-- Welch's ANOVA weighted each department by \(n_i / s_i^2\), giving 1.391, 1.482 and 0.048, cut the denominator df to 25.213, and returned F(2, 25.213) = 1.11 with p = 0.345.
-- Across 1,000 companies with no real difference, the classic test rejected 25.0% of the time and Welch's 5.8%. Only one of those is the 5% the threshold was set for.
-- Where the spreads were genuinely equal the two agreed, and Welch's cost 0.8 percentage points of power.
+- Measure the spread first. Per-group variance and a quick ratio (60.7, in our case) already told you the classic test's equal-variance assumption was in trouble.
+- Confirm it formally with Bartlett's test, which rejected equal variance at p < 2.2e-16.
+- Switch `var.equal` to `FALSE` and let Welch's correction reweight each group by its own variance instead of pooling them.
+- Read the fractional denominator df, 51.061 here, as evidence: it is the Satterthwaite formula telling you the variances genuinely differed.
+- Follow a significant result with a pairwise post-hoc test built the same Welch-style way, which is what showed all three departments actually differ from each other.
 
-So the rule is short. Whenever you compare three or more groups, run `oneway.test(y ~ group, data = df, var.equal = FALSE)` and report the fractional denominator df as it comes out.
-
-Next time three or more groups land in front of you, you will know what the classic F-test does with their spreads, and why the fractional denominator df on the Welch line is the part worth keeping. Nice work getting through it.
+The one habit worth keeping from all of this: check variance before you trust a p-value, because the classic test's own output will never tell you it is wrong.
