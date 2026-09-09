@@ -1,11 +1,11 @@
 ---
 title: "How to choose ARIMA order (p, d, q): a practical guide"
 slug: "ARIMA-Mini-3"
-description: "Choose p, d and q for a real series in R: difference until the level holds steady, read the ACF and PACF for a shortlist, then let AICc settle the winner."
-keywords: "how to choose ARIMA order, ARIMA p d q, ACF and PACF, ARIMA order selection in R, ndiffs, AICc, Ljung-Box test, identify ARIMA order"
+description: "Choose an ARIMA order in R: test for stationarity with ADF and KPSS, read real ACF and PACF plots, then compare candidates with AICc and a residual check."
+keywords: "ARIMA order, choose ARIMA p d q, ACF and PACF, ADF test, KPSS test, ndiffs, AICc, Ljung-Box test, ARIMA in R"
 mathjax: true
 webr: true
-date: "2026-09-06"
+date: "2026-09-09"
 post_type: "LESSON"
 course_id: "arima-from-zero"
 course_title: "ARIMA from Zero"
@@ -16,394 +16,391 @@ course_prev: "ARIMA-Mini-2"
 course_next: ""
 curriculum_id: "0.0.17"
 lesson_access: "windowed"
-catalog_blurb: "How to pick the three numbers in ARIMA without guessing."
+catalog_blurb: "Turn a real, imperfect ACF and PACF into an ARIMA order you can defend."
 ---
 
 === step === cover
 ## How to choose ARIMA order (p, d, q): a practical guide
 
-Today we are going to choose an ARIMA order for a series of daily sales, from the raw numbers to a model you can defend in a meeting.
+Today you are going to take one real series of daily counts and turn it into an ARIMA order you can defend, not guess at.
 
-A coffee shop counts the cups it sells at the till. The record runs for 180 trading days, and over that stretch the count climbs from under 200 a day at the start to close to 300 by the end, with plenty of noise on the way up.
+Bellwood Coffee, an independent coffee shop, logs how many drink orders its point-of-sale system rings up every day. The owner pulled the first 100 days of that log: orders open near 47, dip as low as 26 by day 39, then climb to 113 by day 100 as the shop built up its regulars.
 
-To forecast that series with ARIMA you have to supply three whole numbers, the p, the d and the q in ARIMA(p, d, q). Once those three are set, R estimates every coefficient and every forecast for you. So the whole job of fitting an ARIMA model really comes down to choosing three small integers.
+An ARIMA model for a series like this needs exactly three integers, written ARIMA(p, d, q). Get those three right and R estimates everything else on its own, the coefficients and the forecasts included. Get them wrong and the model either misses a pattern that is really there or invents one that is not.
 
-Each number is settled a different way, and the three always run in the same order.
+Picking p, d, and q is not a matter of taste. It is a short, repeatable routine, always the same four stages in the same order, and you will run every one of them on Bellwood's own numbers.
 
-::widget process-flow {"steps":[{"title":"Difference the series","sub":"replace the counts by day to day changes until the level stops climbing, and that count is d"},{"title":"Read the two plots","sub":"the ACF and the PACF of those changes suggest values for p and q"},{"title":"Score the candidates","sub":"fit every order on the shortlist and compare their AICc scores"}]}
+::widget process-flow {"steps":[{"title":"Remove the trend","sub":"difference the series until its level stops drifting"},{"title":"Read the ACF and PACF","sub":"shortlist how many AR and MA terms the pattern calls for"},{"title":"Fit a few candidates","sub":"fit each shortlisted order and score it with a penalized measure of fit"},{"title":"Compare and confirm","sub":"pick the lowest score, then check its residuals for anything left over"}]}
 
-Those three boxes are what we are about to run on the coffee shop's numbers, one at a time.
+That is the whole routine laid out above. Four stages, always in that order, and Bellwood's order counts will carry you through every one of them.
 
 === step === concept
-## 180 days of cups sold at a coffee shop
+## The three numbers behind ARIMA(p, d, q), and why order matters
 
-Everything from here runs on one series, so let us build it first.
+An ARIMA(p, d, q) model is built from three separate components, and each one answers a different question about the series.
 
-The till gives one number per trading day: how many cups went out that day. There are 180 of them, one after another.
+d is the order of differencing: how many times you subtract each value from the one before it until the series settles at a level that stays roughly constant over time. p is the number of autoregressive terms: how many of the series' own past values it takes to predict the next one. q is the number of moving-average terms: how many past forecast errors it takes to predict the next one.
 
-Press Run.
+Once those three integers are fixed, R estimates every coefficient in the model on its own. So choosing an order really is the whole job, and nothing else is left to guess.
+
+Build Bellwood's order counts once and plot them, since every calculation from here on uses this same series.
 
 ```r
-# Build the coffee shop's 180 daily cup counts and look at the first ten days
+# Build Bellwood Coffee's 100-day order series and plot it
 library(forecast)
-
-set.seed(101)
-cups <- ts(round(180 + cumsum(rnorm(180, mean = 0.9, sd = 4)) + rnorm(180, sd = 7)))
-
-head(as.numeric(cups), 10)
-#>  [1] 186 176 182 187 189 184 192 193 197 211
-range(cups)
-#> [1] 176 304
+library(ggplot2)
+set.seed(42)
+n <- 100
+drift <- 0.6
+arma_diff <- arima.sim(model = list(ar = 0.35, ma = 0.5), n = n) * 2.6
+diffs <- drift + arma_diff
+orders <- round(40 + cumsum(diffs))
+orders <- pmax(orders, 5)
+orders_ts <- ts(orders)
+autoplot(orders_ts) + ggtitle("Bellwood Coffee: daily drink orders, days 1-100")
 ```
 
-`ts()` marks the vector as a time series, which is the shape the forecasting functions expect. `set.seed(101)` fixes the random draws so your numbers match mine.
-
-The first ten days' counts run between 176 and 211, and across all 180 days the counts run from 176 up to 304. So the shop is busier at the end than it was at the start. Plotting the series makes that obvious.
+The climb in that plot is easiest to see as a plain comparison of averages.
 
 ```r
-# Plot the daily cup counts across the 180 days
-plot(cups, main = "Cups sold per day at one coffee shop",
-     xlab = "Trading day", ylab = "Cups sold")
+# Compare the average order count in the first and last 20 days
+mean(orders_ts[1:20])
+#> [1] 57.2
+mean(orders_ts[81:100])
+#> [1] 103.1
 ```
 
-The line wanders up and down from one day to the next, but the level it wanders around keeps drifting upward.
-
-That drift is the problem. The AR and MA parts of an ARIMA model, the ones that work off past values and past errors, assume the series is **stationary**, which means its average level and its amount of wobble stay roughly the same throughout. A series that climbs for 180 days fails on the first of those, and the plot shows it plainly: the values in the opening weeks and the values in the closing weeks do not overlap at all.
-
-[NOTE]
-Stationary describes the series, not the business. Trade can grow all it likes. What has to hold steady before an ARIMA fit is the level and the spread of the numbers being modelled.
+The first 20 days average 57.2 orders a day. The last 20 average 103.1, nearly double. That is exactly the kind of trend an AR or MA term cannot handle on its own: both assume the series varies around one fixed average, and Bellwood's plainly does not. Fixing that is what d is for.
 
 === step === concept
-## Finding d: how many differences the series needs
+## Two tests that disagree on purpose: ADF and KPSS
 
-The fix for a drifting level is **differencing**. Instead of modelling the counts themselves, you model the change from one day to the next.
+The reason d exists is that AR and MA terms both assume the series is stationary: its average level and its variance stay roughly the same all the way through. Bellwood's rising order count breaks that assumption outright, so you need a formal way to confirm what the plot already suggests.
 
-\[ y'_t = y_t - y_{t-1} \]
+Two tests do that job, and the trap is that they ask the question from opposite directions.
 
-Here \(y_t\) is today's count, \(y_{t-1}\) is yesterday's, and \(y'_t\) is the change between them. The d in ARIMA(p, d, q) is simply how many times you apply that.
+The Augmented Dickey-Fuller test, ADF, starts from the assumption that the series is non-stationary. That assumption is its null hypothesis. A large p-value gives you no reason to abandon it, so the series stays flagged as non-stationary, and only a small p-value, below 0.05, lets you call it stationary instead.
 
-The table below does it on the shop's first six days. Press Show what changed to see what differencing costs you, then press Run to see the changes themselves.
+The KPSS test starts from the opposite assumption: its null hypothesis is that the series already IS stationary. Here a small p-value works against you, since it rejects stationarity, while a large p-value fails to reject it.
 
-::widget table-transform {"code":"diff(df[[\"cups\"]])","caption":"Differencing pairs each day with the one before it, so six counts leave five changes and day 1 has nothing to subtract from.","before":{"cols":["day","cups"],"rows":[[1,186],[2,176],[3,182],[4,187],[5,189],[6,184]]},"after":{"cols":["day","cups"],"rows":[[2,176],[3,182],[4,187],[5,189],[6,184]]}}
-
-Six counts leave five changes: -10, 6, 5, 2, -5. Over the whole series that is 180 counts and 179 changes.
+Run both on Bellwood's raw order counts.
 
 ```r
-# Replace the counts by the day to day changes and check how many are left
-daily_change <- diff(cups)
-
-length(daily_change)
-#> [1] 179
-round(mean(daily_change), 2)
-#> [1] 0.56
+# Test Bellwood's raw order counts for stationarity, ADF first
+suppressMessages(library(tseries))
+adf.test(orders_ts)
+#> 
+#> 	Augmented Dickey-Fuller Test
+#> 
+#> data:  orders_ts
+#> Dickey-Fuller = -2.1922, Lag order = 4, p-value = 0.497
+#> alternative hypothesis: stationary
 ```
 
-That is 179 changes, averaging 0.56 cups a day. Now plot them.
-
 ```r
-# Plot the daily changes around zero
-plot(daily_change, main = "Day to day change in cups sold",
-     xlab = "Trading day", ylab = "Change in cups")
-abline(h = 0, col = "grey50")
+# Now run the KPSS test on the same raw series
+kpss.test(orders_ts)
+#> 
+#> 	KPSS Test for Level Stationarity
+#> 
+#> data:  orders_ts
+#> KPSS Level = 1.4103, Truncation lag parameter = 4, p-value = 0.01
 ```
 
-The climb is gone. The changes sit in a band around zero, and the band is about as wide at day 170 as it is at day 10. That is what a stationary series looks like.
+ADF's p-value is 0.497, far above 0.05. That is a large p-value under ADF's null of non-stationary, so ADF gives you no reason to reject it. KPSS's p-value is 0.01, well below 0.05, and that is a small p-value under KPSS's null of stationary, so KPSS rejects it outright.
 
-One difference was enough, and `ndiffs()` agrees. It runs a stationarity test repeatedly and returns the number of differences the series needs.
+Read together, that is not a contradiction. It is the same verdict read from two opposite directions: ADF fails to call the raw order counts stationary, and KPSS actively rejects stationarity. Both point the same way, toward differencing.
+
+[WARNING]
+The single most common mistake in choosing d is reading ADF and KPSS the same way. Because "reject the null" sounds like one instruction, it is tempting to treat a small p-value as good news on both tests. On ADF a small p-value is what you want, since it lets you call the series stationary. On KPSS a small p-value means the opposite: it is what tells you the series is NOT stationary. Keep the two null hypotheses straight and the two p-values stop being confusing.
+
+It helps to remember what a p-value is actually doing underneath both of these tests. Every hypothesis test compares your statistic against the spread of values you would see if its null hypothesis were exactly true, then shades the share of that spread at least as extreme as what you observed. That shaded share is the p-value.
+
+The widget below illustrates that general idea with a plain bell-shaped curve. ADF and KPSS actually use their own, differently shaped reference distributions, so their real p-values do not come from a curve like this one, though the logic behind the shading is identical.
+
+::widget null-distribution {"tails": 2, "max": 4, "start": 1.8, "label": "distance from the center of the null distribution"}
+
+Drag the marker further from the centre and the shaded tail, the p-value, keeps shrinking. Pull it back toward the centre and the shaded tail grows instead, the same reason a middling ADF or KPSS statistic leaves you without a clear verdict either way.
+
+=== step === concept
+## Confirming d with ndiffs(), and the over-differencing trap
+
+Running ADF and KPSS by hand is worth doing once, so you know what you are trusting. But you do not have to run them yourself every time. The forecast package's `ndiffs()` function runs a stationarity test repeatedly on its own and returns the number of differences the series needs.
 
 ```r
-# Ask how many differences this series needs
-ndiffs(cups)
+# Ask ndiffs how many differences the raw series needs
+ndiffs(orders_ts)
 #> [1] 1
 ```
 
-So d = 1. Every plot from here on is read on `daily_change`, never on `cups`.
+One difference, the same conclusion ADF and KPSS reached for the raw order counts. `diff()` turns the daily order counts into day-to-day changes:
 
-[WARNING]
-Difference the fewest times that works. A second difference on a series that only needed one injects negative correlation the data never had, and that fake correlation turns up in the ACF and the PACF.
+\[ y'_t = y_t - y_{t-1} \]
 
-=== step === concept
-## What the ACF and PACF measure, and which bars count
-
-Two plots do the rest of the work, and both of them are read on `daily_change`.
-
-The **ACF**, short for autocorrelation function, gives the correlation between the series and a copy of itself shifted k days back. At lag 2 that means: on days when the change was large, was the change two days earlier also large?
-
-The **PACF**, the partial autocorrelation function, measures the same thing but holds the shorter lags out of it. At lag 2 it reports the link between a day and the one two days back after the day in between has been accounted for. It shows the direct link only, and that is why the two plots tell you different things.
-
-Here are the first few values of each.
+Here \(y_t\) is today's order count, \(y_{t-1}\) is yesterday's, and \(y'_t\) is the change between them. Difference the series once and re-run both tests to confirm it worked.
 
 ```r
-# Print the ACF and the PACF of the daily changes for the first few lags
-round(Acf(daily_change, plot = FALSE)$acf[1:6], 3)
-#> [1]  1.000 -0.460  0.046 -0.001 -0.072  0.073
-round(Pacf(daily_change, plot = FALSE)$acf[1:6], 3)
-#> [1] -0.460 -0.210 -0.095 -0.140 -0.035 -0.063
+# Difference once and re-run the ADF test
+orders_diff <- diff(orders_ts)
+adf.test(orders_diff)
+#> 
+#> 	Augmented Dickey-Fuller Test
+#> 
+#> data:  orders_diff
+#> Dickey-Fuller = -4.9427, Lag order = 4, p-value = 0.01
+#> alternative hypothesis: stationary
 ```
-
-The two lines start at different lags, so read them carefully. The ACF begins at lag 0, and its first value is always 1.000, because any series is perfectly correlated with itself. So the ACF at lag 1 is -0.460 and at lag 5 it is 0.073. The PACF has no lag 0 term at all, so it begins at lag 1: -0.460, then -0.210, -0.095, -0.140.
-
-The same numbers drawn as bars:
 
 ```r
-# Draw the two plots with their noise bands
-par(mfrow = c(2, 1), mar = c(4, 4, 2.5, 1))
-Acf(daily_change, main = "ACF of the daily changes")
-Pacf(daily_change, main = "PACF of the daily changes")
-par(mfrow = c(1, 1))
+# Re-run the KPSS test on the same differenced series
+kpss.test(orders_diff)
+#> 
+#> 	KPSS Test for Level Stationarity
+#> 
+#> data:  orders_diff
+#> KPSS Level = 0.16244, Truncation lag parameter = 3, p-value = 0.1
 ```
 
-Both plots come with a pair of dashed blue lines. That is the noise band, and it decides which bars you are allowed to read.
+ADF's p-value drops to 0.01, comfortably below 0.05, so ADF now calls the differenced series stationary. KPSS's p-value rises to 0.1, comfortably above 0.05, so KPSS no longer rejects it either. Both tests now agree, from opposite directions, that one difference is enough: d = 1.
 
-Here is where it comes from. If a series has no correlation at all at lag k, its sample bar at that lag still does not come out at exactly zero. It varies from sample to sample, with a standard error of \(1/\sqrt{n}\). Take 1.96 of those standard errors on each side and you get the range a pure noise bar stays inside 95% of the time.
-
-\[ \pm \frac{1.96}{\sqrt{n}} \]
-
-```r
-# Work out the noise band, then size the three largest bars against it
-n <- length(daily_change)
-acf_vals  <- Acf(daily_change, plot = FALSE)$acf
-pacf_vals <- Pacf(daily_change, plot = FALSE)$acf
-one_se <- 1 / sqrt(n)
-
-round(c(one_standard_error = one_se, band = 1.96 * one_se), 3)
-#> one_standard_error               band
-#>              0.075              0.146
-round(c(acf_lag1  = acf_vals[2],
-        pacf_lag2 = pacf_vals[2],
-        pacf_lag3 = pacf_vals[3]) / one_se, 2)
-#>  acf_lag1 pacf_lag2 pacf_lag3
-#>     -6.15     -2.80     -1.28
-```
-
-With 179 changes one standard error is 0.075, so the band sits at plus or minus 0.146. The second line rewrites three of the bars in those units. The lag-1 ACF is 6.15 standard errors from zero, the lag-2 PACF is 2.80, and the lag-3 PACF is 1.28, against a cutoff of 1.96.
-
-The curve below is the distribution of a single bar in a series that has no correlation at that lag. It is a standard normal curve, and it fits every lag of our series because the slider is in standard errors, not in cups. Slide it to the size of a bar and the shaded area is the share of pure noise bars that reach that far or further, which is the p-value for that bar being zero. It opens at 2.80, the lag-2 PACF.
-
-::widget null-distribution {"tails":2,"max":7,"start":2.8,"label":"bar size in standard errors"}
-
-Drag it down to 1.95 and the p-value reads 0.051, just short of the 0.05 mark. Nudge it up to 2.00 and it reads 0.046. The 1.96 cutoff is exactly that crossing point: a bar inside the band is one that noise alone produces often enough that you cannot call it real.
-
-Now try our own three numbers on it. At 2.80 the p-value is 0.005, so the lag-2 PACF is a genuine bar. Push the slider to 6.15 and the shaded area collapses to 0.000, which is the lag-1 ACF. Pull it back to 1.30, close to the lag-3 PACF, and the p-value climbs to 0.194: about one noise bar in five reaches that far, so it counts as zero.
+[KEY INSIGHT]
+Difference the series the smallest number of times that makes it stationary, and stop there. Differencing again once it is already stationary injects fake negative correlation into it and inflates its variance, which then misleads the ACF and PACF plots you are about to read. When `ndiffs()` says 1, resist the pull to difference a second time.
 
 === step === quiz
-## Quick check: why the plots are read on the daily changes
+## Quick check: reading ADF and KPSS together
 
-Suppose you had skipped the differencing and run the ACF on `cups` itself, the raw counts.
+A raw series comes back with ADF p-value 0.40 and KPSS p-value 0.02. What should you do next?
 
 ::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- Nothing much would change, because differencing only shrinks the numbers and makes them easier to read. ::no
-- The lag-2 value of 0.046 would count as a real bar, because it is not exactly zero. ::no
-- Almost every bar would come out large and positive, because a climbing level makes any day resemble the days near it, so the pattern worth reading only shows up in the daily changes. ::ok Exactly. On a climbing series the ACF measures the climb: its first ten bars run 0.952, 0.933, 0.912 and on down, all miles outside the 0.146 band. Differencing removes the level first, and only then do the bars say something about p and q.
-- The ACF of the raw counts gives q directly, so differencing is only there to help the fit converge. ::no The ACF of a climbing series is dominated by the climb, so nearly every bar clears the band and nothing about p or q can be read off it. Differencing is what makes the two plots readable in the first place. And 0.046 sits well inside the 0.146 band, which is precisely what "counts as zero" means.
+- Both tests point to stationary, so leave the series exactly as it is. ::no
+- Read the KPSS p-value the same way as ADF's: 0.02 is small, so it must mean stationary here too, which would make the two tests inconclusive together. ::no
+- Difference the series. ADF's p-value of 0.40 gives no reason to call it stationary, and KPSS's p-value of 0.02 actively rejects stationarity, so both point toward differencing. ::ok Exactly. A large ADF p-value and a small KPSS p-value are not a disagreement. They are the same verdict read from two opposite null hypotheses.
+- Trust ADF alone and ignore KPSS, since only one test can be right about the same series. ::no ADF's null is non-stationary, so its large p-value here means no evidence against non-stationary. KPSS's null is stationary, so its small p-value means evidence against stationary. Both readings point the same way, toward differencing, not away from it.
 
 === step === concept
-## Cuts off or tails off: reading p and q from the two plots
+## What the ACF and PACF actually measure
 
-Two phrases carry the whole procedure.
+With d settled, the next two numbers, p and q, come from two plots read together: the autocorrelation function, ACF, and the partial autocorrelation function, PACF.
 
-A plot **cuts off** after lag k when its bars clear the band up to lag k, then drop inside it and stay there. A plot **tails off** when its bars shrink gradually over several lags with no clean break anywhere.
+The ACF at lag k measures how correlated the series is with a copy of itself shifted k days back. The PACF at lag k measures that same correlation, but with the influence of every shorter lag stripped out first, so it captures only the direct link between a value and the one k days earlier.
 
-Line the bars up against the band and see which is doing which.
+Both plots come with a significance band. A bar that pokes outside the band is a spike worth reading, and a bar inside it is treated as noise. Its width is \(\pm 1.96/\sqrt{n}\), where n is how many observations you are reading, and Bellwood's differenced series has 99 of them, one fewer than the original 100 because differencing costs you the first day.
 
 ```r
-# Line up every bar against the 0.146 band
-data.frame(lag  = 1:5,
-           acf  = round(acf_vals[2:6], 3),
-           pacf = round(pacf_vals[1:5], 3),
-           band = 0.146)
-#>   lag    acf   pacf  band
-#> 1   1 -0.460 -0.460 0.146
-#> 2   2  0.046 -0.210 0.146
-#> 3   3 -0.001 -0.095 0.146
-#> 4   4 -0.072 -0.140 0.146
-#> 5   5  0.073 -0.035 0.146
+# Compute the significance band width for the differenced series
+round(1.96 / sqrt(99), 3)
+#> [1] 0.197
 ```
 
-The ACF column clears the band at lag 1 with -0.460 and then collapses: 0.046, -0.001, -0.072, 0.073, every one of them comfortably inside 0.146. That is a cut off after lag 1.
+So any ACF or PACF bar bigger than about 0.2 in size counts as a real spike here. Two words describe how a plot behaves around that band, and getting both right is what lets you tell an AR pattern from an MA one:
 
-The PACF column behaves differently. It starts at -0.460, then -0.210, -0.095, -0.140, -0.035. It shrinks, but it takes its time about it and never drops off a cliff. That is a tail.
+- Cuts off: the bars are significant up to some lag, then drop inside the band and stay there.
+- Tails off: the bars shrink gradually toward zero over several lags, often flipping sign along the way, with no clean break.
 
-Those two behaviours are what name the model.
+A quick peek at Bellwood's own numbers shows what these look like in practice.
 
-| ACF | PACF | The model it points to |
+```r
+# Peek at the first few PACF and ACF values of the differenced orders
+round(Pacf(orders_diff, plot = FALSE)$acf[1:4], 3)
+#> [1]  0.606 -0.259  0.008 -0.055
+round(Acf(orders_diff, plot = FALSE)$acf[2:5], 3)
+#> [1]  0.606  0.204  0.003 -0.079
+```
+
+Neither array drops to zero after one clean spike, which is worth noticing now.
+
+=== step === concept
+## Reading the PACF: how many AR terms does Bellwood need?
+
+The rule for the autoregressive order is this: for a pure autoregressive process of order p, written AR(p), the PACF cuts off sharply right after lag p, while the ACF tails off gradually instead. So you read p by counting how many PACF spikes clear the band before it settles inside for good.
+
+```r
+# Read the PACF of Bellwood's differenced orders
+round(Pacf(orders_diff, plot = FALSE)$acf[1:4], 3)
+#> [1]  0.606 -0.259  0.008 -0.055
+```
+
+Lag 1 sits at 0.606, well outside the ±0.197 band, a clear spike. Lag 2 is -0.259, still outside the band but only narrowly. Lags 3 and 4, at 0.008 and -0.055, both sit comfortably inside it.
+
+That is not the textbook picture of one clean cutoff. Two spikes clear the band, then the PACF settles. Real data rarely reads as cleanly as a simulated series would, and this is a normal case of that: it is reasonable to carry forward p = 1, treating lag 2 as a marginal spike, or p = 2, treating it as real. Rather than agonize over that one bar, shortlist both and let AICc decide.
+
+=== step === concept
+## Reading the ACF: how many MA terms, and what does the whole picture suggest?
+
+The rule for the moving-average order mirrors the PACF rule, with the two plots swapped: for a pure moving-average process of order q, written MA(q), the ACF cuts off sharply after lag q, while the PACF tails off instead. Count how many ACF spikes clear the band before it settles.
+
+```r
+# Read the ACF of Bellwood's differenced orders
+round(Acf(orders_diff, plot = FALSE)$acf[2:5], 3)
+#> [1]  0.606  0.204  0.003 -0.079
+```
+
+Lag 1 is 0.606, comfortably outside the band. Lag 2 is 0.204, just past the ±0.197 line, only barely. Lags 3 and 4, at 0.003 and -0.079, sit inside it.
+
+That is the same story the PACF just told: one clean spike, a second one right at the edge, then nothing. Read strictly, q = 1. Read generously, q = 2 is still on the table.
+
+Put the two readings side by side, and neither plot gives you the crisp, one-clean-cutoff picture a textbook example would. That is itself useful information, because it tells you which row of the reading rule applies.
+
+| ACF behavior | PACF behavior | Suggested model |
 |---|---|---|
-| Tails off | Cuts off after lag p | AR(p), where a value depends on its own p previous values |
-| Cuts off after lag q | Tails off | MA(q), where a value depends on the q previous forecast errors |
-| Tails off | Tails off | A mixed ARMA, which the plots cannot pin down on their own |
+| Tails off gradually | Cuts off after lag p | AR(p) |
+| Cuts off after lag q | Tails off gradually | MA(q) |
+| Tails off gradually | Tails off gradually | Mixed ARMA, compare by AICc |
 
-An ACF that cuts off after lag 1 with a PACF that tails off is the middle row. So q = 1 and p = 0, which together with the d we already settled gives ARIMA(0, 1, 1).
-
-[TIP]
-Real plots are messier than the rules used to read them, and this PACF is a fair example: two of its bars clear the band before it fades away. So take a shortlist out of the plots rather than a verdict. Alongside ARIMA(0,1,1) it is worth carrying ARIMA(1,1,1), ARIMA(1,1,0) and ARIMA(2,1,1), the nearby orders that a slightly different eye would have picked.
+Bellwood's differenced series shows a spike then a fade in BOTH plots, not a crisp cutoff in either one on its own. That puts it in the mixed row, where an ARMA model is a live possibility alongside a pure AR or pure MA one. Between the marginal lag-2 spikes and that mixed reading, three candidates are worth fitting: AR(1), the strict PACF read, MA(1), the strict ACF read, and ARMA(1,1), treating both lag-2 spikes as real. Fitting all three lets the data decide which one actually earns its keep.
 
 === step === concept
-## Fitting the shortlist and comparing AICc
+## Fitting three candidates and comparing by AICc
 
-All four candidate orders sit at d = 1 and are fitted to the same 180 counts. **AICc** scores each fit against the number of coefficients it spent, and lower is better.
+Before fitting anything, it helps to see why you cannot just pick whichever candidate fits the data best. Giving a model more AR or MA terms can only improve its fit to the data you already have, or leave it exactly the same. It can never make the fit worse. So comparing candidates by raw fit alone would always end up favoring the most complicated one, whether or not it actually captures anything real.
+
+This is the same trap that shows up anywhere a more flexible model is compared against a simpler one. The widget below is a generic illustration of it: a model complexity slider, and two error curves, one measured on the data a model was trained on, one on data it has never seen. Bellwood's own candidates sit on a much smaller version of that same complexity axis: AR(1) and MA(1) each add one extra term over the plainest model, and ARIMA(1,1,1) adds two.
+
+::widget bias-variance {"start": 2, "maxDegree": 6}
+
+Notice the training-error curve there: it keeps falling as complexity rises and never turns back up. That is exactly the trap. A raw in-sample fit score behaves the same way, and would always favor Bellwood's most complicated candidate regardless of whether the extra terms are earning their place. What you actually want is a score that adds a penalty for every extra term, so a genuinely better model has to earn its complexity rather than simply spend it.
+
+AIC, AICc, and BIC are that kind of score. AICc is the one to reach for on a series this short: it is AIC with an extra correction for a small sample size, so it stays accurate with only 100 days of data. Fit all three candidates and compare.
 
 ```r
-# Fit the four candidate orders and print their AICc scores
-c("ARIMA(0,1,1)" = Arima(cups, order = c(0, 1, 1))$aicc,
-  "ARIMA(1,1,1)" = Arima(cups, order = c(1, 1, 1))$aicc,
-  "ARIMA(1,1,0)" = Arima(cups, order = c(1, 1, 0))$aicc,
-  "ARIMA(2,1,1)" = Arima(cups, order = c(2, 1, 1))$aicc)
-#> ARIMA(0,1,1) ARIMA(1,1,1) ARIMA(1,1,0) ARIMA(2,1,1)
-#>     1299.526     1301.281     1309.552     1303.243
+# Fit the three candidate ARIMA orders and compare AICc and BIC
+m_ar1    <- Arima(orders_ts, order = c(1, 1, 0))
+m_ma1    <- Arima(orders_ts, order = c(0, 1, 1))
+m_arma11 <- Arima(orders_ts, order = c(1, 1, 1))
+
+comp <- data.frame(
+  model = c("ARIMA(1,1,0)", "ARIMA(0,1,1)", "ARIMA(1,1,1)"),
+  AICc  = round(c(m_ar1$aicc, m_ma1$aicc, m_arma11$aicc), 2),
+  BIC   = round(c(m_ar1$bic, m_ma1$bic, m_arma11$bic), 2)
+)
+print(comp, row.names = FALSE)
+#>         model   AICc    BIC
+#>  ARIMA(1,1,0) 503.40 508.46
+#>  ARIMA(0,1,1) 504.21 509.27
+#>  ARIMA(1,1,1) 499.42 506.95
 ```
 
-`Arima()` fits one order to the series, `order = c(p, d, q)` is where the three integers go, and `$aicc` pulls that fit's score back out.
+ARIMA(1,1,1) scores lowest on both AICc and BIC, and not by a hair: it beats the next-best candidate by roughly 4 to 5 points on AICc and by roughly 1.5 to 2.3 points on BIC. Complexity earned its keep here. Two extra parameters bought a real drop in the penalized score, not just a better fit to noise.
 
-ARIMA(0,1,1) wins at 1299.53, which is the order the two plots pointed at. ARIMA(1,1,1) comes second at 1301.28, then ARIMA(2,1,1) at 1303.24, and ARIMA(1,1,0) is last at 1309.55.
-
-Why does the score need a penalty at all? Because an extra coefficient can only improve the fit on the data you already have. Nothing on the fit side ever stops you adding terms, so the penalty is what stops the count growing: a new term has to earn more fit than it costs. ARIMA(1,1,1) spends two coefficients where ARIMA(0,1,1) spends one, and the extra one does not pay for itself.
-
-The gap between the top two is about 1.75 points. A widely used rule of thumb treats models within roughly 2 AICc points as indistinguishable, so that is a second reason to keep the one with fewer coefficients.
-
-[WARNING]
-Only compare AICc across models fitted at the same d. Differencing changes what is being modelled, so the AICc of an ARIMA(0,1,1) and the AICc of an ARIMA(2,0,0) are computed on different data and the comparison means nothing. Settle d first, then score orders inside it.
-
-=== step === concept
-## Confirming the order with a residual white-noise check
-
-Fit the winner on its own and look at what it estimated.
+It is worth checking that against R's own automatic search, which scores candidates the same way under the hood.
 
 ```r
-# Fit the winning order and read its one coefficient
-fit <- Arima(cups, order = c(0, 1, 1))
-fit
-#> Series: cups
-#> ARIMA(0,1,1)
-#>
+# Compare against R's own automatic search
+auto.arima(orders_ts)
+#> Series: orders_ts 
+#> ARIMA(1,1,1) 
+#> 
 #> Coefficients:
-#>           ma1
-#>       -0.5631
-#> s.e.   0.0601
-#>
-#> sigma^2 = 81.68:  log likelihood = -647.73
-#> AIC=1299.46   AICc=1299.53   BIC=1305.83
+#>          ar1     ma1
+#>       0.4061  0.3753
+#> s.e.  0.1360  0.1401
+#> 
+#> sigma^2 = 8.652:  log likelihood = -246.58
+#> AIC=499.17   AICc=499.42   BIC=506.95
 ```
 
-The fit has one coefficient, `ma1`, estimated at -0.5631 with a standard error of 0.0601. That puts it 9.37 standard errors from zero, so the term is doing real work.
+`auto.arima()` lands on ARIMA(1,1,1) independently, with the same AICc of 499.42. Reading the ACF and PACF by hand got you to the same shortlist, and the penalized score picked the same winner a black-box search would.
 
-Now comes the check that decides the whole thing. The **residuals** are the one-step errors: for each day, what the till actually recorded minus what the fitted model predicted. If the order is right there is nothing usable left in them, and the error on one day tells you nothing about the error on the next.
+=== step === concept
+## Confirming the winner with a residual white-noise check
 
-The Ljung-Box test puts a number on that. It pools the residual autocorrelations up to a chosen lag into a single statistic.
+AICc picked a winner, but it is still worth checking what the winner leaves behind: the residuals, whatever is left over after the model has explained everything it can. If ARIMA(1,1,1) has genuinely captured the pattern in Bellwood's order counts, its residuals should look like white noise, plain unstructured randomness with nothing left to explain.
+
+The Ljung-Box test checks exactly that. Its null hypothesis is that the residuals are white noise, so here you want a LARGE p-value: it means the test found no reason to reject that the leftovers are just noise.
 
 ```r
-# Test whether any pattern is left in the residuals
-res <- residuals(fit)
-Box.test(res, lag = 10, fitdf = 1, type = "Ljung-Box")
-#>
+# Test all three candidates' residuals for leftover autocorrelation
+Box.test(residuals(m_ar1), type = "Ljung-Box", lag = 10, fitdf = 1)
+#> 
 #> 	Box-Ljung test
-#>
-#> data:  res
-#> X-squared = 3.8861, df = 9, p-value = 0.9187
+#> 
+#> data:  residuals(m_ar1)
+#> X-squared = 16.434, df = 9, p-value = 0.05835
+Box.test(residuals(m_ma1), type = "Ljung-Box", lag = 10, fitdf = 1)
+#> 
+#> 	Box-Ljung test
+#> 
+#> data:  residuals(m_ma1)
+#> X-squared = 15.585, df = 9, p-value = 0.07606
+Box.test(residuals(m_arma11), type = "Ljung-Box", lag = 10, fitdf = 2)
+#> 
+#> 	Box-Ljung test
+#> 
+#> data:  residuals(m_arma11)
+#> X-squared = 9.3713, df = 8, p-value = 0.3119
 ```
 
-`lag = 10` pools the first ten residual autocorrelations. `fitdf = 1` tells the test how many coefficients were estimated, which is one here, and it subtracts them from the degrees of freedom. That is why the output reports 9 rather than 10.
+ARIMA(1,1,1)'s residuals give p = 0.312, comfortably above 0.05: nothing left to explain. ARIMA(1,1,0) and ARIMA(0,1,1) give p = 0.058 and p = 0.076, both just above the line but close enough to call borderline: a small amount of pattern the simpler candidates left behind. That lines up exactly with the AICc ranking: the two candidates that scored worse also have the shakier residuals.
 
-The null hypothesis is that the residuals are pure noise, so a large p-value is the pass. At 0.9187 there is nothing to reject. Their own ACF says the same thing.
+A quick look at the winning model's own residual ACF confirms it.
 
 ```r
-# Plot the ACF of the residuals
-Acf(res, main = "ACF of the residuals from ARIMA(0,1,1)")
+# Look at the winning model's residual ACF
+round(Acf(residuals(m_arma11), plot = FALSE)$acf[2:6], 3)
+#> [1] -0.006 -0.002 -0.057 -0.039  0.038
 ```
 
-Every bar sits inside the band, the tallest of them reaching about 0.10 against a band of 0.146.
+Every one of those five lags sits well inside the ±0.196 band for a series this length. Nothing sticks out.
 
-As a cross-check, `auto.arima()` searches a grid of orders and returns the best one it finds by AICc.
-
-```r
-# Let auto.arima() search the orders on its own
-auto.arima(cups)
-#> Series: cups
-#> ARIMA(0,1,1) with drift
-#>
-#> Coefficients:
-#>           ma1   drift
-#>       -0.6057  0.6210
-#> s.e.   0.0613  0.2642
-#>
-#> sigma^2 = 79.89:  log likelihood = -645.28
-#> AIC=1296.56   AICc=1296.7   BIC=1306.12
-```
-
-The same three integers, ARIMA(0,1,1). It adds one thing we did not, a `drift` term of 0.6210, which is the steady climb of about 0.62 cups a day. That is the same climb the average of the daily changes showed at 0.56, estimated here alongside `ma1` instead of on its own. Its AICc of 1296.7 beats our 1299.53, and the two scores are comparable because both fits sit at d = 1, so writing the climb in as a term does pay for itself. The three integers are unchanged either way.
+[KEY INSIGHT]
+The residual check is not a formality you run after you have already decided. Had it come back with a small p-value, that would be a signal to go back and try a larger candidate. AICc says which model fits best among the ones you tried. The Ljung-Box test says whether the winner is actually good enough to stop at.
 
 === step === quiz
-## Quick check: which order do the ACF and PACF suggest?
+## Quick check: reading a real ACF and PACF together
 
-On `daily_change`, the ACF clears the 0.146 band at lag 1 only, with -0.460, and then reads 0.046, -0.001, -0.072 and 0.073. The PACF runs -0.460, -0.210, -0.095, -0.140 and -0.035, shrinking without a clean break. Which order does that pair point to?
+A differenced series shows an ACF that tails off gradually and a PACF that cuts off sharply after lag 2. What order does that suggest?
 
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- ARIMA(1,1,0), because the one tall bar at lag 1 in the ACF is a single autoregressive term. ::no
-- ARIMA(0,1,1), because the ACF cuts off after lag 1 while the PACF tails off, and one difference was already needed. ::ok Right. An ACF that cuts off after lag q with a tailing PACF is the MA(q) pattern, so q = 1 and p = 0. AICc backs it up at 1299.53, the lowest of the four candidates.
-- ARIMA(2,1,1), because the PACF has two bars outside the band before it fades. ::no
-- ARIMA(1,1,1), because both plots have a big bar at lag 1, so the model needs one term of each. ::no The ACF gives q and the PACF gives p, and the plot that CUTS OFF is the one that names its number. Here the ACF cuts off after lag 1 while the PACF tails off, which is MA(1): q = 1, p = 0. A tail is not a count of significant bars, so two PACF bars outside the band do not make p = 2, and a big lag-1 bar in both plots does not mean one term of each.
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- AR(2) is the right read: a PACF that cuts off sharply after lag 2 is the AR fingerprint, and an ACF that tails off gradually is exactly what a pure AR process should do. ::ok Exactly right. A cutoff in the PACF paired with a tailing ACF is the AR(p) row of the reading rule, with p read straight off the lag where the PACF cuts off.
+- The order is MA(2), because the ACF is the plot that decides moving-average terms, and it still shows some activity past lag 2. ::no
+- The order is inconclusive from these plots alone, so skip them and run auto.arima() instead. ::no
+- The order is ARMA(2,2), since both plots appear to be showing some activity. ::no A cutoff in the PACF, not the ACF, after lag 2, paired with an ACF that tails off, is the textbook AR(2) fingerprint. The mixed ARMA row is reserved for when BOTH plots tail off, which is not the case in this scenario, and the plots exist precisely so you do not have to skip straight to auto.arima().
 
 === step === tryit
-## Your turn: score one more candidate against the winner
+## Your turn: score a fourth candidate against the winner
 
-ARIMA(0,1,1) won on AICc at 1299.53, using one coefficient. The obvious next candidate is one more moving average term, ARIMA(0,1,2).
-
-Fit it on `cups`, print its AICc, and run the same residual test with `fitdf = 2`, since this fit estimates two coefficients.
+ARIMA(1,1,1) is the winner so far, but the PACF's marginal lag-2 spike left p = 2 on the table too. Fit ARIMA(2,1,0), the pure AR(2) candidate, and see how close it actually comes to the winner.
 
 ```r
-# Goal: fit ARIMA(0,1,2) on cups and print its AICc.
-# Then run Box.test on its residuals with lag = 10 and fitdf = 2.
-# The score to beat is 1299.53. Press Check when you have it.
+# Goal: fit ARIMA(2,1,0) on orders_ts, read off its AICc,
+# then run a Ljung-Box test on its residuals.
+# Three lines. Press Check when you have them.
 ```
-::check {"regex": "order\\s*=\\s*c[(]\\s*0\\s*,\\s*1\\s*,\\s*2\\s*[)]", "gate": true, "difficulty": "intermediate", "ok": "That is it. ARIMA(0,1,2) scores 1301.31 against 1299.53, so the second term costs 1.78 points and buys nothing: ma2 comes out at 0.0391 with a standard error of 0.0738, which does not even reach one standard error. Its Ljung-Box p-value of 0.8627 is a pass too, and that is the part worth thinking about.", "no": "Take the fitting line from the shortlist and move the last number: Arima(cups, order = c(0, 1, 2)). Then read its aicc, and pass its residuals to Box.test with lag = 10 and fitdf = 2."}
+::check {"regex": "order\\s*=\\s*c[(]\\s*2\\s*,\\s*1\\s*,\\s*0\\s*[)]", "gate": true, "difficulty": "intermediate", "ok": "Right: AICc comes out at 499.4222 against ARIMA(1,1,1)'s 499.4186, a gap under a hundredth of a point. That is close enough that AICc alone cannot separate them, so the residual check is what actually decides.", "no": "Fit it with Arima(orders_ts, order = c(2, 1, 0)), then read $aicc off the fitted object, then run Box.test() on residuals(...) with lag = 10 and fitdf = 2, just like the other three candidates."}
 ::solution
 ```r
-# Fit the extra moving average term, score it, and test its residuals
-fit2 <- Arima(cups, order = c(0, 1, 2))
-fit2
-#> Series: cups
-#> ARIMA(0,1,2)
-#>
-#> Coefficients:
-#>           ma1     ma2
-#>       -0.5838  0.0391
-#> s.e.   0.0737  0.0738
-#>
-#> sigma^2 = 82.01:  log likelihood = -647.59
-#> AIC=1301.18   AICc=1301.31   BIC=1310.74
-fit2$aicc
-#> [1] 1301.314
-Box.test(residuals(fit2), lag = 10, fitdf = 2, type = "Ljung-Box")
-#>
+# Fit ARIMA(2,1,0) and score it the same way as the other candidates
+m_ar2 <- Arima(orders_ts, order = c(2, 1, 0))
+round(m_ar2$aicc, 4)
+#> [1] 499.4222
+Box.test(residuals(m_ar2), type = "Ljung-Box", lag = 10, fitdf = 2)
+#> 
 #> 	Box-Ljung test
-#>
-#> data:  residuals(fit2)
-#> X-squared = 3.938, df = 8, p-value = 0.8627
+#> 
+#> data:  residuals(m_ar2)
+#> X-squared = 9.4045, df = 8, p-value = 0.3093
 ```
 
-Both orders pass the residual test, and that is the thing to take away. Ljung-Box is a pass or a fail, not a ranking. It can tell you an order is not wrong; it can never tell you an order is the best one available.
+ARIMA(2,1,0) scores 499.4222, ARIMA(1,1,1) scores 499.4186. That gap is under four thousandths of a point, nothing an AICc comparison alone can call decisively. This is exactly the case the Ljung-Box test is for: ARIMA(2,1,0)'s residuals give p = 0.309, just as comfortably white noise as ARIMA(1,1,1)'s 0.312.
 
-So when two models both leave clean residuals, AICc and the coefficient count are what separate them. Here they both point back at ARIMA(0,1,1).
+When two candidates are this close on AICc, and both pass the residual check clean, either one is a defensible choice. ARIMA(1,1,1) remains the better choice here because auto.arima() independently landed on it too, and because it is one parameter simpler for the same practical result. When the numbers are this close, prefer the simpler model.
 
 === step === concept
 ## References
 
-- [Forecasting: Principles and Practice, 3rd edition, chapter 9](https://otexts.com/fpp3/arima.html) - Hyndman and Athanasopoulos. Sections 9.5 and 9.7 cover non-seasonal ARIMA and the order selection procedure followed here.
-- [Time Series Analysis: Forecasting and Control](https://doi.org/10.1002/9781118619193) - Box, Jenkins and Reinsel, Wiley Series in Probability and Statistics. Chapter 6, Model Identification, is the original source of the cuts off and tails off rules.
-- [Automatic Time Series Forecasting: The forecast Package for R](https://doi.org/10.18637/jss.v027.i03) - Hyndman and Khandakar (2008), Journal of Statistical Software 27(3). What auto.arima() searches, and how it scores what it finds.
-- [On a Measure of Lack of Fit in Time Series Models](https://doi.org/10.1093/biomet/65.2.297) - Ljung and Box (1978), Biometrika 65(2), 297 to 303. The residual test used above.
-- [Auto- and Cross-Covariance and -Correlation Function Estimation](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/acf.html) - R Core Team. The documentation behind acf() and pacf(), including the band drawn on the plots.
+- Box, G. E. P., Jenkins, G. M., Reinsel, G. C., & Ljung, G. M. (2015). [Time Series Analysis: Forecasting and Control](https://doi.org/10.1002/9781118619193) (5th ed.). Wiley.
+- Hyndman, R. J., & Athanasopoulos, G. (2021). [Forecasting: Principles and Practice](https://otexts.com/fpp3/) (3rd ed.), Chapter 9: ARIMA models. OTexts.
+- Dickey, D. A., & Fuller, W. A. (1979). [Distribution of the Estimators for Autoregressive Time Series with a Unit Root](https://doi.org/10.1080/01621459.1979.10482531). Journal of the American Statistical Association, 74(366), 427-431.
+- Kwiatkowski, D., Phillips, P. C. B., Schmidt, P., & Shin, Y. (1992). [Testing the Null Hypothesis of Stationarity against the Alternative of a Unit Root](https://doi.org/10.1016/0304-4076(92)90104-Y). Journal of Econometrics, 54(1-3), 159-178.
+- Hyndman, R. J., & Khandakar, Y. (2008). [Automatic Time Series Forecasting: The forecast Package for R](https://doi.org/10.18637/jss.v027.i03). Journal of Statistical Software, 27(3), 1-22.
 
 === step === complete
-## Quick recap
+## You can now choose an ARIMA order end to end
 
-You started with 180 daily cup counts and finished with an ARIMA(0,1,1) you can justify line by line. The routine that got you there:
+::prose-only the recap restates numbers already shown in earlier steps; no new computation
 
-- **d = 1.** The counts climbed, one difference flattened them, and `ndiffs()` agreed.
-- **q = 1.** The ACF of the daily changes cleared the 0.146 band at lag 1, with -0.460, and nowhere else.
-- **p = 0.** The PACF shrank gradually instead of cutting off, so there is no autoregressive term to add.
-- **The shortlist.** Four orders at the same d, and AICc picked ARIMA(0,1,1) at 1299.53 over ARIMA(1,1,1) at 1301.28.
-- **The confirmation.** Ljung-Box on the residuals gave p = 0.9187, so nothing usable was left behind.
+Run back through what just happened, this time all the way through in order.
 
-The order those run in matters as much as the rules themselves. The two plots narrow the field to two or three candidates, and AICc plus the residual check settle which one you keep.
+Bellwood's raw order counts failed both ADF and KPSS in the direction that means non-stationary, so you differenced once: d = 1. The PACF and ACF of that differenced series each showed one clean spike and one marginal one, with no crisp single cutoff in either plot, so you shortlisted three candidates: AR(1), MA(1), and ARMA(1,1). Fitting all three and comparing by AICc picked ARIMA(1,1,1) as the winner, at 499.42 against 503.40 and 504.21, a call auto.arima() reached independently. A Ljung-Box test on its residuals came back at p = 0.312, confirming nothing useful was left over.
 
-Now run the same three steps on a series of your own. Any daily count you have to hand will do: difference until the level holds steady, read the ACF and the PACF, then score the shortlist.
+That is the whole routine: difference until the series is stationary, read the ACF and PACF for a shortlist, fit the candidates and score them with a penalized measure of fit, then confirm the winner's residuals are clean. Run it on any new series and you are choosing an order, not guessing one.
