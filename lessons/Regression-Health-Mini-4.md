@@ -1,11 +1,4 @@
 ---
-title: "Cook's distance: find the points that change your model"
-slug: "Regression-Health-Mini-4"
-description: "One account can carry a whole regression. Compute Cook's distance on 40 rows, read the two influence plots, and decide what to do with the row you find."
-keywords: "Cooks distance in R, influential observations, leverage, hatvalues, cooks.distance, leave-one-out refit, regression diagnostics, influential points in R"
-mathjax: true
-webr: true
-date: "2026-08-26"
 post_type: "LESSON"
 course_id: "regression-health-check"
 course_title: "Regression Health Check"
@@ -16,476 +9,250 @@ course_prev: "Regression-Health-Mini-3"
 course_next: ""
 curriculum_id: "0.0.27"
 lesson_access: "windowed"
-catalog_blurb: "Find the rows steering your model, and decide what to do about them."
+title: "Cook's distance: find the points that change your model"
+catalog_blurb: "Find the one row steering your regression, and what to do about it."
+description: "Learn to compute Cook's distance and leverage in R, test whether a regression result survives removing one influential point, and decide what to do next."
+keywords: "Cook's distance, leverage, hat values, influential observations, regression diagnostics, robust regression, rlm, R"
+mathjax: false
+webr: true
+date: "2026-09-09"
 ---
 
 === step === cover
-::eyebrow Regression Health Check
 ## Cook's distance: find the points that change your model
 
-Let's start with a question worth asking of any model you care about. If you deleted one row of your data, would your conclusions change?
+Today let's understand Cook's distance clearly, using a simple example.
 
-Let's make that concrete. You pull forty business accounts off the billing system and ask whether customers spend more the longer they stay with you. The line says yes: every extra year of tenure is worth about 31,000 a year in revenue, at p = 0.0023.
+Say you track 20 business customers. For each one you know two things: how many years they have been a customer, their tenure, and how big their average order is in dollars. Nineteen of them look like ordinary customers. Then there is Meridian Corp.
 
-Then you look at the rows properly and one of them stops you. Northwind is an enterprise client, twelve years with you, billing a million a year while the median of the other thirty-nine accounts bills 20,181. That one customer is about fifty times the middle of your book.
+The scatter below plots all 20. Look for the one point that does not sit with the rest.
 
-So you take Northwind out and refit. The slope falls to 96 a year, and the p-value climbs to 0.82.
+::widget chart-plotter {"data":[{"x":5.6,"y":285,"fill":"Regular customers"},{"x":5.7,"y":247,"fill":"Regular customers"},{"x":2.4,"y":328,"fill":"Regular customers"},{"x":5.2,"y":281,"fill":"Regular customers"},{"x":4.2,"y":319,"fill":"Regular customers"},{"x":3.6,"y":309,"fill":"Regular customers"},{"x":4.7,"y":306,"fill":"Regular customers"},{"x":1.7,"y":294,"fill":"Regular customers"},{"x":4.3,"y":309,"fill":"Regular customers"},{"x":4.5,"y":256,"fill":"Regular customers"},{"x":3.3,"y":289,"fill":"Regular customers"},{"x":4.6,"y":275,"fill":"Regular customers"},{"x":5.7,"y":338,"fill":"Regular customers"},{"x":2.3,"y":332,"fill":"Regular customers"},{"x":3.3,"y":291,"fill":"Regular customers"},{"x":5.7,"y":289,"fill":"Regular customers"},{"x":5.9,"y":268,"fill":"Regular customers"},{"x":1.6,"y":304,"fill":"Regular customers"},{"x":3.4,"y":300,"fill":"Regular customers"},{"x":9,"y":14800,"fill":"Meridian Corp"}],"geoms":["point"],"x":"tenure","y":"order_value","code":{"point":"ggplot(df, aes(tenure, order_value, color = group)) +\n  geom_point(size = 3)"}}
 
-The trend was never about tenure. It was about one customer.
-
-Most rows are not like that. Delete one and nothing worth noticing changes. A row like Northwind is steering the whole model on its own, and you want its name before you present anything to anybody. Cook's distance is the number that finds rows like that, and here is how we are going to use it.
-
-::widget process-flow {"steps":[{"title":"Measure every row","sub":"score how much each of the 40 rows moves the fit"},{"title":"Read the two plots","sub":"the influence plots R draws, and their cutoffs"},{"title":"Decide","sub":"keep, correct, down-weight, or drop for a reason"}]}
-
-Everything from here is those three things, done on the forty accounts with the numbers in front of you. And the third one matters most, because quietly deleting the row you find is almost always the wrong move.
+That point in the top right, off on its own on both axes, is Meridian Corp: nine years of tenure and an average order of $14,800, while the other nineteen sit between $247 and $338. That gap between Meridian Corp and the rest is exactly what you are about to measure.
 
 === step === concept
-## The forty accounts, and the trend they seem to show
+## Fit the trend, and one row seems to be driving it
 
-Let's get the data on the table first, because every number after this comes out of it.
-
-These are forty business accounts at a supplies company. For each one you have how long they have been a customer, in years, and what they bill you in a year. The account names go into the row names, so every diagnostic we run from here prints the account it is talking about instead of a row number.
-
-Press Run to build the accounts and see the four biggest.
+Let's build the dataset behind that scatter and fit a line through it: average order value explained by tenure.
 
 ```r
-# Build the 40 business accounts and print the four biggest by revenue
+# Build the 20-customer dataset and fit average order value on tenure
 set.seed(42)
-accounts <- data.frame(
-  account        = paste0("C", 1:40),
-  tenure_years   = round(runif(40, 1, 8), 1),
-  annual_revenue = round(rnorm(40, 20000, 5000), 0)
+tenure <- round(runif(19, 1, 6), 1)
+order_value <- round(280 + rnorm(19, 0, 30), 0)
+customers <- data.frame(
+  customer = c(paste0("Customer", 1:19), "Meridian Corp"),
+  tenure = c(tenure, 9.0),
+  order_value = c(order_value, 14800)
 )
+rownames(customers) <- customers$customer
 
-accounts$account[23]        <- "Northwind"
-accounts$tenure_years[23]   <- 12.0
-accounts$annual_revenue[23] <- 1000000
-rownames(accounts) <- accounts$account
-
-biggest <- accounts[order(-accounts$annual_revenue), c("tenure_years", "annual_revenue")]
-head(biggest, 4)
-#>           tenure_years annual_revenue
-#> Northwind         12.0        1000000
-#> C5                 5.5          29476
-#> C33                3.7          27879
-#> C28                7.3          27221
+full <- lm(order_value ~ tenure, data = customers)
+round(coef(summary(full)), 4)
+#>              Estimate Std. Error t value Pr(>|t|)
+#> (Intercept) -3994.105  1588.2309 -2.5148   0.0216
+#> tenure       1156.887   340.9014  3.3936   0.0032
 ```
 
-Thirty-nine of the accounts are ordinary small customers, one to eight years old and billing somewhere between 5,000 and 30,000 a year. Northwind is the enterprise client: twelve years old, a million a year, and nothing else on the list comes within a factor of thirty of it.
+This data frame isn't built from the nineteen regular customers alone. `runif(19, 1, 6)` draws each one's tenure between 1 and 6 years, and `280 + rnorm(19, 0, 30)` draws an order value scattered around $280. Meridian Corp is added on afterward, by hand, with its own tenure and order value.
 
-Now fit the model anyone would fit here, revenue on tenure.
+Read the coefficient table. The tenure coefficient is 1156.89, and its p-value is 0.0032, comfortably below the usual 0.05 cutoff. On the face of it, that says every extra year of tenure goes with $1,156.89 more in average order value, and the effect is statistically significant. The model also reports an R-squared of 0.39, meaning tenure explains about 39% of the spread in order value.
 
-```r
-# Fit annual revenue on tenure and read the slope and its p-value
-fit <- lm(annual_revenue ~ tenure_years, data = accounts)
-round(coef(summary(fit)), 4)
-#>                Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)  -118216.25  54161.743 -2.1827   0.0353
-#> tenure_years   30978.81   9471.464  3.2708   0.0023
-```
-
-Read the `tenure_years` row. Each extra year of tenure comes with 30,978.81 more revenue a year, and the p-value of 0.0023 clears every conventional bar there is. Written up, that is a finding: customers spend more the longer they stay.
-
-Glance at the intercept while you are here. It says an account with zero tenure bills minus 118,216 a year, which nobody in the room believes. That is the first hint that the line is being pulled somewhere it does not want to go.
-
-Here is the same fit as a picture.
-
-```r
-# Plot revenue against tenure with the fitted line drawn on
-plot(accounts$tenure_years, accounts$annual_revenue,
-     pch = 19, col = "grey40",
-     xlab = "Tenure (years)", ylab = "Annual revenue",
-     main = "Forty accounts, and the line fitted through them")
-abline(fit, col = "red", lwd = 2)
-text(accounts$tenure_years[23], accounts$annual_revenue[23],
-     labels = "Northwind", pos = 2, cex = 0.8)
-```
-
-Thirty-nine points sit squashed along the bottom, because the y axis has to stretch to a million to fit Northwind in. The red line runs from below zero on the left up to Northwind on the right. Looking at that, you would not say the line describes the thirty-nine. You would say it is reaching for the one.
+That is a real-looking result. But one row in this data frame is nothing like the other nineteen, and a coefficient built from 20 points can lean heavily on just one of them. Before trusting 1156.89, it's worth asking how much of it Meridian Corp is responsible for.
 
 === step === widget
-## What one far-out row does to a fitted line
+## Leverage: how unusual a point's tenure is
 
-Before we measure anything, let's get a feel for what is going on. Here is the same shape in miniature.
+To answer that, you need two ideas, and leverage is the first one.
 
-Seven ordinary points sit in an upward band on the left. One extra point sits far out to the right, well past where the others stop, and its value is yours to move. The solid line is the least squares fit with that point included. The dashed line is the fit without it.
+Leverage measures how far a point's x-value, tenure in this case, sits from the average tenure in the data. A point close to the average tenure barely affects the slope of the line, because the line has to pass close to it no matter how it's tilted. A point whose tenure is far from the average has more room to swing the line toward itself.
+
+The chart below isn't built from Meridian Corp's numbers. It uses its own simple example: seven ordinary points and one point far out on the x-axis, whose y-value you can drag. But it shows exactly the mechanism that gives Meridian Corp's 9-year tenure, far beyond the other nineteen's 1.6 to 5.9 years, so much influence over the fitted line.
 
 ::widget leverage-point {}
 
-Drag the slider up and down and watch the two lines. The dashed line never moves, because the seven ordinary points never change. The solid line swings to chase the far point wherever you put it, and the slope readout underneath tells you how far apart the two fits have got.
+Drag that far-out point up and down and watch the solid line chase it while the dashed line, the fit without it, barely moves. That gap between the two lines is leverage doing its work.
 
-Now try one more thing. Put the far point back down near the dashed line and the two fits sit on top of each other, even though the point is still just as far out to the right. Being far out on its own was never enough. It had to be far out on the right *and* miss the line for anything to move.
+Now measure it for real, on the customers you already fit.
 
-That is the whole mechanism, and both halves of it have names.
+```r
+# Compare each customer's hat value (leverage) with the average and the 2p/n threshold
+hat_values <- hatvalues(full)
+round(c(
+  meridian = unname(hat_values["Meridian Corp"]),
+  mean_hat = mean(hat_values),
+  threshold = 2 * 2 / nrow(customers)
+), 3)
+#>  meridian  mean_hat threshold 
+#>     0.424     0.100     0.200
+```
+
+`hatvalues()` returns each row's leverage, often called its hat value. Across all 20 customers the average hat value is 0.100, and a common rule of thumb flags anything above 2p/n, where p is the number of parameters in the model (2, for the intercept and the tenure slope) and n is the number of rows (20). That threshold works out to 0.200. Meridian Corp's hat value is 0.424, more than twice that cutoff and over four times the average.
+
+[NOTE]
+A high hat value only says a point's tenure is unusual. It doesn't say the point is distorting anything by itself. A high-leverage point that happens to sit close to the fitted line has a small residual and pulls the line very little. To know how much a point actually influences the fit, you need its leverage and the size of its residual combined into one number.
+
+=== step === concept
+## Cook's distance: leverage and residual combined into one number
+
+Cook's distance is the number that combines a point's leverage with the size of its residual, its distance from the fitted line, into a single influence score for that row.
+
+```r
+# Find the row with the largest Cook's distance and compare it with the 4/n threshold
+cooks_d <- cooks.distance(full)
+names(which.max(cooks_d))
+#> [1] "Meridian Corp"
+round(c(
+  meridian = unname(cooks_d["Meridian Corp"]),
+  threshold = 4 / nrow(customers)
+), 3)
+#>  meridian threshold 
+#>     6.611     0.200
+```
+
+`cooks.distance()` computes one value per row, and `which.max()` names the row with the biggest one: Meridian Corp, no surprise given what the scatter already showed. A common cutoff for Cook's distance is 4/n, which for 20 rows is 0.200. Meridian Corp's value is 6.611, over 33 times that cutoff.
+
+Its residual, the gap between its actual order value and what the line predicts for it, is $8,382.10. High leverage and a large residual together are what push Cook's distance this far past the threshold. Either one alone would have produced a far smaller Cook's distance, which is exactly why the two get combined into one score instead of read separately.
 
 === step === quiz
-## Quick check: which rows can move a model
+## Quick check: what a high Cook's distance does and does not mean
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- A row with an unusually large revenue value, wherever it happens to sit on tenure. ::no
-- A row that sits far from the rest on tenure, so the line has room to swing toward it. ::ok That is it. A big value in the middle of the crowd is held in place by its neighbours. A row out at the edge has no neighbours to argue with it, so the line is free to move.
-- The row the line misses by the most, since the largest miss must be doing the most damage. ::no
-- Any row more than three standard deviations from the mean revenue. ::no The three-sigma habit is about the outcome column alone, and a model is not fitted to one column. What decides whether a row can steer the line is where it sits on the predictor, plus whether the line misses it. A big value sitting in the middle of the crowd is pinned by its neighbours and moves nothing.
+- Delete the row immediately. A Cook's distance this high means the entry must be wrong. ::no
+- It flags the row for a closer look. On its own it doesn't diagnose an error or demand deletion. ::ok Right. Cook's distance tells you where to look, not what you'll find when you get there. Whether the result actually depends on this one row is worth checking directly.
+- Ignore the flag unless the tenure coefficient's p-value is also below 0.05. ::no The tenure coefficient's p-value was already below 0.05 before you ever looked at Cook's distance, and that is exactly the number in question. A large Cook's distance is a reason to test whether that p-value can be trusted, not a signal you can wave away with it.
 
 === step === concept
-## Leverage: how unusual a row's predictor values are
+## Refit without the flagged row: does the trend survive?
 
-The first half is called **leverage**, written h, and it measures one thing: how far a row sits from the middle of the predictors. It is computed from the x column alone, and the y column never enters into it. A row can have enormous leverage and still sit perfectly on the line.
-
-`hatvalues()` returns h for every row. Let's see who is furthest from the middle on tenure.
+Cook's distance told you Meridian Corp has an outsized pull on the fit. The only way to find out what that pull is doing to your conclusion is to remove the row and refit.
 
 ```r
-# Score every account on how unusual its tenure is, and show the top three
-h <- hatvalues(fit)
-round(sort(h, decreasing = TRUE)[1:3], 4)
-#> Northwind       C35       C37
-#>    0.2384    0.1081    0.1043
+# Refit without Meridian Corp and compare the tenure coefficient
+fit_drop <- lm(order_value ~ tenure, data = customers[customers$customer != "Meridian Corp", ])
+round(rbind(
+  full    = coef(summary(full))["tenure", c("Estimate", "Std. Error", "Pr(>|t|)")],
+  dropped = coef(summary(fit_drop))["tenure", c("Estimate", "Std. Error", "Pr(>|t|)")]
+), 4)
+#>          Estimate Std. Error Pr(>|t|)
+#> full    1156.8870   340.9014   0.0032
+#> dropped   -7.2273     3.8657   0.0789
 ```
 
-Northwind sits at 0.2384. Is that a lot? Leverage comes with its own yardstick: the h values across all rows always average p/n, where p is the number of coefficients you fitted and n is the number of rows. Here that is 2 over 40.
+Look at what one row did. With Meridian Corp in the data, the tenure coefficient is 1156.89 and significant at p = 0.0032. Take that single row out, refit on the remaining 19 customers, and the coefficient becomes -7.23, with a p-value of 0.0789, above the usual 0.05 line.
+
+That is not a small adjustment. The coefficient did not just shrink, it changed sign, and the result went from significant to not significant. Everything that made this look like a real, positive relationship between tenure and order value was coming from one customer out of twenty. Without Meridian Corp, there is no relationship here worth reporting as a finding.
+
+=== step === widget
+## Robust regression: an independent check that confirms the refit
+
+Refitting without Meridian Corp is one way to test the trend. Robust regression is a second, independent way to ask the same question, and it never removes a single row.
+
+An ordinary least-squares fit, the `lm()` you have been using, gives every row equal weight in fitting the line. A robust regression such as `rlm()` starts the same way, then looks at how far each point sits from the fit and turns down the weight of the ones that sit furthest away, automatically, without you naming a row.
+
+The chart below doesn't use Meridian Corp's numbers either. It has its own 14 ordinary points and one outlier, and a toggle for the fitting method. But watch what happens to that outlier's weight as you move the toggle: the same down-weighting rlm() will do to Meridian Corp.
+
+::widget robust-weights {}
+
+OLS gives every point the same weight, so the one outlier drags the fitted line toward itself. Switch to Huber, then Tukey, and the outlier's weight falls and the line snaps back toward the true trend running through the other 14 points.
+
+Now run the same fit on the customers data.
 
 ```r
-# The average leverage every model has to obey
-round(mean(h), 3)
-#> [1] 0.05
+# Fit a robust regression and read the weight it assigns Meridian Corp
+library(MASS)
+rob <- rlm(order_value ~ tenure, data = customers)
+round(rbind(OLS = coef(full), robust = coef(rob)), 3)
+#>        (Intercept)   tenure
+#> OLS      -3994.105 1156.887
+#> robust     311.836   -3.455
+round(c(meridian_weight = unname(setNames(rob$w, customers$customer)["Meridian Corp"])), 3)
+#> meridian_weight 
+#>           0.002
 ```
 
-So the average account carries 0.05 of the fit and Northwind carries 0.2384, roughly five average accounts rolled into one row. The usual flag is twice the average, 2p/n, which is 0.1 here. Northwind is far past it, and C35 at 0.1081 is just over.
+`rlm()` assigned Meridian Corp a weight of 0.002, close enough to zero that the row barely counts toward the fit anymore. With that weight near zero, the robust tenure coefficient comes out at -3.455, negative, the same direction as the leave-one-out refit's coefficient.
 
-Hold on to that last one. C35 flagged on leverage and we never looked at its revenue at all, which is exactly the point of this half of the measurement.
+Two completely different methods, one that removes a row and one that never does, both agree: once Meridian Corp stops driving the fit, there is no positive trend between tenure and order value. That agreement is what makes the finding robust.
 
 === step === concept
-## The residual: how far the fit misses that row
+## Decide, and say so: four honest responses and how to report it
 
-Leverage says a row could move the line. Whether it actually does depends on the other half: does the fitted line miss that row?
+You have now confirmed that Meridian Corp is carrying the entire result. The question left is what to actually do about it, and there are exactly four honest answers.
 
-The plain answer is the residual, the account's revenue minus what the line predicts for it. Northwind's is enormous.
+- **Keep it.** Use this when the conclusion holds whether the point is in or out. You show the reader both fits, and the estimate barely moves between them.
+- **Investigate and correct.** Use this when the value looks like a recording or entry error you can verify and fix. You show the corrected value and where it came from, never a silent deletion.
+- **Down-weight it.** Use this for a genuine extreme value you don't want to delete but also don't want dominating the fit. You show the robust and ordinary estimates side by side.
+- **Drop it, with a stated reason.** Use this only when the case falls outside what your study was ever meant to cover, on a criterion you fixed before you looked at what dropping it would do to your result.
 
-```r
-# Northwind's raw miss, in revenue
-round(residuals(fit)["Northwind"], 0)
-#> Northwind
-#>    746471
-```
+One move that is never on the table: dropping a point because the result you wanted shows up once it's gone. That is not a data decision, it is a results decision, and a reviewer who suspects it happened will trust nothing else you report.
 
-The line, dragged as far up as it can go, still lands 746,471 short of Northwind. That number is true but hard to judge, because the same residual means one thing when the model is precise and another when it is loose.
-
-`rstandard()` fixes that by dividing each residual by the standard error of that residual, which puts every account on one scale where 1 means one standard error out.
-
-```r
-# The same miss, standardized
-round(rstandard(fit)["Northwind"], 2)
-#> Northwind
-#>      6.16
-```
-
-That is six standard errors out. Anything past 2 or 3 already asks for an explanation, so Northwind is not simply high, it is high in a way this line cannot reach.
-
-=== step === concept
-## Cook's distance puts leverage and residual in one number
-
-We now have two numbers per row, and each one says half of something. Cook's distance is what you get when you multiply the two halves together.
-
-\[ D_i = \frac{r_i^2}{p} \times \frac{h_i}{1 - h_i} \]
-
-Every symbol in that formula is something you have already computed:
-
-- \( D_i \) is Cook's distance for row i, the number we are after.
-- \( r_i \) is that row's standardized residual, so \( r_i^2 \) is how badly the line misses it, squared to make the direction of the miss irrelevant.
-- \( p \) is the number of coefficients in the model, 2 here for an intercept and a slope.
-- \( h_i \) is that row's leverage, and \( h_i / (1 - h_i) \) stretches it: at h = 0.05 that factor is 0.053, at h = 0.24 it is 0.32, and as h approaches 1 it runs away to infinity.
-
-The shape of that formula is the whole idea. Because the two halves are multiplied, either one of them at zero gives you zero: a row that sits perfectly on the line has no influence however far out it is, and a badly missed row in the middle of the crowd has almost none either. A row has to be odd on x **and** missed on y before it can steer anything.
-
-That is also why you want Cook's distance as a single number instead of reading leverage and residuals separately. Neither column on its own tells you which rows are carrying the fit.
+Meridian Corp is a real, correctly recorded account. There's no entry error to correct and no criterion that places it outside the population of customers you set out to study, so correcting and dropping are both off the table here. It is a genuine extreme case, which is what down-weighting is for, and the robust fit already did exactly that. So the honest response is to report both fits rather than repeat 1156.89 (p = 0.0032) as a settled result.
 
 [KEY INSIGHT]
-Cook's distance is leverage times residual, and it needs both. What it actually measures is how far all your fitted values move when row i is deleted and the model refitted, which is why it answers the question you started with.
-
-=== step === concept
-## Cook's distance for Northwind, worked out by hand
-
-The formula is short enough to run yourself, so let's do that before calling any function. Northwind's standardized residual and its leverage are both already stored, and p is 2.
-
-```r
-# Rebuild Cook's distance for Northwind from its own residual and leverage
-r_nw <- rstandard(fit)["Northwind"]
-h_nw <- hatvalues(fit)["Northwind"]
-p    <- 2
-
-d_hand <- (r_nw^2 / p) * (h_nw / (1 - h_nw))
-round(c(by_hand     = unname(d_hand),
-        by_function = unname(cooks.distance(fit)["Northwind"])), 3)
-#>     by_hand by_function
-#>       5.939       5.939
-```
-
-Take the two factors apart for a second. The residual half, 6.16 squared over 2, comes to about 19. The leverage half, 0.2384 over 0.7616, comes to about 0.31. Multiply them and you land on 5.939, and `cooks.distance()` hands back exactly the same number.
-
-So the function is not doing anything you cannot do by hand. It is doing that arithmetic for every row at once, which is the useful part.
-
-```r
-# Score all 40 accounts in one call and print the five largest
-cd <- cooks.distance(fit)
-round(sort(cd, decreasing = TRUE)[1:5], 4)
-#> Northwind       C35       C37       C17       C25
-#>    5.9385    0.0409    0.0390    0.0187    0.0179
-```
-
-Look at the gap. Northwind is at 5.9385 and the runner-up, C35, is at 0.0409. One account has about 145 times the influence of the next most influential account, and the other thirty-eight are nowhere. That is not a list of suspicious rows. That is one row and a long tail of ordinary ones.
+A one-line template covers most of these write-ups: name the point, state what leaving it out changed, state the decision. For Meridian Corp: "Meridian Corp had a Cook's distance of 6.611, above the 4/n threshold of 0.200. Removing it changed the tenure coefficient from 1156.89 (p = 0.0032) to -7.23 (p = 0.0789), confirmed by a robust fit (coefficient -3.455). The relationship does not hold once this account is removed, so it is reported as unsupported rather than as a finding."
 
 === step === quiz
-## Quick check: high leverage, ordinary residual
+## Practice: putting the check together
 
-C35 turned up in both lists you have run: a leverage of 0.1081, over the 0.1 flag, and a Cook's distance of 0.0409, which is nothing. What does that pair of numbers tell you about C35?
+Suppose a different regression, on a different dataset, flags a different row with a high Cook's distance. You dig into that row and find it's a duplicated data entry, the same order was accidentally logged twice.
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Its residual must be large too, because leverage and residual rise together. ::no
-- Its residual must be ordinary. It had the opportunity to move the line and did not take it, so the other factor has to be small. ::ok Exactly. C35's standardized residual is 0.82, a completely unremarkable miss, and 0.82 squared kills the product no matter how unusual its tenure is. C35 is an old customer who bills what an old customer should.
-- Nothing, because leverage and Cook's distance measure unrelated things. ::no
-- That C35 is a data-entry error, since two of its numbers came out unusual. ::no Leverage and Cook's distance are two views of the same row, and one is built out of the other. Leverage is the opportunity to move the line; Cook's distance is the movement that actually happened. A big h beside a tiny D says the row had the opportunity and did nothing with it, which means its residual must be small. Nothing there suggests the row is wrong.
-
-=== step === concept
-## Reading the two influence plots, and what their cutoffs are worth
-
-You do not have to sort the numbers yourself, because R will draw them. `plot()` on a fitted model takes a `which` argument, and two of its six plots are about influence.
-
-The fourth one puts Cook's distance on the y axis and the row on the x axis, one spike per account, with the loudest few labelled. The common rule of thumb draws a line at 4/n, which is 0.1 for forty accounts.
-
-```r
-# Rank every account by Cook's distance, with the 4/n line drawn on
-plot(fit, which = 4)
-abline(h = 4 / nrow(accounts), col = "red", lty = 2)
-```
-
-One spike goes off the top of the plot and thirty-nine sit flat on the floor. Only Northwind crosses the red line, and it crosses it by a factor of nearly sixty.
-
-The fifth plot is the more informative one, because it shows you both halves at once: leverage along the x axis, standardized residual up the y axis, and dotted contours of constant Cook's distance drawn over the top at 0.5 and 1.
-
-```r
-# Put the standardized residual against leverage, with Cook's contours
-plot(fit, which = 5)
-```
-
-Read a point by asking two things. How far right does it sit, which is leverage, and how far up or down from zero, which is the miss. Points near the origin are unremarkable on both counts, and points past a contour are high on both at once. Northwind sits alone in the top right, outside every contour on the plot.
-
-Now the part that matters more than the plots. Those cutoffs are conventions, not tests:
-
-- **4/n**, the line you just drew, shrinks as your dataset grows, so it keeps flagging roughly the same small share of rows however clean they are. On ten thousand ordinary rows it hands you several hundred names, and almost none of them will matter.
-- **0.5 and 1**, the contours R draws, are round numbers that came from the early literature and stuck.
-
-None of them was derived from a distribution, and none of them tells you a row is wrong. They exist to sort the rows worth a look from the rows that are not.
-
-[WARNING]
-Crossing 4/n means look at this row. It does not mean the row is bad data, it does not mean the row should go, and it does not mean your result is wrong. Every one of those is a separate question the cutoff cannot answer.
+- Keep it. It's just one influential row, and the fit is barely affected either way. ::no
+- Investigate and correct it, since a duplicated entry is a genuine recording error you can fix. ::ok Right. You found a specific, verifiable mistake, not just an unusual value. Correcting it (or removing the duplicate row) is the honest fix. Down-weighting or dropping-with-a-reason are both for cases where the value itself is genuine.
+- Down-weight it with a robust fit, the same way you handled Meridian Corp. ::no
+- Drop it, since it's clearly not representative of the rest of the data. ::no A duplicated entry is a specific, fixable mistake, not a genuine extreme value and not a case that falls outside your study's population. Down-weighting and dropping are both responses for a value that turns out to be real. Here the honest fix is to find the error and correct it, which usually means removing the duplicate row entirely.
 
 === step === tryit
-## Your turn: read the plot, then name every account above the 4/n line
+## Your turn: test whether the trend survives on your own
 
-Reading a spike off a plot is fine while you are the only one looking at it. When somebody asks which customers are carrying a result, they want names, and names come from the numbers.
-
-`cd` holds the Cook's distance of all forty accounts, named by account. Return the names of every account above the 4/n line.
+The starter below rebuilds the customers data and the full model, then drops one named customer and compares its tenure coefficient with the full-data value of 1156.89. Right now it drops Meridian Corp, which you already know collapses the trend. Change `drop_name` to Customer18, the regular customer with the largest Cook's distance among the other nineteen, and press Run to see what dropping an ordinary row does instead.
 
 ```r
-# cd holds each account name and its Cook's distance.
-# nrow(accounts) is 40, so the 4/n line sits at 0.1.
-# Return the names of the accounts above that line.
-# One line. Press Check when you have it.
+# Starter: refit without one customer and compare the tenure coefficient to the full-data value
+set.seed(42)
+tenure <- round(runif(19, 1, 6), 1)
+order_value <- round(280 + rnorm(19, 0, 30), 0)
+customers <- data.frame(
+  customer = c(paste0("Customer", 1:19), "Meridian Corp"),
+  tenure = c(tenure, 9.0),
+  order_value = c(order_value, 14800)
+)
+full <- lm(order_value ~ tenure, data = customers)
+
+# Change the name below, then press Run
+drop_name <- "Meridian Corp"
+fit_drop <- lm(order_value ~ tenure, data = customers[customers$customer != drop_name, ])
+round(c(full_coef = coef(full)["tenure"], dropped_coef = coef(fit_drop)["tenure"]), 2)
 ```
-::check {"regex": "cd\\s*>\\s*(4\\s*/|0?\\.1)", "gate": true, "difficulty": "beginner", "ok": "One name comes back: Northwind. Forty accounts, one row above the line, and now you can say so by name rather than by pointing at a spike.", "no": "Compare the whole vector against the line and ask for the names: `names(which(cd > 4 / nrow(accounts)))`. Writing 0.1 in place of 4 / nrow(accounts) works the same way."}
+::check {"regex": "1296\\.69", "gate": true, "difficulty": "intermediate", "ok": "Right. Dropping Customer18 barely moves the coefficient, from 1156.89 to 1296.69, both clearly positive. Meridian Corp is the only row whose removal changes the story.", "no": "Change drop_name to Customer18 (the regular customer with the largest Cook's distance among the other nineteen) and press Run again."}
 ::solution
 ```r
-# Name every account whose Cook's distance clears the 4/n line
-names(which(cd > 4 / nrow(accounts)))
-#> [1] "Northwind"
+# Drop Customer18 instead of Meridian Corp, and compare the tenure coefficient again
+drop_name <- "Customer18"
+fit_drop <- lm(order_value ~ tenure, data = customers[customers$customer != drop_name, ])
+round(c(full_coef = coef(full)["tenure"], dropped_coef = coef(fit_drop)["tenure"]), 2)
+#>    full_coef dropped_coef 
+#>      1156.89      1296.69
 ```
 
-Be careful about what that sentence is allowed to say. Northwind is above the line means Northwind is worth looking at. It does not yet mean the finding depends on Northwind, and those two claims are not the same size.
-
-=== step === concept
-## The leave-one-out refit: does the conclusion hold?
-
-Cook's distance told you where to look. What happens next is not something the size of D can settle, because 5.9385 is a fact about arithmetic and the question in front of you is about your conclusion.
-
-There is one honest way to answer it. Take the row out, fit the same model again, and put the two results side by side.
-
-```r
-# Refit without Northwind and compare the tenure slope both ways
-fit_small <- lm(annual_revenue ~ tenure_years, data = accounts[-23, ])
-
-round(rbind(
-  with_northwind    = coef(summary(fit))["tenure_years", ],
-  without_northwind = coef(summary(fit_small))["tenure_years", ]
-), 4)
-#>                     Estimate Std. Error t value Pr(>|t|)
-#> with_northwind    30978.8091  9471.4637  3.2708   0.0023
-#> without_northwind    96.1751   416.6929  0.2308   0.8187
-```
-
-Read the Estimate column first. The tenure effect goes from 30,978.81 a year to 96.18 a year, which is about three tenths of one percent of what it was. In business terms, an extra year of tenure looked like thirty-one thousand and turns out to be ninety-six, which is not a number anybody would plan around.
-
-Then read the last column. The p-value goes from 0.0023 to 0.8187. A result that cleared every conventional bar on all forty accounts cannot even see the bar on thirty-nine.
-
-So the whole finding lived in one row. Not most of it, not a helpful chunk of it. All of it.
-
-[KEY INSIGHT]
-Cook's distance is a search tool, and the leave-one-out refit is the decision tool. Report the second one, because a reader does not care how large D was. They care whether your answer survives.
-
-=== step === quiz
-## Quick check: reading the with-and-without table
-
-The slope fell from 30,978.81 to 96.18 and the p-value climbed from 0.0023 to 0.8187 when one account came out. What have you established?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Northwind's numbers must be wrong, since a correct row would not do that to a model. ::no
-- That the tenure finding rests entirely on one account. That is a fact about how much evidence you have, not a verdict on the row. ::ok Right. The row did nothing wrong by existing. What collapsed is your claim, because it turned out to be supported by one customer rather than by forty.
-- That 96.18 is the true effect, so report the smaller model and move on. ::no
-- Nothing much: 0.0023 came from all forty accounts, so it is still the number to publish. ::no Both fits are real fits of real data, and neither is automatically the honest one. The full-sample p-value of 0.0023 describes forty accounts of which one is doing all the work, so publishing it alone tells a reader something the data does not support. The comparison is the finding, and it says the evidence for a tenure effect is one row deep.
-
-=== step === concept
-## Four honest things to do with an influential row
-
-Now the question you came with. You have found the row, you have run the refit, and the answer moved. What do you actually do?
-
-There are four defensible moves, and which one is right depends entirely on why the row is unusual, never on what it does to your p-value.
-
-| Option | When it is the right call | What you show |
-|---|---|---|
-| Keep it, and report both fits | The row is valid data, whether or not the conclusion survives | The with-and-without comparison, so the reader sees exactly what the row is worth |
-| Investigate and correct it | The value is a recording or entry error you can verify against the source | The corrected value and where the correction came from, never a silent edit |
-| Down-weight it | Genuine extreme values you will not delete but do not want dominating the fit | The robust and least squares estimates side by side |
-| Drop it, for a stated reason | The case falls outside the population you meant to study, on a criterion fixed before you saw its effect | The criterion itself, and when you set it |
-
-One move is not on that list, and it is the one people reach for first: deleting the row because the result looks better without it. That is not a data decision, it is a results decision, and it inflates false positives the same way picking your analysis after seeing the data does.
-
-It is also the move a reviewer is trained to look for. Anyone who suspects a point was removed to rescue a p-value will stop trusting the rest of the paper too, which is a high price for one row.
-
-[TIP]
-The test for whether a deletion is honest is simple. Could you have written the removal rule down before you saw its effect on the estimate? If yes, state the rule and drop the row. If no, keep the row and report both fits.
-
-=== step === concept
-## What to do about Northwind, and the sentence you would publish
-
-Run those four options against Northwind and three of them close immediately.
-
-Northwind is a real enterprise client billing a real million a year, so there is nothing to correct. Down-weighting is for when several genuine extremes are all leaning on a fit and you still want one line that describes everybody, and here there is exactly one, so shrinking its pull would give you a line that is neither the forty-account answer nor the thirty-nine-account one. It belongs to the population you were studying, business accounts at this company, so there is no pre-set criterion that excludes it. And the only reason to delete it would be that the finding disappears when you do, which is the one reason you are not allowed to use.
-
-So you keep it, and you report both fits.
-
-```r
-# Print the two slopes the published sentence has to carry
-slopes <- c(all_40      = unname(coef(fit)["tenure_years"]),
-            without_one = unname(coef(fit_small)["tenure_years"]))
-round(slopes, 1)
-#>      all_40 without_one
-#>     30978.8        96.2
-```
-
-Here is the sentence those two numbers turn into, in the form a reviewer or a director can read without needing your code:
-
-> Revenue rose with tenure across all forty accounts (30,979 per year, p = 0.0023), but the association was carried by a single enterprise client. Excluding that account, the estimate fell to 96 per year (p = 0.82). We therefore report the tenure effect as specific to that one account rather than as a general pattern in the customer base.
-
-Notice what the sentence does. It names the row, gives the estimate with and without, and states the conclusion that follows, so a reader is holding the same evidence you used to decide.
-
-And notice what you have gained. The first fit said revenue grows with tenure, which was wrong. The pair of fits says the customer base shows no detectable tenure effect and one enterprise account is very large, which is true, and a good deal more useful to the people who have to act on it.
-
-=== step === quiz
-## Practice: what a large Cook's distance entitles you to do
-
-::quiz {"correct": 2, "gate": true, "difficulty": "advanced"}
-- To delete the row, since anything past 4/n counts as an outlier by definition. ::no
-- To look at the row and refit without it. The size of D says where to look, and what you do next comes from why the row is unusual and what the refit showed. ::ok That is the whole discipline in one line. The statistic sends you to a row, the refit tells you what the row is worth, and the reason the row is unusual decides which of the four responses you get to use.
-- To report the model without the row as your main result, with the full model as a footnote. ::no
-- To keep the row and say nothing about it, since a valid observation is never removed. ::no Keeping a valid row is usually right, but keeping it silently is not. A reader cannot tell a model that was checked and held from one that was never checked, so the with-and-without comparison goes in the write-up either way. And deleting is not banned outright: it is allowed on a criterion you fixed before you saw its effect.
-
-=== step === tryit
-## Practice: separate the leverage from the influence
-
-Here is the sharpest test of whether the two halves have come apart in your head.
-
-Northwind's tenure of twelve years is not changing. Only its revenue changes: set it to 19,874, which is what the other thirty-nine accounts predict for a twelve-year customer, and refit. Then print its leverage and its Cook's distance from the new fit, and see which one moved.
-
-```r
-# accounts holds the 40 rows, and Northwind is row 23.
-# Copy the data, set Northwind's revenue to 19874, and refit.
-# Then print Northwind's leverage and Cook's distance from the new fit,
-# next to the ones from the original fit.
-# Press Check when you have them.
-```
-::check {"regex": "19874", "gate": true, "difficulty": "intermediate", "ok": "Leverage does not budge: 0.2384 before and 0.2384 after. Cook's distance falls from 5.9385 to effectively zero. Same row, same tenure, same distance from the middle of the x column, no influence at all.", "no": "Copy the frame first so the original survives: `alt <- accounts`, then `alt$annual_revenue[23] <- 19874`, refit with `lm(annual_revenue ~ tenure_years, data = alt)`, and pull `hatvalues()` and `cooks.distance()` for Northwind out of the new fit."}
-::solution
-```r
-# Move Northwind onto the line the other 39 accounts imply, then remeasure it
-alt <- accounts
-alt$annual_revenue[23] <- 19874
-fit_alt <- lm(annual_revenue ~ tenure_years, data = alt)
-
-round(c(leverage_before = unname(hatvalues(fit)["Northwind"]),
-        leverage_after  = unname(hatvalues(fit_alt)["Northwind"])), 4)
-#> leverage_before  leverage_after
-#>          0.2384          0.2384
-
-round(c(cooks_before = unname(cooks.distance(fit)["Northwind"]),
-        cooks_after  = unname(cooks.distance(fit_alt)["Northwind"])), 4)
-#> cooks_before  cooks_after
-#>       5.9385       0.0000
-```
-
-Leverage is fixed by the x column and you never touched the x column, so it could not move. Influence needed the miss as well, and once the miss went, so did all of it.
-
-=== step === tryit
-## Practice: report the sensitivity in two numbers
-
-This is the thing people actually ask you for, so it is worth being able to produce without thinking.
-
-`fit` is the model on all forty accounts and `cd` holds every account's Cook's distance. Find the most influential account by name rather than by typing 23, refit without it, and put the tenure slope and its p-value from both fits into one table.
-
-```r
-# fit is the model on all 40 accounts; cd holds their Cook's distances.
-# Find the most influential account BY NAME, refit without it, and put
-# the tenure slope and its p-value from both fits into one table.
-# Press Check when you have it.
-```
-::check {"regex": "which\\.max", "gate": true, "difficulty": "advanced", "ok": "That is the sensitivity analysis: 30,978.81 at p = 0.0023 on all forty, 96.18 at p = 0.8187 without Northwind. Finding the row by name instead of by index means the same code works on the next dataset you point it at.", "no": "Get the name with `worst <- names(which.max(cd))`, then subset with `accounts[rownames(accounts) != worst, ]` and stack the two rows with `rbind()`, pulling `coef(summary(...))[\"tenure_years\", c(\"Estimate\", \"Pr(>|t|)\")]` from each fit."}
-::solution
-```r
-# Find the most influential account, refit without it, and compare the slope
-worst <- names(which.max(cd))
-worst
-#> [1] "Northwind"
-
-fit_out <- lm(annual_revenue ~ tenure_years,
-              data = accounts[rownames(accounts) != worst, ])
-
-round(rbind(
-  all_accounts  = coef(summary(fit))["tenure_years", c("Estimate", "Pr(>|t|)")],
-  without_worst = coef(summary(fit_out))["tenure_years", c("Estimate", "Pr(>|t|)")]
-), 4)
-#>                 Estimate Pr(>|t|)
-#> all_accounts  30978.8091   0.0023
-#> without_worst    96.1751   0.8187
-```
-
-Two rows, four numbers, and the question is closed. Present that table alongside your result and nobody has to ask whether you checked.
+Dropping Customer18, an ordinary row, barely moves the coefficient: 1156.89 becomes 1296.69, still clearly positive. Dropping Meridian Corp sent it to -7.23. Only one row in this data can change the conclusion, and Cook's distance is exactly what pointed you to it.
 
 === step === concept
 ## References
 
-- [Detection of Influential Observation in Linear Regression](https://doi.org/10.1080/00401706.1977.10489493) - Cook (1977), Technometrics 19(1), 15-18. The paper the statistic comes from, including the deleted-fitted-values interpretation.
-- [Regression Diagnostics: Identifying Influential Data and Sources of Collinearity](https://doi.org/10.1002/0471725153) - Belsley, Kuh and Welsch (1980), Wiley. Hat values, the leverage cutoffs, and the per-coefficient DFBETAS measures.
-- [An R Companion to Applied Regression](https://www.john-fox.ca/Companion/) - Fox and Weisberg (2019), 3rd edition, Sage. The chapter on unusual and influential data, worked in R.
-- [Regression deletion diagnostics](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html) - R Core Team, the documentation for `influence.measures()`, listing `cooks.distance()`, `hatvalues()` and the flag R applies to each.
-- [False-Positive Psychology](https://doi.org/10.1177/0956797611417632) - Simmons, Nelson and Simonsohn (2011), Psychological Science 22(11), 1359-1366. Why a deletion decided after seeing its effect on the result inflates false positives.
+- [Detection of Influential Observation in Linear Regression](https://doi.org/10.1080/00401706.1977.10489493) - Cook, R.D. (1977), Technometrics, 19(1), 15-18. The original paper defining Cook's distance.
+- [Regression Diagnostics: Identifying Influential Data and Sources of Collinearity](https://onlinelibrary.wiley.com/doi/book/10.1002/0471725153) - Belsley, D.A., Kuh, E., & Welsch, R.E. (1980), Wiley. The standard reference for leverage, influence, and collinearity diagnostics together.
+- [Modern Applied Statistics with S](https://link.springer.com/book/10.1007/978-0-387-21706-2) - Venables, W.N., & Ripley, B.D. (2002), 4th edition, Springer. The book behind the `MASS` package and its `rlm()` function.
+- [Applied Regression Analysis and Generalized Linear Models](https://collegepublishing.sagepub.com/products/applied-regression-analysis-and-generalized-linear-models-3-237254) - Fox, J. (2016), 3rd edition, Sage. A thorough treatment of regression diagnostics and robust regression.
+- [Influence measures for linear models](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html) - R Core Team, the documentation behind `cooks.distance()`, `hatvalues()`, and `influence.measures()`.
 
 === step === complete
-## Quick recap
+## You can now flag, test, and defend an influential point
 
-You started with a significant trend and finished knowing it belonged to one customer. The route there is short enough to keep in your head:
+Here's what the Meridian Corp example walked you through. Its Cook's distance was 6.611 against a 0.200 cutoff, more than 33 times over. Refitting without it took the tenure coefficient from 1156.89 (p = 0.0032) to -7.23 (p = 0.0789), and a robust fit that never removed the row agreed, putting the coefficient at -3.455. Two different methods, one answer: the trend was never really there.
 
-- Cook's distance is leverage times residual, and it needs both. A row out on the edge that sits on the line moves nothing, and a badly missed row in the middle moves almost nothing either.
-- You computed it by hand for Northwind, 6.16 squared over 2 times 0.2384 over 0.7616, and got 5.939. That is the same number `cooks.distance()` returns, and it does that arithmetic for all forty rows at once.
-- The cutoffs send you to look, and that is all they do. 4/n flagged one account here; on ten thousand rows it would hand you several hundred that mean nothing.
-- The leave-one-out refit is what decides. The slope went from 30,978.81 at p = 0.0023 to 96.18 at p = 0.8187, so the finding was one row deep.
-- There are four honest responses: keep it and show both fits, correct a verifiable error, down-weight it, or drop it on a criterion you fixed in advance. Deleting because the result improves is the one move off the table.
+You now have the full check. Compute Cook's distance and leverage, and read them against their usual cutoffs. Refit without the flagged row to see whether your finding survives. Confirm it with a robust fit, which reaches its own answer without deleting anything. Then choose the honest response, keep it, correct it, down-weight it, or drop it with a stated reason, and report what you found instead of the number you started with.
 
-Next time you fit a model that matters, run `cooks.distance()` on it before you write the sentence, and refit without whatever it flags. If your answer survives, you have a stronger result than you had before. If it does not, you have just saved yourself from publishing a customer.
+The next time one row makes a regression look better than it should, you'll know exactly how to find it, and exactly what to do once you have.
