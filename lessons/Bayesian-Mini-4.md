@@ -1,11 +1,11 @@
 ---
 title: "Credible vs confidence intervals: the difference that matters"
 slug: "Bayesian-Mini-4"
-description: "Build a confidence interval and a credible interval on the same twenty delivery times, watch where they split, and learn the sentence each one lets you say."
-keywords: "credible interval vs confidence interval, credible interval in R, confidence interval meaning, Bayesian credible interval, posterior interval, 95% credible interval, interval interpretation"
-mathjax: true
+description: "Build a 95% confidence interval and a Bayesian credible interval on the same delivery data, and learn exactly what each one lets you claim about the mean."
+keywords: "credible interval vs confidence interval, Bayesian credible interval, confidence interval meaning, posterior distribution, prior distribution, coverage probability, Bayesian inference in R"
+mathjax: false
 webr: true
-date: "2026-08-26"
+date: "2026-09-09"
 post_type: "LESSON"
 course_id: "bayesian-decisions"
 course_title: "Bayesian Decisions"
@@ -13,577 +13,346 @@ course_lesson: "4"
 course_total: "9"
 course_landing: "/dashboard.html"
 course_prev: "Bayesian-Mini-3"
-course_next: ""
+course_next: "Bayesian-Mini-5"
 curriculum_id: "0.0.35"
 lesson_access: "windowed"
-catalog_blurb: "Which interval lets you state a probability, and which one cannot."
+catalog_blurb: "What a 95 percent credible interval lets you claim that a confidence interval cannot."
 ---
 
 === step === cover
-::eyebrow Bayesian Decisions
 ## Credible vs confidence intervals: the difference that matters
 
-Mario runs a pizza place two streets over, and his menu page carries a promise: your order arrives in 22 to 30 minutes.
+Today let's understand the real difference between a confidence interval and a Bayesian credible interval, and why one of them can say something the other simply cannot.
 
-Those two numbers are not a guess. He kept a log of his last twenty deliveries, handed the times to R, and asked for a 95% interval for his true average delivery time. R came back with 21.98 to 30.02, and he rounded it for the menu.
+A delivery chain just opened its newest kitchen. The manager timed the first 25 orders, and they came in anywhere from about 4 minutes to 47 minutes, averaging around 26 minutes. She wants a sensible range for the true average delivery time at this kitchen, one she can hand to the ops team.
 
-Now, here is the sentence almost everybody says next: there is a 95% chance Mario's true average sits between those two numbers.
+There are two different ways to build that range. They can look almost identical on the page and still say very different things.
 
-The problem is that the interval R handed him does not allow that sentence.
+Only three moves get you there:
 
-There is another interval that does allow it, plainly and with no hedging, and it is called a credible interval. On the same twenty deliveries it comes back as 22.23 to 29.77. Those are almost the same two numbers, and a completely different promise.
+::widget process-flow {"steps":[{"title":"Build the confidence interval","sub":"the classic range, computed with t.test()"},{"title":"Build the credible interval","sub":"a posterior for the true mean, built from a prior and the data"},{"title":"Compare them","sub":"where the two ranges agree, and where they pull apart"}]}
 
-So we are going to build both of them by hand, out of those same twenty times, and find out exactly which sentence each one lets you say.
-
-::widget process-flow {"steps":[{"title":"Take the classical interval","sub":"ask R for the 95% confidence interval on the twenty times"},{"title":"Build the posterior by hand","sub":"score every candidate average, then read the middle 95% off it"},{"title":"Read what each one permits","sub":"the single sentence each interval entitles you to say"}]}
-
-That is the whole plan. Everything from here is doing it.
+That's the plan above. Everything from here on is just working through it, one move at a time.
 
 === step === concept
-## The twenty deliveries behind the 22 to 30 on the menu
+## Two 95% intervals for the same delivery data
 
-Let's get the twenty times on the table first, because every number we compute from here comes out of them.
-
-Mario records the minutes from the moment an order is placed to the moment it reaches the door. Here they are, sorted, from his quickest delivery to his slowest.
-
-Press Run.
+Let's build the data first, since every number from here on comes from these same 25 orders.
 
 ```r
-# The last twenty delivery times, and what they average
-deliveries <- c(13, 15, 15, 16, 20, 21, 22, 24, 24, 25, 25, 27, 27, 28,
-                32, 33, 33, 33, 42, 45)
+# Build the 25-order delivery sample and its summary stats
+set.seed(21)
+delivery <- round(rnorm(25, mean = 26, sd = 9.5), 1)
 
-n <- length(deliveries)
-round(c(orders = n, average = mean(deliveries), spread = sd(deliveries),
-        std_error = sd(deliveries) / sqrt(n)), 2)
-#>    orders   average    spread std_error
-#>     20.00     26.00      8.60      1.92
+round(mean(delivery), 2)
+#> [1] 26.24
+round(sd(delivery), 2)
+#> [1] 10.26
 ```
 
-Twenty orders came in, averaging 26.0 minutes and scattering about 8.60 minutes around that average. The last number is the standard error, 1.92 minutes, and it says how much the average of twenty orders like these would move if Mario logged another twenty.
+`rnorm(25, mean = 26, sd = 9.5)` simulates 25 delivery times, as if the kitchen's true average were 26 minutes with that much order-to-order spread. `set.seed(21)` just fixes the random draw, so your 25 numbers come out identical to the ones used here.
 
-That 26.0 is the average of the twenty orders he happened to log, and it is not quite the number we are after. Every interval in this lesson is chasing Mario's true average: the figure his delivery times would settle on over thousands of orders, which nobody ever gets to see directly. These twenty times are all the evidence we have about where it sits.
+The 25 orders average 26.24 minutes, with a standard deviation of 10.26 minutes.
 
-The interval on his menu comes out of a single line.
+Now build two different 95% ranges for the true average delivery time, on this same data.
 
 ```r
-# The classical 95% confidence interval for Mario's true average
-t.test(deliveries)
-#>
-#> 	One Sample t-test
-#>
-#> data:  deliveries
-#> t = 13.526, df = 19, p-value = 3.344e-11
-#> alternative hypothesis: true mean is not equal to 0
-#> 95 percent confidence interval:
-#>  21.97685 30.02315
-#> sample estimates:
-#> mean of x
-#>        26
+# Compute a classical confidence interval and a flat-prior credible interval
+conf_interval <- as.numeric(t.test(delivery)$conf.int)
+se <- sd(delivery) / sqrt(length(delivery))
+credible_interval <- qnorm(c(0.025, 0.975), mean = mean(delivery), sd = se)
+
+round(conf_interval, 2)
+#> [1] 22.01 30.47
+round(credible_interval, 2)
+#> [1] 22.22 30.26
 ```
 
-The line to read is the one under `95 percent confidence interval`: 21.98 to 30.02 minutes. The p-value above it is testing whether Mario's true average is zero, which is not a worry any pizza shop has, so leave it alone.
+`t.test()` returns the classical **confidence interval**, using the formula every stats course teaches: the sample mean, plus and minus roughly two standard errors. The second block builds a **credible interval** a different way. It treats the sample mean as the centre of a Normal curve for the true average, with the standard error as that curve's spread, then reads off the middle 95% of that curve with `qnorm()`.
 
-Underneath, that interval is just the average give or take 2.093 standard errors, which works out at 26.0 give or take 4.02 minutes. That 2.093 is the t multiplier for the 19 degrees of freedom R printed above, and it is what makes the interval come out at 95% rather than at some other percentage. The whole question in front of us is what that 95 is promising.
+22.01 to 30.47 minutes. 22.22 to 30.26 minutes. Nearly the same range, off by about a fifth of a minute at each end.
+
+So if both intervals land in almost the same place, why bother with two methods? Because the number is not the whole story. What each interval actually lets you claim about that number turns out to be very different, and that difference is the whole point.
 
 === step === concept
-## What the 95% in a confidence interval is counting
+## What does a 95% confidence interval actually promise?
 
-The 95% is a promise about the recipe, not about the two numbers the recipe handed back this time.
+Here's the part almost everybody gets wrong, including people who use confidence intervals all the time.
 
-Stated carefully, the promise goes like this. Suppose Mario's true average really is 26 minutes. Log twenty fresh deliveries, run that same line, get an interval. Do it again and again. About 95 out of every 100 of those intervals will contain 26.
+It's tempting to look at 22.01 to 30.47 minutes and say: there is a 95% probability the true average delivery time falls in that range. That sounds so natural that most people say exactly that. But a confidence interval does not say that.
 
-That is checkable, so let's check it. We build a world where we know the truth, because we set it ourselves, and then we count.
+So what does it actually say? The true average delivery time is a fixed number. It already exists, whatever it happens to be. It is not random, so it either already sits inside 22.01 to 30.47 or it does not. There is no probability left to talk about, once you are looking at one already-computed interval.
+
+What "95% confidence" actually describes is the procedure that built the interval, not this one result of it. Imagine you do not run this study once. You run it 2000 times, on 2000 different fresh batches of 25 orders, each drawn from a kitchen whose true average delivery time is genuinely fixed at 26 minutes and whose true spread is 10 minutes. Each time, you build a fresh `t.test()` interval. About 95% of those 2000 intervals should end up containing 26. Let's check that directly, instead of taking it on faith.
 
 ```r
-# Rerun the whole evening 2,000 times and count how often the interval catches 26
+# Simulate 2000 fresh samples and check how often the CI captures the true mean
 set.seed(2026)
-true_average <- 26
+true_mean <- 26
+true_sd <- 10
+n <- 25
+reps <- 2000
 
-caught <- replicate(2000, {
-  fresh_evening <- rnorm(20, mean = true_average, sd = 8.6)
-  ci <- t.test(fresh_evening)$conf.int
-  true_average >= ci[1] && true_average <= ci[2]
-})
-
-mean(caught)
-#> [1] 0.948
-```
-
-`rnorm(20, mean = 26, sd = 8.6)` invents twenty fresh delivery times from a world whose true average is exactly 26 minutes. For each of those 2,000 evenings we build the interval Mario built and ask one question: did it contain 26? The answer was yes 94.8% of the time.
-
-So the recipe does what it says. Now watch it happen one interval at a time.
-
-```r
-# Draw 100 of those intervals and mark the ones that miss the true 26
-set.seed(3)
-many <- replicate(100, t.test(rnorm(20, mean = 26, sd = 8.6))$conf.int)
-hit  <- many[1, ] <= 26 & many[2, ] >= 26
-
-sum(hit)
-#> [1] 96
-
-plot(NULL, xlim = range(many), ylim = c(1, 100),
-     xlab = "Minutes", ylab = "Rerun number",
-     main = "100 reruns, 100 confidence intervals")
-segments(many[1, ], 1:100, many[2, ], 1:100,
-         col = ifelse(hit, "grey70", "orangered"), lwd = 2)
-abline(v = 26, lwd = 3)
-```
-
-Every horizontal bar is one rerun's interval. The thick vertical line is the truth, 26 minutes. Ninety-six of the bars cross it. Four of them, drawn in orange, sit entirely to one side and miss it.
-
-That plot is the whole meaning of 95% confidence. Cast the net this way and about 95 nets in 100 come back with the fish in them.
-
-=== step === concept
-## Why a confidence interval cannot give you a probability
-::prose-only the point is what the hundred plotted intervals do not permit, and that picture is already on the page
-
-Look again at what we just counted. We counted bars. The truth stayed put at 26 minutes the entire time, and the bars were the things that moved.
-
-That is the classical setup in one sentence: the true average is a fixed number we happen not to know, and the interval is the random thing.
-
-And that is exactly why the sentence people want is not available. Once Mario has his one interval, 21.98 to 30.02, nothing random is left in the room. His true average is a fixed number. It is either inside that range or it is outside it. There is no coin still in the air to put a probability on.
-
-Ask what the probability is that the truth lies in 21.98 to 30.02, and the honest classical answer is that it is 1 or it is 0, and we do not know which.
-
-The 95% was spent earlier, on the recipe, before anyone saw any data. It bought a method that works 95 times in 100. It did not buy a probability for the run you actually got.
-
-That is a genuine limitation and not a technicality, and it is the reason a second kind of interval exists: one that keeps the probability instead of spending it.
-
-=== step === quiz
-## Quick check: what does the 95% attach to?
-
-Mario's twenty deliveries gave a 95% confidence interval of 21.98 to 30.02 minutes. Which sentence is that 95% actually making?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- There is a 95% chance Mario's true average lies between 21.98 and 30.02 minutes. ::no
-- The interval covers 95% of Mario's future delivery times. ::no
-- If Mario logged twenty fresh deliveries and rebuilt the interval over and over, about 95% of those intervals would contain his true average. ::ok That is the one. The 95% is a hit rate for the method across reruns, which is precisely what the hundred bars showed you.
-- 95% of the twenty deliveries he already logged fall inside the interval. ::no All three wrong answers pin the 95% on something sitting right in front of you: this one interval, these twenty times, or tomorrow's pizza. It belongs to none of them. It belongs to the recipe, measured across reruns nobody ever actually does. Ninety-six of the hundred bars caught the truth, and not one of those bars carried a probability of its own.
-
-=== step === concept
-## Treating the unknown average as a distribution
-
-We want a probability statement about Mario's true average. To get one, something has to change, and it is not the arithmetic. It is which thing we treat as random.
-
-The classical view held the average fixed and let the interval wobble. So flip it around. Hold the twenty delivery times fixed, because they genuinely are fixed and Mario wrote them down, and let the unknown average be the thing we spread a probability over.
-
-That flip sounds exotic until you notice you already do it. When you say "he is probably running around 26 minutes, could be 24, almost certainly not 40", that sentence is a distribution over candidate averages. We are simply going to compute it instead of feeling it.
-
-It takes three moves.
-
-1. Line up every candidate average worth considering: 10 minutes, 10.01, 10.02, all the way up to 45.
-2. Score each candidate by how well it explains the twenty times Mario logged. That score is called the **likelihood**.
-3. Multiply each score by whatever you believed before the data arrived. That belief is called the **prior**.
-
-The product is the **posterior**: what you believe about the average now that you have seen the deliveries.
-
-\[ \text{posterior}(\mu) \;\propto\; \text{likelihood}(\mu) \times \text{prior}(\mu) \]
-
-The symbol in the middle is "proportional to". It says the thing on the left has the same shape as the product on the right, up to a constant, and we pin that constant down at the end by making the whole curve add up to 1.
-
-Two practical notes before the code runs. The likelihood has to know the spread of delivery times as well as the candidate average, and we hold that spread fixed at what Mario's own log shows, `sd(deliveries)`, which is 8.596 minutes. The prior here is flat: every candidate from 10 to 45 starts out equally plausible, which is as close to having no opinion as you can get.
-
-```r
-# Score every candidate average by how well it explains the twenty deliveries
-spread <- sd(deliveries)
-grid   <- seq(10, 45, by = 0.01)
-
-loglik <- sapply(grid, function(m) sum(dnorm(deliveries, mean = m, sd = spread, log = TRUE)))
-lik    <- exp(loglik - max(loglik))
-
-prior_flat <- rep(1, length(grid))
-post_flat  <- lik * prior_flat
-post_flat  <- post_flat / sum(post_flat)
-
-round(c(spread = spread,
-        best_average = grid[which.max(post_flat)],
-        total_area = sum(post_flat)), 3)
-#>       spread best_average   total_area
-#>        8.596       26.000        1.000
-```
-
-Four lines are doing the real work, so here is what each one means.
-
-- `dnorm(deliveries, mean = m, sd = spread, log = TRUE)` asks, for one candidate average `m`, how plausible each of the twenty times was. Adding the logs and exponentiating afterwards is the safe way to multiply twenty small numbers without them collapsing to zero.
-- `exp(loglik - max(loglik))` subtracts the best score before exponentiating. That keeps every number in a sane range and does not change the shape one bit.
-- `rep(1, length(grid))` is the flat prior. A 1 for every candidate, so nobody gets a head start.
-- Dividing by the sum turns raw scores into a proper probability distribution, which is why `total_area` comes back as exactly 1.000.
-
-The best scoring candidate is 26.000 minutes, which is Mario's sample average. With a flat prior that is exactly what you would expect, because with no prior opinion pulling on anything, the data decides on its own.
-
-But the single best candidate is not the prize here. The whole curve is. A curve has area, and area is probability.
-
-=== step === concept
-## How to read a 95% credible interval off the posterior
-
-We now have a probability distribution laid out over every candidate average, and pulling an interval out of it takes no theory at all.
-
-Walk along the curve from the left, adding up the probability as you go. Stop when 2.5% of the total area is behind you and mark the spot. Keep walking until 97.5% is behind you and mark that spot too. Those two marks are the interval, and by construction 95% of the area sits between them.
-
-`cumsum()` does the walking.
-
-```r
-# Walk the posterior to the 2.5% and 97.5% marks and read off the two cuts
-credible <- function(post, level = 0.95) {
-  lower_tail <- (1 - level) / 2
-  running    <- cumsum(post)
-  c(grid[which.max(running >= lower_tail)],
-    grid[which.max(running >= 1 - lower_tail)])
+hits <- 0
+for (i in 1:reps) {
+  sample_i <- rnorm(n, mean = true_mean, sd = true_sd)
+  ci_i <- t.test(sample_i)$conf.int
+  if (ci_i[1] <= true_mean && true_mean <= ci_i[2]) {
+    hits <- hits + 1
+  }
 }
 
-ci_credible <- credible(post_flat)
-round(ci_credible, 2)
-#> [1] 22.23 29.77
+hits
+#> [1] 1895
+hits / reps
+#> [1] 0.9475
 ```
 
-`cumsum(post)` is the running total of area from the left end of the grid. `which.max(running >= 0.025)` finds the first position where that running total reaches 2.5%, and the same trick at 97.5% finds the other end. Then `grid[...]` reads off the minutes at each stopping point.
+This loop draws a brand-new 25-order sample 2000 times, from a kitchen whose true average delivery time has been fixed at exactly 26 minutes. Each time it builds a `t.test()` confidence interval and checks whether 26 fell inside it. Out of 2000 tries, 1895 of the intervals captured the true mean. That is a **coverage rate** of 94.75%, close to the nominal 95%.
 
-Here is the curve with that middle 95% filled in.
-
-```r
-# Draw the posterior with its middle 95% shaded and both cuts marked
-plot(grid, post_flat, type = "l", lwd = 2, xlim = c(15, 37),
-     xlab = "Candidate average delivery time (minutes)", ylab = "Posterior",
-     main = "The middle 95% of the posterior")
-inside <- grid >= ci_credible[1] & grid <= ci_credible[2]
-polygon(c(ci_credible[1], grid[inside], ci_credible[2]),
-        c(0, post_flat[inside], 0), col = "grey85", border = NA)
-lines(grid, post_flat, lwd = 2)
-abline(v = ci_credible, lty = 2, lwd = 2)
-```
-
-The shaded region holds 95% of the curve's area, and the two dashed lines are where it stops: 22.23 minutes and 29.77 minutes. That is a 95% credible interval for Mario's true average, and here is the sentence it lets you say, in full.
-
-Given these twenty deliveries and a flat prior, there is a 95% probability that Mario's true average delivery time lies between 22.23 and 29.77 minutes.
+That coverage rate, not any single interval, is what "95% confidence" means. It is a statement about how often the procedure works, checked over many repeats. It says nothing about whether this one particular interval, 22.01 to 30.47, is one of the roughly 95% that got it right, or one of the roughly 5% that missed.
 
 [KEY INSIGHT]
-Read that against the confidence interval's sentence and the difference is the direction of the probability. The credible interval puts it on the unknown average, which is the thing you wanted to know about all along. It can do that because the posterior is an honest probability distribution over averages, and 95% of its area is inside those two cuts.
+A confidence interval's 95% is a property of the procedure, verified by running it thousands of times. It is not a probability statement about the one interval sitting in front of you.
 
-One footnote on the arithmetic, so nothing surprises you later. We chopped the range into cells 0.01 minutes wide, so a printed cut can land one cell away from the exact answer. That is the grid rounding, not a difference in method.
+So if a confidence interval cannot tell you the probability the true mean sits in a given range, is there a range that can? Yes. Building one is next.
+
+=== step === concept
+## How is a credible interval actually built?
+
+A credible interval starts from a completely different place: Bayes' rule.
+
+Bayesian inference treats the true average delivery time itself as something you hold a belief about, and updates that belief once you see data. You start with a **prior**, which is what you believe about the true mean before looking at the 25 orders. You combine that prior with the data through the **likelihood**, how probable the data is for each possible value of the true mean. What comes out the other end is the **posterior**, your updated belief about the true mean after the data is taken into account.
+
+In words: the posterior is proportional to the likelihood times the prior. The data pulls your belief toward what it shows, and the prior is how much that pull gets resisted.
+
+Start with a flat prior, one that barely leans anywhere, so the posterior comes out almost entirely from the data.
+
+::widget bayes-update {"priorMean":26,"priorSD":20,"dataMean":26.24,"dataSD":10.26,"n":25}
+
+Drag the widget and watch what happens. With a prior this wide, a standard deviation of 20 minutes that barely commits to anything, the posterior curve sits almost exactly on top of the data. With a flat, uninformative prior, the data almost entirely determines the posterior.
+
+When the prior is this flat, the posterior for the true mean works out to a Normal distribution centred at the sample mean, with the standard error as its spread, the exact same two numbers already used to build the credible interval.
+
+```r
+# Posterior mean and sd under a flat prior, and the resulting credible interval
+posterior_mean <- mean(delivery)
+posterior_sd <- sd(delivery) / sqrt(length(delivery))
+credible_interval <- qnorm(c(0.025, 0.975), mean = posterior_mean, sd = posterior_sd)
+
+round(posterior_mean, 2)
+#> [1] 26.24
+round(posterior_sd, 2)
+#> [1] 2.05
+round(credible_interval, 2)
+#> [1] 22.22 30.26
+```
+
+The same 22.22 to 30.26 minutes as before, now built from first principles instead of a formula you just had to trust.
+
+This is where the credible interval becomes genuinely useful. Because you now have an actual posterior distribution for the true mean, you can work out the answer to any probability question you like, not just "what is the middle 95%?"
+
+```r
+# Probability the true average delivery time is above 24 minutes
+prob_above_24 <- pnorm(24, mean = posterior_mean, sd = posterior_sd, lower.tail = FALSE)
+
+round(prob_above_24, 3)
+#> [1] 0.863
+```
+
+`pnorm(24, ..., lower.tail = FALSE)` reads the posterior curve above 24. The answer: there is an 86.3% probability the true average delivery time at this kitchen is above 24 minutes.
+
+That is a real, direct probability statement about the true mean itself. Nothing in a confidence interval can say that. A confidence interval only ever describes how a repeated procedure behaves, so no probability exists for any particular value of the true mean, not 24, not any other number. Once you have the posterior, you can answer as many of these questions as you want.
+
+=== step === concept
+## When a strong prior pulls the answer
+
+A flat prior barely commits to anything. But real priors usually do, and that changes the answer.
+
+Say the delivery chain has run dozens of other kitchens for years, and across thousands of orders those kitchens settle in around 25 minutes on average. That is real, useful information about this new kitchen, before it ever fried an onion. Encode it as a prior: Normal, with a mean of 25 and a standard deviation of 3 minutes, meaning you are fairly confident the true average sits close to 25, but not certain.
+
+::widget bayes-update {"priorMean":25,"priorSD":3,"dataMean":26.24,"dataSD":10.26,"n":25}
+
+Drag the prior's confidence higher this time, and watch the posterior slide toward the prior and pull in tighter around it. A prior this confident does not just sit there. It pulls the answer, and it narrows it.
+
+The posterior mean becomes a weighted average of the prior mean and the sample mean, weighted by how confident each one is. Compute it on the same 25 orders.
+
+```r
+# Combine the informative prior with the 25-order sample
+prior_mean <- 25
+prior_sd <- 3
+sample_mean <- mean(delivery)
+sample_sd <- sd(delivery)
+n <- length(delivery)
+
+posterior_var <- 1 / (1 / prior_sd^2 + n / sample_sd^2)
+posterior_mean <- posterior_var * (prior_mean / prior_sd^2 + n * sample_mean / sample_sd^2)
+posterior_sd <- sqrt(posterior_var)
+credible_interval <- qnorm(c(0.025, 0.975), mean = posterior_mean, sd = posterior_sd)
+
+round(posterior_mean, 2)
+#> [1] 25.84
+round(posterior_sd, 2)
+#> [1] 1.69
+round(credible_interval, 2)
+#> [1] 22.53 29.16
+```
+
+The posterior mean lands at 25.84 minutes, pulled down from the data's own 26.24 toward the prior's 25. The credible interval narrows to 22.53 to 29.16 minutes, tighter than the flat-prior interval's 22.22 to 30.26. Combining two sources of information, the chain's long history and this kitchen's own 25 orders, leaves you more certain than either source alone.
+
+A confidence interval has no room for this. There is no slot in `t.test()` for what you already believed about other kitchens. A credible interval can hold that information, and a confidence interval cannot.
 
 === step === quiz
-## Quick check: which sentence does the credible interval permit?
-
-The credible interval on Mario's twenty deliveries runs from 22.23 to 29.77 minutes. Which write-up of it is correct?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- Ninety-five percent of Mario's deliveries take between 22.23 and 29.77 minutes. ::no
-- Given these twenty deliveries and a flat prior, there is a 95% probability that Mario's true average is between 22.23 and 29.77 minutes. ::ok Exactly. The probability sits on the average itself, the given is stated out loud, and that is the whole reason anyone builds one of these.
-- If Mario logged twenty fresh deliveries many times over, 95% of the intervals built this way would contain his true average. ::no Two of the wrong answers belong to other objects entirely: one talks about single pizzas rather than about the average, and one recites the confidence interval's repeat-the-experiment promise. The last one throws the uncertainty away completely. A credible interval is a probability about the unknown average, conditional on the data and the prior you fed it, and it says so out loud.
-- Mario's true average is definitely inside 22.23 to 29.77 minutes. ::no
-
-=== step === concept
-## The two intervals on one axis
-
-We now have two intervals out of the same twenty deliveries. Put them side by side and see how little the arithmetic actually disagrees.
-
-```r
-# Put the confidence interval and the credible interval on one minutes axis
-ci_conf <- as.numeric(t.test(deliveries)$conf.int)
-
-both <- rbind(confidence = ci_conf, credible = ci_credible)
-colnames(both) <- c("lower", "upper")
-round(both, 2)
-#>            lower upper
-#> confidence 21.98 30.02
-#> credible   22.23 29.77
-
-plot(NULL, xlim = c(20, 32), ylim = c(0.5, 2.5), yaxt = "n",
-     xlab = "Minutes", ylab = "",
-     main = "Same data, nearly the same numbers, two different sentences")
-axis(2, at = c(2, 1), labels = c("confidence", "credible"), las = 1)
-segments(ci_conf[1], 2, ci_conf[2], 2, lwd = 6, col = "grey60")
-segments(ci_credible[1], 1, ci_credible[2], 1, lwd = 6, col = "steelblue")
-```
-
-They sit a quarter of a minute apart at one end and a quarter at the other. Print either one on the menu and no customer alive would spot the difference.
-
-That closeness is not luck, and the reason is worth knowing. With twenty data points and a prior that says nothing, the data is doing all of the work in both calculations, so both land in the same place. The credible interval comes out very slightly narrower, 7.54 minutes wide against 8.05, because `t.test()` pays a small premium for estimating the spread from the same twenty numbers it is averaging, while our posterior held that spread fixed at 8.596.
-
-So the argument between these two is not an argument about numbers. It is an argument about sentences.
-
-=== step === concept
-## The chance Mario's true average beats the thirty minute promise
-
-Mario advertises thirty minutes or the pizza is free, so there is one question he actually cares about: what are the odds his true average is under thirty?
-
-A confidence interval cannot answer it, and no bigger sample or extra decimal place will change that, because it never had a probability to give away.
-
-The posterior answers it in one line, because the answer is just area.
-
-```r
-# The probability that Mario's true average beats the thirty minute promise
-sum(post_flat[grid < 30])
-#> [1] 0.9811629
-
-plot(grid, post_flat, type = "l", lwd = 2, xlim = c(15, 37),
-     xlab = "Candidate average delivery time (minutes)", ylab = "Posterior",
-     main = "The area below 30 minutes")
-under <- grid < 30
-polygon(c(min(grid), grid[under], 30), c(0, post_flat[under], 0),
-        col = "grey85", border = NA)
-lines(grid, post_flat, lwd = 2)
-abline(v = 30, lwd = 3, col = "orangered")
-```
-
-`grid < 30` picks out every candidate average below thirty minutes, and adding up their posterior probability gives the shaded area to the left of the red line. It comes to 0.981.
-
-Say it out loud: given these twenty deliveries, there is a 98.1% probability that Mario's true average delivery time is under thirty minutes. That leaves 1.9% on the other side, which is the chance the promise printed on his menu is one he cannot keep on average.
-
-That is the payoff of everything we built. You get a direct answer to a direct question, in the units the question was asked in, out of the same twenty times that produced the confidence interval.
-
-[KEY INSIGHT]
-Any question you can phrase as an area under the posterior has a one line answer: the chance the average beats 30, the chance it sits between 24 and 28, the chance it is worse than a rival down the road. A confidence interval has no area to add up, so it has none of these answers.
-
-=== step === tryit
-## Your turn: what are the odds Mario beats a 25-minute rival?
-
-A new place opens across the street advertising a 25 minute average, and Mario wants to know his real chances of being genuinely faster.
-
-`post_flat` and `grid` are both still in memory. One line does it.
-
-```r
-# post_flat holds the posterior probability of every candidate average in grid.
-# The chance Mario is truly faster than 25 minutes is the area below 25.
-# One line. Press Check when you have it.
-```
-::check {"regex": "post_flat\\[\\s*grid\\s*<=?\\s*25", "gate": true, "difficulty": "beginner", "ok": "It comes to 0.30. So on the strength of twenty deliveries, Mario has roughly a 30% chance of genuinely being the faster shop, which is honest and not especially comforting.", "no": "Same shape as the thirty minute question with the number moved: sum(post_flat[grid < 25])."}
-::solution
-```r
-# The probability that Mario's true average is under 25 minutes
-sum(post_flat[grid < 25])
-#> [1] 0.3005403
-```
-
-The answer is nowhere near 50%, even though 25 minutes sits close to his 26 minute sample average. A posterior this wide leaves a great deal of room on both sides.
-
-=== step === widget
-## What the prior does to the posterior
-
-The flat prior we have been using says nothing on purpose. Real priors often say something, and it is worth seeing what that does before we try it on Mario.
-
-Drag the sliders below. The grey curve is the prior, your belief before any data. The second curve is the likelihood, what the data alone says. The filled curve is the posterior, the two multiplied together.
-
-::widget bayes-update {}
-
-Three things to try, in this order.
-
-1. Move the prior mean away from the data average. The posterior does not jump to either one. It settles between them, closer to whichever of the two is more confident.
-2. Drag the prior confidence slider. The number sitting beside it is the prior's own spread, so a small value is a narrow, firm prior that holds the posterior close to itself, and a large value is a wide, vague one that lets the data take over.
-3. Raise the data points slider and keep raising it. Past about sixty observations the posterior sits almost exactly on the data, whatever the prior was saying.
-
-The widget's axis is deliberately generic, so translate its three numbers back into Mario's minutes. The prior mean is what you believed his average was before you opened the log. The data average is the 26.0 minutes his twenty deliveries actually show. The posterior mean is where belief and evidence settle together.
-
-Prior confidence can be read in orders too. A normal prior on the average is worth a specific number of observations: take the spread of the deliveries, square it, and divide by the square of the prior's own spread. A prior with a spread of 2.5 minutes, set against deliveries that scatter by 8.596, is carrying about 12 orders' worth of weight.
-
-[KEY INSIGHT]
-The prior loses to data, and it loses quickly. That is the honest version of the usual worry about priors: they matter most exactly when you have too little data to argue with them, and they fade to almost nothing once the orders pile up.
-
-=== step === concept
-## Where the two answers split: a prior that knows something
-
-Now let's give Mario's posterior something to know.
-
-The delivery app publishes averages for shops of his size across the city, and they come in around 31 minutes. That is real information, gathered from hundreds of restaurants, and it exists whether or not Mario ever logs a single order.
-
-We write it down as a normal prior centred on 31 minutes with a spread of 2.5 minutes. By the weighing we just did, 8.596 squared over 2.5 squared is about 12, so this prior walks in carrying roughly 12 orders' worth of weight against Mario's 20 real ones. That is enough to be heard and not enough to shout.
-
-Everything else stays exactly as it was. The twenty deliveries are the same, the likelihood is the same, and only one line changes.
-
-```r
-# Rebuild the posterior with the delivery app's city wide 31 minutes as the prior
-prior_city <- dnorm(grid, mean = 31, sd = 2.5)
-post_city  <- lik * prior_city
-post_city  <- post_city / sum(post_city)
-
-priors <- rbind(flat_prior = ci_credible, city_prior = credible(post_city))
-colnames(priors) <- c("lower", "upper")
-round(priors, 2)
-#>            lower upper
-#> flat_prior 22.23 29.77
-#> city_prior 24.87 30.84
-
-plot(grid, post_flat, type = "l", lwd = 2, xlim = c(18, 38),
-     xlab = "Candidate average delivery time (minutes)", ylab = "Posterior",
-     main = "Flat prior against the city wide prior")
-lines(grid, post_city, lwd = 2, col = "steelblue")
-lines(grid, prior_city / sum(prior_city), lwd = 2, lty = 3, col = "grey50")
-legend("topright", c("flat prior", "city prior", "the city prior itself"),
-       lwd = 2, lty = c(1, 1, 3), col = c("black", "steelblue", "grey50"), bty = "n")
-```
-
-The interval moved. It slid up, from 22.23 to 29.77 out to 24.87 to 30.84, because the city data says shops like Mario's usually run slower than his twenty orders suggest. The lower end travelled furthest, a full 2.64 minutes against the upper end's 1.07, so the range came out narrower as well as later.
-
-Here is the part worth stopping on. The confidence interval did not move, and could not have. It is still 21.98 to 30.02. There is no slot in `t.test()` where the city average goes.
-
-That is the real practical difference between the two, and it cuts in both directions.
-
-- The credible interval can take in outside knowledge, and it will change your answer when you feed it some.
-- That means two analysts with the same data and different priors will report different intervals, and both of them are right given what each one assumed.
-- So a credible interval is only as defensible as the prior behind it, and the prior belongs in writing, where colleagues can argue with it.
-
-Notice what did not change: the sentence. It still reads "given this data and this prior, a 95% probability". The prior simply became part of the given.
-
-=== step === concept
-## Where they split hardest: three deliveries
-
-The two intervals agreed on twenty orders and drifted apart when the prior spoke up. Now starve them both.
-
-Suppose Mario had only ever logged three deliveries.
-
-```r
-# Take three of the twenty deliveries and build the classical interval on them
-set.seed(5)
-three <- sample(deliveries, 3)
-
-round(c(one = three[1], two = three[2], three = three[3],
-        average = mean(three), spread = sd(three)), 2)
-#>     one     two   three average  spread
-#>   15.00   25.00   32.00   24.00    8.54
-
-ci_conf_three <- as.numeric(t.test(three)$conf.int)
-round(ci_conf_three, 2)
-#> [1]  2.78 45.22
-```
-
-Read that confidence interval again: Mario's true average is somewhere between under three minutes and three quarters of an hour. That is not a mistake. It is an honest report of how little three orders tell you, and it is completely useless for deciding anything.
-
-Now rebuild the posterior on those same three orders, once with the flat prior and once with the city prior.
-
-```r
-# Rebuild both posteriors on the same three deliveries
-loglik_three <- sapply(grid, function(m) sum(dnorm(three, mean = m, sd = spread, log = TRUE)))
-lik_three    <- exp(loglik_three - max(loglik_three))
-
-post_three_flat <- lik_three / sum(lik_three)
-post_three_city <- lik_three * prior_city
-post_three_city <- post_three_city / sum(post_three_city)
-
-small <- rbind(confidence    = ci_conf_three,
-               credible_flat = credible(post_three_flat),
-               credible_city = credible(post_three_city))
-colnames(small) <- c("lower", "upper")
-round(small, 2)
-#>               lower upper
-#> confidence     2.78 45.22
-#> credible_flat 14.46 33.73
-#> credible_city 25.21 33.96
-```
-
-The bottom row runs 25.2 to 34.0 minutes. That is narrow, usable and tight enough to actually decide something with.
-
-Before you conclude that the Bayesian answer is simply the better one, read the middle row. With a flat prior, the credible interval on three orders is 14.46 to 33.73, which is more than nineteen minutes wide and nearly as useless as the classical one. So the narrowness in the bottom row is not coming from Bayes. It is coming from the prior: twelve orders' worth of city data walked in and did most of the work when the data itself brought only three.
-
-One more thing about that middle row, since it is doing the honest work here. Both posteriors were handed the spread from all twenty orders, 8.596 minutes, while `t.test()` had to estimate the spread from the three orders alone and paid dearly for it. So part of the middle row's advantage is that head start, not Bayes either. Everything you feed a posterior shows up in how confident it comes back.
-
-[WARNING]
-That is the whole trade, in one table. A prior rescues you from a tiny sample by supplying information the sample does not have. When that information is right, you gain a great deal. When it is wrong, you have just published a narrow, confident, wrong interval, and nothing in the arithmetic will warn you.
-
-=== step === quiz
-## Quick check: when do the two intervals part company?
-
-On twenty deliveries with a flat prior, the two intervals were 21.98 to 30.02 and 22.23 to 29.77. On three deliveries with the city prior, they were 2.78 to 45.22 and 25.21 to 33.96. What opens the gap?
+## Quick check: reading the credible interval
 
 ::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The credible interval is always the narrower of the two, so the gap grows with any sample at all. ::no
-- A prior that carries real information, a sample too small to argue with it, or both. Give them plenty of data and a prior that says nothing and the two land in nearly the same place. ::ok Yes. Those are the only two levers, and Mario's numbers show both of them: twenty orders and a flat prior agreed to a quarter of a minute, and three orders with a real prior did not agree at all.
-- The credible interval uses a different standard error formula, and that formula breaks down below ten observations. ::no The split is not a formula quirk and it has nothing to do with skew. Two things pull the intervals apart: a prior bringing in outside information, and a sample too small to overrule it. Take both away and the two agreed to within a quarter of a minute on Mario's twenty orders.
-- They part company whenever the underlying data is skewed rather than symmetric. ::no
+- There is a 95% probability the true average delivery time falls between 22.01 and 30.47 minutes, the range from t.test(). ::no A confidence interval cannot support that sentence. That range came from the classical procedure, and its 95% describes how often the procedure works over repeated samples, not a probability about this one interval.
+- There is a 95% probability the true average delivery time falls between 22.53 and 29.16 minutes, the narrower range pulled toward 25 by the informative prior. ::ok Exactly right. That is the posterior's middle 95%, and once you have a posterior, a direct probability statement about the true mean is exactly what it is for.
+- There is a 95% probability the true average delivery time falls between 22.22 and 30.26 minutes, since that is the credible interval for this kitchen. ::no That was the flat-prior credible interval, from before the chain's history was folded in. Once an informative prior enters the picture, the posterior and its interval move, to 25.84 and 22.53 to 29.16, not the flat-prior numbers.
+- There is a 95% probability that a single order at this kitchen takes between 22.53 and 29.16 minutes. ::no Both intervals in this lesson are about the true average delivery time, not any one order. A single order can easily land outside that range. The 25 individual orders ranged from about 4 to 47 minutes.
 
 === step === concept
-## The sentence each interval entitles you to say
+## Why small samples need extra care
 
-You are in a meeting and Mario's numbers are on the screen. Here is what you are allowed to say about each interval, word for word.
+Everything so far used 25 orders. What happens with far fewer?
 
-The confidence interval, 21.98 to 30.02 minutes:
+Say a second, brand-new zone just opened, and it only has 5 timed orders on record: 35, 18, 47, 22, and 29 minutes.
 
-> Our method produces an interval that contains the true average about 95 times in 100. This is one of those intervals.
+```r
+# Build the small 5-order sample and its summary stats
+new_zone <- c(35, 18, 47, 22, 29)
 
-The credible interval, 22.23 to 29.77 minutes:
+mean(new_zone)
+#> [1] 30.2
+round(sd(new_zone), 2)
+#> [1] 11.43
+```
 
-> Given these twenty deliveries and a flat prior, there is a 95% probability that the true average is between 22.23 and 29.77 minutes.
+Build both intervals the same way as before: a `t.test()` confidence interval, and a flat-prior credible interval using `qnorm()` on the sample mean and standard error.
 
-The first sentence is about the method. The second is about Mario. That is the difference, and everything we built was showing you why it has to be that way.
+```r
+# Build a confidence interval and a flat-prior credible interval on 5 orders
+conf_interval_small <- as.numeric(t.test(new_zone)$conf.int)
+se_small <- sd(new_zone) / sqrt(length(new_zone))
+credible_interval_small <- qnorm(c(0.025, 0.975), mean = mean(new_zone), sd = se_small)
 
-Here are the three readings people reach for instead, and why each one is wrong.
+round(conf_interval_small, 1)
+#> [1] 16.0 44.4
+round(credible_interval_small, 2)
+#> [1] 20.18 40.22
+```
 
-| What people say | Why it is wrong |
-|---|---|
-| "There is a 95% chance the true average is in 21.98 to 30.02." | Said of the confidence interval, this puts a probability on a fixed unknown. Once the interval exists, the truth is inside it or outside it. Say the same words of the credible interval and they are correct. |
-| "95% of deliveries take between 22.23 and 29.77 minutes." | Both intervals are about the average, not about single orders. Mario's own log holds a 13 minute delivery and a 45 minute one. |
-| "The credible interval is narrower, so it is the better estimate." | Narrower only means more information went in, and some of that information came from the prior rather than from the data. On three orders the prior did most of the work. |
+16.0 to 44.4 minutes for the confidence interval. 20.18 to 40.22 minutes for the credible interval. This time the two ranges are not close at all. The confidence interval is 28.39 minutes wide. The credible interval is only 20.04 minutes wide, close to a third narrower.
 
-[TIP]
-When someone hands you an interval, ask one question before you read it out: is the probability on the parameter, or on the procedure? That single question sorts credible from confidence every time.
+So why the gap this time, when 25 orders barely showed one? `t.test()` does not use a Normal curve to build its interval. It uses the **t-distribution**, which has fatter tails than the Normal, and gets fatter still the fewer data points you have. With only 5 orders, `t.test()` uses a t-distribution with 4 **degrees of freedom**, one less than the sample size, and that curve's tails are noticeably heavier than a Normal's.
+
+Why does that matter here? Because with only 5 points, you are not just uncertain about the true mean, you are also quite uncertain about the true standard deviation itself, since you estimated it from just 5 numbers. The t-distribution's fatter tails are the honest price of that extra uncertainty.
+
+The flat-prior credible interval built the earlier way does not pay that price. It plugs the sample standard deviation straight into a Normal curve, as if that standard deviation were the one true, known value. With 25 orders that shortcut barely matters. With 5 orders it understates how uncertain you really are, and the interval comes out too narrow.
+
+[NOTE]
+This is not a flaw unique to Bayesian methods. A more careful credible interval, one built with a proper prior on the unknown standard deviation too, would widen out and land close to the t-based interval. The simple flat-prior version skips that step, and on a small sample, that shortcut shows.
+
+So on a small sample, reach for the interval that accounts for the extra uncertainty honestly, and treat a naive credible interval's narrowness with some suspicion.
+
+=== step === concept
+## Which interval should you reach for?
+
+By now you have seen both intervals built, and where they agree and where they do not. So which one should you actually use?
+
+Reach for the confidence interval when you do not have a defensible prior to bring in, or when your audience expects the standard frequentist result. It is the one most people already know how to read, even if they usually misread it.
+
+Reach for the credible interval when you do have real prior information worth using, like the delivery chain's history from other kitchens, or when you need to answer a direct probability question, like "what's the probability the mean is above 24?" A confidence interval has no probability to give for that, no matter how you phrase it.
+
+Often, though, the choice does not even change the decision you make. Here's a shortcut worth knowing: if both intervals agree on the answer to the actual business question, you do not need to referee which philosophy is more correct. Check both of the earlier intervals against two candidate targets for the delivery chain.
+
+```r
+# Check whether both intervals clear two candidate delivery-time targets
+conf_interval <- as.numeric(t.test(delivery)$conf.int)
+se <- sd(delivery) / sqrt(length(delivery))
+credible_interval <- qnorm(c(0.025, 0.975), mean = mean(delivery), sd = se)
+
+conf_interval[1] > 20
+#> [1] TRUE
+credible_interval[1] > 20
+#> [1] TRUE
+
+conf_interval[1] > 23
+#> [1] FALSE
+credible_interval[1] > 23
+#> [1] FALSE
+```
+
+Against a 20-minute target, both lower bounds clear it, both intervals say TRUE, the kitchen is reliably averaging more than 20 minutes. Against a tighter 23-minute target, both lower bounds fall short, both say FALSE. Either way, the two philosophies produce the exact same business decision.
+
+That is the **same-decision shortcut**. When a confidence interval and a credible interval agree on whether a target is cleared, you can report either one and the decision does not change. Save the philosophical debate for the cases where they actually disagree, like the small-sample zone with only 5 orders.
 
 === step === quiz
-## Which of these four sentences is legitimate?
+## Quick check: reading both intervals together
 
-Mario's twenty deliveries gave a confidence interval of 21.98 to 30.02, a flat prior credible interval of 22.23 to 29.77, and a posterior probability of 0.981 that his true average beats thirty minutes. One of these four write-ups is defensible.
+In the 5-order sample, the confidence interval, 16.0 to 44.4 minutes, came out noticeably wider than the flat-prior credible interval, 20.18 to 40.22 minutes. Why?
 
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- The confidence interval tells us there is a 95% probability the true average is between 21.98 and 30.02 minutes. ::no
-- The credible interval of 22.23 to 29.77 means 95% of Mario's orders arrive inside that window. ::no
-- Given the twenty deliveries and a flat prior, there is a 98.1% probability the true average beats the thirty minute promise, and a 95% probability it falls between 22.23 and 29.77 minutes. ::ok Correct, and notice what makes it defensible: the data and the prior are both named, and every probability is attached to the true average rather than to the method or to a single pizza.
-- Because the confidence interval sits mostly below thirty, there is roughly a 98% chance Mario keeps his promise. ::no The three wrong ones borrow the credible interval's sentence for a confidence interval, or swap the average for individual orders. A confidence interval never yields a probability about the truth, not even a rough one eyeballed from where it sits on the axis, and neither interval says anything about how long your own pizza takes. Only the posterior can hand you 0.981, because only the posterior has area to add up.
+::quiz {"correct": 3, "gate": true, "difficulty": "advanced"}
+- Credible intervals are always narrower than confidence intervals, so this is exactly what you would expect. ::no The very first pair of intervals showed the opposite pattern: on 25 orders, the two intervals were nearly identical, with the confidence interval barely wider. Which one is wider depends on the situation, not on a fixed rule.
+- The confidence interval must be wrong here, since with real data you should always trust the credible interval more. ::no Neither interval is wrong. The confidence interval is doing exactly what t.test() is built to do on 5 points. The credible interval is the one taking a shortcut here, by treating the sample standard deviation as known.
+- The confidence interval is wider because it uses the t-distribution, which accounts for the extra uncertainty of estimating the standard deviation from only 5 points. ::ok Exactly. With so few points, you are unsure about the spread as well as the mean, and the t-distribution's fatter tails are the honest cost of that. The simple credible interval used here skips that step.
+- The intervals differ because the confidence interval was built from a different sample than the credible interval. ::no Both intervals in this comparison were built from the exact same 5 orders. The gap comes from how each method handles the uncertainty in that one small sample, not from different data.
 
 === step === tryit
-## Your turn: a 90% credible interval and one probability
+## Your turn: build both intervals on a new dataset
 
-Mario decides 95% is stricter than he needs and asks for a 90% interval instead. He wants one more number too: the chance his true average is under 28 minutes, which is the point where his drivers start missing their bonuses.
-
-The `credible()` function and `post_flat` are both still in memory. Two lines.
+A third zone has been open longer, with 15 timed orders on record.
 
 ```r
-# credible(post, level) walks the posterior and returns the two cuts.
-# post_flat holds the posterior for every candidate average in grid.
-# Line one: the 90% credible interval.
-# Line two: the probability the true average is under 28 minutes.
-# Press Check when you have both.
+# zone3 holds 15 timed orders from the third delivery zone
+zone3 <- c(17.3, 35.1, 14.0, 24.6, 37.7, 19.2, 20.2, 18.9, 21.7, 25.1,
+           33.8, 17.6, 15.4, 22.7, 15.4)
+
+# Build the t.test() confidence interval on zone3
+# Build the flat-prior credible interval on zone3 with qnorm(),
+# using mean(zone3) and sd(zone3) / sqrt(length(zone3))
+# Check whether each interval's lower bound clears a 20-minute target
 ```
-::check {"regex": "(?=[\\s\\S]*0[.]90?(?![0-9]))(?=[\\s\\S]*grid\\s*<=?\\s*28)", "gate": true, "difficulty": "intermediate", "ok": "Right on both: 22.84 to 29.16 for the 90% interval, and 0.85 for the chance he is under 28 minutes. Notice the 90% interval is the narrower one. Ask for less confidence and you buy a tighter range on exactly the same data.", "no": "Two lines, both reusing what is already in memory. The interval is credible(post_flat, level = 0.90), and the probability is sum(post_flat[grid < 28])."}
+::check {"regex": "(?=[\\s\\S]*t[.]test)(?=[\\s\\S]*qnorm)(?=[\\s\\S]*[><]=?\\s*20)", "gate": true, "difficulty": "intermediate", "ok": "Right: the confidence interval runs 18.44 to 26.72 minutes and the credible interval runs 18.80 to 26.36 minutes. Both lower bounds sit below 20, so neither interval clears the target, and the choice between them does not change that answer.", "no": "Build the interval with t.test(zone3)$conf.int, then the credible interval with qnorm(c(0.025, 0.975), mean = mean(zone3), sd = sd(zone3) / sqrt(length(zone3))), and compare each interval's lower bound to 20 with >."}
 ::solution
 ```r
-# A 90% credible interval, and the chance the true average is under 28 minutes
-round(credible(post_flat, level = 0.90), 2)
-#> [1] 22.84 29.16
+# Build both intervals on zone3 and check them against the 20-minute target
+conf_interval3 <- as.numeric(t.test(zone3)$conf.int)
+se3 <- sd(zone3) / sqrt(length(zone3))
+credible_interval3 <- qnorm(c(0.025, 0.975), mean = mean(zone3), sd = se3)
 
-sum(post_flat[grid < 28])
-#> [1] 0.8503395
+round(conf_interval3, 2)
+#> [1] 18.44 26.72
+round(credible_interval3, 2)
+#> [1] 18.80 26.36
+
+conf_interval3[1] > 20
+#> [1] FALSE
+credible_interval3[1] > 20
+#> [1] FALSE
 ```
 
-=== step === quiz
-## What happens to the gap when the orders pile up?
-
-Suppose Mario keeps logging and comes back with two thousand deliveries instead of twenty, and you keep the same city prior worth about twelve orders. What happens to the two intervals?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- They stay exactly as far apart as they were on twenty orders, because the prior has not changed. ::no
-- Both of them get wider, because more data means more variation to account for. ::no
-- They close on each other, because twelve orders of prior weight against two thousand real ones is almost nothing, so the data decides both. ::ok That is it. The prior's weight is fixed in orders, so its share of the answer shrinks as real orders arrive, and the two intervals converge.
-- The credible interval keeps shrinking while the confidence interval stays where it is. ::no Both intervals shrink as data arrives, and they shrink toward each other. The prior's weight is fixed at about twelve orders, so its share of the answer falls as real orders pile up. That is why the two agreed to a quarter of a minute on twenty deliveries and disagreed wildly on three, and it is why the argument over which interval to use is loudest exactly where the data is thinnest.
+Neither interval clears the 20-minute target, and both philosophies agree on that. The same-decision shortcut, right where you would want it.
 
 === step === concept
 ## References
+::prose-only a reference list needs no visual
 
-- [The fallacy of placing confidence in confidence intervals](https://doi.org/10.3758/s13423-015-0947-8) - Morey, Hoekstra, Rouder, Lee and Wagenmakers (2016), Psychonomic Bulletin and Review 23(1), 103-123. Works through why the probability sentence belongs to the credible interval and not to the confidence interval.
-- [Robust misinterpretation of confidence intervals](https://doi.org/10.3758/s13423-013-0572-3) - Hoekstra, Morey, Rouder and Wagenmakers (2014), Psychonomic Bulletin and Review 21(5), 1157-1164. Students, researchers and teachers were shown six readings of one interval, and all three groups endorsed the wrong ones at high rates.
-- [Outline of a theory of statistical estimation based on the classical theory of probability](https://doi.org/10.1098/rsta.1937.0005) - Neyman (1937), Philosophical Transactions of the Royal Society A 236, 333-380. The original definition of the confidence interval, stated as a long run coverage property from the very start.
-- [Bayesian Data Analysis, third edition](http://www.stat.columbia.edu/~gelman/book/) - Gelman, Carlin, Stern, Dunson, Vehtari and Rubin (2013). Chapter 2 covers single parameter models and posterior intervals, which is the machinery we built by hand here.
-- [Student's t-Test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) - R Core Team, the documentation for `t.test()` and the interval it returns.
+- [Credible interval](https://en.wikipedia.org/wiki/Credible_interval) - Wikipedia.
+- [Confidence interval](https://en.wikipedia.org/wiki/Confidence_interval) - Wikipedia.
+- [The Fallacy of Placing Confidence in Confidence Intervals](https://doi.org/10.3758/s13423-015-0947-8) - Morey, Hoekstra, Rouder, Lee, Wagenmakers (2016), Psychonomic Bulletin & Review, 23(1), 103-123.
+- [t.test: Student's t-Test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) - R Core Team, the stats package reference documentation.
+- [Frequentism and Bayesianism III: Confidence, Credibility, and why Frequentism and Science do not Mix](http://jakevdp.github.io/blog/2014/06/12/frequentism-and-bayesianism-3-confidence-credibility/) - VanderPlas, J.
 
 === step === complete
 ## Quick recap
 
-You built both intervals from scratch on the same twenty pizza deliveries and watched exactly where they agree and where they come apart. To summarise:
+Two 95% intervals, built on the same delivery data, that very nearly agreed at first:
 
-- A confidence interval's 95% is a hit rate for the recipe across reruns. You counted it: 94.8% over 2,000 reruns, and 96 of 100 plotted intervals caught the truth.
-- Because the truth is fixed and the interval is the random thing, no probability is left over for the one interval you hold. It is in or it is out, and you do not know which.
-- A credible interval flips what is random. Score every candidate average, multiply by the prior, normalise, and read the middle 95% off the curve: 22.23 to 29.77 minutes.
-- That one carries the sentence people actually want, and it carries area, which is how you get a direct 0.981 for the chance Mario beats his thirty minute promise.
-- The two split when a prior carries real information or the sample is small. On twenty orders they agreed to a quarter of a minute. On three orders the classical interval ran 2.78 to 45.22 while the city prior held the credible one at 25.2 to 34.0.
-- A narrower interval is not automatically a better one. Always check how much of that narrowness came from the prior rather than from the data.
+- The confidence interval's 95% is a property of the procedure, not of any one interval. Run it thousands of times on fresh samples and about 95% of the intervals capture the true mean, the 2,000-repeat simulation landed at 94.75%.
+- The credible interval's 95% is a direct probability statement, read straight off a posterior built from a prior and the data.
+- A strong, informative prior pulls the posterior toward it and narrows the credible interval, something a confidence interval has no way to do.
+- A small sample needs extra care. The t-distribution's fatter tails account for the added uncertainty of estimating the standard deviation from few points, and a simple flat-prior credible interval can understate that.
+- When both intervals agree on a real decision, like clearing a delivery-time target, there is no need to referee which one is right. Report either, and move on.
 
-So the next time an interval lands on your desk, ask which kind it is before you read it aloud. One of them lets you say "there is a 95% probability the true average is in here". The other never will, no matter how much data you collect. Have a great day!
+Every time you see a range with "95%" attached to it from now on, you will know exactly what it is saying, and what it is not.
