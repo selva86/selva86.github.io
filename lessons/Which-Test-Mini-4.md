@@ -1,11 +1,11 @@
 ---
 title: "Fisher's exact test: when and how, with a worked example"
 slug: "Which-Test-Mini-4"
-description: "Chi-square warns it may be wrong on a 17-patient table. Build Fisher's exact p-value by hand from all eight possible tables, then read every number R prints."
-keywords: "fishers exact test, fisher.test in R, 2x2 contingency table, small sample statistics, exact p-value, hypergeometric distribution, odds ratio in R, chi-square expected counts"
+description: "Fisher's exact test in R: why chi-square fails on tiny samples, how the hypergeometric distribution gives an exact p-value, and how to report the result."
+keywords: "Fisher's exact test, fisher.test, small sample test, hypergeometric distribution, 2x2 contingency table, exact p-value, chi-square approximation, odds ratio"
 mathjax: true
 webr: true
-date: "2026-08-26"
+date: "2026-09-09"
 post_type: "LESSON"
 course_id: "which-test"
 course_title: "Which Test Do I Run?"
@@ -13,584 +13,340 @@ course_lesson: "4"
 course_total: "11"
 course_landing: "/dashboard.html"
 course_prev: "Which-Test-Mini-3"
-course_next: ""
+course_next: "Which-Test-Mini-5"
 curriculum_id: "0.0.28"
 lesson_access: "windowed"
-catalog_blurb: "What to run when a 2x2 table is too small for chi-square."
+catalog_blurb: "Testing a 2x2 table exactly when your sample is too small for chi-square."
 ---
 
 === step === cover
-::eyebrow Which Test Do I Run?
 ## Fisher's exact test: when and how, with a worked example
 
-Let's say a hospital runs a tiny pilot study. Seventeen patients take part in it. Eight of them get a new treatment and seven of those eight improve. Of the nine who get nothing extra, only three improve.
+A clinic runs a small trial: 8 patients receive a new treatment and 7 of them improve, while 9 patients receive no treatment and only 3 improve. That's 17 patients in total.
 
-That is 88% against 33%, and on paper it looks convincing.
+Seven out of eight is a striking number for so few people, and a fair question follows: could a split this uneven show up even if the treatment does nothing at all? Answering that on a sample this small is exactly what today's test is for, and its name is Fisher's exact test.
 
-But the whole study is seventeen people. Toss a coin seventeen times and you will see streaks that look like a pattern and are not. So the real question is this: in a world where the treatment does nothing at all, how often does luck alone deal out a split this lopsided?
+Lay out who got the treatment and who improved, and you get this table.
 
-The reflex is to reach for a chi-square test. We will do exactly that in a minute, and R will hand back an answer along with a warning that the answer may be wrong.
+::widget styled-table {"cols": ["Group", "Improved", "Not"], "rows": [["Treatment", 7, 1], ["Control", 3, 6]], "title": "The pilot study, 17 patients", "note": "8 patients got the new treatment, 9 got none."}
 
-Fisher's exact test is the one that needs no warning. It approximates nothing. It counts.
-
-Here is the whole idea in three moves.
-
-::widget process-flow {"steps":[{"title":"Fix all four totals","sub":"8 treated, 9 untreated, 10 improved, 7 not improved"},{"title":"List every table they allow","sub":"each of the eight gets an exact probability"},{"title":"Add up the unlikely ones","sub":"the tables no more likely than yours, summed"}]}
-
-Everything from here is doing those three moves on the seventeen patients, by hand first and then in one line of R.
+That table, and these four numbers, are what every step from here works with.
 
 === step === concept
-## The 17 patients as a 2x2 table
+## Turning patient records into a 2x2 table
 
-Before any test, let's get the counts written down, because every number we compute afterwards comes out of them.
+Before you can test anything, you need that table inside R.
 
-We know two things about each patient: whether they were treated, and whether they improved. Two yes-or-no questions, so all seventeen patients fit into a 2 by 2 grid of counts. `matrix()` builds that grid and `dimnames` names the rows and columns so the printed output reads like English.
-
-Press Run.
+There are two ways to build it, and you'll meet both in real projects: typing in the counts yourself, or starting from one row per patient and letting R count for you. If you already know the four counts, `matrix()` with `dimnames` builds the table directly.
 
 ```r
-# Put the 17 patients into a 2x2 table and read off each group's improvement rate
+# Build the 2x2 table of group vs outcome from the four known counts
 trial <- matrix(c(7, 3, 1, 6), nrow = 2,
-                dimnames = list(group   = c("Treated", "Untreated"),
-                                outcome = c("Improved", "Not")))
+                 dimnames = list(group   = c("Treatment", "Control"),
+                                 outcome = c("Improved", "Not")))
 trial
 #>            outcome
 #> group       Improved Not
-#>   Treated          7   1
-#>   Untreated        3   6
-
-addmargins(trial)
-#>            outcome
-#> group       Improved Not Sum
-#>   Treated          7   1   8
-#>   Untreated        3   6   9
-#>   Sum             10   7  17
-
-round(100 * prop.table(trial, margin = 1), 1)
-#>            outcome
-#> group       Improved  Not
-#>   Treated       87.5 12.5
-#>   Untreated     33.3 66.7
+#>   Treatment        7   1
+#>   Control          3   6
 ```
 
-`matrix()` fills down the columns, so `c(7, 3, 1, 6)` puts 7 and 3 in the Improved column and 1 and 6 in the Not column.
+The numbers fill the matrix column by column, not row by row. That's why the first column, `Improved`, is `c(7, 3)`, matching the Treatment row's 7 and the Control row's 3, and the second column, `Not`, is `c(1, 6)`.
 
-`addmargins()` prints the totals along the edges. Those four numbers, 8 treated, 9 untreated, 10 improved and 7 not improved, are called the margins of the table. Right now they look like bookkeeping. They turn out to be the hinge of the whole test.
-
-`prop.table(trial, margin = 1)` divides every cell by its own row total, so we read across: 87.5% of the treated group improved against 33.3% of the untreated group.
-
-That is a gap of 54 percentage points, out of seventeen people. Let's see what a test makes of it.
-
-=== step === concept
-## Why chi-square cannot be trusted on 17 patients
-
-The chi-square test compares what you saw against what you would expect if the treatment did nothing. The expected count for any cell is its row total times its column total, divided by the grand total. For the treated-and-improved cell that is 8 times 10 over 17, which comes to 4.71.
-
-It then adds up the gaps between observed and expected into a single number, and looks that number up on a smooth curve called the chi-square distribution.
-
-The look-up is where the trouble starts. That curve is a continuous stand-in for something that is really a count, and it only becomes accurate as the counts grow. The working rule everyone uses is that every expected count should reach at least 5.
-
-Let's see what our table gives.
+If instead you start with one row per patient, `table()` cross-tabulates two columns of a data frame for you.
 
 ```r
-# Run the chi-square test, catch the warning it raises, and inspect the expected counts
+# Build the same table starting from one row per patient
+patients <- data.frame(
+  id      = 1:17,
+  group   = c(rep("Treatment", 8), rep("Control", 9)),
+  outcome = c(rep("Improved", 7), rep("Not", 1), rep("Improved", 3), rep("Not", 6))
+)
+table(group = patients$group, outcome = patients$outcome)
+#>            outcome
+#> group       Improved Not
+#>   Control          3   6
+#>   Treatment        7   1
+```
+
+Same counts, same table. The only difference is that `table()` orders the groups alphabetically, Control before Treatment, while `matrix()` keeps whatever order you typed. Either table works with everything that follows.
+
+=== step === concept
+## Why chi-square is unreliable on a table this small
+
+You might reach for the chi-square test first, since that's the usual test for whether two categorical variables are related. Let's see what it does with this table.
+
+Chi-square works by comparing your counts to the counts it would expect if group and outcome were unrelated. Those expected counts come from the row and column totals alone.
+
+```r
+# Compute the counts chi-square would expect if group and outcome were unrelated
 cs <- suppressWarnings(chisq.test(trial))
 cs$expected
 #>            outcome
 #> group       Improved      Not
-#>   Treated   4.705882 3.294118
-#>   Untreated 5.294118 3.705882
-
-tryCatch(chisq.test(trial), warning = function(w) conditionMessage(w))
-#> [1] "Chi-squared approximation may be incorrect"
-
-cs
-#>
-#> 	Pearson's Chi-squared test with Yates' continuity correction
-#>
-#> data:  trial
-#> X-squared = 3.1377, df = 1, p-value = 0.0765
-
-suppressWarnings(chisq.test(trial, correct = FALSE))
-#>
-#> 	Pearson's Chi-squared test
-#>
-#> data:  trial
-#> X-squared = 5.1304, df = 1, p-value = 0.02351
+#>   Treatment 4.705882 3.294118
+#>   Control   5.294118 3.705882
 ```
 
-Three of the four expected counts, 4.71, 3.29 and 3.71, sit below 5. `chisq.test()` notices and attaches a warning to its own answer. The `tryCatch()` line catches that warning and prints its text so you can read it, and `suppressWarnings()` stops it repeating on the other calls.
+Every one of those four expected counts is under 5. That crosses a line statisticians agree on: once an expected count drops below 5, chi-square's own approximation stops being reliable. R tells you this itself. Running `chisq.test(trial)` without suppressing its warning prints `Chi-squared approximation may be incorrect`. That's not a coding error. It's R telling you the p-value it's about to give you might be wrong.
 
-Now compare the two p-values. With Yates' continuity correction, which `chisq.test()` applies to a 2 by 2 table by default, you get 0.0765 and you keep the null hypothesis. Switch the correction off with `correct = FALSE` and you get 0.0235 and you reject it.
+The number this test computes is called a p-value: if group and outcome were truly unrelated, it's the chance of seeing a split at least this uneven, purely by chance.
 
-Same seventeen patients and the same table, two opposite decisions, and the only thing that changed was one argument.
+```r
+# Read the p-value chi-square gives anyway
+cs$p.value
+#> [1] 0.07649937
+```
 
-[WARNING]
-When R says the chi-square approximation may be incorrect, it is not being fussy. It is telling you the p-value it just printed may be wrong, and on this table the correction alone moves that p-value from 0.0765 to 0.0235. Read the warning as an instruction to change tests, not as noise to silence.
+[TIP]
+Treat that warning as a signal to switch tests, not a problem to silence. When R says the approximation may be incorrect, it means don't trust the number it just gave you.
+
+So chi-square gives a p-value of roughly 0.076, just above the usual 0.05 cutoff for statistical significance. But you already know that number might be wrong. What you need is a test that gives an exact answer on a table this small, with no approximation at all. That's Fisher's exact test.
 
 === step === widget
-## What the chi-square test assumes about your table
+## Could luck alone produce a 7-out-of-8 split?
 
-Look again at the X-squared value R printed without the correction: 5.13. On a 2 by 2 table that number is a squared z-score, so take its square root and you get z = 2.27. That is how far our table sits from "no effect", measured in standard deviations.
+Before turning to a formula, let's just watch chance itself.
 
-The chi-square test then does exactly one thing with that z. It reads the area in the two tails of a smooth bell curve beyond it, and reports that area as the p-value.
+Across the whole study, 10 of the 17 patients improved, whether they got the treatment or not. That's an overall improvement rate of about 59%. Now imagine 8 patients each improving purely at that overall rate, with the treatment doing nothing at all. How often would 7 or more of them improve, just by luck?
 
-The curve below is that bell curve and the orange slice is the tail area. The slider is the observed z, and it starts at 2.25, near where our table sits. Read the number under the curve: about 0.024, which is the 0.0235 R printed a moment ago.
+::widget luck-simulator {"trials": 8, "p": 0.588, "observed": 7, "unit": "patients improving"}
 
-::widget null-distribution {"tails": 2, "start": 2.25, "label": "observed z"}
+Press the buttons and run a few thousand of these imagined groups of 8. Run it long enough and it settles at a little under 10% of the time reaching 7 or more improvements by pure luck. Already that tells you a 7-out-of-8 split isn't the norm.
 
-Drag the slider and watch the slice. Push the result further from zero and it shrinks, pull it back toward zero and it swells. None of that behaviour is wrong. The problem is the curve itself.
-
-A curve like this has a height at every point along the axis, so it assumes the result could have landed anywhere in between. With seventeen whole patients it could not. Only a handful of tables exist at this size, so the truth is a few separate bars and the gaps between them, not a smooth ribbon. Laying a continuous curve over a handful of bars works fine when the counts are large and badly when they are this small.
-
-That is the whole reason for the warning. So let's stop approximating, hold the totals still, and count the tables instead.
-
-=== step === quiz
-## Quick check: when does a 2x2 table need an exact test?
-
-Here is a different table, from a survey of 40 people, printed beside its expected counts.
-
-| Observed | Yes | No |
-|---|---|---|
-| Group A | 2 | 18 |
-| Group B | 6 | 14 |
-
-| Expected | Yes | No |
-|---|---|---|
-| Group A | 4 | 16 |
-| Group B | 4 | 16 |
-
-Which fact tells you this table wants an exact test rather than chi-square?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
-- Both groups hold 20 people, so the table is perfectly balanced and chi-square has nothing left to detect. ::no
-- One observed cell holds only 2 people, and any observed count under 5 rules chi-square out. ::no
-- Two of the expected counts are 4, and the chi-square approximation needs every expected count to reach at least 5. ::ok Exactly. The rule is about expected counts, row total times column total over the grand total, not about the counts you happened to observe.
-- The survey covers 40 people, and 40 is too few for any test to say anything. ::no The trigger is never the observed counts, the sample size, or how balanced the table looks. It is the expected counts: row total times column total divided by the grand total. Two of them here come to 4, which is under 5, so the smooth curve chi-square reads its p-value from is not trustworthy and an exact test is the honest choice.
+That number isn't the exact right answer though, because this simulation treats each of the 8 as an independent flip at the overall rate. It doesn't account for one detail: the 17 patients are a fixed, finite group. Once several of the improved patients land in one group, fewer are left for the other. That detail matters.
 
 === step === concept
-## Holding the totals fixed leaves only eight possible tables
+## The hypergeometric distribution behind fisher.test()
 
-Here is the move that makes an exact answer possible at all.
+The button-pressing simulation gave you a feel for the answer. Now let's compute it exactly, which is exactly what `fisher.test()` does internally.
 
-Take the four totals from the edges of our table and nail them down: 8 patients treated, 9 untreated, 10 improved, 7 not improved. Those are facts about how the study ran. Fisher's test then asks one narrow question inside them: how were those 10 improvements shared out between the two groups, and was our share a surprising one?
+Here's the key idea. Once you fix the row totals (8 patients on treatment, 9 on none) and the column totals (10 improved, 7 not), the count in any one cell of the table is no longer free to be anything. It's constrained by those four totals, and its distribution has a name: the hypergeometric distribution.
 
-Once all four totals are fixed the table has almost no freedom left. Choose any number for the top-left cell, the treated patients who improved, and the other three cells follow automatically. Say 5 of the treated improved. Then 3 of them did not, because 8 were treated; 5 of the untreated improved, because 10 improved altogether; and 4 untreated did not.
+Think of it as drawing balls from an urn without putting them back. Imagine the 17 patients as balls in an urn, 10 marked "improved" and 7 marked "not". Draw 8 of them at random, your Treatment group, and the number of "improved" balls in that draw follows the hypergeometric distribution.
 
-So a single number describes the whole table. And that number cannot be just anything. At most 8 of the treated could have improved, since only 8 were treated. At least 1 must have, because only 7 patients in the entire study failed to improve, and 7 non-improvers cannot cover all 8 treated patients. That leaves 1 through 8.
+The formula for exactly k improved patients out of the 8 drawn is:
 
-Let's write them all out.
+\[
+P(X = k) = \frac{\binom{r_1}{k}\binom{r_2}{c_1-k}}{\binom{n}{c_1}}
+\]
 
-```r
-# Build every 2x2 table the four fixed totals still allow, one row per table
-tables <- NULL
-for (k in 1:8) {
-  tables <- rbind(tables,
-                  data.frame(treated_improved   = k,
-                             treated_not        = 8 - k,
-                             untreated_improved = 10 - k,
-                             untreated_not      = k - 1))
-}
-tables
-#>   treated_improved treated_not untreated_improved untreated_not
-#> 1                1           7                  9             0
-#> 2                2           6                  8             1
-#> 3                3           5                  7             2
-#> 4                4           4                  6             3
-#> 5                5           3                  5             4
-#> 6                6           2                  4             5
-#> 7                7           1                  3             6
-#> 8                8           0                  2             7
-```
-
-Each row is a complete 2 by 2 table. The seventh row is the study we actually ran: 7 treated improved, 1 did not, 3 untreated improved, 6 did not. Add up any row and you will find the same four totals down the edges.
-
-Eight tables, and that is the entire set of results this study could have produced. Finding a p-value is now arithmetic over eight numbers, instead of a curve stretched across infinitely many.
-
-=== step === concept
-## The probability of one table, worked out by hand
-
-Next, let's attach a probability to each of the eight.
-
-Under the null hypothesis the treatment does nothing, which means the 10 patients who improved were always going to improve, whichever group they had landed in. So which 10 of the 17 are the improvers is a pure random draw, and every way of choosing 10 patients out of 17 is equally likely.
-
-Count them. `choose(17, 10)` gives the number of ways to pick 10 patients out of 17, and that comes to 19,448 equally likely arrangements.
-
-Now count the arrangements that give our table. Ours has 7 improvers among the 8 treated patients, so pick which 7 of those 8 improved: `choose(8, 7)`, which is 8 ways. The other 3 improvers have to come from the 9 untreated: `choose(9, 3)`, which is 84 ways. Multiply and you get 8 times 84, or 672 arrangements out of 19,448.
-
-In symbols, writing k for the number of improvers among the treated:
-
-$$P(X = k) = \frac{\binom{8}{k}\binom{9}{10-k}}{\binom{17}{10}}$$
-
-Let's run both the arithmetic and R's built-in version of it.
+Here \(r_1\) and \(r_2\) are the two row totals (8 and 9), \(c_1\) is the Improved column total (10), and \(n\) is the grand total (17). R has this formula built in as `dhyper()`. Let's compute the exact probability of the table you actually observed: 7 improved out of the 8 on treatment.
 
 ```r
-# Count the arrangements giving 7 improvers among the treated, and turn that into a probability
-choose(8, 7) * choose(9, 3)
-#> [1] 672
-
-choose(17, 10)
-#> [1] 19448
-
-choose(8, 7) * choose(9, 3) / choose(17, 10)
-#> [1] 0.03455368
-
+# Compute the exact probability of exactly 7 improved out of 8 on treatment
 dhyper(7, 8, 9, 10)
 #> [1] 0.03455368
 ```
 
-Both routes give the same 0.03455. The second one is shorter because this pattern has a name: the **hypergeometric distribution**, which describes how many items of one kind you get when you draw a fixed number without replacement from a fixed pool. Read `dhyper(7, 8, 9, 10)` as "out of 8 treated and 9 untreated patients, hand out 10 improvements at random, and give me the probability that exactly 7 of them land on treated patients".
+0.0346, and that's it. No curve, no approximation, no warning. Given the row and column totals, that is the exact probability of this precise table. This one number is the entire reason Fisher's exact test exists: chi-square estimates a probability from a curve, while this formula computes it exactly, because a cell count can only ever be a whole number, never a fraction.
 
-Written for any 2 by 2 table, with row totals r1 and r2, first column total c1 and grand total n, the same formula is:
+=== step === widget
+## Seeing the exact null distribution and its p-value tail
 
-$$P(X = k) = \frac{\binom{r_1}{k}\binom{r_2}{c_1 - k}}{\binom{n}{c_1}}$$
+A single probability, 0.0346, tells you how likely exactly this table is. But a p-value asks a slightly different question: how likely is a result this extreme, or more extreme, in either direction? To answer that you need to see the whole distribution, not just one point on it.
 
-That is the engine of the whole test, and it is the only formula in it.
+Here's the general idea, used for any hypothesis test: draw the distribution of results you'd expect under the null hypothesis, the assumption that there's no real difference between the groups, then shade the area at least as far out as your actual result. That shaded area is the p-value.
 
-=== step === concept
-## All eight probabilities, and which count as extreme as yours
+::widget null-distribution {"tails": 2, "start": 2, "label": "distance from the centre"}
 
-`dhyper()` accepts a vector, so one line gives us all eight probabilities at once.
+Drag the slider and watch the shaded area shrink as you move further from the centre, and grow as you move back toward it. That's the general shape of every hypothesis test: a distribution under the null hypothesis, and a shaded tail that is the p-value.
+
+Fisher's exact test does exactly this, except its null distribution isn't a smooth curve like the one above. Because a cell count can only be a whole number, the null distribution for this table is one bar for every possible count from 1 to 8 improved patients on Treatment, each bar computed from the same `dhyper()` formula you just used.
 
 ```r
-# Compute the probability of all eight possible tables and mark the extreme ones
-pk <- dhyper(1:8, 8, 9, 10)
-round(pk, 5)
-#> [1] 0.00041 0.01296 0.10366 0.30234 0.36281 0.18141 0.03455 0.00185
-
-sum(pk)
-#> [1] 1
-
-extreme <- pk <= pk[7] * (1 + 1e-7)
-extreme
-#> [1]  TRUE  TRUE FALSE FALSE FALSE FALSE  TRUE  TRUE
-
-barplot(pk, names.arg = 1:8,
-        col = ifelse(extreme, "orange", "grey85"), border = "white",
-        main = "The eight tables the fixed totals allow",
-        xlab = "Improved patients among the 8 treated",
-        ylab = "Probability when the treatment does nothing")
+# Compute a bar (a probability) for every possible count from 1 to 8
+probs <- dhyper(1:8, 8, 9, 10)
+names(probs) <- 1:8
+round(probs, 4)
+#>      1      2      3      4      5      6      7      8 
+#> 0.0004 0.0130 0.1037 0.3023 0.3628 0.1814 0.0346 0.0019
 ```
 
-They add to exactly 1, which is the check that we really did list everything. Most of the weight sits on 4, 5 and 6 treated improvers, which is what you would expect when the treatment does nothing: the 10 improvements spread out roughly in proportion to group size. Our own table, 7 improvers among the treated, carries probability 0.03455.
-
-Now comes the phrase that decides the p-value: at least as extreme. Under fixed totals, extreme means unlikely. It does not mean large, and it does not mean favourable. So the test puts one question to each of the eight bars: is that bar at most as tall as ours?
-
-Four of them are, and the orange bars are those four: 1, 2, 7 and 8. They are the lopsided results at both ends, our own table among them. The `1 + 1e-7` is a hair of tolerance so that a bar exactly as tall as ours is not dropped by floating point rounding. No other bar sits that close here, so a plain `pk <= pk[7]` picks out the same four.
-
-Add those four probabilities together and you have the p-value.
-
-[KEY INSIGHT]
-Fisher's exact test never estimates a tail area. It lists every table the fixed totals allow, gives each one its exact probability, and adds up the ones no more likely than yours. Nothing along the way is approximated, which is what the word exact is doing in the name.
-
-=== step === quiz
-## Quick check: which tables count as at least as extreme?
-
-The eight probabilities, one per possible table, came out like this.
-
-| Improved among the 8 treated | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-|---|---|---|---|---|---|---|---|---|
-| Probability | 0.00041 | 0.01296 | 0.10366 | 0.30234 | 0.36281 | 0.18141 | 0.03455 | 0.00185 |
-
-We observed 7. Which tables go into the two-sided p-value?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- Only 7 and 8, because those are the tables that favour the treatment at least as much as ours does. ::no
-- 1, 2, 7 and 8, because each of those has probability at most 0.03455, counting both ends. ::ok Right. Extreme means unlikely rather than favourable, so a table down at 1 improver qualifies even though it points the other way.
-- Only 8, because that is the single most lopsided table there is. ::no
-- All eight, because a p-value always sums over the whole distribution. ::no The rule is a comparison of probabilities, not a direction and not a total. Take our table's probability, 0.03455, and keep every table at most that likely. That picks up 1 at 0.00041, 2 at 0.01296, 7 at 0.03455 itself and 8 at 0.00185, and leaves the four fat bars in the middle out.
-
-=== step === tryit
-## Your turn: add up the exact p-value
-
-`pk` still holds those eight probabilities, in order from 1 improver among the treated up to 8. Our own table is the seventh of them, `pk[7]`.
-
-Keep every probability that is at most as large as `pk[7]` and add them up. It takes one line, and no test function anywhere in it.
+You already computed the bar at 7: 0.0346. The two-sided p-value sums every bar that is at least as small as that one, the bars for counts that are just as surprising as 7 or more so, on either side of the distribution.
 
 ```r
-# pk holds the probability of each of the eight possible tables.
-# pk[7] is the probability of the table we actually observed.
-# Keep every probability at most as large as pk[7], then sum them.
-# One line. Press Check when you have it.
-```
-::check {"regex": "sum[(]pk\\[pk\\s*<=\\s*pk\\[7\\]", "gate": true, "difficulty": "beginner", "ok": "That is 0.04977, and you built it yourself out of four numbers. There is no approximation anywhere in it.", "no": "Subset pk using a condition on pk itself, then sum the result: sum(pk[pk <= pk[7]])."}
-::solution
-```r
-# Add up every table probability at most as large as the one we observed
-sum(pk[pk <= pk[7]])
+# Sum every bar at least as small as the bar for the observed count, 7
+observed_prob <- dhyper(7, 8, 9, 10)
+two_sided_p <- sum(probs[probs <= observed_prob])
+two_sided_p
 #> [1] 0.04977376
 ```
 
-That number, 0.04977, is the exact p-value for the pilot study.
+0.04977, and that's not an approximation of anything. It's an exact sum of exact probabilities, and it's the exact number `fisher.test()` returns.
+
+The luck simulation showed that a split this uneven happens by pure chance only some of the time. The picture above turns that same idea into a shape: a null distribution with the far ends shaded. What does that shaded area represent?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The probability that the null hypothesis is true. ::no
+- The chance, under the null hypothesis, of a result at least this extreme, in either direction. ::ok Exactly. Whether the distribution is a smooth curve or a set of bars over whole numbers, the shaded tail is always the same thing: how often a result this far from the centre, or farther, would show up if there truly were no difference between the groups.
+- The size of the treatment's effect. ::no
+- The confidence level of the test, 95%. ::no A shaded tail is never the confidence level and never the size of an effect. It is a chance: under the null hypothesis, the chance of seeing a result this extreme or more, in either direction. That's the only thing a p-value ever measures, whether it comes from a smooth curve or, like here, from summing exact bars of a hypergeometric distribution.
 
 === step === concept
-## fisher.test() in one line
+## Running fisher.test() and reading the p-value
 
-You will never do that by hand again, because R runs the whole enumeration for you.
+You've now built that 0.04977 by hand, bar by bar. In practice you'll never do that. `fisher.test()` runs the entire calculation, on any 2x2 table, in one line.
 
 ```r
-# Run Fisher's exact test on the 17 patients
+# Run Fisher's exact test on the pilot study table
 ft <- fisher.test(trial)
 ft
-#>
+#> 
 #> 	Fisher's Exact Test for Count Data
-#>
+#> 
 #> data:  trial
 #> p-value = 0.04977
 #> alternative hypothesis: true odds ratio is not equal to 1
 #> 95 percent confidence interval:
 #>    0.8564753 728.9937469
 #> sample estimates:
-#> odds ratio
-#>   11.63911
+#> odds ratio 
+#>   11.63911 
 ```
 
-There it is: 0.04977, the same number we added up by hand, matching to every decimal shown.
-
-Read the rest of the block too, because those are not three loose numbers stacked up, they are one inference. On a 2 by 2 table, "treatment and outcome are independent" is exactly the same statement as "the odds ratio is 1". That is why the alternative hypothesis line, the confidence interval and the odds ratio estimate all talk about the same quantity, and why the p-value is a test of whether that quantity is 1.
-
-Two of those numbers surprise people, so let's take them one at a time.
+There's the same 0.04977 you just built from the bars. It sits just under the conventional 0.05 line, where chi-square's unreliable 0.076 sat just above it. It's the same 17 patients and the same table, but two different conclusions, and only one of them, Fisher's, can be trusted on a table this small.
 
 === step === concept
-## The odds ratio R reports, and why it is not 14
+## The odds ratio, the confidence interval, and a borderline call
 
-Odds are not the same thing as a rate. Among the treated, 7 improved and 1 did not, so the odds of improving are 7 to 1, which is 7. Among the untreated, 3 improved and 6 did not, so the odds are 3 to 6, which is 0.5. Divide the first by the second and the odds ratio is 14: the treated group's odds of improving are 14 times the untreated group's.
+A p-value tells you whether you can rule out chance. It says nothing about how big the effect is, or how sure you should be of its size. That's what the rest of `fisher.test()`'s output is for.
 
-That is the sample odds ratio, and it is the number almost everyone works out by hand. R printed 11.64.
+`ft$estimate` is the odds ratio: how many times higher the odds of improving are on the treatment compared to none.
 
 ```r
-# Compare the hand-computed sample odds ratio with the one fisher.test reports
+# Read the odds ratio fisher.test() reports
+ft$estimate
+#> odds ratio 
+#>   11.63911 
+```
+
+About 11.6. You might expect this to match the simple cross-product odds ratio you could compute by hand.
+
+```r
+# Compare with the simple, hand-computed cross-product odds ratio
 (7 * 6) / (1 * 3)
 #> [1] 14
-
-ft$estimate
-#> odds ratio
-#>   11.63911
 ```
 
-The gap is not rounding and it is not a bug. The sample odds ratio is what the four cells say on their own. R reports the conditional maximum likelihood estimate instead, which is the odds ratio that makes the table we actually saw as likely as it can possibly be, given the fixed totals. It is computed inside the same conditional world that produced the p-value, and that is exactly why it belongs next to it. On small or sparse tables the two numbers can sit well apart, and 14 against 11.64 is that gap showing up on seventeen patients.
+14, not 11.6. `fisher.test()` doesn't report that simple cross-product. It reports the conditional maximum likelihood estimate, or MLE: the odds ratio that best explains the table once you hold the row and column totals fixed, the same totals the hypergeometric distribution is built from. For small or lopsided tables like this one, the two numbers can differ by a fair amount. Report the MLE value R gives you, not one you compute by hand.
 
-So report the number R printed rather than the one you did in your head. Otherwise the odds ratio in your write-up and the p-value beside it come from two different calculations, and a careful reader will notice.
-
-=== step === concept
-## Why the interval runs from 0.86 to 729
-
-The third number in that block is the confidence interval, and it is the one that tells the truth about sample size.
+The odds ratio alone still doesn't tell you how confident to be in that 11.6. For that, read the confidence interval.
 
 ```r
-# Print the confidence interval next to the p-value it belongs with
+# Read the 95% confidence interval around the odds ratio
 ft$conf.int
 #> [1]   0.8564753 728.9937469
 #> attr(,"conf.level")
 #> [1] 0.95
-
-ft$p.value
-#> [1] 0.04977376
 ```
 
-The interval runs from 0.86 to 729. An odds ratio of 1 means no effect at all, and 1 falls inside that range. So the honest reading is that these data are consistent with anything from a treatment that is very slightly harmful to one that multiplies the odds of improving several hundredfold. That is what seventeen patients buys, and no choice of test can buy more.
+[WARNING]
+That interval runs from 0.86 to 729, and it includes 1. An odds ratio of 1 would mean no effect at all. So even though the p-value came in just under 0.05, the confidence interval alone would not rule out "no effect".
 
-Now here is the puzzle. The p-value is 0.0498, which is under 0.05, and yet the 95% interval covers 1. Those two normally travel together, so seeing them disagree looks like a contradiction.
-
-They can disagree here because R builds them by two different rules. The p-value adds up the probability of every table no more likely than ours, pooling both directions into one sum. The interval is built by inverting the exact test at 2.5% on each side separately, which is a slightly stricter requirement. So a table can clear 0.05 on the two-sided p-value while its interval still includes 1. That is a known and documented property of the exact method, not a fault in the output.
-
-[NOTE]
-When the p-value and the interval disagree at the boundary, do not quietly pick the one you prefer. Report both. On a table this small, "p = 0.0498, 95% interval 0.86 to 729" is a far more honest line than the word significant on its own.
-
-=== step === quiz
-## Quick check: what the p-value and the interval together allow
-
-Fisher's exact test on the 17 patients returned p = 0.0498, an odds ratio of 11.6, and a 95% confidence interval from 0.86 to 729. Which reading of that is right?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
-- The two numbers contradict each other, so the output is broken and cannot be used. ::no
-- The result clears 0.05, and the interval says the size of the effect is barely pinned down at all. ::ok That is the pair of facts to carry out of the meeting. There is enough evidence here to take the treatment seriously, and nowhere near enough to say how much it helps.
-- The treated group's odds of improving are multiplied by exactly 11.6. ::no
-- The interval covers 1, so nothing is significant and the p-value should be thrown away. ::no Neither number cancels the other, and neither one is an exact measurement. The p-value answers how often luck alone would produce a table this lopsided, and 0.0498 says rarely. The interval answers how big the effect is, and 0.86 to 729 says we barely know. Both belong in the report, and 11.6 is a point estimate from 17 patients, not a settled multiplier.
+That's not a contradiction. It's what 17 patients can and cannot tell you. The p-value says a difference this large is unlikely to be pure chance. The confidence interval says you don't yet know how large that difference really is, since anywhere from barely-there to enormous is still consistent with the data. Report the p-value, the odds ratio, and the confidence interval together. Any one of them alone leaves out important information.
 
 === step === concept
-## Two-sided or one-sided, and what each one claims
+## Choosing a one-sided test when the direction is set in advance
 
-By default the test asks whether the treatment shifts the odds of improving in either direction, better or worse. If your question was only ever whether the treatment does better, you can say so with the `alternative` argument.
+Every `fisher.test()` call so far tested a two-sided question: does the treatment change the odds of improving, in either direction? But this pilot study was never really asking that. It was designed to answer one specific question, decided before a single patient was tested: does the new treatment help?
+
+When the direction of the question is fixed in advance, before you look at the data, you can run a one-sided test instead.
 
 ```r
-# Run the one-sided version, asking only whether the treatment does better
+# Run a one-sided test: does treatment strictly increase the odds?
 ft_one <- fisher.test(trial, alternative = "greater")
-ft_one
-#>
-#> 	Fisher's Exact Test for Count Data
-#>
-#> data:  trial
-#> p-value = 0.0364
-#> alternative hypothesis: true odds ratio is greater than 1
-#> 95 percent confidence interval:
-#>  1.149848      Inf
-#> sample estimates:
-#> odds ratio
-#>   11.63911
-```
-
-Two things moved. The p-value fell from 0.0498 to 0.0364, because only the tables that favour the treatment now count towards it and the lopsided ones in the other direction are ignored. And the interval became a one-sided lower bound, 1.15 upwards, which clears 1 where the two-sided interval did not.
-
-That gain is real, and it is not free. The one-sided test buys its smaller p-value by giving up the ability to notice harm: run `alternative = "greater"` on a treatment that makes patients worse and it returns a p-value near 1, however badly the treatment did.
-
-So choose the side before you look at the data, and write down why you chose it. Picking "greater" after noticing that the treated group came out ahead is not a one-sided test. It is a two-sided test with the inconvenient half deleted, and the 0.0364 it prints does not mean anything.
-
-=== step === concept
-## When chi-square is the right call after all
-
-Fisher's exact test is not automatically the better test. It is the better one when the counts are small. Once they are not, the chi-square approximation is as good as exact and far quicker, because enumerating tables gets expensive as the numbers grow.
-
-Let's run the same comparison on a table built from a thousand observations.
-
-```r
-# Compare chi-square and Fisher on a table with 1,000 observations
-click_tab <- matrix(c(120, 95, 380, 405), nrow = 2,
-                    dimnames = list(version = c("New", "Old"),
-                                    action  = c("Clicked", "Did not")))
-click_tab
-#>        action
-#> version Clicked Did not
-#>     New     120     380
-#>     Old      95     405
-
-chisq.test(click_tab)$expected
-#>        action
-#> version Clicked Did not
-#>     New   107.5   392.5
-#>     Old   107.5   392.5
-
-c(chi_square = chisq.test(click_tab)$p.value,
-  fisher     = fisher.test(click_tab)$p.value)
-#> chi_square     fisher
-#> 0.06469150 0.06453413
-```
-
-Every expected count is above 100, so the approximation has nothing to strain against, and the two p-values agree to three decimals. On a table like this, run `chisq.test()` and move on.
-
-Two more cases are worth knowing about. `fisher.test()` does handle tables bigger than 2 by 2, but on large or sparse ones the enumeration can crawl, or stop outright with an FEXACT workspace error. The fix for that is `simulate.p.value = TRUE`, which estimates the same p-value by Monte Carlo in a fraction of the time, and it beats raising the `workspace` argument and hoping. Also, past 2 by 2 there is no single odds ratio to report, because an odds ratio only means something for two rows against two columns.
-
-=== step === concept
-## The sentence you write in the report
-
-You now have three numbers and a sample size, and all four belong in the write-up. A p-value on its own cannot tell a large effect apart from a barely-there one, and on seventeen patients that difference is the entire story.
-
-[KEY INSIGHT]
-In a pilot of 17 patients, 7 of 8 treated patients improved against 3 of 9 untreated (Fisher's exact test, p = 0.0498; odds ratio 11.6, 95% CI 0.86 to 729).
-
-Every part of that sentence earns its place. The raw counts let a reader rebuild your table and rerun your test. Naming Fisher's exact test explains why you did not use chi-square, before anyone asks. The p-value says the result clears the conventional line. And the interval, which is the piece people leave out, says out loud that the size of the effect is still wide open, so nobody walks away treating 11.6 as a measured fact.
-
-=== step === quiz
-## Quick check: which test does this table need?
-
-An A/B test on a landing page collected 1,000 visitors.
-
-| Observed | Signed up | Did not |
-|---|---|---|
-| New page | 120 | 380 |
-| Old page | 95 | 405 |
-
-Its four expected counts are 107.5, 392.5, 107.5 and 392.5. Which test should you run?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- Fisher's exact test, because an exact answer is always better than an approximate one. ::no
-- Fisher's exact test, because the table is 2 by 2 and that is what the exact test is built for. ::no
-- Chi-square, because every expected count is far past 5, so the approximation is reliable and much faster. ::ok Exactly. On this table the two tests return 0.0647 and 0.0645, so the exact one costs you time and buys you nothing.
-- Either one, because with counts this large the two tests cannot possibly disagree. ::no The size of the expected counts decides it, and all four here are above 100, which is well past the point where the chi-square approximation stops straining. So chi-square is the right call. The two tests do land in almost the same place, 0.0647 against 0.0645, but "almost the same" is something you check on the day, not something you assume in advance.
-
-=== step === tryit
-## Your turn: run the exact test on a fresh 2x2 and report it
-
-A gardener tries compost on a tray of seedlings. Seven seeds go into compost and 6 of them sprout. Eight seeds go into plain soil and 2 of them sprout. Fifteen seeds in total, so chi-square is out before you start.
-
-Build that table as `seed_tab`, with compost in the first row and Sprouted in the first column. Then run Fisher's exact test on it, store the result in `seed_ft`, and print the whole thing.
-
-```r
-# Compost: 7 seeds sown, 6 sprouted. Plain soil: 8 seeds sown, 2 sprouted.
-# Build the 2x2 as seed_tab, compost first, Sprouted in the first column.
-# Run fisher.test on it, store the result in seed_ft, and print seed_ft.
-# Press Check when you have it.
-```
-::check {"regex": "fisher[.]test[(]\\s*seed_tab", "gate": true, "difficulty": "intermediate", "ok": "p = 0.04056, odds ratio 13.96, interval 0.90 to 953. Significant, and on 15 seeds the size of the effect is anybody's guess.", "no": "Build the table the same way as the trial: matrix(c(6, 2, 1, 6), nrow = 2), then seed_ft <- fisher.test(seed_tab)."}
-::solution
-```r
-# Build the 15-seedling table and run Fisher's exact test on it
-seed_tab <- matrix(c(6, 2, 1, 6), nrow = 2,
-                   dimnames = list(soil    = c("Compost", "Plain"),
-                                   outcome = c("Sprouted", "Not")))
-seed_tab
-#>          outcome
-#> soil      Sprouted Not
-#>   Compost        6   1
-#>   Plain          2   6
-
-seed_ft <- fisher.test(seed_tab)
-seed_ft
-#>
-#> 	Fisher's Exact Test for Count Data
-#>
-#> data:  seed_tab
-#> p-value = 0.04056
-#> alternative hypothesis: true odds ratio is not equal to 1
-#> 95 percent confidence interval:
-#>    0.9040436 953.3729037
-#> sample estimates:
-#> odds ratio
-#>   13.95942
-```
-
-Written up, that reads: in a tray of 15 seedlings, 6 of 7 compost seeds sprouted against 2 of 8 in plain soil (Fisher's exact test, p = 0.041; odds ratio 14.0, 95% CI 0.90 to 953).
-
-=== step === tryit
-## Your turn: switch to the one-sided test and see what moves
-
-`seed_tab` is still in memory. The gardener's question was never whether compost changes anything, it was whether compost does better. Run the same test with that alternative, then print its p-value and its confidence interval.
-
-```r
-# seed_tab still holds the 15 seedlings.
-# Run the same test, but ask only whether compost does BETTER.
-# Then print the p-value and the confidence interval.
-# Press Check when you have them.
-```
-::check {"regex": "alternative\\s*=\\s*.greater", "gate": true, "difficulty": "intermediate", "ok": "p falls from 0.04056 to 0.03170 and the lower bound climbs to 1.23, so this interval clears 1 where the two-sided one did not. That is the one-sided test refusing to spend any of its 5% on the possibility that compost hurts.", "no": "Pass the alternative straight to the test: fisher.test(seed_tab, alternative = greater), with greater in quotes."}
-::solution
-```r
-# Ask only whether compost does better, and read the one-sided bound
-seed_one <- fisher.test(seed_tab, alternative = "greater")
-seed_one$p.value
-#> [1] 0.03170163
-
-seed_one$conf.int
-#> [1] 1.229257      Inf
+ft_one$p.value
+#> [1] 0.03640477
+ft_one$conf.int
+#> [1] 1.149848      Inf
 #> attr(,"conf.level")
 #> [1] 0.95
 ```
 
-The lower bound moved from 0.90 up to 1.23. That is only a fair thing to report if the gardener settled on a one-directional question before the seeds went into the tray.
+The p-value drops to 0.0364, and the confidence interval becomes one-sided too: from 1.15 up to infinity, no longer straddling 1. Both changes happen because you're now only counting evidence in one direction, so the same data clears the bar more easily.
+
+That's also exactly why you must fix the direction before looking at the data, never after. If you ran the two-sided test first, saw which direction looked better, and then switched to a matching one-sided test, you'd always end up with a smaller p-value, one you did not earn.
+
+=== step === concept
+## When to reach for Fisher's exact test, and its limits
+
+You now have the whole decision in your hands. If any expected cell count in your table is under 5, like the 4.71, 3.29, 5.29 and 3.71 from the pilot study's expected counts, reach for Fisher's exact test instead of chi-square. Once your counts are comfortably above 5, chi-square is fine, and it's faster.
+
+Fisher's exact test does have one real limit. For very large or very unevenly split tables, the exact calculation has to enumerate a huge number of possible tables, which can get slow. When that happens, `fisher.test(table, simulate.p.value = TRUE)` swaps the exact enumeration for a fast Monte Carlo estimate that comes very close to the true value.
+
+Here's that whole decision laid out as one flow.
+
+![Choosing between Fisher's exact test and the chi-square test for a 2x2 table.](screenshots/Fishers-Exact-Test-in-R-decision-flow.webp)
+
+*Choosing between Fisher's exact test and the chi-square test for a 2x2 table.*
+
+A small or sparse table calls for Fisher's exact test. A large table with healthy counts is fine with chi-square, and it runs faster. That's the whole decision.
+
+=== step === complete
+## Reporting the result
+::prose-only recap of numbers already shown earlier in the lesson, no new visualizable concept
+
+You've now covered the whole test, start to finish. Let's put it together the way you'd actually write it up.
+
+A complete write-up of this pilot study reads like this: "Fisher's exact test found higher odds of improving under the new treatment (two-sided p = 0.050, odds ratio = 11.6, 95% CI 0.86 to 729; one-sided p = 0.036)." Every number in that sentence has a job. The p-value says the split is unlikely to be pure chance. The odds ratio says how large the effect looks. The confidence interval says how much that estimate could still be wrong, given only 17 patients.
+
+Here's the whole path you just walked, in order:
+
+1. Build the 2x2 table from your counts or your raw records.
+2. Check whether any expected count is under 5. If so, chi-square cannot be trusted.
+3. Run `fisher.test()` and read the p-value, the odds ratio, and the confidence interval together.
+4. Decide one-sided or two-sided before you look at the data, never after.
+
+That's the whole test.
+
+=== step === quiz
+## Quick check: reading a Fisher's exact test result
+
+Suppose `fisher.test()` on a different 2x2 table comes back with a p-value of 0.04977, an odds ratio of 11.64, and a 95% confidence interval of 0.86 to 729. Which is the correct way to read that result?
+
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- Report all three numbers together: the p-value, the odds ratio, and the confidence interval, since the wide interval shows how little 17 patients can pin down the true effect, even with a borderline p-value. ::ok Exactly right. The p-value alone would make this look like a clean win. The interval running from 0.86 to 729 is the honest picture: the data rules out pure chance, barely, but says almost nothing yet about how big the real effect is.
+- A p-value under 0.05 is enough on its own, so you don't need to look at the interval. ::no
+- The odds ratio of 11.64 shows a large effect, regardless of what the confidence interval says. ::no
+- Since the p-value clears 0.05, the confidence interval including 1 doesn't matter. ::no All three of the wrong readings drop the confidence interval, which is exactly the part of the report that keeps a borderline p-value honest. A confidence interval running from 0.86 to 729 says the sample is too small to know if the true effect is tiny or huge, even though the p-value alone looks decisive.
+
+=== step === tryit
+## Your turn: run and report a new Fisher's exact test
+
+A marketer tests two subject lines for a newsletter. Subject A goes to 7 recipients, and 6 open it. Subject B goes to 8 recipients, and 2 open it. Nobody decided in advance which subject line would win, so this calls for a two-sided test.
+
+Build the 2x2 table as `subj`, run `fisher.test()` on it, and store the result as `subj_ft`.
+
+```r
+# Subject A: 7 recipients, 6 opened. Subject B: 8 recipients, 2 opened.
+# Build the table as `subj`, then run fisher.test() and store it as `subj_ft`.
+
+```
+::check {"regex": "subj_ft\\s*<-\\s*fisher\\.test\\s*[(]", "gate": true, "difficulty": "intermediate", "ok": "Right: p is about 0.041, the odds ratio about 14.0, and the 95% CI runs from 0.90 to 953. Same borderline pattern as the pilot study: a p-value just under 0.05, and a confidence interval too wide to say much about the true size of the effect.", "no": "Build the table with matrix(c(6, 2, 1, 6), nrow = 2, ...), with the counts in the order Opened-A, Opened-B, Not-A, Not-B. Then run subj_ft <- fisher.test(subj)."}
+::solution
+```r
+# Build the table, run fisher.test(), and read all three numbers
+subj <- matrix(c(6, 2, 1, 6), nrow = 2,
+               dimnames = list(subject = c("A", "B"), opened = c("Opened", "Not")))
+subj_ft <- fisher.test(subj)
+subj_ft$p.value
+#> [1] 0.04055944
+subj_ft$estimate
+#> odds ratio 
+#>   13.95942 
+subj_ft$conf.int
+#> [1]   0.9040436 953.3729037
+#> attr(,"conf.level")
+#> [1] 0.95
+```
+
+p = 0.041, odds ratio 14.0, confidence interval 0.90 to 953. That's the same shape of result as the pilot study: a p-value just under 0.05, and a confidence interval too wide to say much about how big the real effect is. A complete write-up: "Subject A had higher open odds than Subject B (two-sided p = 0.041, odds ratio = 14.0, 95% CI 0.90 to 953)."
 
 === step === concept
 ## References
 
-- [On the Interpretation of Chi-Square from Contingency Tables, and the Calculation of P](https://doi.org/10.2307/2340521) - Fisher (1922), Journal of the Royal Statistical Society 85(1), 87-94. Where the argument about small contingency tables starts.
-- [A Survey of Exact Inference for Contingency Tables](https://doi.org/10.1214/ss/1177011454) - Agresti (1992), Statistical Science 7(1), 131-153. The standard overview of the conditional approach and what it costs you.
-- [Confidence intervals that match Fisher's exact or Blaker's exact tests](https://doi.org/10.1093/biostatistics/kxp050) - Fay (2010), Biostatistics 11(2), 373-374. Why an exact p-value and an exact interval can disagree at the boundary.
-- [Chi-squared and Fisher-Irwin tests of two-by-two tables with small sample recommendations](https://doi.org/10.1002/sim.2832) - Campbell (2007), Statistics in Medicine 26(19), 3661-3675. The case against reaching for Fisher automatically.
-- [Fisher's Exact Test for Count Data](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) - R Core Team, the documentation for `fisher.test()`, covering the conditional maximum likelihood odds ratio, the alternative argument and the Monte Carlo fallback.
-
-=== step === complete
-## Quick recap
-
-You took a 17-patient table that chi-square could not handle, built its exact p-value by hand out of eight numbers, and then read everything R prints beside that p-value. Pulling it together:
-
-- The trigger is an expected count under 5, where an expected count is row total times column total over the grand total. It is not a small p-value, not a small sample on its own, and not a table that merely looks odd.
-- Fixing all four totals leaves only eight possible tables, and `dhyper()` gives each one an exact probability.
-- The p-value is the sum of the probabilities no larger than yours, counted on both sides. Ours came to 0.04977, by hand and from `fisher.test()` alike.
-- The odds ratio R prints is the conditional maximum likelihood estimate, 11.6 here, not the hand-computed 14. Report R's number.
-- The interval is where honesty about sample size lives. Running from 0.86 to 729, it can cover 1 even while the p-value clears 0.05.
-- Once every expected count is comfortably past 5, go back to chi-square. It agrees, and it is faster.
-
-And the sentence to write down:
-
-"In a pilot of 17 patients, 7 of 8 treated patients improved against 3 of 9 untreated (Fisher's exact test, p = 0.0498; odds ratio 11.6, 95% CI 0.86 to 729)."
-
-A small sample is no longer a reason to guess. Nice work getting through this one, and enjoy the rest of your day.
+- [fisher.test: Fisher's Exact Test for Count Data](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/fisher.test.html) - R Documentation, the function reference for exact p-values, odds ratios and confidence intervals.
+- [chisq.test: Pearson's Chi-squared Test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/chisq.test.html) - R Documentation, the approximation Fisher's exact test replaces on small tables.
+- [Fisher's exact test](https://en.wikipedia.org/wiki/Fisher%27s_exact_test) - background on R. A. Fisher's original 1935 exact test for a 2x2 table and the assumptions behind it.
+- [Hypergeometric distribution](https://en.wikipedia.org/wiki/Hypergeometric_distribution) - the distribution behind the exact p-value, laid out in full.
