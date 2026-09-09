@@ -175,7 +175,7 @@ A raw series comes back with ADF p-value 0.40 and KPSS p-value 0.02. What should
 - Both tests point to stationary, so leave the series exactly as it is. ::no
 - Read the KPSS p-value the same way as ADF's: 0.02 is small, so it must mean stationary here too, which would make the two tests inconclusive together. ::no
 - Difference the series. ADF's p-value of 0.40 gives no reason to call it stationary, and KPSS's p-value of 0.02 actively rejects stationarity, so both point toward differencing. ::ok Exactly. A large ADF p-value and a small KPSS p-value are not a disagreement. They are the same verdict read from two opposite null hypotheses.
-- Trust ADF alone and ignore KPSS, since only one test can be right about the same series. ::no ADF's null is non-stationary, so its large p-value here means no evidence against non-stationary. KPSS's null is stationary, so its small p-value means evidence against stationary. Both readings point the same way, toward differencing, not away from it.
+- Trust ADF alone and ignore KPSS, since only one test can be right about the same series. ::no ADF's null is non-stationary, so its large p-value here means no evidence against non-stationary. KPSS's null is stationary, so its small p-value means evidence against stationary. Both results point the same way, toward differencing, not away from it.
 
 === step === concept
 ## What the ACF and PACF actually measure
