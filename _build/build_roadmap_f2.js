@@ -15,7 +15,7 @@ const RM=window.RM, RM2=window.RM2;
 let RMLESSONS='';
 try{
   const cat=JSON.parse(F.readFileSync(p.join(root,'courses.json'),'utf8'));
-  const HY={analyst:1,foundations:1};
+  const HY={analyst:1,foundations:1,ts:1};
   const courses=(cat.courses||[]).filter(function(c){return c.roadmap&&HY[c.roadmap.track];}).map(function(c){
     return {roadmap:{track:c.roadmap.track,section:c.roadmap.section},
       lessons:(c.lessons||[]).filter(function(l){return l.built!==false;}).map(function(l){

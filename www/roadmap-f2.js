@@ -350,7 +350,7 @@
   // inline (window.__RMLESSONS__) for a synchronous first paint, then the async /courses.json
   // fetch refreshes to pick up anything published since the last rebuild.
   (function(){
-    var HYBRID={analyst:1,foundations:1,ds:1};
+    var HYBRID={analyst:1,foundations:1,ds:1,ts:1};
     function applyHybrid(cat){
       if(!cat||!cat.courses)return;
       var byTrack={};
