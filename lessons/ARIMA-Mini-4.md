@@ -1,11 +1,11 @@
 ---
 title: "ARIMA diagnostics: the two checks before you trust a forecast"
 slug: "ARIMA-Mini-4"
-description: "Fit an ARIMA model to the airline series, then run the two checks that decide whether its forecast is safe: the residual ACF band, and the Ljung-Box test."
-keywords: "ARIMA diagnostics, Ljung-Box test, residual ACF, white noise residuals, checkresiduals, Box.test fitdf, ARIMA residuals in R, time series model checking"
-mathjax: true
+description: "Learn the two checks that decide whether an ARIMA forecast is safe to trust: reading checkresiduals() plots and the Ljung-Box test p-value the right way."
+keywords: "ARIMA diagnostics, checkresiduals, Ljung-Box test, residual diagnostics, white noise residuals, ACF of residuals, time series model checking"
+mathjax: false
 webr: true
-date: "2026-09-06"
+date: "2026-09-09"
 post_type: "LESSON"
 course_id: "arima-from-zero"
 course_title: "ARIMA from Zero"
@@ -13,349 +13,242 @@ course_lesson: "4"
 course_total: "7"
 course_landing: "/dashboard.html"
 course_prev: "ARIMA-Mini-3"
-course_next: ""
+course_next: "ARIMA-Mini-5"
 curriculum_id: "0.0.18"
 lesson_access: "windowed"
-catalog_blurb: "How to tell whether a fitted ARIMA model is safe to forecast with."
+catalog_blurb: "The two checks that tell you whether an ARIMA forecast is safe to trust."
 ---
 
 === step === cover
 ## ARIMA diagnostics: the two checks before you trust a forecast
 
-Today let's work out whether a fitted ARIMA model is good enough to forecast with.
+Today let's understand the two checks you run right after fitting any ARIMA model, before you let its forecast anywhere near a real decision.
 
-The series we will use is `AirPassengers`, which ships with R. It holds 144 monthly totals of international airline passengers, in thousands, from January 1949 to December 1960. The counts start at 104 and reach 622, and that one series is what we will fit, diagnose and forecast.
+Here's the series: WWWusage, a built-in R series of 100 consecutive minute-by-minute counts of users connected to an internet server. An ARIMA(1,1,1) model is already fit to it, with coefficients ar1 = 0.6504 and ma1 = 0.5256. That model makes a prediction for every one of those 100 minutes, and for every prediction there's a gap between what it predicted and what actually happened. Pile up all 100 gaps and you get what's called the residuals.
 
-Fit an ARIMA model to it and R prints a table of coefficients and an AIC. Those numbers say how the model was estimated and how large its errors are on average. Not one of them uses the order those errors arrived in, which is where a missed pattern hides.
+A good model's residuals carry no usable pattern left in them, something statisticians call white noise. A bad model's residuals still carry a pattern, which means there was real structure in the data the model never captured. Telling the two apart comes down to exactly two checks: look at the residuals directly, and run one formal test on them.
 
-The errors are called residuals, and two checks read them. Here is the order they run in.
+Here's that routine as one picture.
 
-::widget process-flow {"steps":[{"title":"Fit the model, then take its residuals","sub":"one residual per month: the observed value minus the prediction for it"},{"title":"Check 1: the residual plot and the ACF","sub":"the shape of the errors, and the bars that break the band"},{"title":"Check 2: the Ljung-Box test","sub":"one p-value covering 24 lags at once"}]}
+::widget process-flow {"steps": [{"title": "Fit the model", "sub": "auto.arima() picks the order and coefficients"}, {"title": "Extract residuals", "sub": "residuals() pulls out each one-step-ahead error"}, {"title": "Visual check", "sub": "checkresiduals() plots the residuals, their ACF, and a histogram"}, {"title": "Ljung-Box test", "sub": "one p-value pools several lags into a single conclusion"}, {"title": "Trust or hold back", "sub": "forecast only when both checks agree"}]}
 
-Both checks read the same set of residuals, and neither one is more than a line of code. What takes learning is reading what each one says.
+That's the whole routine. Everything from here is just running it, first on a real fitted model, then on one built wrong on purpose, so you see both a pass and a clear fail.
 
 === step === concept
-## The airline series and the model we are checking
+## What's left over: the residual on a fitted model
 
-Let's start by looking at the data.
+A residual is the model's one-step-ahead prediction error: for one point in time, the value the model predicted, subtracted from the value that actually happened. Fit a model, use it to predict every observation one step ahead, and the pile of errors left over is the residual series.
+
+Let's pull that series out for real.
 
 ```r
-# Plot the airline passenger series we are going to model
+# Fit an ARIMA model to WWWusage and pull out its residuals
 library(forecast)
 
-plot(AirPassengers,
-     main = "Monthly international airline passengers, 1949 to 1960",
-     ylab = "passengers (thousands)")
-```
-
-Two things stand out. The level climbs steadily across the twelve years, and the same shape repeats every year, a summer peak and a winter dip. Look at the size of that yearly swing as well: it is narrow in 1949 and much wider by 1960.
-
-Now fit a model. We will use ARIMA(2,1,1), which is two autoregressive terms, one difference and one moving-average term. An autoregressive term predicts this month from an earlier month's value, a moving-average term predicts it from an earlier month's error, and the difference means the model works on month-to-month changes rather than on the raw totals. That is a reasonable non-seasonal choice for a series that trends.
-
-```r
-# Fit an ARIMA(2,1,1) to the airline series and print its coefficients
-fit <- Arima(AirPassengers, order = c(2, 1, 1))
-fit
-#> Series: AirPassengers
-#> ARIMA(2,1,1)
-#>
+fit_good <- auto.arima(WWWusage)
+fit_good
+#> Series: WWWusage 
+#> ARIMA(1,1,1) 
+#> 
 #> Coefficients:
-#>          ar1      ar2      ma1
-#>       1.0906  -0.4890  -0.8438
-#> s.e.  0.0776   0.0744   0.0427
-#>
-#> sigma^2 = 862.7:  log likelihood = -685.17
-#> AIC=1378.34   AICc=1378.63   BIC=1390.19
+#>          ar1     ma1
+#>       0.6504  0.5256
+#> s.e.  0.0842  0.0896
+#> 
+#> sigma^2 = 9.995:  log likelihood = -254.15
+#> AIC=514.3   AICc=514.55   BIC=522.08
+
+res <- residuals(fit_good)
+round(mean(res), 4)
+#> [1] 0.3036
+round(var(res), 3)
+#> [1] 9.7
 ```
 
-The `ar1`, `ar2` and `ma1` rows hold the estimated coefficients, and the `s.e.` row under each one is its standard error. Divide each coefficient by its own standard error and the smallest of the three is still above 6, so all three sit a long way from zero. The AIC, 1378.34, is the number you would hold up against a competing model.
-
-So the fit looks healthy. But a set of coefficients and an AIC only ever summarise how large the errors are, never the order they came in. Whether the model missed a pattern is a separate question with its own numbers.
+auto.arima() searched and landed on an ARIMA(1,1,1): one autoregressive term, one difference, one moving-average term, with coefficients ar1 = 0.6504 and ma1 = 0.5256. res now holds 100 numbers, one prediction error per minute. Its mean, 0.3036, sits close enough to zero that the model isn't consistently over- or under-predicting. Its variance, 9.7, lines up with the sigma^2 = 9.995 the model itself reported, which is exactly what that number is: the variance the fitting process expects the residuals to have.
 
 === step === concept
-## What the residuals are, and what they should look like
+## The white-noise standard residuals must meet
+::prose-only the four traits are stated in words here; the actual check on fit_good's residuals runs in the next step
 
-A residual is one month's observed value minus the model's one-step-ahead prediction for that same month. The model reads everything up to the previous month, predicts this one, and the gap between the prediction and the truth is the residual. Fit 144 monthly values and you get 144 residuals.
+A residual series with no usable pattern left in it at all is called white noise, and each check is really just a test for one part of that definition. White noise has four traits.
 
-```r
-# Pull out the residuals and measure their mean and variance
-res <- residuals(fit)
-length(res)
-#> [1] 144
+- Zero mean. The errors aren't consistently high or consistently low, so the model isn't biased in one direction.
+- Constant variance. The spread of the errors stays about the same early in the series and late in the series, not small at first and large later.
+- No autocorrelation. Today's error tells you nothing about tomorrow's error. If it did, that's forecastable information the model missed.
+- Roughly normal. The errors form a bell shape. This one is a bonus: it matters for well-calibrated prediction intervals, not for the point forecast itself.
 
-round(c(mean = mean(res), variance = var(res)), 3)
-#>     mean variance
-#>    6.376  803.666
-```
+fit_good's mean and variance, computed earlier, already spoke to the first two traits. The next two, no autocorrelation and a normal shape, need a proper look at the residuals themselves.
 
-The mean is 6.376, so in the average month the model lands about 6,400 passengers below the truth. The variance of those 144 errors is 803.666.
+=== step === concept
+## The visual check: reading checkresiduals() output
 
-Those two numbers cover part of what we want to know. If the model has captured everything it could, its residuals should be **white noise**, a series with no usable pattern left in it. White noise has four properties.
-
-1. **Zero mean.** The errors are not consistently high or low, so the forecasts are not biased.
-2. **Constant variance.** The spread of the errors stays the same from the start of the series to the end.
-3. **No autocorrelation.** This month's error tells you nothing about next month's error.
-4. **Roughly normal.** The errors pile up in a bell shape, which is what prediction intervals assume.
-
-The first two you can read off a plot of the residuals. So plot them, and measure the spread at each end of the series while you are there.
+The forecast package bundles that proper look into one function. checkresiduals() takes a fitted model and draws three panels at once: the residuals over time, their autocorrelation function (ACF), and a histogram. It also prints a formal test alongside the plot.
 
 ```r
-# Compare the residual spread early in the series with the spread late in it
-round(c(first_48_months = sd(res[1:48]), last_48_months = sd(res[97:144])), 1)
-#> first_48_months  last_48_months
-#>            14.1            40.3
+# Run the full diagnostic check, then compute the ACF significance band by hand
+checkresiduals(fit_good)
+#> 
+#> 	Ljung-Box test
+#> 
+#> data:  Residuals from ARIMA(1,1,1)
+#> Q* = 7.8338, df = 8, p-value = 0.4499
+#> 
+#> Model df: 2.   Total lags used: 10
 
-plot(res, main = "Residuals from the ARIMA(2,1,1) fit",
-     ylab = "observed minus prediction")
-abline(h = 0, col = "red", lwd = 2)
+band <- 1.96 / sqrt(length(res))
+round(band, 3)
+#> [1] 0.196
+
+acf_vals <- acf(res, lag.max = 10, plot = FALSE)$acf[-1]
+sum(abs(acf_vals) > band)
+#> [1] 0
 ```
 
-Property one holds up well enough: a mean of 6.376 is a slight upward drift, small next to the spread of the errors themselves. Property two is already broken. The early errors stay in a narrow band either side of the red zero line, and by 1960 they swing much further out. The two standard deviations put a number on what the plot shows: 14.1 over the first four years against 40.3 over the last four, so the spread is nearly three times wider at the end.
+Read the three panels like this:
+
+- Top: the residuals plotted over time. You want a shapeless cloud bouncing around zero with a steady width. A funnel that widens as time goes on would mean the variance is growing.
+- Bottom left: the ACF. Each bar measures how strongly the residuals correlate with themselves a fixed number of steps, or lags, apart. Bars inside the dashed band are no different from zero; a bar outside it is a real correlation the model should have caught.
+- Bottom right: a histogram of the residuals. A roughly bell-shaped pile supports the normal-shape trait.
+
+The dashed band in the ACF panel is the one number worth computing by hand, because eyeballing "inside the lines" only gets you so far. With 100 residuals, that band sits at 1.96 / sqrt(100) = 0.196. band holds that number, and acf_vals holds the first 10 autocorrelations with the always-1 lag-0 value dropped. sum(abs(acf_vals) > band) counts how many of those 10 bars fall outside the band. The answer is 0: every single one sits inside it, which matches the flat top panel and the bell-shaped bottom-right panel you're already looking at.
 
 === step === widget
-## Three shapes a residual plot can take
+## Seeing a healthy pattern next to a broken one
 
-A residual plot has only a handful of ways to go wrong, and they are worth learning by sight. Switch between the three below and watch the scatter change.
+fit_good's own residual plot is already flat and patternless, the healthy case. It helps to see that shape next to the two ways a residual plot actually breaks, side by side, so you recognise trouble the moment you see it on any model, not just this one.
+
+The widget below builds its own small example rather than reusing WWWusage directly, so you can flip between the three shapes on demand. Wherever it labels its x-axis "fitted value," read that the same way you'd read "time" on fit_good's own plot; the shape you're looking for, flat versus funnel versus bending, is identical either way.
 
 ::widget residual-plot {"start": "healthy"}
 
-The scatter comes from a small straight-line fit of the widget's own rather than from the airline model, because a shape means the same thing whatever kind of model produced the residuals. The widget spreads the residuals across the fitted value; for a series measured over time you spread them across time, which is how the airline residuals were just plotted, and the three shapes read the same way.
-
-- **The flat band** is the healthy one. Points scatter evenly either side of zero and the width never changes.
-- **The funnel** spreads as you move right. The errors are bigger where the predictions are bigger, so the variance is not constant.
-- **The curve** bends away from zero and back again. The residuals still hold a shape, which means the model has the wrong form.
-
-The airline residuals are the funnel. That is exactly what 14.1 growing to 40.3 measured. A funnel is not repaired by adding model terms. It is repaired by stabilising the variance, usually with a log transform.
+Healthy starts flat: an even band of points around zero, no widening, no bend. Switch to the funnel option and the spread visibly grows as the x-axis increases, the signature of non-constant variance. Switch to curved and the points stop scattering randomly and trace a clear bend instead, the signature of a pattern the model never captured. fit_good's own residuals, which you already saw, match the healthy panel, not either of the broken ones.
 
 === step === concept
-## Check 1: the ACF of the residuals and its band
+## The formal test: why you need Ljung-Box
+::prose-only the test's logic is stated in words here; its actual number for fit_good arrives in the next step
 
-The first check is a picture, and the thing it draws is the autocorrelation function, or ACF.
+Eyeballing ten bars on an ACF plot is fine once. But if you want one objective number you can compare across models, or automate inside a loop that fits dozens of them, you need a formal test. That test is the Ljung-Box test, and it pools several lags of autocorrelation into a single statistic, usually written Q*.
 
-Autocorrelation is the correlation between a series and a shifted copy of itself. Shift the residuals along by one month and correlate the two: that is the autocorrelation at lag 1. Shift by twelve months instead and you get lag 12. Do it for every lag from 1 to 24 and you have 24 numbers, which `acf()` draws as bars.
+Like any hypothesis test, it starts from a null hypothesis: the residuals are white noise up to some lag h, meaning there's no real autocorrelation in them. The test then asks how likely the observed Q* would be if that null hypothesis were actually true, and reports that likelihood as a p-value.
 
-```r
-# Draw the autocorrelation function of the residuals out to 24 lags
-acf(res, lag.max = 24, main = "ACF of the ARIMA(2,1,1) residuals")
-```
+Here's the part that trips people up. With most hypothesis tests, a small p-value is the exciting result, because it means you found something. Here it runs the other way, because the null hypothesis this time is the good outcome.
 
-Most of the bars are short and sit between the two dashed blue lines. That pair of lines is the band, and it marks how large an autocorrelation can get by chance alone when the true correlation is zero. It sits at plus and minus \(1.96/\sqrt{n}\), where \(n\) is the number of residuals.
+- A p-value above 0.05 means you can't reject the null: the residuals behave like white noise. That's what you want.
+- A p-value at or below 0.05 means you reject the null: real autocorrelation is still there, and the model needs work.
 
-A bar inside the band is indistinguishable from zero. A bar outside it is a correlation the residuals should not have. So let's compute the band for our 144 residuals and count the bars that break it.
-
-```r
-# Compute the band and count the autocorrelations that break it
-band <- 1.96 / sqrt(length(res))
-round(band, 3)
-#> [1] 0.163
-
-acf_vals <- acf(res, lag.max = 24, plot = FALSE)$acf[-1]
-sum(abs(acf_vals) > band)
-#> [1] 6
-
-which(abs(acf_vals) > band)
-#> [1]  4  8 12 16 20 24
-```
-
-Setting `plot = FALSE` returns the numbers instead of the picture, and `[-1]` drops the value at lag 0, which is always 1 because any series correlates perfectly with itself.
-
-Six of the 24 autocorrelations break the 0.163 band, and where they fall is the whole story: lags 4, 8, 12, 16, 20 and 24. The two at multiples of twelve are the big ones.
-
-```r
-# Read off the two largest residual autocorrelations
-round(acf_vals[c(12, 24)], 3)
-#> [1] 0.780 0.639
-```
-
-0.780 at lag 12 is nearly five times the band, which is enormous for a residual series. On monthly data lag 12 is one full year, so a month's error is strongly predictable from the error twelve months before it. The yearly cycle you saw in the passenger counts is still sitting in the errors, untouched.
-
-The other four breaks are negative, and they land between the yearly spikes. That is what a repeating cycle does to an ACF: at a lag that falls part way through the cycle, high months line up against low ones and the correlation turns negative.
-
-[KEY INSIGHT]
-Residuals are one-step-ahead forecast errors, so any pattern left in them is signal the model could have used and did not. A bar outside the band is not bad luck. It is a piece of the series the model failed to take.
-
-=== step === quiz
-## Quick check: the spikes at lag 12 and lag 24
-
-The residual ACF broke its 0.163 band six times, at lags 4, 8, 12, 16, 20 and 24, with 0.780 at lag 12 and 0.639 at lag 24. What does that pattern tell you about the model?
-
-::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}
-- The residuals are simply too large, so the model needs more terms of any kind. ::no
-- A month's error is still predictable from the error twelve months earlier, so the yearly cycle was never captured. ::ok Exactly. Lag 12 on monthly data is one full year, and a correlation of 0.780 there means the seasonal pattern is still sitting in the residuals, waiting to be modelled.
-- The spread of the residuals grows over time, and those tall bars are what measures it. ::no
-- The band is too narrow for a series of only 144 observations, so bars break it by construction. ::no An ACF measures one thing: the correlation between the residuals and a shifted copy of themselves. It says nothing about how large the residuals are, and nothing about whether their spread grows, which is what the residual plot is for. The band is the standard one for a series of this length, and a correlation of 0.780 at lag 12 on monthly data means the yearly cycle is still in the errors.
-
-=== step === concept
-## Check 2: the Ljung-Box test
-
-Counting bars works, but it leaves you deciding by eye how many breaks are too many. The second check replaces that judgement with a single number.
-
-The Ljung-Box test takes the first \(h\) autocorrelations, squares each one, weights it and adds them into one statistic. Because it pools many lags into one quantity instead of testing each lag on its own, it is called a portmanteau test.
-
-It is a hypothesis test, so it starts from a null hypothesis and checks whether the data reject it.
-
-**Null hypothesis: the residuals are white noise, with no autocorrelation up to lag \(h\).**
-
-Now the part that trips people up: the direction. A large p-value means the residuals are indistinguishable from white noise, and that is the pass. A small p-value rejects the null, which says autocorrelation is still in there, and that is the failure. In most tests you run, a small p-value is the result you are hoping for. Here the boring outcome is the one you want.
-
-```r
-# Pool the first 24 residual autocorrelations into one Ljung-Box test
-Box.test(res, lag = 24, type = "Ljung-Box", fitdf = 3)
-#>
-#> 	Box-Ljung test
-#>
-#> data:  res
-#> X-squared = 216.35, df = 21, p-value < 2.2e-16
-```
-
-Three arguments decide what that test actually did.
-
-- `lag = 24` is \(h\), the number of autocorrelations pooled into the statistic. For monthly data, twice the seasonal period is the usual choice, so 24.
-- `type = "Ljung-Box"` picks the Ljung-Box weighting rather than the older Box-Pierce one.
-- `fitdf = 3` is the correction for the coefficients you estimated.
-
-That last one deserves a sentence. You did not know the model in advance, you estimated it, and each estimated AR or MA coefficient uses up a little of the freedom the residuals had to wander. The test allows for that by subtracting them from the lag count:
-
-\[ df = h - \textrm{fitdf} \]
-
-Our model is ARIMA(2,1,1), so it estimated two AR terms and one MA term. That makes `fitdf` 3, and \(df = 24 - 3 = 21\), which is the `df = 21` printed in the output. The differencing is never counted, because differencing estimates nothing.
-
-So read the verdict: a statistic of 216.35 against 21 degrees of freedom, and a p-value R prints as `< 2.2e-16` because it is smaller than R will display. The residuals are not white noise. The model fails.
-
-[WARNING]
-A large p-value here is not proof that the model is right. The Ljung-Box test looks for autocorrelation and nothing else, so a model whose residual spread triples across the series can still pass it. That is why the plot comes first and the test second, rather than the test on its own.
-
-=== step === concept
-## The repair, and the same two checks again
-
-A failing check is not a dead end. It names what to add.
-
-Two faults turned up in these residuals. The spikes at lags 12 and 24 say the yearly cycle is still in there, which calls for seasonal terms. The spread growing from 14.1 to 40.3 says the variance is not constant, which calls for a transform. `Arima()` takes both in the same call.
-
-```r
-# Refit with seasonal terms and a log transform, then run both checks at once
-fit_fixed <- Arima(AirPassengers, order = c(0, 1, 1),
-                   seasonal = c(0, 1, 1), lambda = 0)
-checkresiduals(fit_fixed)
-#>
-#> 	Ljung-Box test
-#>
-#> data:  Residuals from ARIMA(0,1,1)(0,1,1)[12]
-#> Q* = 26.446, df = 22, p-value = 0.233
-#>
-#> Model df: 2.   Total lags used: 24
-```
-
-`seasonal = c(0, 1, 1)` adds a seasonal difference and a seasonal moving-average term at the twelve-month period, which is what takes the yearly cycle out. `lambda = 0` applies a log transform before fitting, which turns those widening swings into swings of roughly constant width.
-
-`checkresiduals()` runs both checks in one line. It draws three panels, the residuals over time, their ACF and a histogram, and prints the Ljung-Box test underneath. It labels the statistic `Q*` where `Box.test()` labels it `X-squared`, and they are the same number.
-
-The printed line reads 26.446 on 22 degrees of freedom with a p-value of 0.233. That is comfortably above 0.05, so the test does not reject white noise, and the model passes.
-
-`Model df: 2` is the `fitdf` the wrapper worked out for you, and it is worth seeing why it is 2 and not 4. The order is ARIMA(0,1,1)(0,1,1)[12]: no AR term and one MA term in the non-seasonal part, no seasonal AR term and one seasonal MA term in the seasonal part. So the count is p + q + P + Q, which is 0 + 1 + 0 + 1 = 2, and \(df = 24 - 2 = 22\). Both differences, the ordinary one and the seasonal one, stay out of the count.
-
-Now let's run the other check on the same repaired model.
-
-```r
-# Redraw the residual ACF for the repaired model and recount the breaks
-acf_fixed <- acf(residuals(fit_fixed), lag.max = 24,
-                 main = "ACF of the repaired model residuals")
-sum(abs(acf_fixed$acf[-1]) > band)
-#> [1] 1
-
-round(acf_fixed$acf[-1][12], 3)
-#> [1] -0.051
-```
-
-One bar out of 24 now sits outside the same 0.163 band, against six before. Lag 12 has fallen from 0.780 to -0.051, comfortably inside the band, so the yearly cycle has gone from the errors. One stray bar in 24 is roughly what chance alone produces, because the band is drawn to be broken about 5% of the time even when nothing is wrong.
+fit_good's own Q* and p-value are already sitting in the output from earlier. The widget below places that exact p-value against the distribution the test compares it to, so you can see what 0.4499 is actually measuring.
 
 === step === widget
-## Forecasting the repaired model, and what its intervals assume
+## Where Q* lands against the null
 
-With both checks passed, the model can be put to the job you fitted it for.
+A p-value is always a tail area: the share of a null distribution that lies as far out, or farther, than your observed statistic. The widget below shows that exact mechanism.
 
-```r
-# Forecast the next six months from the repaired model
-forecast(fit_fixed, h = 6)
-#>          Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
-#> Jan 1961       450.4224 429.5461 472.3132 418.8895 484.3289
-#> Feb 1961       425.7172 402.8146 449.9219 391.1938 463.2874
-#> Mar 1961       479.0068 450.1386 509.7265 435.5677 526.7781
-#> Apr 1961       492.4045 459.8801 527.2290 443.5416 546.6503
-#> May 1961       509.0550 472.7467 548.1518 454.5866 570.0497
-#> Jun 1961       583.3449 538.8968 631.4591 516.7552 658.5155
-```
+Its curve is a generic, symmetric null distribution, the same shape you'd use for a z-test, not literally the chi-squared(8) curve Ljung-Box actually compares Q* against (that one is skewed, not symmetric). But the logic is identical either way: drag the marker further from the centre and the shaded tail, which is the p-value, shrinks; pull it back toward the centre and the tail grows. The marker below starts at the one point on this curve where the shaded tail works out to 0.4499, the real p-value checkresiduals() reported for Q* = 7.8338 on 8 degrees of freedom (the widget's own readout rounds that to 0.450). So the number on the dial isn't Q* itself, but the shaded area and the printed p-value underneath it are the real thing.
 
-January 1961 comes out at 450.4 thousand passengers, with a 95% interval running from 418.9 to 484.3. The point forecast is the single best guess and the interval is the honest width around it.
+::widget null-distribution {"tails": 1, "max": 4, "start": 0.126, "label": "a statistic standardized to match the real p-value"}
 
-That interval is where leftover autocorrelation does its damage, and the damage is easy to miss because the fit statistics do not drop when it happens. Drag the dial below and watch it happen.
-
-::widget assumption-dial {"assumption": "autocorrelation", "levels": 11, "start": 0}
-
-The dial runs its own simulated studies rather than the airline data. At every setting it fits a trend to 60 observations two thousand times over and records two numbers. Coverage is the share of those 95% intervals that really do contain the true value, which is the property that makes an interval like 418.9 to 484.3 worth quoting. R-squared is the fit statistic you would look at.
-
-At the left of the dial the errors are independent, and coverage reads 95.0%, which is exactly what 95% is supposed to mean. R-squared is 0.504. Now drag it right. At the far end, where neighbouring errors correlate at 0.92, coverage has dropped to 32.2%, so about two intervals in three miss the value they claim to bracket.
-
-And R-squared at that far end is 0.636, which is higher than where it started. A smoothly correlated error series raises the fit statistic at the same time as it wrecks the coverage. So no fit statistic is going to warn you here. Only a check on the residuals will.
-
-=== step === quiz
-## Quick check: good coefficients, failing Ljung-Box
-
-Take the ARIMA(2,1,1) fit from earlier. Every coefficient sat several standard errors from zero and the AIC was 1378.34, yet the Ljung-Box test on its residuals returned a p-value below 2.2e-16. What does that combination tell you?
-
-::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}
-- The very small p-value confirms the model fits well, because a small p-value is the pass for Ljung-Box. ::no
-- The AIC of 1378.34 is the stronger evidence of the two, so the model can be used as it stands. ::no
-- The residuals still carry pattern the model could have used, so its prediction intervals will contain the truth less often than their 95% label claims, while the coefficients and the AIC stay exactly as printed. ::ok Right. The coefficients and the AIC describe how the model was estimated, and this leaves them untouched. The leftover autocorrelation is a separate fault, and the prediction interval is what pays for it.
-- The p-value is that small only because 144 observations is a large sample, so it can be discounted. ::no Three of these either read the test backwards or rank a fit statistic above it. For Ljung-Box a large p-value is the pass and a small one the failure, and 144 monthly observations is a modest series, not a sample so large that any test rejects. What the small p-value buys you is a warning about the intervals, which no coefficient and no AIC will ever give you.
+Drag it to the right, toward where a bigger Q* would sit, and watch the p-value fall past 0.05; that's the point where the conclusion flips from "fail to reject" to "reject." fit_good's own Q* sits well inside the bulk of its null distribution, nowhere near that shaded tail, the same thing the 0.4499 already told you in plain numbers.
 
 === step === tryit
-## Your turn: reproduce the p-value with Box.test
+## Judge a failing model's Ljung-Box result
 
-`checkresiduals()` chose the lag and the degrees of freedom for the repaired model on its own. Now do it by hand.
-
-Run a Ljung-Box test on the residuals of `fit_fixed` at lag 24, setting `fitdf` yourself. Get it right and the output will match the numbers the wrapper printed.
+Time to see both checks fail together, on purpose. AirPassengers is a classic monthly series with a strong yearly cycle. Fit a plain, non-seasonal ARIMA(2,1,1) to it and that yearly cycle has nowhere to go but into the residuals.
 
 ```r
-# fit_fixed is the repaired ARIMA(0,1,1)(0,1,1)[12] on the airline series.
-# Run a Ljung-Box test on its residuals at lag 24 and set fitdf yourself,
-# counting the AR and MA terms the model estimated, seasonal ones included.
-# One line. Press Check when you have it.
+# Fit a model that ignores AirPassengers' yearly cycle, then diagnose its residuals
+fit_bad <- Arima(AirPassengers, order = c(2, 1, 1))
+checkresiduals(fit_bad)
+#> 
+#> 	Ljung-Box test
+#> 
+#> data:  Residuals from ARIMA(2,1,1)
+#> Q* = 216.35, df = 21, p-value < 2.2e-16
+#> 
+#> Model df: 3.   Total lags used: 24
 ```
-::check {"regex": "fitdf\\s*=\\s*2\\b", "gate": true, "difficulty": "intermediate", "ok": "That is it: X-squared 26.446 on df 22, p-value 0.233, the same numbers the wrapper printed. fitdf counts p + q + P + Q, which here is 0 + 1 + 0 + 1 = 2.", "no": "Count the estimated AR and MA terms, seasonal ones included, and leave both differences out: 0 + 1 + 0 + 1 = 2, so fitdf = 2. Leave it at 0 and df comes out at 24 with a p-value of 0.3309, from a test more lenient than the correct one."}
+
+The p-value is essentially zero, a decisive reject. Look at the ACF panel in the plot above: instead of a flat band of small bars, it shows tall spikes at lag 12 and lag 24, the repeating, systematic shape the widget's "curved" option showed you, not a funnel, and nowhere close to healthy. A yearly cycle left in monthly residuals shows up precisely every 12 months, which is what those two spikes are.
+
+Your turn. checkresiduals() already handed back an object; pull its p-value straight out of that object rather than re-reading the printout, and name which of the widget's three patterns the ACF spikes resemble.
+
+```r
+# Record your verdict on fit_bad: does its p-value clear 0.05, and which pattern does its ACF resemble?
+test_bad <- checkresiduals(fit_bad, plot = FALSE)
+
+passes <- TRUE
+pattern <- "healthy"
+```
+::check {"regex": "passes\\s*<-\\s*FALSE[\\s\\S]*pattern\\s*<-\\s*\"curved\"", "gate": true, "difficulty": "intermediate", "ok": "Right on both counts. test_bad$p.value is nowhere near 0.05, so fit_bad fails the Ljung-Box check, and the tall spikes at the seasonal lags are the curved, systematic shape, not a funnel.", "no": "test_bad$p.value is essentially zero, nowhere above 0.05, so passes should be FALSE. And the ACF panel's spikes repeat on a fixed schedule, lag 12 and lag 24, a systematic shape the widget called curved, not a funnel, which is about growing variance, not repeating spikes."}
 ::solution
 ```r
-# Reproduce the checkresiduals p-value with an explicit Box.test call
-Box.test(residuals(fit_fixed), lag = 24, type = "Ljung-Box", fitdf = 2)
-#>
-#> 	Box-Ljung test
-#>
-#> data:  residuals(fit_fixed)
-#> X-squared = 26.446, df = 22, p-value = 0.233
+# Pull the p-value out of the test object and name the ACF's pattern
+test_bad <- checkresiduals(fit_bad, plot = FALSE)
+
+passes <- test_bad$p.value > 0.05
+pattern <- "curved"
+
+passes
+#> [1] FALSE
 ```
 
-The statistic does not move when you change `fitdf`. Only the degrees of freedom it gets compared against move, which is why forgetting the correction quietly makes the test easier to pass.
+fit_bad fails both checks at once: the printed p-value and test_bad$p.value agree it's essentially zero, and the repeating spikes at the seasonal lags are exactly the curved, systematic shape the widget showed, not random noise and not a widening funnel.
+
+=== step === concept
+## Combining the plot and the p-value into one decision
+::prose-only a synthesis of the numbers already shown in the checkresiduals() and Ljung-Box steps; no new number here
+
+Put the two checks next to each other and the rule is straightforward: trust a forecast only when the time plot looks flat and patternless and the Ljung-Box p-value clears 0.05. fit_good passed both. fit_bad failed both.
+
+But the two checks aren't interchangeable, and that's the one exception to "straightforward." Ljung-Box targets exactly one white-noise trait: autocorrelation. A model whose residual variance grows steadily over time, a funnel, can still pass Ljung-Box cleanly, because growing variance isn't the same thing as correlation between lags. Ljung-Box would find nothing wrong while the time plot shows the funnel in plain sight.
+
+That's why the plot stays a required step every time, never an optional extra you skip once you've seen a p-value above 0.05. Ljung-Box catches one kind of failure. The plot catches that one and the others besides.
+
+=== step === quiz
+## Closing quiz: reading a Ljung-Box p-value
+
+A colleague fits a different ARIMA model, and the Ljung-Box test on its residuals comes back with a p-value of 0.02. Going only on that number, what should you conclude?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The residuals pass: a small p-value is strong evidence, so the forecast is safe to trust. ::no
+- The residuals fail: a p-value under 0.05 rejects the white-noise null, so real autocorrelation is still there and the model needs work. ::ok Exactly. The null hypothesis here is the good outcome, so a p-value this low means you reject it: the residuals aren't behaving like white noise.
+- Nothing can be concluded from the p-value alone; you would need to check the time plot and ACF first. ::no
+- The residuals fail, but only because the lags used or degrees of freedom must have been miscounted. ::no A p-value of 0.02 is already below 0.05 on its own terms, no recount needed: it rejects the null hypothesis that the residuals are white noise. The common trap is reading a small p-value as a pass, the opposite of what it means here, or assuming the plot still has to confirm what the test already decided.
+
+=== step === tryit
+## Closing exercise: recount the exceedances at 15 lags
+
+res and band are still sitting in this session from earlier. Ten lags is the default checkresiduals() uses, but a longer series can hide autocorrelation further out. Extend the same ACF check to the first 15 lags and see whether fit_good still passes.
+
+```r
+# res and band already exist from earlier in this lesson.
+# Extend the ACF check to the first 15 lags and count how many exceed the band.
+acf_check <- acf(res, lag.max = 10, plot = FALSE)$acf[-1]
+sum(abs(acf_check) > band)
+```
+::check {"regex": "lag\\.max\\s*=\\s*15[\\s\\S]*sum[(]abs[(]", "gate": true, "difficulty": "intermediate", "ok": "Right: still 0 out of 15. fit_good's residuals stay clean even at a longer horizon, exactly what white noise should look like at any lag count you choose.", "no": "Change lag.max = 10 to lag.max = 15 in the acf() call, then keep the same sum(abs(...) > band) line to count the exceedances."}
+::solution
+```r
+# Extend the ACF check to 15 lags and count how many exceed the band
+acf_check <- acf(res, lag.max = 15, plot = FALSE)$acf[-1]
+sum(abs(acf_check) > band)
+#> [1] 0
+```
+
+Zero out of 15, the same clean result you saw at 10 lags. fit_good's residuals don't hide any autocorrelation further out either, so the extended check agrees with the time plot, the ACF, and the Ljung-Box p-value you already looked at.
 
 === step === concept
 ## References
 
-- [Forecasting: Principles and Practice, 3rd edition, section 5.4 Residual diagnostics](https://otexts.com/fpp3/diagnostics.html) - Hyndman and Athanasopoulos. The white-noise standard for residuals, and the portmanteau test that checks it.
-- [On a measure of lack of fit in time series models](https://doi.org/10.1093/biomet/65.2.297) - Ljung and Box (1978), Biometrika 65(2), 297-303. The original statistic and its distribution.
-- [Distribution of residual autocorrelations in autoregressive-integrated moving average time series models](https://doi.org/10.1080/01621459.1970.10481180) - Box and Pierce (1970), Journal of the American Statistical Association 65(332), 1509-1526. Where the degrees-of-freedom correction comes from.
-- [Box-Pierce and Ljung-Box tests](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/box.test.html) - R Core Team. The reference for the `lag`, `type` and `fitdf` arguments.
-- [Automatic time series forecasting: the forecast package for R](https://doi.org/10.18637/jss.v027.i03) - Hyndman and Khandakar (2008), Journal of Statistical Software 27(3). The package behind `Arima()` and `checkresiduals()`.
+- [Forecasting: Principles and Practice (3rd ed), the residual diagnostics section](https://otexts.com/fpp3/residuals.html) - Hyndman, R.J. and Athanasopoulos, G.
+- [On a measure of lack of fit in time series models](https://doi.org/10.1093/biomet/65.2.297) - Ljung, G.M. and Box, G.E.P. (1978), Biometrika 65(2), 297-303.
+- [R documentation: stats::Box.test](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Box.test.html)
+- R documentation: forecast::checkresiduals.
+- Box, G.E.P., Jenkins, G.M. and Reinsel, G.C. (2015), "Time Series Analysis: Forecasting and Control" (5th ed), the diagnostic checking chapter.
 
 === step === complete
-## Quick recap
+## WWWusage passes both checks
 
-You fitted one ARIMA model to the airline series, found it could not be trusted, repaired it, and checked it again. The two checks, in the order you run them:
+Every signal on fit_good agrees. Its residual time plot is a flat, shapeless band around zero. Its ACF has 0 of the first 10 autocorrelations past the 0.196 band, a result that held even when the check was extended to 15 lags. Its histogram is roughly bell-shaped. And its Ljung-Box p-value, 0.4499, clears 0.05 with room to spare.
 
-- **The residual plot and the ACF.** Residuals are one-step-ahead forecast errors. Plot them for shape, then read their autocorrelations against the band at 1.96 over the square root of n. On 144 residuals that band is 0.163, and the first model broke it six times, with 0.780 at lag 12.
-- **The Ljung-Box test.** One p-value covering 24 lags at once. A large p-value is the pass and a small one the failure, the opposite direction to most tests. The first model returned a p-value below 2.2e-16, and with seasonal terms and a log transform it returned 0.233.
-
-Two details worth carrying with you:
-
-- `fitdf` counts the estimated AR and MA terms, seasonal ones included, and never the differencing. Forget it and the test comes out more lenient than it should be.
-- A model can have strong coefficients, a respectable AIC and autocorrelated residuals all at the same time. The fit statistics will sit there looking fine while the prediction intervals miss.
-
-So diagnose first and forecast second. The ACF tells you what the model missed, and the test tells you whether it is still missing after you have made the change.
+That's the whole routine, run start to finish on one real model: read the time plot, read the ACF, read the histogram, then check the one number that turns all three into a single pass-or-fail conclusion. When a model clears all of it the way fit_good just did, its forecast is safe to build a decision on. When it doesn't, you now know exactly where to look and what to fix first.
