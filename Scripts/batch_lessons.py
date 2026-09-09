@@ -84,7 +84,7 @@ def _kill_tree(pid):
 # the CLI default, so the owner can set their interactive default to anything (e.g. Fable)
 # without changing what the batch uses. Opus 4.8 + xhigh effort chosen 2026-07-03 for the
 # dense DS-Advanced material (the Fable default hit its quota mid-§18). Edit here to change.
-BATCH_MODEL = 'claude-opus-4-8'   # pinned to Opus 4.8 explicitly (NOT the 'opus' alias, NOT Fable)
+BATCH_MODEL = 'claude-sonnet-5'   # Sonnet 5 by owner decision 2026-09-09 (preferred over Opus on 27 windowed rebuilds); override: edit here
 BATCH_EFFORT = 'xhigh'            # low | medium | high | xhigh | max
 
 # The user-global ~/.claude/CLAUDE.md is an SEO/article-writing persona ("be concise",
