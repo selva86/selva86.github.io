@@ -57,7 +57,7 @@ def resolve_targets(args):
         print('Course "%s" not in courses.json.' % args.course)
         return []
     st = load_json(STATUS, {})
-    want = {'pending'} | ({'failed', 'publish_failed'} if args.regenerate else set())
+    want = {'pending', 'planned'} | ({'failed', 'publish_failed'} if args.regenerate else set())
     return [slug for slug, v in st.items() if v.get('status', 'pending') in want]
 
 
@@ -135,6 +135,8 @@ def main():
     ap.add_argument('--max', type=int, default=0)
     ap.add_argument('--dry-run', action='store_true')
     ap.add_argument('--regenerate', action='store_true')
+    ap.add_argument('--plan-only', dest='plan_only', action='store_true',
+                    help='write + review plans only; build later against the approved plans')
     ap.add_argument('--sync-every', type=int, default=5)
     ap.add_argument('--claude', default='claude')
     ap.add_argument('--timeout', type=int, default=1800,
@@ -181,15 +183,23 @@ def main():
             # The plan is a contract (status: approved) the builder may deepen
             # but never reorder; the flow gate runs while fixes are cheap.
             plan_path = os.path.join(ROOT, 'post_plans', slug + '_lesson-plan.md')
-            if run_claude(args.claude, '/write-lesson ' + slug + ' --plan-only', args.timeout or None) != 0 or not os.path.exists(plan_path):
+            approved_already = os.path.exists(plan_path) and 'status: approved' in open(plan_path, encoding='utf-8').read()
+            if approved_already:
+                print('  approved plan exists, skipping planner + plan review: %s' % slug)
+            if not approved_already and (run_claude(args.claude, '/write-lesson ' + slug + ' --plan-only', args.timeout or None) != 0 or not os.path.exists(plan_path)):
                 st[slug]['status'] = 'plan_failed'
                 save_status(st)
                 print('  plan failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
                 continue
-            if run_claude(args.claude, '/check-lesson-plan ' + slug, args.timeout or None) != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read():
+            if not approved_already and (run_claude(args.claude, '/check-lesson-plan ' + slug, args.timeout or None) != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read()):
                 st[slug]['status'] = 'plan_review_failed'
                 save_status(st)
                 print('  plan review failed: %s' % slug)
+                continue
+            if args.plan_only:
+                st[slug]['status'] = 'planned'
+                save_status(st)
+                print('  plan approved (plan-only): %s' % slug)
                 continue
             if run_claude(args.claude, '/write-lesson ' + slug + ' --build', args.timeout or None) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
                 st[slug]['status'] = 'failed'

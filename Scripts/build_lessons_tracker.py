@@ -29,6 +29,8 @@ OUT = os.path.join(ROOT, 'courses.json')
 # and exit goes to /roadmap/#rm-<track>. Hand-maintained (small); courses absent
 # here simply get no breadcrumb (graceful).
 COURSE_ROADMAP = {
+    'ts-foundations': {'track': 'ts', 'trackLabel': 'Forecaster', 'section': 1,
+                       'sectionLabel': 'Time series foundations'},
     'random-forest': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 4,
                       'sectionLabel': 'Trees and gradient boosting'},
     't-test': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,

@@ -372,3 +372,18 @@ The shared base track; courses map to the New to R roadmap sections (one course 
 2. Reproducibility-with-renv-and-git - Pin package versions with renv and track your changes with git. widgets: process-flow
 3. The-Modern-R-Toolchain-2026 - A short tour of Positron, httr2, duckdb and arrow, and talking to an LLM from R with ellmer. widgets: process-flow
 4. Capstone-A-Reproducible-Analysis - Tie it together: a project that imports, tidies, analyzes and reports, reproducibly from start to finish. widgets: process-flow
+
+# Forecaster track (roadmap track `ts`, 16 sections; section 1 free, sections 2-16 Pro; ~1 lesson per roadmap item)
+
+> Curriculum path 5 (Time Series). The tidyverts stack (tsibble, feasts, fable, tsibbledata) is WebR-proven, so
+> every block runs live. Section 1 arc below; sections 2-16 follow the same 1:1 rule once section 1 is approved.
+
+## ts-foundations  (track: forecaster; curriculum_id 5.10; landing Time-Series-Foundations-Course.html; access: free)  [roadmap §1]
+1. What-Makes-Time-Series-Different - What makes time series different: observations that depend on their neighbours. Three years of daily bike rentals plotted in order, then the same numbers shuffled; the random-sample habits (means, t-tests, plain regression) that quietly fail on ordered data because autocorrelation shrinks every interval; the vocabulary the track uses (trend, seasonality, cycle, noise, lag, horizon) read off one real series; a forecast as a distribution over the future, not a single number. widgets: chart-plotter, assumption-dial
+2. Tidy-Temporal-Data-with-tsibble - Tidy temporal data with tsibble: index + key, regular vs irregular intervals, implicit gaps and fill_gaps(), converting a data frame to a tsibble and back, index_by() for daily-to-monthly aggregation, why fable needs this shape. widgets: styled-table, chart-plotter
+3. Time-Series-Analysis-in-R - Time series analysis: what a series says before any model. Level, trend, seasonal pattern, cycles and noise read off three real series (retail, energy, web traffic), and how to describe each in one honest sentence. widgets: chart-plotter, spline-smoother
+4. EDA-for-Time-Series - EDA for time series: the plots-first workflow with autoplot(), summaries by season and year, spotting outliers, structural breaks, missing runs and calendar effects before modelling. widgets: chart-plotter, styled-table
+5. Seasonal-Subseries-and-Lag-Plots - Seasonal, subseries and lag plots: gg_season(), gg_subseries() and gg_lag(); reading a seasonal shape, its stability across years, and the lag plot as the first look at dependence. widgets: chart-plotter, facet-grid
+6. Autocorrelation-and-the-ACF - Autocorrelation and the ACF: the lag-k correlation computed by hand, ACF() and its significance band, what trend and seasonality look like in an ACF, white noise as the null and the Ljung-Box idea. widgets: chart-plotter, assumption-dial
+7. Train-and-Test-Splits-for-Temporal-Data - Train and test splits for temporal data: why a random split leaks the future, the last-h holdout with filter_index(), rolling origins as a preview, evaluating on the held-out window only. widgets: data-split, chart-plotter
+8. Benchmark-Forecasts-Naive-Seasonal-Naive-and-Drift - Benchmark forecasts: naive, seasonal naive and drift in fable (MEAN(), NAIVE(), SNAIVE(), RW(y ~ drift())), forecast() with intervals, accuracy() on the test window, and the rule that every model must beat a benchmark. widgets: chart-plotter, styled-table
