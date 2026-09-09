@@ -6,7 +6,7 @@ keywords: "targets R package, reproducible pipelines in R, tar_make, dependency 
 post_type: "LESSON"
 curriculum_id: "6.120.1"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 track: "scientist"
 course_id: "ds-production"
 course_title: "Machine Learning in Production"

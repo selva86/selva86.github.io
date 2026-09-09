@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.200.1"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-anomaly"
 course_title: "Anomaly and Outlier Detection"
 course_lesson: "1"

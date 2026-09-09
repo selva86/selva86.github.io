@@ -6,7 +6,7 @@ keywords: "vetiver R, pins R package, model versioning, MLOps in R, pin_write, v
 post_type: "LESSON"
 curriculum_id: "6.120.2"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 track: "scientist"
 course_id: "ds-production"
 course_title: "Machine Learning in Production"

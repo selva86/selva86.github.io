@@ -34,11 +34,11 @@ Resolved against the course's planned arc (below) + `courses.json` (what is alre
 ## Access rule (canonical - do NOT diverge)
 
 ```
-free  <=>  curriculum_id level == 1  OR  course_lesson == 1
+free  <=>  curriculum_id level == 1  OR  curriculum_id section == 1
 pro   otherwise
 ```
 
-Read `course_lesson == 1` **literally**: the FIRST lesson of every course is `free`; lessons 2..N are `pro` (the per-section free on-ramp). Do NOT read this as the curriculum_id middle number: a course whose id is `6.170.x` still has its lesson 1 (`6.170.1`, `course_lesson: "1"`) `free` and `6.170.2`+ `pro`. Section quizzes (`course_lesson = content+1`) are always `pro`. So: if `course_lesson == 1` -> `lesson_access: "free"`; else -> `lesson_access: "pro"` (unless the whole track is a level-1 free track, where all lessons are free).
+Read the section as the MIDDLE number of `curriculum_id` L.S.P: every lesson of a track's first section is `free` (the reader signs in and takes the whole section); from section 2 on every lesson is `pro`, with no free tasters. A level-1 track (New to R) is free throughout. Section quizzes (`course_lesson = content+1`) are always `pro`. So: if level == 1 or section == 1 -> `lesson_access: "free"`; else -> `lesson_access: "pro"`. This is the same positional rule `build.py` and `build_lessons_tracker.py` apply when the frontmatter is silent (owner policy, 2026-09-10).
 
 This is the single source of truth. It resolves conflict C1: the roadmap renderer must badge + route interactive courses from this SAME rule (via `courses.json`), so a course's catalog badge always matches its in-player paywall. Override only with an explicit, recorded business reason (`lesson_access` in frontmatter wins).
 

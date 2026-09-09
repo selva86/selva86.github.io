@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.160.1"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-bayesian"
 course_title: "Bayesian Modeling"
 course_lesson: "1"

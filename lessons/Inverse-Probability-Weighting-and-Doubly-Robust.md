@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "6.180.2"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "ds-causal-decisions"
 course_title: "Causal Inference for Decisions"
 course_lesson: "2"
