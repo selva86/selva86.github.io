@@ -39,6 +39,8 @@ COURSE_ROADMAP = {
                       'sectionLabel': 'Time series regression'},
     'ts-ets': {'track': 'ts', 'trackLabel': 'Forecaster', 'section': 5,
                'sectionLabel': 'Exponential smoothing (ETS)'},
+    'ts-arima': {'track': 'ts', 'trackLabel': 'Forecaster', 'section': 6,
+                 'sectionLabel': 'ARIMA and seasonal ARIMA'},
     'random-forest': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 4,
                       'sectionLabel': 'Trees and gradient boosting'},
     't-test': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
