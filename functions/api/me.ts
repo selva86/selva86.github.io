@@ -19,6 +19,8 @@ import { resolvePass } from "../_lib/pass";
 import { notifyNewSignup, flushPendingSignup } from "../_lib/notify";
 import { ensureHandle, ensureProfileColumns } from "../_lib/profile";
 import { sweepRecapEmails } from "../_lib/recap";
+import { describePlan } from "../_lib/plan";
+import { signIdCookie, idCookieSetHeader } from "../_lib/idcookie";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   let u = context.data.user;
@@ -134,7 +136,7 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   return await renderMe(context.env, u);
 };
 
-async function renderMe(env: { DB: D1Database; KV: KVNamespace }, u: User): Promise<Response> {
+async function renderMe(env: { DB: D1Database; KV: KVNamespace; EDGE_ID_SECRET?: string }, u: User): Promise<Response> {
   // resolvePro composes individual + team-seat Pro. pro/pro_until keep their
   // existing meaning (auth-hydrate.js reads me.pro unchanged); `team` is new.
   const ent = await resolvePro(env.DB, u);
@@ -142,6 +144,14 @@ async function renderMe(env: { DB: D1Database; KV: KVNamespace }, u: User): Prom
   // on - included even when expired, so the lesson wall can say the pass
   // ended rather than pretend it never existed. Absent = feature off.
   const pass = ent.pro ? null : await resolvePass(env, u).catch(() => null);
+  const plan = await describePlan(env, u, ent).catch(() => null);
+  // Sliding 30-day identity cookie for page requests (see _lib/idcookie.ts).
+  // Re-issued on every authenticated /api/me so an active member never lapses;
+  // absent secret = feature dormant, the edge falls back to the JWT cookie.
+  const headers: Record<string, string> = {};
+  if (env.EDGE_ID_SECRET) {
+    try { headers["Set-Cookie"] = idCookieSetHeader(await signIdCookie(env.EDGE_ID_SECRET, u.id)); } catch { /* cookie is best-effort */ }
+  }
   return json({
     user: {
       id: u.id,
@@ -157,6 +167,7 @@ async function renderMe(env: { DB: D1Database; KV: KVNamespace }, u: User): Prom
     pro_until: ent.pro_until,
     pro_source: ent.source,
     team: ent.team,
+    plan,
     ...(pass ? { pass } : {}),
-  });
+  }, { headers });
 }

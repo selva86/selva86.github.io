@@ -152,17 +152,13 @@
     document.head.appendChild(s);
   }
 
-  // Mirror the Supabase access token into a lightweight cookie so PAGE
-  // requests (which cannot send Authorization headers) can be identified at
-  // the edge. The middleware uses it to serve full Pro lesson pages to Pro
-  // users and stripped ones to everyone else. Same-origin, Lax, expires with
-  // the JWT lifetime; cleared on sign-out.
+  // Page requests are identified at the edge by `rsc-id`, an httpOnly cookie
+  // the SERVER signs and sets on every /api/me response (30-day sliding) and
+  // clears on /api/auth/signout. The old client-set 1-hour JWT mirror
+  // (`rsc-at`) is retired: it expired hourly and made paying members see the
+  // Pro wall flash. This only removes any leftover copy of it.
   function syncAuthCookie(token) {
-    try {
-      document.cookie = token
-        ? 'rsc-at=' + token + '; Path=/; Max-Age=3600; SameSite=Lax; Secure'
-        : 'rsc-at=; Path=/; Max-Age=0; SameSite=Lax; Secure';
-    } catch (_) {}
+    try { document.cookie = 'rsc-at=; Path=/; Max-Age=0; SameSite=Lax; Secure'; } catch (_) {}
   }
 
   function readAccessToken() {
@@ -322,6 +318,15 @@
       sessionStorage.removeItem('rs-pending-intent');
     } catch (_) {}
     syncAuthCookie(null);
+    // Server-side identity cookie: must be cleared by the server (httpOnly).
+    // Awaited with a short cap so a slow network never traps the user on a
+    // signed-in page; the reload happens either way.
+    try {
+      await Promise.race([
+        fetch('/api/auth/signout', { method: 'POST', credentials: 'same-origin', keepalive: true }),
+        new Promise(function (r) { setTimeout(r, 1500); }),
+      ]);
+    } catch (_) {}
     window.location.reload();
   }
 

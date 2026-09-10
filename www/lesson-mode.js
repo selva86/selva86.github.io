@@ -200,8 +200,13 @@
     // was verified Pro at the edge; give auth-hydrate a beat to confirm before
     // walling so paying users never see the gate flash. Anonymous visitors and
     // stripped pages gate instantly.
-    var gateHold = locked && !stripped && hasAuthToken();
-    if (gateHold) setTimeout(function () { if (gateHold) { gateHold = false; if (locked) render(); } }, 700);
+    // Stripped pages hold too when a session exists: the edge may simply not
+    // have had the identity cookie yet (first load after sign-in, or a lapsed
+    // cookie). auth-hydrate settles it either way - a Pro answer reloads once
+    // for the full page, a free answer walls - so the wall never flashes for
+    // a paying member. Anonymous visitors still gate instantly.
+    var gateHold = locked && hasAuthToken();
+    if (gateHold) setTimeout(function () { if (gateHold) { gateHold = false; if (locked) render(); } }, stripped ? 2500 : 700);
 
     /* ---- account gate (free courses): first 2 lessons of a course are open to
        anyone; lesson 3+ asks for a free account. Mutually exclusive with the Pro

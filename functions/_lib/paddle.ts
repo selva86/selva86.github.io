@@ -246,3 +246,123 @@ export async function createPortalSession(
     return null;
   }
 }
+
+// ---- Subscription reads/changes used by the Pro-aware pricing page ----
+
+export interface PaddleSubSnapshot {
+  id: string;
+  status: string;
+  currency_code: string;
+  current_billing_period: { starts_at: string; ends_at: string } | null;
+  next_billed_at: string | null;
+  scheduled_change: { action: string } | null;
+  custom_data: Record<string, unknown> | null;
+  items: { quantity: number; price: { id: string; unit_price: { amount: string; currency_code: string } } }[];
+}
+
+export async function getSubscription(
+  env: { PADDLE_API_KEY: string },
+  subscriptionId: string,
+): Promise<PaddleSubSnapshot | null> {
+  if (!env.PADDLE_API_KEY || !subscriptionId) return null;
+  try {
+    const resp = await fetch(`${paddleApiBase(env.PADDLE_API_KEY)}/subscriptions/${subscriptionId}`, {
+      headers: { Authorization: `Bearer ${env.PADDLE_API_KEY}` },
+    });
+    if (!resp.ok) {
+      console.error(`[paddle] get subscription ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+      return null;
+    }
+    const body = (await resp.json()) as { data?: PaddleSubSnapshot };
+    return body?.data ?? null;
+  } catch (e) {
+    console.error(`[paddle] get subscription error: ${(e as Error).message}`);
+    return null;
+  }
+}
+
+// Replace the single item on an individual subscription with another price,
+// billed prorated right away (the member pays only the difference for the
+// rest of the period; the renewal date is unchanged). custom_data is rewritten
+// so the webhook classifies the subscription under its NEW plan.
+export async function changeSubscriptionPlan(
+  env: { PADDLE_API_KEY: string },
+  subscriptionId: string,
+  priceId: string,
+  customData: Record<string, unknown>,
+  preview: boolean,
+): Promise<SeatUpdateResult> {
+  if (!env.PADDLE_API_KEY) return { ok: false, error: "paddle_not_configured" };
+  const url = `${paddleApiBase(env.PADDLE_API_KEY)}/subscriptions/${subscriptionId}${preview ? "/preview" : ""}`;
+  try {
+    const resp = await fetch(url, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${env.PADDLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: [{ price_id: priceId, quantity: 1 }],
+        custom_data: customData,
+        proration_billing_mode: "prorated_immediately",
+        on_payment_failure: "prevent_change",
+      }),
+    });
+    const body = (await resp.json().catch(() => null)) as { data?: Record<string, unknown> } | null;
+    if (!resp.ok) {
+      console.error(`[paddle] plan change ${resp.status}: ${JSON.stringify(body).slice(0, 300)}`);
+      return { ok: false, status: resp.status, error: "paddle_error" };
+    }
+    return { ok: true, status: resp.status, data: body?.data ?? null };
+  } catch (e) {
+    console.error(`[paddle] plan change error: ${(e as Error).message}`);
+    return { ok: false, error: "network_error" };
+  }
+}
+
+export async function cancelSubscriptionNow(
+  env: { PADDLE_API_KEY: string },
+  subscriptionId: string,
+): Promise<boolean> {
+  if (!env.PADDLE_API_KEY || !subscriptionId) return false;
+  try {
+    const resp = await fetch(`${paddleApiBase(env.PADDLE_API_KEY)}/subscriptions/${subscriptionId}/cancel`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.PADDLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ effective_from: "immediately" }),
+    });
+    if (!resp.ok) console.error(`[paddle] cancel ${subscriptionId} ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+    return resp.ok;
+  } catch (e) {
+    console.error(`[paddle] cancel error: ${(e as Error).message}`);
+    return false;
+  }
+}
+
+// One-use flat-amount discount restricted to given prices (the Lifetime
+// credit for unused annual months). Amount in the currency's minor unit.
+export async function createFlatDiscount(
+  env: { PADDLE_API_KEY: string },
+  o: { code: string; amount: number; currency: string; expiresAt: number; priceIds: string[]; description: string },
+): Promise<boolean> {
+  if (!env.PADDLE_API_KEY) return false;
+  try {
+    const resp = await fetch(`${paddleApiBase(env.PADDLE_API_KEY)}/discounts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.PADDLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description: o.description,
+        type: "flat",
+        amount: String(Math.round(o.amount)),
+        currency_code: o.currency,
+        enabled_for_checkout: true,
+        code: o.code,
+        usage_limit: 1,
+        expires_at: new Date(o.expiresAt * 1000).toISOString(),
+        restrict_to: o.priceIds,
+      }),
+    });
+    if (!resp.ok) console.error(`[paddle] flat discount ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+    return resp.ok;
+  } catch (e) {
+    console.error(`[paddle] flat discount error: ${(e as Error).message}`);
+    return false;
+  }
+}

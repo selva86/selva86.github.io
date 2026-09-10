@@ -8,6 +8,20 @@
   var UNLOCK='<a class="tag pro" href="/pricing.html" title="Unlock with Pro" onclick="event.stopPropagation()">Pro</a>';
   var ROWLOCK='<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
+  // An unbuilt Pro item is a pricing link for visitors who can still buy. A
+  // Pro viewer already owns it, so the same row reads "Soon" (the way the
+  // Data Scientist page shows unbuilt work). Runs now and again after
+  // auth-hydrate marks body.pro, on every track.
+  function soonify(scope){
+    scope.querySelectorAll('a.lsn.pro').forEach(function(a){
+      var lt=a.querySelector('.lt'),span=document.createElement('span');
+      span.className='lsn soon';
+      span.innerHTML='<span class="dot"></span><span class="ltwrap"><span class="lt">'+(lt?lt.innerHTML:'')+'</span></span><span class="go">Soon</span>';
+      a.parentNode.replaceChild(span,a);
+    });
+  }
+  function proSoon(){ if(document.body.classList.contains('pro')) soonify(document); }
+  document.addEventListener('auth-hydrated',proSoon);
   var role=(document.body.getAttribute('data-role'))||(location.search.match(/[?&]role=([a-z]+)/)||[])[1]||'ds';
   if(ALLOWED.indexOf(role)<0)role='ds';
   var L=RM.byKey(role), secs=RM2.sections[role], cv=CV[role];
@@ -275,14 +289,10 @@
         secs.forEach(function(s){
           var det=document.getElementById('rm-s'+s.n);
           if(!det||det.classList.contains('has-inter'))return;
-          det.querySelectorAll('a.lsn.pro').forEach(function(a){
-            var lt=a.querySelector('.lt'),span=document.createElement('span');
-            span.className='lsn soon';
-            span.innerHTML='<span class="dot"></span><span class="ltwrap"><span class="lt">'+(lt?lt.innerHTML:'')+'</span></span><span class="go">Soon</span>';
-            a.parentNode.replaceChild(span,a);
-          });
+          soonify(det);
         });
       }
+      proSoon();
       if((role==='analyst'||role==='foundations'||role==='ds')&&grand){var rm=document.getElementById('roleMeta');
         if(rm)rm.innerHTML='<span><b>'+secs.length+'</b> sections</span><span><b>'+grand+'</b> interactive lessons</span><span>Certificate: <b>'+esc(L.cert)+'</b></span>';}
     }).catch(function(){});

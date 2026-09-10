@@ -17,7 +17,7 @@
 
 import type { Env } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
-import { verifyPaddleSignature, isPaddleSourceIp } from "../../_lib/paddle";
+import { verifyPaddleSignature, isPaddleSourceIp, cancelSubscriptionNow } from "../../_lib/paddle";
 import { getUserById, getUserByEmail } from "../../_lib/db";
 import { notifyAdminEvent } from "../../_lib/notify";
 import { sendFulfilmentEmail, formatMoney, type FulfilmentPlan } from "../../_lib/fulfilment";
@@ -334,6 +334,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           });
           await linkPaddleCustomer(context.env.DB, user.id, data.customer_id || null);
           processedNote = "lifetime_granted";
+          // A member switching from an annual/monthly plan: their unused time
+          // was credited at checkout (api/billing/lifetime-credit), so the
+          // subscription ends today. Paddle's subscription.canceled event then
+          // updates the mirror row; pro_until is already -1 (lifetime).
+          try {
+            const subs = await context.env.DB
+              .prepare("SELECT external_id FROM subscriptions WHERE provider = 'paddle' AND user_id = ? AND external_id LIKE 'sub_%' AND status IN ('active','trialing','past_due')")
+              .bind(user.id).all<{ external_id: string }>();
+            for (const r of subs.results || []) {
+              const done = await cancelSubscriptionNow(context.env, r.external_id);
+              console.log(`[webhook.paddle] lifetime ${data.id}: cancel ${r.external_id} -> ${done}`);
+            }
+          } catch (e) { console.error(`[webhook.paddle] lifetime cancel sweep failed: ${(e as Error).message}`); }
           await context.env.KV.delete(`tracks:${user.id}`).catch(() => {});
           await context.env.KV.delete(`prolesson:${user.id}`).catch(() => {});
         }

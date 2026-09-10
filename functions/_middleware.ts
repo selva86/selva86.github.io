@@ -15,6 +15,7 @@ import { parseDeviceLabel } from "./_lib/devices";
 import { resolveScope, scopeCovers } from "./_lib/entitlement";
 import { claimPass, PASS_TRACK } from "./_lib/pass";
 import { isProActive } from "./_lib/db";
+import { readCookie, verifyIdCookie, ID_COOKIE } from "./_lib/idcookie";
 import proLessonsJson from "./_data/pro-lessons.json";
 import renamedPagesJson from "./_data/renamed-pages.json";
 import miniCoursesJson from "./_data/mini-courses.json";
@@ -137,13 +138,12 @@ async function serveProLesson(
   if (lessonTrack === PASS_TRACK) {
     try {
       if ((await context.env.KV.get("flag:da-pass")) === "on") {
-        const token = extractToken(context.request);
-        const payload = token ? await verifyJWT(token, context.env as never).catch(() => null) : null;
-        if (payload?.sub) {
-          const user = await getUserById(context.env.DB, payload.sub);
+        const sub = await requesterSub(context);
+        if (sub) {
+          const user = await getUserById(context.env.DB, sub);
           if (user && !isProActive(user) && !user.pass_claimed_at) {
             if (await claimPass(context.env.DB, user.id)) {
-              await context.env.KV.delete(`prolesson:${payload.sub}`).catch(() => undefined);
+              await context.env.KV.delete(`prolesson:${sub}`).catch(() => undefined);
               return out; // their pass just started; serve the full lesson
             }
           }
@@ -160,19 +160,33 @@ async function serveProLesson(
     .transform(out);
 }
 
+// Who is asking, for PAGE requests. The signed identity cookie (`rsc-id`, set
+// by /api/me, 30-day sliding) is checked first; a Bearer/JWT-cookie holder is
+// the fallback so API-style requests and the transition period keep working.
+// Returns the user id or null; never throws.
+async function requesterSub(context: { request: Request; env: Env }): Promise<string | null> {
+  const secret = context.env.EDGE_ID_SECRET || "";
+  if (secret) {
+    const sub = await verifyIdCookie(secret, readCookie(context.request, ID_COOKIE));
+    if (sub) return sub;
+  }
+  const token = extractToken(context.request);
+  if (!token) return null;
+  const payload = await verifyJWT(token, context.env as never).catch(() => null);
+  return payload?.sub ?? null;
+}
+
 // Entitlement scope of the requester: "0" | "all" | <track>. Fail-closed to
 // "0" on any error; KV-cached briefly (the purchase webhook deletes the cache
 // key so an upgrade takes effect immediately).
 async function requesterScope(context: { request: Request; env: Env }): Promise<string> {
   try {
-    const token = extractToken(context.request);
-    if (!token) return "0";
-    const payload = await verifyJWT(token, context.env as never);
-    if (!payload?.sub) return "0";
-    const kvKey = `prolesson:${payload.sub}`;
+    const sub = await requesterSub(context);
+    if (!sub) return "0";
+    const kvKey = `prolesson:${sub}`;
     const cached = await context.env.KV.get(kvKey);
     if (cached) return cached;
-    const user = await getUserById(context.env.DB, payload.sub);
+    const user = await getUserById(context.env.DB, sub);
     const scope = await resolveScope(context.env, user);
     await context.env.KV.put(kvKey, scope, { expirationTtl: 300 });
     return scope;
@@ -189,6 +203,7 @@ export interface Env {
   EXPORTS: R2Bucket;
   COURSE_MEDIA: R2Bucket;
   SUPABASE_JWT_SECRET?: string;   // optional; only needed for legacy HS256 tokens
+  EDGE_ID_SECRET?: string;        // signs the rsc-id identity cookie (functions/_lib/idcookie.ts)
   SUPABASE_URL: string;           // used to fetch JWKS for ES256 verification
   SUPABASE_WEBHOOK_SECRET: string; // shared secret for /api/webhooks/supabase
   SUPABASE_ANON_KEY: string;
