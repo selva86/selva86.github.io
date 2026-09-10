@@ -1,0 +1,454 @@
+---
+title: "Time Series Foundations Lesson 2: Tidy temporal data with tsibble"
+description: "Convert a data frame into a tsibble with the right index and key, tell an implicit gap from an NA, and fill it with fill_gaps() before aggregating in R."
+keywords: "tsibble in R, as_tsibble, fill_gaps, implicit gaps time series, index_by tsibble, tidy time series data"
+mathjax: false
+webr: true
+curriculum_id: "5.10.2"
+post_type: "LESSON"
+course_id: "ts-foundations"
+course_title: "Time Series Foundations"
+course_lesson: "2"
+course_total: "8"
+course_landing: "Time-Series-Foundations-Course.html"
+course_next: "Time-Series-Analysis-in-R.html"
+course_prev: "What-Makes-Time-Series-Different.html"
+lesson_access: "free"
+catalog_blurb: "Turn a plain data frame into a tsibble and fix its missing dates."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Tidy temporal data with tsibble</h2>
+
+<p>Today let's understand tsibble, the data structure R uses for time series, with a real example.</p>
+
+<p>Riverside Bike Share runs two rental kiosks, one at Riverside and one Downtown. Here is each kiosk's daily rentals for June and July 2024, 61 days, one dot per day.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":176,"fill":"Riverside"},{"x":2,"y":174,"fill":"Riverside"},{"x":3,"y":153,"fill":"Riverside"},{"x":4,"y":107,"fill":"Riverside"},{"x":5,"y":125,"fill":"Riverside"},{"x":6,"y":119,"fill":"Riverside"},{"x":7,"y":135,"fill":"Riverside"},{"x":8,"y":163,"fill":"Riverside"},{"x":9,"y":159,"fill":"Riverside"},{"x":10,"y":131,"fill":"Riverside"},{"x":11,"y":140,"fill":"Riverside"},{"x":12,"y":146,"fill":"Riverside"},{"x":13,"y":129,"fill":"Riverside"},{"x":14,"y":136,"fill":"Riverside"},{"x":15,"y":162,"fill":"Riverside"},{"x":16,"y":133,"fill":"Riverside"},{"x":17,"y":152,"fill":"Riverside"},{"x":18,"y":129,"fill":"Riverside"},{"x":19,"y":131,"fill":"Riverside"},{"x":20,"y":143,"fill":"Riverside"},{"x":21,"y":135,"fill":"Riverside"},{"x":22,"y":154,"fill":"Riverside"},{"x":23,"y":177,"fill":"Riverside"},{"x":24,"y":126,"fill":"Riverside"},{"x":25,"y":125,"fill":"Riverside"},{"x":26,"y":146,"fill":"Riverside"},{"x":27,"y":107,"fill":"Riverside"},{"x":28,"y":145,"fill":"Riverside"},{"x":29,"y":175,"fill":"Riverside"},{"x":30,"y":173,"fill":"Riverside"},{"x":31,"y":155,"fill":"Riverside"},{"x":32,"y":128,"fill":"Riverside"},{"x":33,"y":149,"fill":"Riverside"},{"x":34,"y":129,"fill":"Riverside"},{"x":35,"y":138,"fill":"Riverside"},{"x":36,"y":132,"fill":"Riverside"},{"x":37,"y":156,"fill":"Riverside"},{"x":38,"y":144,"fill":"Riverside"},{"x":39,"y":131,"fill":"Riverside"},{"x":40,"y":150,"fill":"Riverside"},{"x":41,"y":144,"fill":"Riverside"},{"x":42,"y":133,"fill":"Riverside"},{"x":43,"y":156,"fill":"Riverside"},{"x":44,"y":154,"fill":"Riverside"},{"x":45,"y":132,"fill":"Riverside"},{"x":46,"y":166,"fill":"Riverside"},{"x":47,"y":134,"fill":"Riverside"},{"x":48,"y":143,"fill":"Riverside"},{"x":49,"y":153,"fill":"Riverside"},{"x":50,"y":160,"fill":"Riverside"},{"x":51,"y":161,"fill":"Riverside"},{"x":52,"y":141,"fill":"Riverside"},{"x":53,"y":144,"fill":"Riverside"},{"x":54,"y":128,"fill":"Riverside"},{"x":55,"y":141,"fill":"Riverside"},{"x":56,"y":130,"fill":"Riverside"},{"x":57,"y":156,"fill":"Riverside"},{"x":58,"y":182,"fill":"Riverside"},{"x":59,"y":122,"fill":"Riverside"},{"x":60,"y":148,"fill":"Riverside"},{"x":61,"y":135,"fill":"Riverside"},{"x":1,"y":112,"fill":"Downtown"},{"x":2,"y":115,"fill":"Downtown"},{"x":3,"y":98,"fill":"Downtown"},{"x":4,"y":105,"fill":"Downtown"},{"x":5,"y":100,"fill":"Downtown"},{"x":6,"y":97,"fill":"Downtown"},{"x":7,"y":96,"fill":"Downtown"},{"x":8,"y":115,"fill":"Downtown"},{"x":9,"y":85,"fill":"Downtown"},{"x":10,"y":96,"fill":"Downtown"},{"x":12,"y":88,"fill":"Downtown"},{"x":13,"y":90,"fill":"Downtown"},{"x":14,"y":79,"fill":"Downtown"},{"x":15,"y":102,"fill":"Downtown"},{"x":16,"y":107,"fill":"Downtown"},{"x":17,"y":85,"fill":"Downtown"},{"x":19,"y":100,"fill":"Downtown"},{"x":20,"y":97,"fill":"Downtown"},{"x":21,"y":88,"fill":"Downtown"},{"x":22,"y":109,"fill":"Downtown"},{"x":23,"y":118,"fill":"Downtown"},{"x":24,"y":90,"fill":"Downtown"},{"x":26,"y":111,"fill":"Downtown"},{"x":27,"y":105,"fill":"Downtown"},{"x":28,"y":94,"fill":"Downtown"},{"x":29,"y":116,"fill":"Downtown"},{"x":30,"y":98,"fill":"Downtown"},{"x":31,"y":92,"fill":"Downtown"},{"x":32,"y":97,"fill":"Downtown"},{"x":33,"y":91,"fill":"Downtown"},{"x":34,"y":88,"fill":"Downtown"},{"x":35,"y":103,"fill":"Downtown"},{"x":36,"y":114,"fill":"Downtown"},{"x":37,"y":101,"fill":"Downtown"},{"x":38,"y":92,"fill":"Downtown"},{"x":39,"y":93,"fill":"Downtown"},{"x":40,"y":82,"fill":"Downtown"},{"x":41,"y":101,"fill":"Downtown"},{"x":42,"y":102,"fill":"Downtown"},{"x":43,"y":107,"fill":"Downtown"},{"x":44,"y":100,"fill":"Downtown"},{"x":45,"y":91,"fill":"Downtown"},{"x":46,"y":105,"fill":"Downtown"},{"x":47,"y":84,"fill":"Downtown"},{"x":48,"y":100,"fill":"Downtown"},{"x":49,"y":92,"fill":"Downtown"},{"x":50,"y":100,"fill":"Downtown"},{"x":51,"y":118,"fill":"Downtown"},{"x":52,"y":100,"fill":"Downtown"},{"x":53,"y":112,"fill":"Downtown"},{"x":54,"y":105,"fill":"Downtown"},{"x":55,"y":86,"fill":"Downtown"},{"x":56,"y":102,"fill":"Downtown"},{"x":57,"y":118,"fill":"Downtown"},{"x":58,"y":109,"fill":"Downtown"},{"x":59,"y":94,"fill":"Downtown"},{"x":60,"y":101,"fill":"Downtown"},{"x":61,"y":92,"fill":"Downtown"}],"geoms":["point"],"x":"day","y":"rentals","code":{"point":"ggplot(kiosk_points, aes(day, rentals, colour = group)) +\n  geom_point(size = 2, alpha = 0.85) +\n  labs(colour = \"Kiosk\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Riverside's dots run all the way across, one for every day. Downtown's row of dots breaks three times, on June 11, 18 and 25. That break is the whole problem this lesson solves: a plain data frame cannot tell you it has a gap, and a tsibble can.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>A data frame that happens to have a time column</h2>
+
+<p>Before tsibble can help, look at what an ordinary data frame gives you for free, and what it does not.</p>
+
+<p>Riverside Bike Share logs one row per kiosk per day: which kiosk, which date, how many rentals. Build that log for June and July 2024, 61 days at each kiosk, then look at its shape.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build 61 days of rentals for two kiosks, then drop Downtown's 3 outage days
+library(dplyr)
+
+set.seed(614)
+kiosk_dates &lt;- seq(as.Date(&quot;2024-06-01&quot;), as.Date(&quot;2024-07-31&quot;), by = &quot;day&quot;)
+n &lt;- length(kiosk_dates)
+weekend_bump &lt;- ifelse(weekdays(kiosk_dates) %in% c(&quot;Saturday&quot;, &quot;Sunday&quot;), 1.15, 1)
+riverside_rentals &lt;- round(140 * weekend_bump + rnorm(n, 0, 12))
+downtown_rentals  &lt;- round(95  * weekend_bump + rnorm(n, 0, 9))
+
+bike_long &lt;- bind_rows(
+  data.frame(site = &quot;Riverside&quot;, date = kiosk_dates, rentals = riverside_rentals),
+  data.frame(site = &quot;Downtown&quot;,  date = kiosk_dates, rentals = downtown_rentals)
+)
+
+outage_dates &lt;- as.Date(c(&quot;2024-06-11&quot;, &quot;2024-06-18&quot;, &quot;2024-06-25&quot;))
+bike_long &lt;- bike_long %&gt;%
+  filter(!(site == &quot;Downtown&quot; &amp; date %in% outage_dates))
+
+glimpse(bike_long)
+#&gt; Rows: 119
+#&gt; Columns: 3
+#&gt; $ site    &lt;chr&gt; &quot;Riverside&quot;, &quot;Riverside&quot;, &quot;Riverside&quot;, &quot;Riverside&quot;, &quot;Riverside...
+#&gt; $ date    &lt;date&gt; 2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05, 2...
+#&gt; $ rentals &lt;dbl&gt; 176, 174, 153, 107, 125, 119, 135, 163, 159, 131, 140, 146, 12...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That's 119 rows: 61 for Riverside and 58 for Downtown. Downtown is short because its payment terminal failed to restart on three Tuesdays and logged nothing those days.</p>
+
+<p>But <code>bike_long</code> is a plain data frame. R treats <code>date</code> as just another column, exactly like <code>site</code> or <code>rentals</code>. Nothing about it says the rows are in time order, or that the 61 Riverside rows and 58 Downtown rows form two separate ongoing series. You could shuffle every row in <code>bike_long</code> and R would not object, even though shuffling a time series destroys the one thing that makes it a time series: the order the values arrived in.</p>
+
+<p>The gap is easy to miss too. Nothing in <code>bike_long</code> flags that Downtown's log is short compared to Riverside's, or which dates are missing. You would have to go looking for it by hand. That is exactly what tsibble is built to catch.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The tsibble: an index and a key, and the trip back</h2>
+
+<p>A tsibble, short for tidy time series table, is a data frame that knows two extra things: which column is time, and which column separates one series from another.</p>
+
+<p>Convert <code>bike_long</code> into a tsibble with <code>as_tsibble()</code>, telling it that <code>date</code> is the index, the time column, and <code>site</code> is the key, the column that separates Riverside's rows from Downtown's.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Mark date as the index and site as the key
+library(tsibble)
+
+bike_tsbl &lt;- as_tsibble(bike_long, index = date, key = site)
+bike_tsbl
+#&gt; # A tsibble: 119 x 3 [1D]
+#&gt; # Key:       site [2]
+#&gt;    site     date       rentals
+#&gt;    &lt;chr&gt;    &lt;date&gt;       &lt;dbl&gt;
+#&gt;  1 Downtown 2024-06-01     112
+#&gt;  2 Downtown 2024-06-02     115
+#&gt;  3 Downtown 2024-06-03      98
+#&gt;  4 Downtown 2024-06-04     105
+#&gt;  5 Downtown 2024-06-05     100
+#&gt;  6 Downtown 2024-06-06      97
+#&gt;  7 Downtown 2024-06-07      96
+#&gt;  8 Downtown 2024-06-08     115
+#&gt;  9 Downtown 2024-06-09      85
+#&gt; 10 Downtown 2024-06-10      96
+#&gt; # i 109 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The header now reads <code>119 x 3 [1D]</code>, 119 rows and 3 columns, same as before, but <code>[1D]</code> is new: tsibble worked out that every kiosk-day is exactly 1 day apart, and it will use that fact from here on. <code>Key: site [2]</code> says the 119 rows split into 2 separate series by <code>site</code>.</p>
+
+<p>Underneath, <code>bike_tsbl</code> is still an ordinary tibble; <code>as_tsibble()</code> only adds the index and key on top of it. You can always take them back off with <code>as_tibble()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Strip the tsibble class back down to a plain tibble
+bike_plain &lt;- as_tibble(bike_tsbl)
+class(bike_plain)
+#&gt; [1] &quot;tbl_df&quot;     &quot;tbl&quot;        &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is exactly the class of a plain tibble: no index, no key, no interval. Whatever you do to a tsibble mid-analysis, the trip back to an ordinary data frame is one function call away.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Regular vs irregular time intervals</h2>
+
+<p>The <code>[1D]</code> you just saw is called the interval, and tsibble computes it straight from the index column: the gap between one kiosk-day and the next. Every kiosk-day in <code>bike_tsbl</code> sits exactly 1 day after the last one for that site, so the interval is a fixed 1 day, and tsibble calls that a regular tsibble.</p>
+
+<p>Not every time-stamped log works that way. Riverside Bike Share also keeps a repair log: one row every time a technician actually visits a kiosk, whenever something breaks. There is no fixed schedule to it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Four repair visits, logged whenever something actually broke
+maint_log &lt;- data.frame(
+  visit = as.POSIXct(c(&quot;2024-06-05 09:15&quot;, &quot;2024-06-05 14:40&quot;,
+                        &quot;2024-06-19 11:00&quot;, &quot;2024-07-22 16:30&quot;), tz = &quot;UTC&quot;),
+  site = c(&quot;Riverside&quot;, &quot;Downtown&quot;, &quot;Riverside&quot;, &quot;Downtown&quot;),
+  technician = c(&quot;A. Cole&quot;, &quot;A. Cole&quot;, &quot;B. Reyes&quot;, &quot;B. Reyes&quot;)
+)
+
+maint_tsbl &lt;- as_tsibble(maint_log, index = visit, regular = FALSE)
+maint_tsbl
+#&gt; # A tsibble: 4 x 3 [!] &lt;UTC&gt;
+#&gt;   visit               site      technician
+#&gt;   &lt;dttm&gt;              &lt;chr&gt;     &lt;chr&gt;     
+#&gt; 1 2024-06-05 09:15:00 Riverside A. Cole   
+#&gt; 2 2024-06-05 14:40:00 Downtown  A. Cole   
+#&gt; 3 2024-06-19 11:00:00 Riverside B. Reyes  
+#&gt; 4 2024-07-22 16:30:00 Downtown  B. Reyes  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The header shows <code>[!]</code> instead of a day count. That <code>!</code> is tsibble's way of saying there is no fixed interval to check: one visit on June 5 at 09:15, another the same day at 14:40, then nothing again until June 19. <code>regular = FALSE</code> tells <code>as_tsibble()</code> not to even try computing one.</p>
+
+<p>That distinction matters for what comes next. A regular tsibble like <code>bike_tsbl</code> has a fixed interval to check every row against, so tsibble can tell you exactly which dates are missing. An irregular tsibble like <code>maint_tsbl</code> has no fixed interval to check against, so the idea of a missing date does not even apply to it.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Implicit gaps: a missing row, not a missing value</h2>
+
+<p>Downtown's 3 outage days never became rows in <code>bike_long</code> at all. Nobody wrote <code>NA</code> for June 11; the row for June 11 simply does not exist. tsibble calls that an implicit gap: a gap the regular interval implies but the data does not show.</p>
+
+<p>Because <code>bike_tsbl</code> is regular, with a fixed 1-day interval, tsibble can check every site's rows against that interval and tell you exactly where a day is missing. <code>has_gaps()</code> does the check, one row per key.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check every kiosk for missing dates against the fixed 1-day interval
+has_gaps(bike_tsbl)
+#&gt; # A tibble: 2 x 2
+#&gt;   site      .gaps
+#&gt;   &lt;chr&gt;     &lt;lgl&gt;
+#&gt; 1 Downtown  TRUE 
+#&gt; 2 Riverside FALSE
+
+count_gaps(bike_tsbl)
+#&gt; # A tibble: 3 x 4
+#&gt;   site     .from      .to           .n
+#&gt;   &lt;chr&gt;    &lt;date&gt;     &lt;date&gt;     &lt;int&gt;
+#&gt; 1 Downtown 2024-06-11 2024-06-11     1
+#&gt; 2 Downtown 2024-06-18 2024-06-18     1
+#&gt; 3 Downtown 2024-06-25 2024-06-25     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Downtown's <code>.gaps</code> reads <code>TRUE</code>, Riverside's reads <code>FALSE</code>. <code>count_gaps()</code> goes further and lists the missing dates themselves: three separate 1-day gaps, all Downtown, all in June, the 11th, the 18th and the 25th. Those are exactly the three Tuesdays its payment terminal failed to restart.</p>
+
+<p>Plot both kiosks' daily rentals, one dot per day and colored by site, and the three gaps <code>count_gaps()</code> just listed show up as three missing dots in Downtown's row.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":176,"fill":"Riverside"},{"x":2,"y":174,"fill":"Riverside"},{"x":3,"y":153,"fill":"Riverside"},{"x":4,"y":107,"fill":"Riverside"},{"x":5,"y":125,"fill":"Riverside"},{"x":6,"y":119,"fill":"Riverside"},{"x":7,"y":135,"fill":"Riverside"},{"x":8,"y":163,"fill":"Riverside"},{"x":9,"y":159,"fill":"Riverside"},{"x":10,"y":131,"fill":"Riverside"},{"x":11,"y":140,"fill":"Riverside"},{"x":12,"y":146,"fill":"Riverside"},{"x":13,"y":129,"fill":"Riverside"},{"x":14,"y":136,"fill":"Riverside"},{"x":15,"y":162,"fill":"Riverside"},{"x":16,"y":133,"fill":"Riverside"},{"x":17,"y":152,"fill":"Riverside"},{"x":18,"y":129,"fill":"Riverside"},{"x":19,"y":131,"fill":"Riverside"},{"x":20,"y":143,"fill":"Riverside"},{"x":21,"y":135,"fill":"Riverside"},{"x":22,"y":154,"fill":"Riverside"},{"x":23,"y":177,"fill":"Riverside"},{"x":24,"y":126,"fill":"Riverside"},{"x":25,"y":125,"fill":"Riverside"},{"x":26,"y":146,"fill":"Riverside"},{"x":27,"y":107,"fill":"Riverside"},{"x":28,"y":145,"fill":"Riverside"},{"x":29,"y":175,"fill":"Riverside"},{"x":30,"y":173,"fill":"Riverside"},{"x":31,"y":155,"fill":"Riverside"},{"x":32,"y":128,"fill":"Riverside"},{"x":33,"y":149,"fill":"Riverside"},{"x":34,"y":129,"fill":"Riverside"},{"x":35,"y":138,"fill":"Riverside"},{"x":36,"y":132,"fill":"Riverside"},{"x":37,"y":156,"fill":"Riverside"},{"x":38,"y":144,"fill":"Riverside"},{"x":39,"y":131,"fill":"Riverside"},{"x":40,"y":150,"fill":"Riverside"},{"x":41,"y":144,"fill":"Riverside"},{"x":42,"y":133,"fill":"Riverside"},{"x":43,"y":156,"fill":"Riverside"},{"x":44,"y":154,"fill":"Riverside"},{"x":45,"y":132,"fill":"Riverside"},{"x":46,"y":166,"fill":"Riverside"},{"x":47,"y":134,"fill":"Riverside"},{"x":48,"y":143,"fill":"Riverside"},{"x":49,"y":153,"fill":"Riverside"},{"x":50,"y":160,"fill":"Riverside"},{"x":51,"y":161,"fill":"Riverside"},{"x":52,"y":141,"fill":"Riverside"},{"x":53,"y":144,"fill":"Riverside"},{"x":54,"y":128,"fill":"Riverside"},{"x":55,"y":141,"fill":"Riverside"},{"x":56,"y":130,"fill":"Riverside"},{"x":57,"y":156,"fill":"Riverside"},{"x":58,"y":182,"fill":"Riverside"},{"x":59,"y":122,"fill":"Riverside"},{"x":60,"y":148,"fill":"Riverside"},{"x":61,"y":135,"fill":"Riverside"},{"x":1,"y":112,"fill":"Downtown"},{"x":2,"y":115,"fill":"Downtown"},{"x":3,"y":98,"fill":"Downtown"},{"x":4,"y":105,"fill":"Downtown"},{"x":5,"y":100,"fill":"Downtown"},{"x":6,"y":97,"fill":"Downtown"},{"x":7,"y":96,"fill":"Downtown"},{"x":8,"y":115,"fill":"Downtown"},{"x":9,"y":85,"fill":"Downtown"},{"x":10,"y":96,"fill":"Downtown"},{"x":12,"y":88,"fill":"Downtown"},{"x":13,"y":90,"fill":"Downtown"},{"x":14,"y":79,"fill":"Downtown"},{"x":15,"y":102,"fill":"Downtown"},{"x":16,"y":107,"fill":"Downtown"},{"x":17,"y":85,"fill":"Downtown"},{"x":19,"y":100,"fill":"Downtown"},{"x":20,"y":97,"fill":"Downtown"},{"x":21,"y":88,"fill":"Downtown"},{"x":22,"y":109,"fill":"Downtown"},{"x":23,"y":118,"fill":"Downtown"},{"x":24,"y":90,"fill":"Downtown"},{"x":26,"y":111,"fill":"Downtown"},{"x":27,"y":105,"fill":"Downtown"},{"x":28,"y":94,"fill":"Downtown"},{"x":29,"y":116,"fill":"Downtown"},{"x":30,"y":98,"fill":"Downtown"},{"x":31,"y":92,"fill":"Downtown"},{"x":32,"y":97,"fill":"Downtown"},{"x":33,"y":91,"fill":"Downtown"},{"x":34,"y":88,"fill":"Downtown"},{"x":35,"y":103,"fill":"Downtown"},{"x":36,"y":114,"fill":"Downtown"},{"x":37,"y":101,"fill":"Downtown"},{"x":38,"y":92,"fill":"Downtown"},{"x":39,"y":93,"fill":"Downtown"},{"x":40,"y":82,"fill":"Downtown"},{"x":41,"y":101,"fill":"Downtown"},{"x":42,"y":102,"fill":"Downtown"},{"x":43,"y":107,"fill":"Downtown"},{"x":44,"y":100,"fill":"Downtown"},{"x":45,"y":91,"fill":"Downtown"},{"x":46,"y":105,"fill":"Downtown"},{"x":47,"y":84,"fill":"Downtown"},{"x":48,"y":100,"fill":"Downtown"},{"x":49,"y":92,"fill":"Downtown"},{"x":50,"y":100,"fill":"Downtown"},{"x":51,"y":118,"fill":"Downtown"},{"x":52,"y":100,"fill":"Downtown"},{"x":53,"y":112,"fill":"Downtown"},{"x":54,"y":105,"fill":"Downtown"},{"x":55,"y":86,"fill":"Downtown"},{"x":56,"y":102,"fill":"Downtown"},{"x":57,"y":118,"fill":"Downtown"},{"x":58,"y":109,"fill":"Downtown"},{"x":59,"y":94,"fill":"Downtown"},{"x":60,"y":101,"fill":"Downtown"},{"x":61,"y":92,"fill":"Downtown"}],"geoms":["point"],"x":"day","y":"rentals","code":{"point":"ggplot(kiosk_points, aes(day, rentals, colour = group)) +\n  geom_point(size = 2, alpha = 0.85) +\n  labs(colour = \"Kiosk\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Riverside's dots run unbroken across all 61 days. Downtown's stop exactly at June 11, 18 and 25, the same three dates <code>count_gaps()</code> found.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">An implicit gap is a missing row, not a missing value. tsibble can only find it because <code>bike_tsbl</code> is regular: a fixed interval gives it something to check every date against. Take away the fixed interval, as with <code>maint_tsbl</code>, and the idea of a missing date no longer applies.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>fill_gaps(): making the missing dates explicit</h2>
+
+<p>An implicit gap is easy to miss and awkward to work with: you cannot filter, plot or model a row that is not there. <code>fill_gaps()</code> fixes that by inserting a real row for every date <code>count_gaps()</code> found, with <code>NA</code> in every other column, turning the implicit gap into an explicit NA.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Insert Downtown's 3 missing dates as real rows, with rentals set to NA
+bike_filled &lt;- fill_gaps(bike_tsbl)
+nrow(bike_filled)
+#&gt; [1] 122
+
+bike_filled %&gt;%
+  filter(site == &quot;Downtown&quot;, is.na(rentals))
+#&gt; # A tsibble: 3 x 3 [1D]
+#&gt; # Key:       site [1]
+#&gt;   site     date       rentals
+#&gt;   &lt;chr&gt;    &lt;date&gt;       &lt;dbl&gt;
+#&gt; 1 Downtown 2024-06-11      NA
+#&gt; 2 Downtown 2024-06-18      NA
+#&gt; 3 Downtown 2024-06-25      NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>bike_filled</code> has 122 rows now: the original 119 plus the 3 Downtown rows <code>fill_gaps()</code> just added, one for June 11, 18 and 25. Their <code>rentals</code> value is <code>NA</code>, not 0.</p>
+
+<p>That distinction matters. The terminal outage means Downtown's rental count for those three days is unknown, not zero. Riverside Bike Share may well have handed out bikes at Downtown that day; the terminal just never recorded them. Writing 0 would claim something you do not know to be true, and it would drag down any total or average that includes those days. <code>NA</code> says, correctly, that the value is unknown, and every function you run on <code>rentals</code> from here on has to decide, on purpose, what to do with it.</p>
+
+<p>Downtown's row count before and after <code>fill_gaps()</code> shows the fix in one picture.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"Before fill_gaps()","y":58},{"x":"After fill_gaps()","y":61}],"geoms":["bar"],"x":"stage","y":"rows","code":{"bar":"ggplot(kiosk_rows, aes(stage, rows)) +\n  geom_col()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p><code>fill_gaps()</code> brought Downtown level with Riverside: both kiosks now have exactly 61 rows, one per day, June 1 through July 31.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>fill_gaps()</code> only ever inserts <code>NA</code>. It never guesses, averages or copies a neighbouring value. Deciding what to do with that <code>NA</code>, if anything, is a separate step you take on purpose, never something a gap-filling function should decide for you.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: gap or NA?</h2>
+
+<p>Before <code>fill_gaps()</code> runs, Downtown's June 11 row is missing from <code>bike_tsbl</code> entirely, and <code>count_gaps()</code> lists it as a gap. What does <code>fill_gaps()</code> do to fix it, and what value does the new row get?</p>
+<section class="exercise" data-exercise-id="Tidy-Temporal-Data-with-tsibble-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">fill_gaps() estimates what Downtown probably rented that day and writes that number into the new row.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The June 11 row already existed with rentals = NA before fill_gaps() ran; fill_gaps() only relabels it.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">fill_gaps() inserts a new row for June 11 with rentals = NA, turning the implicit gap into an explicit missing value.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">fill_gaps() also removes June 11 from Riverside's series, so both kiosks skip the same dates.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. The row did not exist before; fill_gaps() creates it and marks the value unknown, it never invents a number.</div><div class="lesson-qfb lesson-qfb-no">fill_gaps() only ever adds rows to close gaps implied by the interval; it never removes rows from a series that already has none. Before it runs, June 11 is not a row at all for Downtown, an implicit gap. fill_gaps() inserts that row with rentals = NA, an explicit missing value, and never guesses a number to put there instead.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>index_by(): collapsing daily rentals into monthly totals</h2>
+
+<p>With every date accounted for, roll the daily rows up into a coarser total. <code>index_by()</code> does for the time index what <code>group_by()</code> does for an ordinary column: it groups rows by whatever time expression you give it, ready for <code>summarise()</code>. <code>yearmonth(date)</code> turns each date into its calendar month.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Roll the 122 daily rows up into one total per kiosk per month
+bike_monthly &lt;- bike_filled %&gt;%
+  index_by(month = yearmonth(date)) %&gt;%
+  group_by(site) %&gt;%
+  summarise(total_rentals = sum(rentals, na.rm = TRUE), .groups = &quot;drop&quot;)
+
+bike_monthly
+#&gt; # A tsibble: 4 x 3 [1M]
+#&gt; # Key:       site [2]
+#&gt;   site         month total_rentals
+#&gt;   &lt;chr&gt;        &lt;mth&gt;         &lt;dbl&gt;
+#&gt; 1 Downtown  2024 Jun          2696
+#&gt; 2 Downtown  2024 Jul          3072
+#&gt; 3 Riverside 2024 Jun          4306
+#&gt; 4 Riverside 2024 Jul          4475</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>bike_filled</code> had 122 daily rows across 2 kiosks and 2 months; <code>bike_monthly</code> collapses that down to 4 rows, one per kiosk per month.</p>
+
+<p><code>na.rm = TRUE</code> inside <code>sum()</code> is doing real work here. Without it, Downtown's June total would itself come back <code>NA</code>, because 3 of June's 30 rows for Downtown are the <code>NA</code>s <code>fill_gaps()</code> added. <code>na.rm = TRUE</code> tells <code>sum()</code> to add up the days it does know and skip the ones it does not.</p>
+
+<p>Here is that same 4-row result as a report-ready table.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["site","month","total_rentals"],"rows":[["Downtown","2024 Jun",2696],["Downtown","2024 Jul",3072],["Riverside","2024 Jun",4306],["Riverside","2024 Jul",4475]],"formats":{"total_rentals":"comma"},"title":"Monthly rentals by kiosk","note":"na.rm = TRUE drops the 3 NA outage rows from the Downtown June total before summing."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Why fable needs a complete, regular tsibble</h2>
+
+<p>tsibble's gap-checking is not just tidiness. fable, the forecasting package that fits models directly on a tsibble, refuses to fit a model until every implied date is present.</p>
+
+<p>Try fitting an ETS model, a common forecasting model, on Downtown's series before its gaps are filled.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try to fit an ETS model on Downtown's series before its gaps are filled
+library(fable)
+
+library(tsibble)
+downtown_gappy &lt;- bike_tsbl %&gt;% filter(site == &quot;Downtown&quot;)
+downtown_gappy %&gt;% model(ETS(rentals))
+#&gt; # A mable: 1 x 2
+#&gt; # Key:     site [1]
+#&gt;   site     `ETS(rentals)`
+#&gt;   &lt;chr&gt;           &lt;model&gt;
+#&gt; 1 Downtown   &lt;NULL model&gt;
+#&gt; Warning message:
+#&gt; 1 error encountered for ETS(rentals)
+#&gt; [1] .data contains implicit gaps in time. You should check your data and convert implicit gaps into explicit missing values using `tsibble::fill_gaps()` if required.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>model()</code> prints its result as a mable, short for model table: one row per key, with a model column holding the fit. Here fable will not guess past a hole in the series, so it refuses outright and names the exact problem, implicit gaps, and the exact fix, <code>fill_gaps()</code>. The model column shows <code>&lt;NULL model&gt;</code>: no model was fit.</p>
+
+<p>Fit the identical model on the filled series instead.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the same ETS model on Downtown's series after its gaps are filled
+downtown_filled &lt;- bike_filled %&gt;% filter(site == &quot;Downtown&quot;)
+downtown_filled %&gt;% model(ETS(rentals))
+#&gt; # A mable: 1 x 2
+#&gt; # Key:     site [1]
+#&gt;   site     `ETS(rentals)`
+#&gt;   &lt;chr&gt;           &lt;model&gt;
+#&gt; 1 Downtown   &lt;ETS(A,N,N)&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same model, same call, no error this time: <code>ETS(A,N,N)</code>, a model fable was able to fit.</p>
+
+<p>The reason is that fable places every forecast date by counting forward from the tsibble's own interval, day 62, day 63 and so on. If a day inside the series is silently missing, that count is off from the very first forecast date onward. <code>fill_gaps()</code> is not a formality before modelling; it is what keeps that day count accurate, from the very first forecast date onward.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">fable places every forecast date by counting forward from the tsibble's own interval. A silently missing day throws that count off from the very first forecast date, so model() refuses to fit until fill_gaps() has made the interval complete.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: the tsibble pipeline</h2>
+
+<p>Parkside Library logs daily visitor counts, with some days missing because the front desk scanner malfunctioned. You want monthly visitor totals with the gaps handled properly. Which order gets you there?</p>
+<section class="exercise" data-exercise-id="Tidy-Temporal-Data-with-tsibble-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">index_by(yearmonth(date)) + summarise(), then as_tsibble(index = date), then fill_gaps().</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">as_tsibble(index = date), then fill_gaps(), then index_by(yearmonth(date)) + summarise(na.rm = TRUE).</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">fill_gaps(), then as_tsibble(index = date), then index_by(yearmonth(date)) + summarise().</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">as_tsibble(index = date), then index_by(yearmonth(date)) + summarise(), then fill_gaps().</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right order: mark the index and key, insert the missing dates as explicit NA, then aggregate with na.rm = TRUE so the NAs do not wreck the totals.</div><div class="lesson-qfb lesson-qfb-no">fill_gaps() only works on a tsibble, so as_tsibble() has to come first. And it has to come before you aggregate, or the monthly totals would already be missing whatever fill_gaps() would have added. The order is always: mark the structure, fix the gaps, then roll up.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: fill the gaps and aggregate</h2>
+
+<p><code>bike_tsbl</code> still holds the 119-row tsibble, before its gaps are filled. Insert Downtown's missing dates with <code>fill_gaps()</code>, calling the result <code>bike_filled</code>. Then roll <code>bike_filled</code> up to one total per kiosk per month with <code>index_by()</code> and <code>summarise()</code>, remembering <code>na.rm = TRUE</code>.</p>
+<section class="exercise" data-exercise-id="Tidy-Temporal-Data-with-tsibble-step11" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="fill_gaps[(]bike_tsbl[)][\s\S]*index_by[(][\s\S]*summarise[(]"><textarea class="lesson-tryit-input" spellcheck="false"># bike_tsbl still holds the 119-row tsibble, before its gaps are filled.
+# Insert the missing dates with fill_gaps(), calling the result bike_filled.
+# Then roll bike_filled up to one total per kiosk per month with index_by()
+# and summarise(total = sum(rentals, na.rm = TRUE)).
+# Press Check when you have both.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: fill_gaps() first, so index_by() and summarise() have every date to work with.</span><span class="lesson-tryit-fb lesson-tryit-no">Two calls, in order: fill_gaps(bike_tsbl) to close the gaps, then index_by(yearmonth(date)) followed by summarise(total = sum(rentals, na.rm = TRUE)) to roll the filled series up to monthly totals.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Close the gaps, then roll the filled series up to monthly totals
+bike_filled &lt;- fill_gaps(bike_tsbl)
+
+bike_monthly &lt;- bike_filled %&gt;%
+  index_by(month = yearmonth(date)) %&gt;%
+  group_by(site) %&gt;%
+  summarise(total_rentals = sum(rentals, na.rm = TRUE), .groups = &quot;drop&quot;)
+
+bike_monthly
+#&gt; # A tsibble: 4 x 3 [1M]
+#&gt; # Key:       site [2]
+#&gt;   site         month total_rentals
+#&gt;   &lt;chr&gt;        &lt;mth&gt;         &lt;dbl&gt;
+#&gt; 1 Downtown  2024 Jun          2696
+#&gt; 2 Downtown  2024 Jul          3072
+#&gt; 3 Riverside 2024 Jun          4306
+#&gt; 4 Riverside 2024 Jul          4475</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/tsibbles.html">tsibble objects, Forecasting: Principles and Practice</a> - Hyndman and Athanasopoulos (2021), 3rd edition. The index/key structure this lesson builds by hand.</li>
+
+<li><a href="https://tsibble.tidyverts.org/">tsibble package reference</a> - as_tsibble(), fill_gaps(), index_by() documentation.</li>
+
+<li>Wang, E., Cook, D., and Hyndman, R.J. (2020), "A New Tidy Data Structure to Support Exploration and Modeling of Temporal Data," Journal of Computational and Graphical Statistics. The design paper behind index and key.</li>
+
+<li><a href="https://fable.tidyverts.org/">fable package reference</a> - model()'s gap-checking behavior this lesson demonstrates.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p><code>as_tsibble(index =, key =)</code> marks which column is time and which column separates one series from another. A regular interval turns a missing date into a gap tsibble can actually check for, with <code>has_gaps()</code> and <code>count_gaps()</code>. <code>fill_gaps()</code> turns that gap into an explicit <code>NA</code>, never a guessed number. <code>index_by()</code> and <code>summarise()</code> roll the daily rows up to a coarser total once <code>na.rm = TRUE</code> is told what to do with those <code>NA</code>s. And fable's <code>model()</code> only fits once every implied day is present, because that is how it places each forecast date correctly.</p>
+
+<p>Next, you will read what a time series actually says before any model touches it: its level, trend, seasonal pattern, cycles and noise, off three real series.</p>
+</section>
+
+{% endraw %}

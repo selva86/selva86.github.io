@@ -1,0 +1,375 @@
+---
+title: "Time Series Foundations Lesson 5: Seasonal, subseries and lag plots"
+description: "Learn gg_season(), gg_subseries() and gg_lag() in R to check if a seasonal pattern is stable, spot a drifting quarter, and read a lag plot for dependence."
+keywords: "gg_season, gg_subseries, gg_lag, seasonal subseries plot, lag plot in R, feasts package R, seasonal plot R, time series dependence"
+mathjax: true
+webr: true
+curriculum_id: "5.10.5"
+post_type: "LESSON"
+course_id: "ts-foundations"
+course_title: "Time Series Foundations"
+course_lesson: "5"
+course_total: "8"
+course_landing: "Time-Series-Foundations-Course.html"
+course_next: "Autocorrelation-and-the-ACF.html"
+course_prev: "EDA-for-Time-Series.html"
+lesson_access: "free"
+catalog_blurb: "See whether your season is stable, drifting, or hiding real dependence."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Seasonal, subseries and lag plots</h2>
+
+<p>Today let's understand three plots that check something a single line chart cannot show you: whether a season repeats the exact same way every year, whether one quarter is quietly drifting away from the rest, and whether a value depends on what came before it.</p>
+
+<p>Here is the running example for the whole lesson: quarterly beer production in Australia, from 1992 Q1 to 2010 Q2, in megalitres (a megalitre is a million litres). That's 74 quarters, published by the Australian Bureau of Statistics. Here is the whole series, plotted once, in full.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":443},{"x":2,"y":410},{"x":3,"y":420},{"x":4,"y":532},{"x":5,"y":433},{"x":6,"y":421},{"x":7,"y":410},{"x":8,"y":512},{"x":9,"y":449},{"x":10,"y":381},{"x":11,"y":423},{"x":12,"y":531},{"x":13,"y":426},{"x":14,"y":408},{"x":15,"y":416},{"x":16,"y":520},{"x":17,"y":409},{"x":18,"y":398},{"x":19,"y":398},{"x":20,"y":507},{"x":21,"y":432},{"x":22,"y":398},{"x":23,"y":406},{"x":24,"y":526},{"x":25,"y":428},{"x":26,"y":397},{"x":27,"y":403},{"x":28,"y":517},{"x":29,"y":435},{"x":30,"y":383},{"x":31,"y":424},{"x":32,"y":521},{"x":33,"y":421},{"x":34,"y":402},{"x":35,"y":414},{"x":36,"y":500},{"x":37,"y":451},{"x":38,"y":380},{"x":39,"y":416},{"x":40,"y":492},{"x":41,"y":428},{"x":42,"y":408},{"x":43,"y":406},{"x":44,"y":506},{"x":45,"y":435},{"x":46,"y":380},{"x":47,"y":421},{"x":48,"y":490},{"x":49,"y":435},{"x":50,"y":390},{"x":51,"y":412},{"x":52,"y":454},{"x":53,"y":416},{"x":54,"y":403},{"x":55,"y":408},{"x":56,"y":482},{"x":57,"y":438},{"x":58,"y":386},{"x":59,"y":405},{"x":60,"y":491},{"x":61,"y":427},{"x":62,"y":383},{"x":63,"y":394},{"x":64,"y":473},{"x":65,"y":420},{"x":66,"y":390},{"x":67,"y":410},{"x":68,"y":488},{"x":69,"y":415},{"x":70,"y":398},{"x":71,"y":419},{"x":72,"y":488},{"x":73,"y":414},{"x":74,"y":374}],"geoms":["line"],"x":"quarter_num","y":"Beer"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>It rises and falls four times a year, every single year, for eighteen years straight. Build that same series properly, as a tsibble, and you can ask sharper questions of it. Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 74-quarter beer production series as a tsibble
+library(tsibble)
+library(dplyr)
+library(feasts)
+
+beer &lt;- tsibble(
+  Quarter = yearquarter(&quot;1992 Q1&quot;) + 0:73,
+  Beer = c(443, 410, 420, 532, 433, 421, 410, 512, 449, 381, 423, 531, 426, 408, 416, 520,
+           409, 398, 398, 507, 432, 398, 406, 526, 428, 397, 403, 517, 435, 383, 424, 521,
+           421, 402, 414, 500, 451, 380, 416, 492, 428, 408, 406, 506, 435, 380, 421, 490,
+           435, 390, 412, 454, 416, 403, 408, 482, 438, 386, 405, 491, 427, 383, 394, 473,
+           420, 390, 410, 488, 415, 398, 419, 488, 414, 374),
+  index = Quarter
+)
+
+autoplot(beer, Beer)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>yearquarter(&quot;1992 Q1&quot;) + 0:73</code> builds all 74 quarter labels at once, starting at 1992 Q1 and counting up one quarter at a time. <code>autoplot()</code> is a shortcut that picks a sensible plot for whatever kind of object you hand it. Given a tsibble, it draws exactly the line you just saw in the widget above, time along the bottom and the value up the side.</p>
+
+<p>The open question is whether that up-and-down wiggle is the exact same shape every year, or whether it drifts.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What counts as a season in this series</h2>
+
+<p>A season, in time series terms, is a calendar unit that repeats on a fixed clock: the same position shows up again after a fixed number of steps. A day has 24 hours that repeat every day. A week has 7 days that repeat every week. This series is recorded once every three months, four times a year, so its season is the quarter, and the number of steps in one full season, called the period, is 4.</p>
+
+<p><code>beer</code> still holds the tsibble you just built, so look at what it actually contains.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Look at the first eight quarters of the beer tsibble
+head(beer, 8)
+#&gt; # A tsibble: 8 x 2 [1Q]
+#&gt;   Quarter  Beer
+#&gt;     &lt;qtr&gt; &lt;dbl&gt;
+#&gt; 1 1992 Q1   443
+#&gt; 2 1992 Q2   410
+#&gt; 3 1992 Q3   420
+#&gt; 4 1992 Q4   532
+#&gt; 5 1993 Q1   433
+#&gt; 6 1993 Q2   421
+#&gt; 7 1993 Q3   410
+#&gt; 8 1993 Q4   512</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This <code>beer</code> object is a tsibble, short for tidy time series table: a data frame that also keeps track of which column is time and how far apart the rows are spaced. <code>[1Q]</code> is that spacing, printed right next to the row count: one quarter, with no gaps. <code>&lt;qtr&gt;</code> is the special type <code>Quarter</code> is stored as, so it prints as "1992 Q1" instead of a plain number.</p>
+
+<p>The full series runs 74 rows, from 1992 Q1 to 2010 Q2. That's 18 full years, 1992 through 2009, plus the first two quarters of 2010: 18 years and 2 quarters. Across all of it, <code>Beer</code> ranges from 374 to 532 megalitres.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Redrawing by year and reading whether the shape holds: gg_season()</h2>
+
+<p>The cover's line chart packs 74 quarters into one long strip, which makes it hard to compare one year's shape against another. <code>gg_season()</code> fixes that: it keeps the quarter on the x-axis and draws one separate line for each calendar year on top of it, all lined up on the same four-point scale.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw one line per calendar year, with quarter on the x-axis
+library(feasts)
+
+library(lubridate)
+gg_season(beer, Beer)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eighteen lines appear, one per year from 1992 to 2009, plus a short one for 2010 that stops at Q2, since that's where the series ends. If those eighteen lines all rise and fall the same way, quarter to quarter, the seasonal shape is stable from year to year. If some of them cut across the others in a different order, the shape itself is changing.</p>
+
+<p>One simple summary makes the shared shape concrete: the average <code>Beer</code> value for each quarter, across every year.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average Beer production for each quarter, across all years
+beer |&gt;
+  as_tibble() |&gt;
+  mutate(quarter = lubridate::quarter(Quarter)) |&gt;
+  group_by(quarter) |&gt;
+  summarise(mean_beer = round(mean(Beer)))
+#&gt; # A tibble: 4 x 2
+#&gt;   quarter mean_beer
+#&gt;     &lt;int&gt;     &lt;dbl&gt;
+#&gt; 1       1       429
+#&gt; 2       2       394
+#&gt; 3       3       411
+#&gt; 4       4       502</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Q4 averages 502 megalitres, the highest of the four, and Q2 averages 394, the lowest. Every one of the eighteen lines in the plot above rises toward Q4 and dips at Q2 the same way, which is exactly what "a stable seasonal shape" looks like: the same up-and-down order, year after year, even while the overall level drifts a little.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>One panel per season: gg_subseries()</h2>
+
+<p><code>gg_season()</code> is still eighteen overlapping lines squeezed onto one small axis, which gets hard to read once you're hunting for a slow drift inside just one quarter. <code>gg_subseries()</code> solves that by giving each quarter its own panel.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># One panel per quarter, each showing that quarter's values across every year
+library(feasts)
+
+gg_subseries(beer, Beer)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four panels appear, one for Q1, one for Q2, one for Q3 and one for Q4. Inside each panel the x-axis is no longer quarter, it is year, running from 1992 up to 2010. The Q1 and Q2 panels each hold 19 points, one per year from 1992 to 2010. The Q3 and Q4 panels hold only 18, because the series stops at 2010 Q2, so 2010 never reaches a Q3 or a Q4.</p>
+
+<p>Every panel also carries one flat horizontal line: the mean of that quarter alone, the same four numbers, 429, 394, 411 and 502, you just read off the table in the last step. That line is a private reference for that one quarter. It answers a question <code>gg_season()</code> cannot: has this quarter's own typical level held steady over the years, or has it moved?</p>
+
+<p>For this series, the answer is different from one quarter to the next. Q3's panel is the flattest of the four: 420 megalitres in 1992 and 419 in 2009, hugging its own mean line the whole way. Q4's panel is not: it opens near 532 in 1992 and closes near 488 in 2009, drifting further below its own mean line as the years go by, even while its mean of 502 is still the highest of the four quarters overall.</p>
+
+<p>That is the reading skill a subseries plot gives you that a season plot does not: not just "what is this quarter's typical level", but "has that level been holding, or moving".</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Turning one chart into small multiples by quarter</h2>
+
+<p><code>gg_subseries()</code> does that quarter-by-quarter split automatically, but it is worth seeing the mechanic underneath it once, because it is the same mechanic ggplot2's <code>facet_wrap()</code> uses for splitting any chart by any category, not just quarters. The widget below plots the same 74 quarters, split by quarter, and lets you toggle between one combined chart and four small multiples.</p>
+<div class="lesson-widget" data-widget-type="facet-grid" data-widget-config='{"data":[{"x":1992,"y":443,"facet":"Q1"},{"x":1992,"y":410,"facet":"Q2"},{"x":1992,"y":420,"facet":"Q3"},{"x":1992,"y":532,"facet":"Q4"},{"x":1993,"y":433,"facet":"Q1"},{"x":1993,"y":421,"facet":"Q2"},{"x":1993,"y":410,"facet":"Q3"},{"x":1993,"y":512,"facet":"Q4"},{"x":1994,"y":449,"facet":"Q1"},{"x":1994,"y":381,"facet":"Q2"},{"x":1994,"y":423,"facet":"Q3"},{"x":1994,"y":531,"facet":"Q4"},{"x":1995,"y":426,"facet":"Q1"},{"x":1995,"y":408,"facet":"Q2"},{"x":1995,"y":416,"facet":"Q3"},{"x":1995,"y":520,"facet":"Q4"},{"x":1996,"y":409,"facet":"Q1"},{"x":1996,"y":398,"facet":"Q2"},{"x":1996,"y":398,"facet":"Q3"},{"x":1996,"y":507,"facet":"Q4"},{"x":1997,"y":432,"facet":"Q1"},{"x":1997,"y":398,"facet":"Q2"},{"x":1997,"y":406,"facet":"Q3"},{"x":1997,"y":526,"facet":"Q4"},{"x":1998,"y":428,"facet":"Q1"},{"x":1998,"y":397,"facet":"Q2"},{"x":1998,"y":403,"facet":"Q3"},{"x":1998,"y":517,"facet":"Q4"},{"x":1999,"y":435,"facet":"Q1"},{"x":1999,"y":383,"facet":"Q2"},{"x":1999,"y":424,"facet":"Q3"},{"x":1999,"y":521,"facet":"Q4"},{"x":2000,"y":421,"facet":"Q1"},{"x":2000,"y":402,"facet":"Q2"},{"x":2000,"y":414,"facet":"Q3"},{"x":2000,"y":500,"facet":"Q4"},{"x":2001,"y":451,"facet":"Q1"},{"x":2001,"y":380,"facet":"Q2"},{"x":2001,"y":416,"facet":"Q3"},{"x":2001,"y":492,"facet":"Q4"},{"x":2002,"y":428,"facet":"Q1"},{"x":2002,"y":408,"facet":"Q2"},{"x":2002,"y":406,"facet":"Q3"},{"x":2002,"y":506,"facet":"Q4"},{"x":2003,"y":435,"facet":"Q1"},{"x":2003,"y":380,"facet":"Q2"},{"x":2003,"y":421,"facet":"Q3"},{"x":2003,"y":490,"facet":"Q4"},{"x":2004,"y":435,"facet":"Q1"},{"x":2004,"y":390,"facet":"Q2"},{"x":2004,"y":412,"facet":"Q3"},{"x":2004,"y":454,"facet":"Q4"},{"x":2005,"y":416,"facet":"Q1"},{"x":2005,"y":403,"facet":"Q2"},{"x":2005,"y":408,"facet":"Q3"},{"x":2005,"y":482,"facet":"Q4"},{"x":2006,"y":438,"facet":"Q1"},{"x":2006,"y":386,"facet":"Q2"},{"x":2006,"y":405,"facet":"Q3"},{"x":2006,"y":491,"facet":"Q4"},{"x":2007,"y":427,"facet":"Q1"},{"x":2007,"y":383,"facet":"Q2"},{"x":2007,"y":394,"facet":"Q3"},{"x":2007,"y":473,"facet":"Q4"},{"x":2008,"y":420,"facet":"Q1"},{"x":2008,"y":390,"facet":"Q2"},{"x":2008,"y":410,"facet":"Q3"},{"x":2008,"y":488,"facet":"Q4"},{"x":2009,"y":415,"facet":"Q1"},{"x":2009,"y":398,"facet":"Q2"},{"x":2009,"y":419,"facet":"Q3"},{"x":2009,"y":488,"facet":"Q4"},{"x":2010,"y":414,"facet":"Q1"},{"x":2010,"y":374,"facet":"Q2"}],"geom":"point","x":"Year","y":"Beer","facetVar":"Quarter"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>In "One chart" mode, all 74 points sit on one Year axis, colored by quarter, which is crowded and hard to read on its own. Press <code>facet_wrap(~Quarter)</code> and the same 74 points split into four separate panels, one per quarter, each on its own small Year axis. That split, one panel per level of a variable, is exactly what <code>gg_subseries()</code> already built for you in the last step, using quarter as the splitting variable and adding each quarter's own mean line on top.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does a rising subseries mean line say?</h2>
+
+<p>You just read Q3's panel as flat and Q4's as drifting down, below its own mean line, in the later years. Now flip that around: suppose a different quarter's panel showed its yearly values climbing further and further above its own mean line as the years went by. What would that be telling you?</p>
+<section class="exercise" data-exercise-id="Seasonal-Subseries-and-Lag-Plots-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The whole series is trending upward, not just that one quarter.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That one quarter's typical level is rising relative to the other quarters, even if the series as a whole is flat or falling.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The values inside that quarter are getting more spread out from year to year.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A subseries panel isolates one quarter and compares it only to its own mean line, so a rising line inside it is a private trend for that quarter alone.</div><div class="lesson-qfb lesson-qfb-no">A subseries mean line tracks one quarter's typical level over the years, not how spread out the individual years are. A climbing line says that quarter's average is rising relative to the other three; it says nothing about the whole series' trend or about year-to-year spread within the quarter.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Defining a lag: the value k quarters earlier</h2>
+
+<p>A lag is one of the simplest ideas in time series, once you see it written down. Lag k of a series is just its value k steps earlier: today's value paired with the value from k steps before it. This series has one step per quarter, so lag 4 means four quarters ago, a full year back.</p>
+
+<p>Written with symbols, if \(y_t\) is the value at time t, then lag k of that series is \(y_{t-k}\), and a lag plot always compares \(y_t\) against \(y_{t-k}\) for one fixed k at a time.</p>
+
+<p>Here is lag 1 made concrete: <code>Beer</code> next to <code>Beer</code> shifted down by one row, using <code>dplyr::lag()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+# Shift Beer down by one row with dplyr::lag(), first six quarters
+beer |&gt;
+  mutate(lag1 = dplyr::lag(Beer)) |&gt;
+  select(Quarter, Beer, lag1) |&gt;
+  head(6)
+#&gt; # A tsibble: 6 x 3 [1Q]
+#&gt;   Quarter  Beer  lag1
+#&gt;     &lt;qtr&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 1992 Q1   443    NA
+#&gt; 2 1992 Q2   410   443
+#&gt; 3 1992 Q3   420   410
+#&gt; 4 1992 Q4   532   420
+#&gt; 5 1993 Q1   433   532
+#&gt; 6 1993 Q2   421   433</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Row 2's <code>lag1</code> is 443, which is exactly row 1's <code>Beer</code>. Row 3's <code>lag1</code> is 410, row 2's <code>Beer</code>. Every <code>lag1</code> value is just its own row's <code>Beer</code> value, moved down one position. Row 1 has no earlier row to pull from, so its <code>lag1</code> comes back <code>NA</code>.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Plotting lag against value and matching each panel to a strength: gg_lag()</h2>
+
+<p>A lag plot turns that idea into nine small scatterplots at once, one panel per lag from 1 to 9. Panel k plots \(y_{t-k}\) on the x-axis against \(y_t\) on the y-axis, so every point in that panel is one quarter, paired with its own value from k quarters earlier.</p>
+
+<p>Here are all nine panels for this series.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw all nine lag panels, forcing point geometry so the shape stays visible
+library(feasts)
+
+library(dplyr)
+gg_lag(beer, Beer, geom = &quot;point&quot;, lags = 1:9)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the panels left to right, top to bottom: lag 1, lag 2, and on up to lag 9. Some panels are a loose, round cloud with barely any visible shape. Others are a tight diagonal band, rising from bottom left to top right. The tighter and more diagonal a panel looks, the stronger the relationship between a value and the value that many quarters earlier.</p>
+
+<p>You do not have to judge tightness by eye. Correlate <code>Beer</code> against <code>Beer</code> shifted back by 1, 2, 4 and 8 quarters, and the same story shows up as numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Correlate Beer against Beer shifted back by 1, 2, 4 and 8 quarters
+lag_cors &lt;- sapply(c(1, 2, 4, 8), function(k) {
+  shifted &lt;- dplyr::lag(beer$Beer, k)
+  round(cor(beer$Beer, shifted, use = &quot;complete.obs&quot;), 2)
+})
+names(lag_cors) &lt;- paste0(&quot;lag&quot;, c(1, 2, 4, 8))
+lag_cors
+#&gt;  lag1  lag2  lag4  lag8 
+#&gt; -0.10 -0.67  0.93  0.94 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lag 1 is close to zero, -0.10: one quarter's value tells you almost nothing about the next quarter's value. Lag 2 is a strong -0.67: two quarters apart lands you on close to opposite sides of the yearly pattern, so a high value tends to pair with a low one. Lag 4 and lag 8 are the strong positive ones, 0.93 and 0.94: four quarters is a full year and eight is two full years, so the same quarter of the pattern lines up with itself, and the values track each other closely.</p>
+
+<p>That interpretation only works because this code passed <code>geom = &quot;point&quot;</code>. <code>gg_lag()</code>'s own default is not "point", it is "path": draw a line through the points in the order the quarters actually occurred, then scatter them on top of it. Two quarters that sit right next to each other in time are not necessarily anywhere near each other on this plot, so that default line tends to bury the exact diagonal shapes you just read. The next step shows you exactly that.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Point cloud versus connected path at lag 4</h2>
+
+<p>See it on the tightest pair you found, lag 4, r about 0.93: the same 70 pairs of \(y_{t-4}\) against \(y_t\) that fed into the correlation table above.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":443,"y":433},{"x":410,"y":421},{"x":420,"y":410},{"x":532,"y":512},{"x":433,"y":449},{"x":421,"y":381},{"x":410,"y":423},{"x":512,"y":531},{"x":449,"y":426},{"x":381,"y":408},{"x":423,"y":416},{"x":531,"y":520},{"x":426,"y":409},{"x":408,"y":398},{"x":416,"y":398},{"x":520,"y":507},{"x":409,"y":432},{"x":398,"y":398},{"x":398,"y":406},{"x":507,"y":526},{"x":432,"y":428},{"x":398,"y":397},{"x":406,"y":403},{"x":526,"y":517},{"x":428,"y":435},{"x":397,"y":383},{"x":403,"y":424},{"x":517,"y":521},{"x":435,"y":421},{"x":383,"y":402},{"x":424,"y":414},{"x":521,"y":500},{"x":421,"y":451},{"x":402,"y":380},{"x":414,"y":416},{"x":500,"y":492},{"x":451,"y":428},{"x":380,"y":408},{"x":416,"y":406},{"x":492,"y":506},{"x":428,"y":435},{"x":408,"y":380},{"x":406,"y":421},{"x":506,"y":490},{"x":435,"y":435},{"x":380,"y":390},{"x":421,"y":412},{"x":490,"y":454},{"x":435,"y":416},{"x":390,"y":403},{"x":412,"y":408},{"x":454,"y":482},{"x":416,"y":438},{"x":403,"y":386},{"x":408,"y":405},{"x":482,"y":491},{"x":438,"y":427},{"x":386,"y":383},{"x":405,"y":394},{"x":491,"y":473},{"x":427,"y":420},{"x":383,"y":390},{"x":394,"y":410},{"x":473,"y":488},{"x":420,"y":415},{"x":390,"y":398},{"x":410,"y":419},{"x":488,"y":488},{"x":415,"y":414},{"x":398,"y":374}],"geoms":["point","line"],"x":"Beer_lag4","y":"Beer"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>In point mode, the widget draws those same 70 pairs and computes the same Pearson r you already read off the table: about 0.93, a tight, rising cloud. Switch to line, and the same 70 points connect to their nearest neighbour along the x-axis instead of standing alone. The segments cross back and forth across the whole cloud, and the clean diagonal shape you could read a moment ago disappears under them.</p>
+
+<p>That is what connecting a lag plot's points does to it, even sorted along one axis. <code>gg_lag()</code>'s real default, "path", is worse still, because it connects the points in the order the quarters occurred rather than in order along an axis, so the line jumps around even more. That is the whole reason the code a moment ago overrode the default and asked for <code>geom = &quot;point&quot;</code> instead.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which plot answers which question?</h2>
+
+<p>Suppose you are handed a new series and asked: "is Q3 alone pulling away from the other quarters?" Which of the three plots from this lesson answers that directly?</p>
+<section class="exercise" data-exercise-id="Seasonal-Subseries-and-Lag-Plots-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">gg_lag(), because it shows how each quarter depends on the quarters before it.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">gg_subseries(), because it puts each quarter in its own panel with its own mean line, so one quarter's drift shows up on its own.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">gg_season(), because it overlays one line per year so you can compare the whole shape at once.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. gg_season() is for the whole seasonal shape, and gg_lag() is for dependence on past values. Only gg_subseries() isolates a single quarter the way this question needs.</div><div class="lesson-qfb lesson-qfb-no">gg_season() is for checking whether the whole seasonal shape holds from year to year, and gg_lag() is for checking dependence on past values. Neither isolates a single quarter's drift the way gg_subseries() does, by giving that one quarter its own panel and its own mean line.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: predict and compute the lag-2 correlation</h2>
+
+<p>Before you compute anything, predict the sign. Look back at the quarter pattern you read earlier: production troughs at Q2, 394 megalitres, and peaks at Q4, 502 megalitres, two quarters apart. Two quarters back from any point in this series lands you close to the opposite side of that same up-and-down pattern, so a high value tends to pair with a low value two quarters earlier, and a low value pairs with a high one. That alone should push the lag-2 correlation negative, before you run a single line of code.</p>
+
+<p><code>beer</code> still holds the 74 quarters of <code>Beer</code> production from before. Compute the lag-2 correlation the same way the last step did, one lag at a time: shift <code>Beer</code> back two quarters with <code>dplyr::lag()</code>, then correlate it against <code>Beer</code> with <code>cor()</code>.</p>
+<section class="exercise" data-exercise-id="Seasonal-Subseries-and-Lag-Plots-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*\blag\s*[(])(?=[\s\S]*\bcor\s*[(])[\s\S]*"><textarea class="lesson-tryit-input" spellcheck="false"># beer still holds the 74 quarters of Beer production from before.
+# 1. Shift Beer back two quarters.
+# 2. Correlate the shifted values against Beer, dropping the rows
+#    that have no earlier value to pair with.
+# Press Check when you have both.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: about -0.67, the same number the correlation table two steps back already showed for lag 2. The swing between the Q2 trough and the Q4 peak, two quarters apart, is what drives that negative number.</span><span class="lesson-tryit-fb lesson-tryit-no">Shift Beer back two quarters first: dplyr::lag(Beer, 2). Then correlate that shifted column against Beer with cor(..., use = "complete.obs") to drop the rows with no earlier value to pair with.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Shift Beer back two quarters, then correlate it against Beer
+beer_lag2 &lt;- beer |&gt;
+  mutate(lag2 = dplyr::lag(Beer, 2))
+
+cor(beer_lag2$Beer, beer_lag2$lag2, use = &quot;complete.obs&quot;)
+#&gt; [1] -0.6682</code></pre></details></div>
+</section>
+<p>That matches the prediction: negative, and close to the -0.67 you already saw two steps back. The seasonal swing between a trough quarter and a peak quarter, two steps away, is strong enough to show up clearly in a single correlation number.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice (3rd ed.)</a> - Hyndman and Athanasopoulos, the free online textbook. Chapter 2 covers seasonal plots, subseries plots and lag plots in the same order used in this lesson.</li>
+
+<li><a href="https://pkg.robjhyndman.com/feasts/">feasts package reference</a> - documentation for gg_season(), gg_subseries() and gg_lag().</li>
+
+<li>Cleveland, W.S., "Visualizing Data" (Hobart Press, 1993) - the book that introduced the seasonal subseries plot.</li>
+
+<li>Australian Bureau of Statistics, catalogue 8301.0.55.001, table 1 - the source of the beer production series used throughout this lesson.</li>
+
+<li><a href="https://cran.r-project.org/package=tsibbledata">tsibbledata package reference</a> - documentation for the aus_production dataset.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<ul>
+
+<li>gg_season() checks whether the whole seasonal shape holds from year to year: quarter on the x-axis, one line per year.</li>
+
+<li>gg_subseries() checks whether one season is drifting apart from the rest: one panel per quarter, each with its own mean line.</li>
+
+<li>gg_lag() plots \(y_t\) against \(y_{t-k}\) for a range of lags, a first visual look at dependence, before any formal statistic measures it.</li>
+
+<li>On this series, Q4's mean line drifted down while Q3's stayed flat, and lag 4 and lag 8 showed the strongest positive correlations, 0.93 and 0.94, because a full year and two full years both land you back on the same quarter.</li>
+
+</ul>
+</section>
+
+{% endraw %}

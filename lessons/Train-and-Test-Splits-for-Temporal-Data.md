@@ -1,0 +1,238 @@
+---
+title: "Time Series Foundations Lesson 7: Train and test splits for temporal data"
+catalog_blurb: "See why a random split leaks the future, and how to fix it."
+description: "Learn why a random train/test split leaks the future on time series in R, and fix it with a last-h holdout using filter_index() and rolling-origin evaluation."
+keywords: "train test split time series, filter_index, tsibble, rolling origin evaluation, data leakage time series, last-h holdout, time series cross validation, forecast horizon"
+post_type: "LESSON"
+curriculum_id: "5.10.7"
+webr: true
+mathjax: false
+lesson_access: "free"
+course_id: "ts-foundations"
+course_title: "Time Series Foundations"
+course_lesson: "7"
+course_total: "8"
+course_landing: "Time-Series-Foundations-Course.html"
+course_next: "Benchmark-Forecasts-Naive-Seasonal-Naive-and-Drift.html"
+course_prev: "Autocorrelation-and-the-ACF.html"
+---
+
+=== step === cover
+## Train and test splits for temporal data
+
+Today let's understand train and test splits for temporal data, using simple and practical examples.
+
+Here is the running example for the whole lesson: quarterly beer production in Australia, from 1992 Q1 to 2010 Q2, in megalitres (a megalitre is a million litres). That's 74 quarters, published by the Australian Bureau of Statistics.
+
+::widget chart-plotter {"data":[{"x":1,"y":443},{"x":2,"y":410},{"x":3,"y":420},{"x":4,"y":532},{"x":5,"y":433},{"x":6,"y":421},{"x":7,"y":410},{"x":8,"y":512},{"x":9,"y":449},{"x":10,"y":381},{"x":11,"y":423},{"x":12,"y":531},{"x":13,"y":426},{"x":14,"y":408},{"x":15,"y":416},{"x":16,"y":520},{"x":17,"y":409},{"x":18,"y":398},{"x":19,"y":398},{"x":20,"y":507},{"x":21,"y":432},{"x":22,"y":398},{"x":23,"y":406},{"x":24,"y":526},{"x":25,"y":428},{"x":26,"y":397},{"x":27,"y":403},{"x":28,"y":517},{"x":29,"y":435},{"x":30,"y":383},{"x":31,"y":424},{"x":32,"y":521},{"x":33,"y":421},{"x":34,"y":402},{"x":35,"y":414},{"x":36,"y":500},{"x":37,"y":451},{"x":38,"y":380},{"x":39,"y":416},{"x":40,"y":492},{"x":41,"y":428},{"x":42,"y":408},{"x":43,"y":406},{"x":44,"y":506},{"x":45,"y":435},{"x":46,"y":380},{"x":47,"y":421},{"x":48,"y":490},{"x":49,"y":435},{"x":50,"y":390},{"x":51,"y":412},{"x":52,"y":454},{"x":53,"y":416},{"x":54,"y":403},{"x":55,"y":408},{"x":56,"y":482},{"x":57,"y":438},{"x":58,"y":386},{"x":59,"y":405},{"x":60,"y":491},{"x":61,"y":427},{"x":62,"y":383},{"x":63,"y":394},{"x":64,"y":473},{"x":65,"y":420},{"x":66,"y":390},{"x":67,"y":410},{"x":68,"y":488},{"x":69,"y":415},{"x":70,"y":398},{"x":71,"y":419},{"x":72,"y":488},{"x":73,"y":414},{"x":74,"y":374}],"geoms":["line"],"x":"quarter","y":"Beer"}
+
+Look at the line. To check how good a forecasting model actually is, you need to hold some quarters back and compare the model's forecast against them, the same way you would hold back rows to test any other model. So here's the question this lesson answers: can you just grab any random 20 to 30% of these 74 quarters and call it the test set, the way you would with a table of unrelated rows? Or does the fact that this data moves through time change the rule?
+
+=== step === concept
+## What an ordinary train/test split assumes about your rows
+
+Before getting to the beer series, it helps to see the ordinary rule first, the one you would use on a table of unrelated rows like customers or transactions, where the order of the rows means nothing at all.
+
+A plain train/test split usually sets aside a random slice of the rows for testing and trains the model on the rest. The reason a random subset is fine there comes down to one specific assumption: every row is exchangeable with every other row. Shuffle the order of a customer table and nothing about it changes, so any random 30% you pick is just as representative of the whole table as any other random 30% would be.
+
+The widget below is not the beer series. It's 200 made-up, unrelated rows, split into 60% train, 20% validation and 20% test, purely by row position, picked at random.
+
+::widget data-split {}
+
+The coloured strip splits those 200 rows by role. Underneath it, the runnable R code shows the same idea in its simplest two-way form: `idx <- sample(n, 0.7 * n)` picks 70% of the row positions at random for training, and the rest becomes test. Flip the leak checkbox and watch what happens to the test accuracy: it jumps from an honest 0.78 to a suspicious 0.99, because a column that was secretly built from the answer snuck into training. That is a different kind of mistake from the one this lesson is about, but it shares the same root: touching or including information you would not really have at prediction time is what breaks a test set's honesty, whether that information leaks in through a planted column or through the order of the dates.
+
+So remember, none of this used the beer series. But the same `sample()` idea is exactly what you would reach for by habit on the beer series too: pick 70% of the 74 quarters at random for training, and use the rest to test. The next step does precisely that, and shows you why it goes wrong.
+
+=== step === concept
+## What happens when that assumption meets an ordered series
+
+Apply that exact same idea, `sample()` on row positions, to the beer series, and watch what happens.
+
+First, build the beer series properly, as a tsibble: a data frame built for time series, where one column is explicitly marked as the time index.
+
+```r
+# Build the quarterly beer tsibble, 74 rows from 1992 Q1 to 2010 Q2
+library(tsibble)
+
+beer <- tsibble(
+  Quarter = yearquarter("1992 Q1") + 0:73,
+  Beer = c(443, 410, 420, 532, 433, 421, 410, 512, 449, 381, 423, 531, 426, 408, 416, 520,
+           409, 398, 398, 507, 432, 398, 406, 526, 428, 397, 403, 517, 435, 383, 424, 521,
+           421, 402, 414, 500, 451, 380, 416, 492, 428, 408, 406, 506, 435, 380, 421, 490,
+           435, 390, 412, 454, 416, 403, 408, 482, 438, 386, 405, 491, 427, 383, 394, 473,
+           420, 390, 410, 488, 415, 398, 419, 488, 414, 374),
+  index = Quarter
+)
+
+nrow(beer)
+#> [1] 74
+```
+
+Now split it the exact same way the widget did a moment ago: sample 70% of the 74 row positions at random for training, and put the rest in test.
+
+```r
+# Split the beer series randomly, exactly like the widget did, then check the two edge quarters
+set.seed(1)
+idx <- sample(74, round(0.7 * 74))
+
+train_quarters <- beer$Quarter[idx]
+test_quarters  <- beer$Quarter[-idx]
+
+as.character(max(train_quarters))
+#> [1] "2009 Q4"
+as.character(min(test_quarters))
+#> [1] "1992 Q3"
+```
+
+Look closely at those two lines. `2009 Q4`, the very last quarter of the whole series, landed in the random training set. And `1992 Q3`, one of the very first quarters, landed in the random test set.
+
+Think about what that means for a real forecasting job. A model trained partly on 2009 Q4 would then have its forecast compared against 1992 Q3, seventeen years earlier. That could never happen in a real deployment. In 1992, the year 2009 has not happened yet, so there is no way a model built and used in 1992 could ever have seen 2009's numbers.
+
+This is called future leakage: information from the future sneaking into training, through nothing more sinister than an ordinary random split. Exchangeability, the assumption that made a random split safe in the last step, is exactly the assumption a time-ordered series like this one breaks. Order matters here, and a random split throws that order away.
+
+=== step === concept
+## The fix: the last-h holdout, and how to choose h
+::prose-only states the rule before the next step computes it
+
+The fix is simple once you see the problem: cut by time, not by row position. Everything up to some cutoff date becomes the training set, and everything from that date onward becomes the test set, kept in the same order it always was in. This is called a last-h holdout, where h is the number of periods held out at the end for testing.
+
+So how many quarters should h actually be? The rule is: h should match the forecast horizon you actually plan to use the model for. If you plan to forecast 8 quarters ahead in practice, test the model on its ability to forecast 8 quarters ahead, not 1 quarter and not 20.
+
+There's a second condition too. Whatever is left for training, after you remove h quarters from the end, needs to be enough to estimate any recurring pattern in the series. Beer production repeats every 4 quarters, one full year, so training needs several of those 4-quarter cycles, at least 2 to 3 of them, to have a real chance at learning the pattern.
+
+For the beer series, a forecast horizon of h = 8 (2 years) makes for a sensible holdout. That leaves 74 minus 8, or 66 quarters, 16.5 years, for training, far more than the 2 to 3 seasonal cycles a bare minimum would need.
+
+=== step === concept
+## Cutting the holdout with filter_index()
+
+The tsibble package has a function built exactly for this: `filter_index()`. It keeps rows by date range, read straight off the tsibble's own time index, instead of by row number.
+
+Its range is written as `start ~ end`, and a dot (`.`) on either side means "everything" in that direction. So `. ~ "2008 Q2"` reads as "from the very start through 2008 Q2", and `"2008 Q3" ~ .` reads as "from 2008 Q3 through the very end".
+
+Cut the beer series into train and test using the 2008 Q2 boundary decided in the last step.
+
+```r
+# Cut beer into a last-h holdout: train through 2008 Q2, test from 2008 Q3 onward
+beer_train <- beer |> filter_index(. ~ "2008 Q2")
+beer_test  <- beer |> filter_index("2008 Q3" ~ .)
+
+nrow(beer_train)
+#> [1] 66
+as.character(range(beer_train$Quarter))
+#> [1] "1992 Q1" "2008 Q2"
+
+nrow(beer_test)
+#> [1] 8
+as.character(range(beer_test$Quarter))
+#> [1] "2008 Q3" "2010 Q2"
+```
+
+66 quarters in train, 8 in test, and 66 plus 8 is 74: every quarter in the series is accounted for exactly once, with no row dropped and none duplicated. `beer_train` runs from the series' very first quarter, 1992 Q1, straight through to 2008 Q2 without a single gap. `beer_test` picks up exactly where training left off, 2008 Q3, and runs to the series' last quarter, 2010 Q2.
+
+=== step === widget
+## Seeing the cut on the series itself
+
+Colour that same 74-quarter series by the role each quarter now plays: the first 66 quarters, 1992 Q1 through 2008 Q2, as train, and the last 8, 2008 Q3 through 2010 Q2, as test.
+
+::widget chart-plotter {"data":[{"x":1,"y":443,"fill":"train"},{"x":2,"y":410,"fill":"train"},{"x":3,"y":420,"fill":"train"},{"x":4,"y":532,"fill":"train"},{"x":5,"y":433,"fill":"train"},{"x":6,"y":421,"fill":"train"},{"x":7,"y":410,"fill":"train"},{"x":8,"y":512,"fill":"train"},{"x":9,"y":449,"fill":"train"},{"x":10,"y":381,"fill":"train"},{"x":11,"y":423,"fill":"train"},{"x":12,"y":531,"fill":"train"},{"x":13,"y":426,"fill":"train"},{"x":14,"y":408,"fill":"train"},{"x":15,"y":416,"fill":"train"},{"x":16,"y":520,"fill":"train"},{"x":17,"y":409,"fill":"train"},{"x":18,"y":398,"fill":"train"},{"x":19,"y":398,"fill":"train"},{"x":20,"y":507,"fill":"train"},{"x":21,"y":432,"fill":"train"},{"x":22,"y":398,"fill":"train"},{"x":23,"y":406,"fill":"train"},{"x":24,"y":526,"fill":"train"},{"x":25,"y":428,"fill":"train"},{"x":26,"y":397,"fill":"train"},{"x":27,"y":403,"fill":"train"},{"x":28,"y":517,"fill":"train"},{"x":29,"y":435,"fill":"train"},{"x":30,"y":383,"fill":"train"},{"x":31,"y":424,"fill":"train"},{"x":32,"y":521,"fill":"train"},{"x":33,"y":421,"fill":"train"},{"x":34,"y":402,"fill":"train"},{"x":35,"y":414,"fill":"train"},{"x":36,"y":500,"fill":"train"},{"x":37,"y":451,"fill":"train"},{"x":38,"y":380,"fill":"train"},{"x":39,"y":416,"fill":"train"},{"x":40,"y":492,"fill":"train"},{"x":41,"y":428,"fill":"train"},{"x":42,"y":408,"fill":"train"},{"x":43,"y":406,"fill":"train"},{"x":44,"y":506,"fill":"train"},{"x":45,"y":435,"fill":"train"},{"x":46,"y":380,"fill":"train"},{"x":47,"y":421,"fill":"train"},{"x":48,"y":490,"fill":"train"},{"x":49,"y":435,"fill":"train"},{"x":50,"y":390,"fill":"train"},{"x":51,"y":412,"fill":"train"},{"x":52,"y":454,"fill":"train"},{"x":53,"y":416,"fill":"train"},{"x":54,"y":403,"fill":"train"},{"x":55,"y":408,"fill":"train"},{"x":56,"y":482,"fill":"train"},{"x":57,"y":438,"fill":"train"},{"x":58,"y":386,"fill":"train"},{"x":59,"y":405,"fill":"train"},{"x":60,"y":491,"fill":"train"},{"x":61,"y":427,"fill":"train"},{"x":62,"y":383,"fill":"train"},{"x":63,"y":394,"fill":"train"},{"x":64,"y":473,"fill":"train"},{"x":65,"y":420,"fill":"train"},{"x":66,"y":390,"fill":"train"},{"x":67,"y":410,"fill":"test"},{"x":68,"y":488,"fill":"test"},{"x":69,"y":415,"fill":"test"},{"x":70,"y":398,"fill":"test"},{"x":71,"y":419,"fill":"test"},{"x":72,"y":488,"fill":"test"},{"x":73,"y":414,"fill":"test"},{"x":74,"y":374,"fill":"test"}],"geoms":["point","line"],"x":"quarter","y":"Beer","code":{"point":"ggplot(beer_roles, aes(quarter, Beer, color = group)) +\n  geom_point()","line":"ggplot(beer_roles, aes(quarter, Beer, color = group)) +\n  geom_line()"}}
+
+Notice there is exactly one cut point on the whole chart, sitting right at the 2008 Q2 to 2008 Q3 boundary. Every train-coloured quarter sits to the left of it, and every test-coloured quarter sits to the right. Compare that with the random split from a few steps back, which scattered train and test quarters across the entire 74 quarters with no pattern at all.
+
+A last-h holdout never does that. It cuts the series exactly once, at exactly one date, and everything before that date is train while everything from it onward is test.
+
+=== step === quiz
+## Quick check: reading the split on the chart
+
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- Scattered: train and test quarters are mixed across the whole chart, the same way the random split from a few steps back looked. ::no
+- The chart splits at the series' midpoint, quarter 37 versus quarter 38. ::no
+- The chart splits at one date, 2008 Q2 to 2008 Q3: every quarter through 2008 Q2 is train, and every quarter from 2008 Q3 onward is test. ::ok Right. The 66 train quarters and the 8 test quarters split at exactly one boundary, with train entirely before it and test entirely after, unlike the random split from a few steps back, which scattered both roles across the whole series.
+- The chart puts the earliest quarters, from 1992, in test and the later quarters in train. ::no A last-h holdout always puts the latest quarters in test, not the earliest: train covers 1992 Q1 through 2008 Q2 and test covers 2008 Q3 through 2010 Q2, split at exactly one date. That is the opposite of the scattered pattern the random split produced a few steps back, and it is not a midpoint split either; the boundary sits wherever the chosen forecast horizon h puts it, 8 quarters before the series ends here.
+
+=== step === concept
+## Rolling origins: a preview of testing more than once
+
+A single last-h holdout tells you how the model would have done on one particular 8-quarter stretch. But relying on just one test window means your accuracy estimate depends heavily on which 8 quarters you happened to pick. A rolling-origin evaluation fixes that by testing at several different cutoff dates instead of one, and averaging the results for a steadier estimate.
+
+Here's a preview of the idea, using three origins, each one 4 quarters later than the last.
+
+```r
+# Three rolling origins, each training window 4 quarters longer than the last
+origin1_train <- beer |> filter_index(. ~ "2006 Q2")
+origin2_train <- beer |> filter_index(. ~ "2007 Q2")
+origin3_train <- beer |> filter_index(. ~ "2008 Q2")
+
+nrow(origin1_train)
+#> [1] 58
+nrow(origin2_train)
+#> [1] 62
+nrow(origin3_train)
+#> [1] 66
+```
+
+Origin 1 trains on 58 quarters, 1992 Q1 through 2006 Q2, and its test window is the 4 quarters right after that cutoff, 2006 Q3 through 2007 Q2. Origin 2 trains on 62 quarters, through 2007 Q2, and tests on 2007 Q3 through 2008 Q2. Origin 3 trains on 66 quarters, through 2008 Q2, the same cutoff from a few steps back, and tests on 2008 Q3 through 2009 Q2.
+
+Each origin's test window always sits later in time than its own training window, the same rule the single holdout followed. Score the model at all three origins and average the three test errors, and you get a steadier estimate of how well the model forecasts than any single holdout could give you on its own.
+
+There's more to rolling-origin evaluation than this preview shows: exactly how many origins to use, how to space them, and running the whole thing with a package built for it. That level of detail is out of scope here. The pattern itself, several origins instead of one, each with its test window later than its own training window, is the part worth taking away.
+
+=== step === concept
+## Test-set discipline: touch it once, at the end
+::prose-only states the discipline rule; the row counts already on the page from a few steps back are the only numbers it needs
+
+There's one more way to break the exact same guarantee a random split broke, and it has nothing to do with how you cut the data.
+
+The test window stands in for data you do not have yet, quarters that, in a real deployment, have not happened. That is only true as long as the test window's true values play no part in choosing or tuning the model. The moment you check test performance, adjust something about the model, and check test performance again, the test window has stopped standing in for the future. You have started fitting to it too, the same way training does, just more slowly and one peek at a time.
+
+So the discipline is simple to state: fit the model and make every choice about it, which method, which settings, using only the training window. Then touch the test window's true values exactly once, at the end, to report how the model actually did. If you need to compare several models or settings along the way, use rolling-origin windows or a validation window carved out of training for that, and save the real test window for the final, one-time check.
+
+=== step === quiz
+## Quick check: which split is safe for temporal data
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- Keep the split random, just make the random test set bigger, 40% instead of 30%. ::no
+- Cut the series by time: a last-h holdout, or several rolling origins, each with train entirely before its own test window. ::ok Right. The problem was never the size of the split, it was that a random split ignores order. A time-ordered cut, one last-h holdout or several rolling origins, keeps every test window later in time than the training that produced its forecast, matching how the model would actually be used.
+- Standardize the series first (subtract the mean, divide by the standard deviation), then split randomly as usual. ::no
+- Try several models, check each one's accuracy on the test window, and keep whichever model scores best on it. ::no A bigger random test set still scatters both roles across the whole series, so it still lets 2009 Q4 train a model that gets scored against 1992 Q3. Standardizing does not touch which rows land in train or test either, so it does not fix the ordering problem. And repeatedly checking test performance to pick the best-scoring model breaks the guarantee in its own way: the test window stops standing in for data you do not have yet the moment it influences a choice. What actually fixes ordered data is cutting by time, not any of the other three.
+
+=== step === tryit
+## Your turn: carve a 12-quarter holdout
+
+`beer`, the 74-quarter tsibble, is still sitting in your session. Cut a different last-h holdout from it this time. Instead of the 8-quarter (h = 8) cut from a few steps back, use a 3-year horizon, h = 12, cut at 2007 Q2.
+
+Build `beer_train2` as everything through 2007 Q2, and `beer_test2` as everything from 2007 Q3 onward, the same way `beer_train` and `beer_test` were built earlier.
+
+```r
+# Carve a 12-quarter holdout: train through 2007 Q2, test from 2007 Q3 onward
+# Build beer_train2 and beer_test2 with filter_index()
+```
+::check {"regex": "(?=[\\s\\S]*filter_index)(?=[\\s\\S]*2007 Q2)(?=[\\s\\S]*2007 Q3)", "gate": true, "difficulty": "intermediate", "ok": "Right: 62 training quarters and 12 test quarters, and 62 plus 12 is 74, the full series accounted for. 62 quarters is 15.5 years, still far more than the 2 to 3 seasonal cycles a beer series needs to train on, so this holdout is safe by the same rule from a few steps back, just with a longer test window.", "no": "Reuse the filter_index() pattern from a few steps back, cutting at 2007 Q2 instead of 2008 Q2: one call filtering everything through 2007 Q2 into beer_train2, and a second call filtering everything from 2007 Q3 onward into beer_test2, each cutoff written as a quoted year-quarter string."}
+::solution
+```r
+# Carve a 12-quarter holdout: train through 2007 Q2, test from 2007 Q3 onward
+beer_train2 <- beer |> filter_index(. ~ "2007 Q2")
+beer_test2  <- beer |> filter_index("2007 Q3" ~ .)
+
+nrow(beer_train2)
+#> [1] 62
+nrow(beer_test2)
+#> [1] 12
+```
+
+=== step === concept
+## References
+
+- [Forecasting: Principles and Practice (3rd ed.)](https://otexts.com/fpp3/) - Hyndman and Athanasopoulos, the free online textbook. Section 5.8 covers training and test sets and evaluating point forecast accuracy; section 5.10 covers time series cross-validation.
+- [tsibble package reference](https://cran.r-project.org/package=tsibble) - documentation for `filter_index()` and the rest of the tsibble grammar.
+- Australian Bureau of Statistics, catalogue 8301.0.55.001, table 1 - the source of the beer production series used throughout this lesson.
+- Bergmeir, C. and Benitez, J.M., "On the use of cross-validation for time series predictor evaluation," Information Sciences (2012) - why ordinary k-fold cross-validation misleads on time-ordered data.
+- [fabletools package reference](https://pkg.robjhyndman.com/fabletools/) - documentation for `accuracy()`, used to score a model on a held-out test window.
+
+=== step === complete
+## Quick recap
+
+- A random train/test split assumes every row is exchangeable with every other row. That's fine for unrelated rows, but the beer series broke it: the same `sample()` split put 2009 Q4 in train and 1992 Q3 in test, seventeen years apart, a case of future leakage.
+- The fix is a last-h holdout: cut by time, not by row position. h should match the forecast horizon you actually plan to use, and training should still retain several full seasonal cycles; for beer, h = 8 left 66 quarters, far more than enough of its 4-quarter cycle.
+- `filter_index()` carves that holdout straight out of a tsibble by date range: `beer_train` through 2008 Q2, `beer_test` from 2008 Q3 onward, 66 and 8 quarters, no row dropped or duplicated.
+- A rolling-origin evaluation previews testing at several cutoffs instead of one, each origin's test window later in time than its own training window, and averaging the results for a steadier estimate.
+- The same guarantee a random split breaks can be broken again by peeking at the test window's true values more than once. Fit and choose using only the training window, and touch the test window exactly once, at the end.

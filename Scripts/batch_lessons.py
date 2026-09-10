@@ -98,8 +98,53 @@ _GLOBAL_CLAUDE_MD = os.path.expanduser('~/.claude/CLAUDE.md').replace('\\', '/')
 WRITER_SETTINGS = json.dumps({'claudeMdExcludes': [_GLOBAL_CLAUDE_MD]})
 
 
+
+# Stage briefs. Each fresh session gets an explicit working-directory line and
+# repo-prefixed paths: the bare `/write-lesson <slug> --build` form resolved
+# post_plans/ against the project root in ~50% of sessions and exited on
+# "no plan file" (2026-09-10, Tidy-Temporal-Data-with-tsibble). Mirrors the
+# inline briefs batch_windowed.py has used for every clean build.
+_WD = ("Work from the project root; the repo is selva86.github.io/ and every "
+       "repo path (lessons/, post_plans/, _build/, Scripts/, www/, Plans/) lives "
+       "under selva86.github.io/. ")
+
+def plan_prompt(slug):
+    return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --plan-only mode "
+            "for the lesson `%s`. " % slug + _WD +
+            "The lesson's course arc is its entry in selva86.github.io/Plans/lessons-curriculum.md; "
+            "derive its metadata per selva86.github.io/_build/lessons-derive.md. Produce ONLY "
+            "selva86.github.io/post_plans/%s_lesson-plan.md. Do not write lesson prose. Do not run "
+            "gates. Do not touch git." % slug)
+
+def plan_check_prompt(slug):
+    return ("Follow the skill at .claude/skills/check-lesson-plan/SKILL.md for the plan "
+            "selva86.github.io/post_plans/%s_lesson-plan.md. " % slug + _WD +
+            "Fix flow directly in the plan, then set `status: approved`. Do not approve an "
+            "unfixable plan. Do not write lesson prose. Do not touch git.")
+
+def build_prompt(slug):
+    return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --build mode for the "
+            "lesson `%s`. " % slug + _WD +
+            "The plan at selva86.github.io/post_plans/%s_lesson-plan.md is stamped approved: build "
+            "strictly from it (floor, not ceiling; never reorder or re-plan). Write "
+            "selva86.github.io/lessons/%s.md, run both gates until green, and finish with the short "
+            "summary the skill asks for. Do not publish, build the site, or touch git." % (slug, slug))
+
+def check_prompt(slug):
+    return ("Follow the skill at .claude/skills/check-lesson/SKILL.md for the lesson "
+            "selva86.github.io/lessons/%s.md (its approved plan is at "
+            "selva86.github.io/post_plans/%s_lesson-plan.md). " % (slug, slug) + _WD +
+            "Apply bounded fixes, re-run both gates, and give the verdict the skill defines. "
+            "Do not publish, build the site, or touch git.")
+
+def publish_prompt(slug):
+    return ("Follow the skill at .claude/skills/publish-lesson/SKILL.md for the lesson `%s` "
+            "with --skip-sync. " % slug + _WD +
+            "Commit to the CURRENT working branch and push that branch; never switch branches "
+            "and never push to master.")
+
 def run_claude(cli, prompt, timeout=None):
-    print('+ %s -p "%s"  (--model %s --effort %s, no-global-CLAUDE.md, cwd=%s)' % (cli, prompt, BATCH_MODEL, BATCH_EFFORT, PROJECT_ROOT), flush=True)
+    print('+ %s -p "%s..."  (--model %s --effort %s, no-global-CLAUDE.md, cwd=%s)' % (cli, prompt[:90], BATCH_MODEL, BATCH_EFFORT, PROJECT_ROOT), flush=True)
     try:
         proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions',
                                  '--model', BATCH_MODEL, '--effort', BATCH_EFFORT,
@@ -186,12 +231,12 @@ def main():
             approved_already = os.path.exists(plan_path) and 'status: approved' in open(plan_path, encoding='utf-8').read()
             if approved_already:
                 print('  approved plan exists, skipping planner + plan review: %s' % slug)
-            if not approved_already and (run_claude(args.claude, '/write-lesson ' + slug + ' --plan-only', args.timeout or None) != 0 or not os.path.exists(plan_path)):
+            if not approved_already and (run_claude(args.claude, plan_prompt(slug), args.timeout or None) != 0 or not os.path.exists(plan_path)):
                 st[slug]['status'] = 'plan_failed'
                 save_status(st)
                 print('  plan failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
                 continue
-            if not approved_already and (run_claude(args.claude, '/check-lesson-plan ' + slug, args.timeout or None) != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read()):
+            if not approved_already and (run_claude(args.claude, plan_check_prompt(slug), args.timeout or None) != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read()):
                 st[slug]['status'] = 'plan_review_failed'
                 save_status(st)
                 print('  plan review failed: %s' % slug)
@@ -201,7 +246,7 @@ def main():
                 save_status(st)
                 print('  plan approved (plan-only): %s' % slug)
                 continue
-            if run_claude(args.claude, '/write-lesson ' + slug + ' --build', args.timeout or None) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
+            if run_claude(args.claude, build_prompt(slug), args.timeout or None) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
                 st[slug]['status'] = 'failed'
                 save_status(st)
                 print('  write failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
@@ -209,7 +254,7 @@ def main():
 
             st[slug]['status'] = 'reviewing'
             save_status(st)
-            if run_claude(args.claude, '/check-lesson ' + slug, args.timeout or None) != 0:
+            if run_claude(args.claude, check_prompt(slug), args.timeout or None) != 0:
                 st[slug]['status'] = 'manual_review'
                 save_status(st)
                 print('  review flagged manual_review: %s (see Scripts/lesson-review.log)' % slug)
@@ -217,7 +262,7 @@ def main():
 
             st[slug]['status'] = 'publishing'
             save_status(st)
-            if run_claude(args.claude, '/publish-lesson %s --skip-sync' % slug, args.timeout or None) != 0:
+            if run_claude(args.claude, publish_prompt(slug), args.timeout or None) != 0:
                 st[slug]['status'] = 'publish_failed'
                 save_status(st)
                 print('  publish failed: %s' % slug)
