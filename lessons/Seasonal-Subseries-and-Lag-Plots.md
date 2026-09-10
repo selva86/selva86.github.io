@@ -211,7 +211,7 @@ lag_cors
 
 Lag 1 is close to zero, -0.10: one quarter's value tells you almost nothing about the next quarter's value. Lag 2 is a strong -0.67: two quarters apart lands you on close to opposite sides of the yearly pattern, so a high value tends to pair with a low one. Lag 4 and lag 8 are the strong positive ones, 0.93 and 0.94: four quarters is a full year and eight is two full years, so the same quarter of the pattern lines up with itself, and the values track each other closely.
 
-That reading only works because this code passed `geom = "point"`. `gg_lag()`'s own default is not "point", it is "path": draw a line through the points in the order the quarters actually occurred, then scatter them on top of it. Two quarters that sit right next to each other in time are not necessarily anywhere near each other on this plot, so that default line tends to bury the exact diagonal shapes you just read. The next step shows you exactly that.
+That interpretation only works because this code passed `geom = "point"`. `gg_lag()`'s own default is not "point", it is "path": draw a line through the points in the order the quarters actually occurred, then scatter them on top of it. Two quarters that sit right next to each other in time are not necessarily anywhere near each other on this plot, so that default line tends to bury the exact diagonal shapes you just read. The next step shows you exactly that.
 
 === step === widget
 ## Point cloud versus connected path at lag 4
