@@ -1,0 +1,448 @@
+---
+title: "Time Series Regression Lesson 3: Fourier terms for seasonality"
+description: "Learn fourier(K = ) in TSLM to model seasonality with a sine-cosine pair, choose K by comparing AICc, and see why it beats season() dummies for long periods."
+keywords: "Fourier terms in R, fourier() in fable, TSLM seasonal regression, harmonic regression time series, choosing K by AICc, sine and cosine seasonal predictors, season() vs fourier(), seasonal dummy variables alternative, AICc model selection R, time series regression in R"
+mathjax: false
+webr: true
+curriculum_id: "5.40.3"
+post_type: "LESSON"
+course_id: "ts-regression"
+course_title: "Time Series Regression"
+course_lesson: "3"
+course_total: "6"
+course_landing: "Time-Series-Regression-Course.html"
+course_next: "Useful-Predictors-Lags-Calendar-and-Holidays.html"
+course_prev: "Trend-and-Seasonal-Dummy-Variables.html"
+lesson_access: "pro"
+catalog_blurb: "Model a full year's seasonal swing with two numbers, not eleven dummy columns."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Fourier terms for seasonality</h2>
+
+<p>Today let's learn a compact way to put a repeating yearly pattern into a regression model, using an ice-cream shop's monthly sales as the running example.</p>
+
+<p>Bayline Creamery is a small ice-cream shop. Every month since January 2022, it has logged how many tubs it sold. Below are all 48 months, from January 2022 to December 2025, month 1 on the left and month 48 on the right.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":3683},{"x":2,"y":3989},{"x":3,"y":4253},{"x":4,"y":4216},{"x":5,"y":4016},{"x":6,"y":3730},{"x":7,"y":3556},{"x":8,"y":3012},{"x":9,"y":2842},{"x":10,"y":2535},{"x":11,"y":2918},{"x":12,"y":3586},{"x":13,"y":3915},{"x":14,"y":4494},{"x":15,"y":4688},{"x":16,"y":4697},{"x":17,"y":4434},{"x":18,"y":3981},{"x":19,"y":3680},{"x":20,"y":3619},{"x":21,"y":3112},{"x":22,"y":2860},{"x":23,"y":3265},{"x":24,"y":3969},{"x":25,"y":4691},{"x":26,"y":4961},{"x":27,"y":5157},{"x":28,"y":4961},{"x":29,"y":4981},{"x":30,"y":4642},{"x":31,"y":4421},{"x":32,"y":4044},{"x":33,"y":3713},{"x":34,"y":3446},{"x":35,"y":3806},{"x":36,"y":4185},{"x":37,"y":4929},{"x":38,"y":5403},{"x":39,"y":5443},{"x":40,"y":5603},{"x":41,"y":5438},{"x":42,"y":5148},{"x":43,"y":4928},{"x":44,"y":4395},{"x":45,"y":3977},{"x":46,"y":4020},{"x":47,"y":4167},{"x":48,"y":4950}],"geoms":["point","line"],"x":"month","y":"sales"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Sales climb overall, but every spring sits higher than the months before it, and every autumn dips below them, four times over the four years.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What a Fourier term is: a sine and cosine wave over the seasonal period</h2>
+
+<p>Bayline's yearly pattern repeats every 12 months, so statisticians call 12 the seasonal period, written m. The building block for modelling a repeating pattern like this is called a Fourier term: a sine wave and a cosine wave that each complete exactly one cycle over that period.</p>
+
+<p>Before fitting anything, build the 48 months of sales once, so every step from here on can reuse the same data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Bayline Creamery's 48 months of tub sales, Jan 2022 to Dec 2025
+library(tsibble)
+library(fable)
+library(fabletools)
+library(dplyr)
+
+set.seed(42)
+t &lt;- 1:48
+sales &lt;- round(3200 + 40 * t + 900 * sin(2 * pi * t / 12) - 300 * cos(2 * pi * t / 12) +
+                 150 * sin(4 * pi * t / 12) + rnorm(48, 0, 90))
+shop &lt;- tsibble(month = yearmonth(&quot;2022 Jan&quot;) + 0:47, sales = sales, index = month)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now look at the first harmonic on its own, month by month. The first harmonic, k = 1, is a sine wave, written S1, and a cosine wave, written C1, each running through exactly one full cycle over 12 months. For month t, S1 = sin(2 <em> pi </em> t / 12) and C1 = cos(2 <em> pi </em> t / 12). Print both for the twelve months of one cycle to see them as numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Look at the first harmonic on its own: one sine wave and one cosine wave over 12 months
+cycle &lt;- 1:12
+S1 &lt;- sin(2 * pi * cycle / 12)
+C1 &lt;- cos(2 * pi * cycle / 12)
+data.frame(t = cycle, S1 = round(S1, 3), C1 = round(C1, 3))
+#&gt;     t     S1     C1
+#&gt; 1   1  0.500  0.866
+#&gt; 2   2  0.866  0.500
+#&gt; 3   3  1.000  0.000
+#&gt; 4   4  0.866 -0.500
+#&gt; 5   5  0.500 -0.866
+#&gt; 6   6  0.000 -1.000
+#&gt; 7   7 -0.500 -0.866
+#&gt; 8   8 -0.866 -0.500
+#&gt; 9   9 -1.000  0.000
+#&gt; 10 10 -0.866  0.500
+#&gt; 11 11 -0.500  0.866
+#&gt; 12 12  0.000  1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>S1 starts at 0.5 in month 1, already on its way up, climbs to its peak of 1 in month 3, falls back through zero at month 6, keeps falling to its lowest point of -1 in month 9, then climbs back to zero by month 12. C1 moves a quarter cycle ahead of S1: it starts close to its own peak in month 1, falls to its lowest point in month 6, then climbs back to that same peak by month 12. Together the two waves cover every point in the cycle, one peaking a quarter of a year after the other.</p>
+
+<p>That is what a Fourier term is: two waves, sine and cosine, at a chosen period and harmonic. Bayline's regression will use this pair instead of one separate coefficient for every month.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Why sine and cosine always enter as a pair</h2>
+
+<p>A single sine wave cannot bend to fit Bayline's data on its own. sin(2 <em> pi </em> t / 12) always peaks in month 3, no matter how you scale it, because scaling only changes its height, not where it peaks. But Bayline's sales might peak in a different month, or somewhere between two of them.</p>
+
+<p>Adding a cosine wave fixes that. Any combination A <em> sin(x) + B </em> cos(x), for any two numbers A and B, is really just one wave, R * sin(x + phi), a sine wave with amplitude R = sqrt(A^2 + B^2) shifted by an angle phi. Change A and B and you slide that wave's peak to any month you like, and stretch or shrink its height at the same time. That is why a Fourier term is always fit as a pair. Keeping only S1 and dropping C1 would lock the peak into month 3, whatever the data actually shows.</p>
+
+<p>Fit trend() and the first Fourier harmonic on Bayline's sales, and read the two coefficients it returns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the trend plus one Fourier harmonic (K = 1), and read the sine and cosine coefficients
+fit1 &lt;- shop %&gt;%
+  model(TSLM(sales ~ trend() + fourier(K = 1)))
+
+report(fit1)
+#&gt; Series: sales 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -329.74  -93.22  -22.27  107.49  300.77 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                     Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)          3262.67      45.10  72.344  &lt; 2e-16 ***
+#&gt; trend()                37.29       1.61  23.161  &lt; 2e-16 ***
+#&gt; fourier(K = 1)C1_12   195.36      30.96   6.309 1.18e-07 ***
+#&gt; fourier(K = 1)S1_12   893.27      31.50  28.357  &lt; 2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 151.5 on 44 degrees of freedom
+#&gt; Multiple R-squared: 0.9634,	Adjusted R-squared: 0.9609
+#&gt; F-statistic: 385.8 on 3 and 44 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model reports fourier(K = 1)C1_12 as 195.36 and fourier(K = 1)S1_12 as 893.27. These two numbers are not two separate seasonal effects sitting side by side. They are the A and B of one combined wave, and together they say how tall that wave is and which month it peaks in.</p>
+
+<p>Compute R, the amplitude of that one wave, from the two coefficients.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute R, the amplitude of the one wave that C1 and S1 together describe
+C1 &lt;- 195.36
+S1 &lt;- 893.27
+R &lt;- sqrt(C1^2 + S1^2)
+round(R, 2)
+#&gt; [1] 914.38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The combined wave, riding on top of the rising trend, swings sales up and down by about 914 tubs from its centre each year. Neither coefficient alone tells you that. Only the pair together does.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Fitting TSLM(sales ~ trend() + fourier(K = 2)) and reading its coefficients</h2>
+
+<p>One harmonic captures a single wave's worth of shape, one rise and one fall across the year. But Bayline's sales might bend in a way one wave cannot fully trace. Adding a second harmonic gives the model a faster wave to work with too.</p>
+
+<p>The second harmonic, k = 2, is a sine and cosine pair, S2 and C2, that complete two full cycles over the same 12 months, one every 6 months. Fit trend() together with both harmonics at once, so the model uses K = 2, meaning harmonics 1 and 2 together, four Fourier columns in all.</p>
+
+<p>Fit the model with K = 2 and read every coefficient it returns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the trend plus two Fourier harmonics (K = 2), and read all six coefficients
+fit2 &lt;- shop %&gt;%
+  model(TSLM(sales ~ trend() + fourier(K = 2)))
+
+report(fit2)
+#&gt; Series: sales 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -242.55  -56.28   14.03   78.31  161.24 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                     Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)         3246.378     31.351 103.549  &lt; 2e-16 ***
+#&gt; trend()               37.953      1.121  33.868  &lt; 2e-16 ***
+#&gt; fourier(K = 2)C1_12  196.021     21.436   9.145 1.51e-11 ***
+#&gt; fourier(K = 2)S1_12  895.748     21.811  41.068  &lt; 2e-16 ***
+#&gt; fourier(K = 2)C2_12  138.536     21.436   6.463 8.57e-08 ***
+#&gt; fourier(K = 2)S2_12   61.623     21.494   2.867  0.00645 ** 
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 104.9 on 42 degrees of freedom
+#&gt; Multiple R-squared: 0.9832,	Adjusted R-squared: 0.9813
+#&gt; F-statistic: 492.9 on 5 and 42 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six coefficients came back. The intercept, 3246.38, and trend, 37.95, describe the straight climb, close to the 40 tubs a month Bayline actually adds. C1 and S1, 196.02 and 895.75, are almost unchanged from the one-harmonic fit, the same dominant wave as before. C2 and S2, 138.54 and 61.62, are new: a smaller, faster bend added on top of the main yearly swing.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Seeing the fitted Fourier curve against the raw data</h2>
+
+<p>A table of coefficients is hard to picture. Plotted against the real sales, the fit is easier to judge.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":3683,"fill":"actual"},{"x":2,"y":3989,"fill":"actual"},{"x":3,"y":4253,"fill":"actual"},{"x":4,"y":4216,"fill":"actual"},{"x":5,"y":4016,"fill":"actual"},{"x":6,"y":3730,"fill":"actual"},{"x":7,"y":3556,"fill":"actual"},{"x":8,"y":3012,"fill":"actual"},{"x":9,"y":2842,"fill":"actual"},{"x":10,"y":2535,"fill":"actual"},{"x":11,"y":2918,"fill":"actual"},{"x":12,"y":3586,"fill":"actual"},{"x":13,"y":3915,"fill":"actual"},{"x":14,"y":4494,"fill":"actual"},{"x":15,"y":4688,"fill":"actual"},{"x":16,"y":4697,"fill":"actual"},{"x":17,"y":4434,"fill":"actual"},{"x":18,"y":3981,"fill":"actual"},{"x":19,"y":3680,"fill":"actual"},{"x":20,"y":3619,"fill":"actual"},{"x":21,"y":3112,"fill":"actual"},{"x":22,"y":2860,"fill":"actual"},{"x":23,"y":3265,"fill":"actual"},{"x":24,"y":3969,"fill":"actual"},{"x":25,"y":4691,"fill":"actual"},{"x":26,"y":4961,"fill":"actual"},{"x":27,"y":5157,"fill":"actual"},{"x":28,"y":4961,"fill":"actual"},{"x":29,"y":4981,"fill":"actual"},{"x":30,"y":4642,"fill":"actual"},{"x":31,"y":4421,"fill":"actual"},{"x":32,"y":4044,"fill":"actual"},{"x":33,"y":3713,"fill":"actual"},{"x":34,"y":3446,"fill":"actual"},{"x":35,"y":3806,"fill":"actual"},{"x":36,"y":4185,"fill":"actual"},{"x":37,"y":4929,"fill":"actual"},{"x":38,"y":5403,"fill":"actual"},{"x":39,"y":5443,"fill":"actual"},{"x":40,"y":5603,"fill":"actual"},{"x":41,"y":5438,"fill":"actual"},{"x":42,"y":5148,"fill":"actual"},{"x":43,"y":4928,"fill":"actual"},{"x":44,"y":4395,"fill":"actual"},{"x":45,"y":3977,"fill":"actual"},{"x":46,"y":4020,"fill":"actual"},{"x":47,"y":4167,"fill":"actual"},{"x":48,"y":4950,"fill":"actual"},{"x":1,"y":3618.9,"fill":"fitted"},{"x":2,"y":4062.6,"fill":"fitted"},{"x":3,"y":4218.1,"fill":"fitted"},{"x":4,"y":4155.4,"fill":"fitted"},{"x":5,"y":3991.2,"fill":"fitted"},{"x":6,"y":3768.1,"fill":"fitted"},{"x":7,"y":3454.6,"fill":"fitted"},{"x":8,"y":3055,"fill":"fitted"},{"x":9,"y":2698.3,"fill":"fitted"},{"x":10,"y":2591.6,"fill":"fitted"},{"x":11,"y":2863.5,"fill":"fitted"},{"x":12,"y":3439.6,"fill":"fitted"},{"x":13,"y":4074.3,"fill":"fitted"},{"x":14,"y":4518,"fill":"fitted"},{"x":15,"y":4673.5,"fill":"fitted"},{"x":16,"y":4610.8,"fill":"fitted"},{"x":17,"y":4446.7,"fill":"fitted"},{"x":18,"y":4223.5,"fill":"fitted"},{"x":19,"y":3910,"fill":"fitted"},{"x":20,"y":3510.4,"fill":"fitted"},{"x":21,"y":3153.7,"fill":"fitted"},{"x":22,"y":3047.1,"fill":"fitted"},{"x":23,"y":3318.9,"fill":"fitted"},{"x":24,"y":3895,"fill":"fitted"},{"x":25,"y":4529.8,"fill":"fitted"},{"x":26,"y":4973.4,"fill":"fitted"},{"x":27,"y":5129,"fill":"fitted"},{"x":28,"y":5066.3,"fill":"fitted"},{"x":29,"y":4902.1,"fill":"fitted"},{"x":30,"y":4679,"fill":"fitted"},{"x":31,"y":4365.4,"fill":"fitted"},{"x":32,"y":3965.9,"fill":"fitted"},{"x":33,"y":3609.2,"fill":"fitted"},{"x":34,"y":3502.5,"fill":"fitted"},{"x":35,"y":3774.4,"fill":"fitted"},{"x":36,"y":4350.5,"fill":"fitted"},{"x":37,"y":4985.2,"fill":"fitted"},{"x":38,"y":5428.9,"fill":"fitted"},{"x":39,"y":5584.4,"fill":"fitted"},{"x":40,"y":5521.7,"fill":"fitted"},{"x":41,"y":5357.6,"fill":"fitted"},{"x":42,"y":5134.4,"fill":"fitted"},{"x":43,"y":4820.9,"fill":"fitted"},{"x":44,"y":4421.3,"fill":"fitted"},{"x":45,"y":4064.6,"fill":"fitted"},{"x":46,"y":3957.9,"fill":"fitted"},{"x":47,"y":4229.8,"fill":"fitted"},{"x":48,"y":4805.9,"fill":"fitted"}],"geoms":["line"],"x":"month","y":"sales","code":{"line":"ggplot(bayline_long, aes(month, sales, color = series)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The fitted line climbs the same way the raw sales do, and it bends up near month 3 of each year and down near month 10, tracking the same spring peak and autumn dip the raw data shows. It does this with a smooth curve. There is no sharp step at any month boundary, the way a set of separate monthly coefficients would produce. Two waves, riding on a straight trend, are already enough to trace the shape.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: Fourier terms and their coefficients</h2>
+
+<p>Suppose a different fitted fourier(K = 1) term came back with C1 = 40 and S1 = 300.</p>
+<section class="exercise" data-exercise-id="Fourier-Terms-for-Seasonality-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">C1 and S1 are two separate seasonal effects, one from each wave, and each can be judged on its own.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">C1 and S1 together describe one combined wave; dropping C1 would lock that wave's peak into month 3, whatever the data actually shows.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Since S1 is much larger than C1, C1 can be dropped without changing the fitted wave.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">C1 and S1 measure the trend and the intercept, not the seasonal pattern.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. A lone S1 term can only peak where sin equals 1, month 3 on a 12-month cycle. C1 is what lets the combined wave move its peak to match the real data.</div><div class="lesson-qfb lesson-qfb-no">Both numbers come from the fourier(K = 1) term, not trend() or the intercept. Together they are one wave's amplitude and phase: C1 = 40 and S1 = 300 combine into one wave of amplitude sqrt(40^2 + 300^2), about 302.7, and dropping either number changes where that wave peaks or how tall it is.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>How K sets the number of harmonics, and the special case K = m/2</h2>
+
+<p>K controls how many harmonics the model gets to use. Raising K by one adds a faster wave, one that completes k full cycles over the 12-month period, and two more coefficients to fit, Ck and Sk.</p>
+
+<p>For monthly data, K cannot rise past 6. A wave completing more than 6 cycles in 12 months would need to be sampled more than once a month to tell apart from a slower one, and Bayline only has one sales figure per month. K = m / 2 = 12 / 2 = 6 is the ceiling.</p>
+
+<p>At that ceiling something else happens. The sine term of the sixth harmonic, sin(2 <em> pi </em> 6 <em> t / 12), equals sin(pi </em> t), which is exactly 0 for every whole month t, so fable drops it. fourier(K = 6) contributes 11 usable columns instead of 12, C1 through C6 and S1 through S5.</p>
+
+<p>Fit trend() with fourier(K = 6), and read the coefficients it keeps.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit K = 6, the largest harmonic monthly data supports, and read its coefficients
+fit6 &lt;- shop %&gt;%
+  model(TSLM(sales ~ trend() + fourier(K = 6)))
+
+report(fit6)
+#&gt; Series: sales 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -239.21  -54.26   28.82   55.99  159.46 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                     Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)         3249.159     31.737 102.378  &lt; 2e-16 ***
+#&gt; trend()               37.840      1.136  33.304  &lt; 2e-16 ***
+#&gt; fourier(K = 6)C1_12   195.908     21.587   9.075 1.01e-10 ***
+#&gt; fourier(K = 6)S1_12   895.325     21.971  40.751  &lt; 2e-16 ***
+#&gt; fourier(K = 6)C2_12   138.423     21.587   6.412 2.22e-07 ***
+#&gt; fourier(K = 6)S2_12    61.426     21.647   2.838  0.00751 ** 
+#&gt; fourier(K = 6)C3_12    14.881     21.587   0.689  0.49515    
+#&gt; fourier(K = 6)S3_12   -46.660     21.587  -2.161  0.03758 *  
+#&gt; fourier(K = 6)C4_12    -4.577     21.587  -0.212  0.83332    
+#&gt; fourier(K = 6)S4_12     6.186     21.567   0.287  0.77594    
+#&gt; fourier(K = 6)C5_12   -18.145     21.587  -0.841  0.40631    
+#&gt; fourier(K = 6)S5_12    -1.466     21.560  -0.068  0.94616    
+#&gt; fourier(K = 6)C6_12     9.899     15.254   0.649  0.52061    
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 105.6 on 35 degrees of freedom
+#&gt; Multiple R-squared: 0.9858,	Adjusted R-squared: 0.981
+#&gt; F-statistic: 203.1 on 12 and 35 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Together with the intercept and trend, that is 13 coefficients. TSLM(sales ~ trend() + season()) also needs 13: the intercept, trend, and 11 season dummies, one for every month except the baseline. Fit season() too, and compare its AICc against the K = 6 fit.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the season() dummies instead, and compare AICc against the K = 6 fit
+fit_season &lt;- shop %&gt;%
+  model(TSLM(sales ~ trend() + season()))
+
+data.frame(
+  model = c(&quot;fourier(K = 6)&quot;, &quot;season()&quot;),
+  AICc = c(round(glance(fit6)$AICc, 4), round(glance(fit_season)$AICc, 4))
+)
+#&gt;            model     AICc
+#&gt; 1 fourier(K = 6) 472.9022
+#&gt; 2       season() 472.9022</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both come back at 472.9022, to four decimal places. fourier(K = 6) and season() are not two different models that happen to score alike. Written out in full, K = m / 2 harmonics and the complete set of monthly dummies are the same model, just in two different bases.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Choosing K by AICc</h2>
+
+<p>With K capped at 6, the question becomes which K actually fits best. AICc scores a model on both counts at once: how closely it fits the data, and how many coefficients it needed to get there, with a correction for having a small dataset like Bayline's 48 months. A lower AICc is better, and adding a coefficient that does not earn its place pushes AICc back up.</p>
+
+<p>Fit K = 1 through 6 on Bayline's sales, and read AICc at each.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit K = 1 through 6 and read AICc at each
+aicc_by_k &lt;- numeric(6)
+for (k in 1:6) {
+  fit &lt;- shop %&gt;% model(TSLM(sales ~ trend() + fourier(K = k)))
+  aicc_by_k[k] &lt;- round(glance(fit)$AICc, 2)
+}
+data.frame(K = 1:6, AICc = aicc_by_k)
+#&gt;   K   AICc
+#&gt; 1 1 489.22
+#&gt; 2 2 457.05
+#&gt; 3 3 456.61
+#&gt; 4 4 463.04
+#&gt; 5 5 469.45
+#&gt; 6 6 472.90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>AICc drops sharply from K = 1 to K = 2, 489.22 down to 457.05. It barely moves from K = 2 to K = 3, only 0.44 lower at 456.61, then climbs back up as K keeps growing: 463.04, 469.45, 472.90. The extra harmonics past K = 2 buy almost nothing and eventually cost more than they are worth.</p>
+
+<p>K = 3 has the lowest AICc by a hair, but it needs two more coefficients than K = 2 to get there. K = 2 sits within 0.44 of the true minimum while fitting a simpler model, so K = 2 is the practical choice.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>The underfit-to-overfit trade-off in choosing K</h2>
+
+<p>That trade-off is not unique to Fourier terms. It shows up whenever you choose how flexible a model should be, and it is worth seeing on a plain curve, without Bayline's numbers getting in the way.</p>
+<div class="lesson-widget" data-widget-type="spline-smoother" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the slider from stiff to wiggly. A stiff fit, too few harmonics in Bayline's case, misses the bends the data actually makes, the way K = 1 left more curve unexplained and its AICc sat at 489.22. A wiggly fit chases every bump in the data instead of the underlying shape, the way K = 6 spent six extra coefficients on almost nothing and still finished with a worse AICc, 472.90, than K = 2's 457.05. The K = 6 report already showed this up close: C4 came back with p = 0.83 and S5 with p = 0.95, nowhere near significant, exactly the kind of noise a wiggly fit spends its extra columns chasing. The middle setting, like Bayline's K = 2, follows the true shape without spending coefficients on noise.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Why Fourier terms beat seasonal dummies for long or multiple periods</h2>
+
+<p>season() always needs one dummy column for every level of the period except one, m minus 1 in total. For Bayline's monthly data, m = 12, so that was only 11, not a big cost. But not every series is monthly.</p>
+
+<p>Take daily data with a yearly period, m = 365. season() would need 364 dummy columns, one for every day of the year bar one. fourier(K = 4) needs just 8 columns, four sine and cosine pairs, and already traces a smooth annual curve. Even fourier(K = 10) needs only 20, still 344 fewer than season().</p>
+
+<p>fourier() has a second advantage season() cannot match. It accepts more than one period in the same formula, say a weekly period of 7 alongside a yearly period of 365.25, carrying two overlapping cycles in one model. Dummy variables cannot do that, because every row belongs to exactly one day of the week and one day of the year at the same time, and a single set of category dummies can only encode one of those groupings at once.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing K and Fourier versus dummies</h2>
+
+<p>A colleague has 365 days of data with a yearly period and wants to model the seasonal shape. They are deciding between season() and fourier(K = 6).</p>
+<section class="exercise" data-exercise-id="Fourier-Terms-for-Seasonality-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">season() will need fewer coefficients, since it fits one clean dummy for every day.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">fourier(K = 6) is the safer choice, because a higher K always gives a better fit.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">fourier(K = 6) needs only 12 columns against season()'s 364, and the actual K to use should still be chosen by comparing AICc across a range, not assumed.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Neither approach can handle 365 days of data; only monthly series support seasonal predictors.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right on both counts. fourier(K = 6) needs 2 * 6 = 12 columns here, nowhere near season()'s 364. And AICc, not the biggest K available, is what tells you where fit stops improving and starts chasing noise.</div><div class="lesson-qfb lesson-qfb-no">Both season() and fourier() work at any period, monthly or daily. The real difference is how many coefficients each needs, and the actual K within fourier() is still picked by comparing AICc, the same way Bayline's K = 2 was chosen over K = 1 through 6.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: refit with a different K and compare AICc</h2>
+
+<p>The tsibble shop and the K = 2 fit from earlier are still there. Edit the code below to fit K = 4 instead, and see whether it beats K = 2's AICc of 457.05.</p>
+<section class="exercise" data-exercise-id="Fourier-Terms-for-Seasonality-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*fourier[(]K\s*=\s*4[)])(?=[\s\S]*glance[(])"><textarea class="lesson-tryit-input" spellcheck="false"># Edit K = 2 to K = 4 below, then compare the new AICc with 457.05
+fit_k2 &lt;- shop %&gt;%
+  model(TSLM(sales ~ trend() + fourier(K = 2)))
+
+round(glance(fit_k2)$AICc, 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">K = 4's AICc comes back at 463.04, worse than K = 2's 457.05. K = 2 was already close to the best trade-off between fit and coefficients.</span><span class="lesson-tryit-fb lesson-tryit-no">Change the K inside fourier(K = 2) to 4, keep the glance(...)$AICc line, and run it again.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Refit with K = 4 and read the new AICc
+fit_k4 &lt;- shop %&gt;%
+  model(TSLM(sales ~ trend() + fourier(K = 4)))
+
+round(glance(fit_k4)$AICc, 2)
+#&gt; [1] 463.04</code></pre></details></div>
+</section>
+<p>463.04 is worse than K = 2's 457.05, confirming K = 2 was already close to the best trade-off available.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice (3rd ed.)</a> - Hyndman, R.J. and Athanasopoulos, G., section 7.4, Some useful predictors, on sine and cosine pairs as a seasonal predictor and choosing K.</li>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice (3rd ed.)</a> - Hyndman, R.J. and Athanasopoulos, G., section 7.5, Selecting predictors, on AICc as a model selection criterion.</li>
+
+<li><a href="https://fable.tidyverts.org/reference/TSLM.html">fable's TSLM() reference</a> and <a href="https://fabletools.tidyverts.org/reference/fourier.html">fabletools' fourier() reference</a>, the tidyverts package documentation.</li>
+
+<li>Bloomfield, P., Fourier Analysis of Time Series: An Introduction (2nd ed.), Wiley, on representing a periodic signal as a sum of sine and cosine terms.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You now know how to put a repeating seasonal pattern into a regression model without a column for every month. To summarize:</p>
+
+<ul>
+
+<li>A Fourier term is a sine and cosine pair, S and C, at a chosen period and harmonic, and the pair always enters a model together because together they set both the height and the timing of one combined wave.</li>
+
+<li>fourier(K = ) inside TSLM(y ~ trend() + fourier(K = )) fits K harmonics at once, and report() reads back a coefficient for every sine and cosine term plus the intercept and trend.</li>
+
+<li>AICc, not a fixed rule, picks K: fit a range of them and take the one where AICc stops improving by a meaningful amount, the way K = 2 beat K = 1 by a wide margin and K = 3 only by 0.44.</li>
+
+<li>Fourier terms need far fewer coefficients than seasonal dummies once the period is long, and they are the only one of the two that can carry more than one period in the same model.</li>
+
+</ul>
+
+<p>fourier() carries forward into models with lagged and calendar predictors alongside it, which is where a seasonal model starts sharing space with the rest of a series' story.</p>
+</section>
+
+{% endraw %}
