@@ -33,43 +33,43 @@ See why treating a time series like a random sample breaks your assumptions. Wat
 
 Hold time series data the way the modern R forecasting ecosystem expects. Learn the index and key that define a `tsibble`, regular versus irregular intervals, filling implicit gaps with `fill_gaps()`, converting a data frame to a tsibble and back, and aggregating daily data to monthly with `index_by()`.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Tidy temporal data with tsibble](Tidy-Temporal-Data-with-tsibble.html)
 
 ### Lesson 3: Time series analysis in R
 
 Read what a series says before you fit anything to it. Practice naming level, trend, seasonal pattern, cycles and noise across three real series, retail sales, energy demand and web traffic, and describe each one in a single honest sentence.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Time series analysis in R](Time-Series-Analysis-in-R.html)
 
 ### Lesson 4: EDA for time series
 
 Adopt the plots-first workflow that catches problems before modeling does. Use `autoplot()`, summarize by season and year, and learn to spot outliers, structural breaks, missing runs and calendar effects while they are still cheap to fix.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: EDA for time series](EDA-for-Time-Series.html)
 
 ### Lesson 5: Seasonal, subseries and lag plots
 
 Go beyond a single line chart. Use `gg_season()` and `gg_subseries()` to read a seasonal shape and check how stable it is year over year, then use `gg_lag()` for your first direct look at how a series depends on its own past.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Seasonal, subseries and lag plots](Seasonal-Subseries-and-Lag-Plots.html)
 
 ### Lesson 6: Autocorrelation and the ACF
 
 Compute the lag-k correlation by hand, then read it properly from `ACF()` and its significance band. Learn what trend and seasonality look like in an ACF plot, what white noise looks like as the null case, and the idea behind the Ljung-Box test.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Autocorrelation and the ACF](Autocorrelation-and-the-ACF.html)
 
 ### Lesson 7: Train and test splits for temporal data
 
 See exactly why a random train/test split leaks the future into training. Build the last-h holdout with `filter_index()`, get a first look at rolling origins, and learn to evaluate a model only on the window it never saw.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Train and test splits for temporal data](Train-and-Test-Splits-for-Temporal-Data.html)
 
 ### Lesson 8: Benchmark forecasts: naive, seasonal naive and drift
 
 Fit the three benchmarks every real model must beat, `MEAN()`, `NAIVE()`, `SNAIVE()` and `RW(y ~ drift())` in `fable`. Generate forecasts with intervals, score them with `accuracy()` on the test window, and lock in the rule that no model earns a place in your workflow until it beats these.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: Benchmark forecasts: naive, seasonal naive and drift](Benchmark-Forecasts-Naive-Seasonal-Naive-and-Drift.html)
 
 ## Who this is for
 
