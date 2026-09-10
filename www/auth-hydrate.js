@@ -264,6 +264,8 @@
     body.classList.remove('state-anon');
     body.classList.add('state-pro');
     if (me.pro) body.classList.add('pro'); else body.classList.remove('pro');
+    // Lifetime members have nothing left to buy; the navbar hides its pricing CTA on body.lifetime.
+    if (me.pro && me.pro_source === 'lifetime') body.classList.add('lifetime'); else body.classList.remove('lifetime');
 
     document.querySelectorAll('.auth-user').forEach(span => fillAuthUser(span, me.user));
   }
