@@ -33,13 +33,13 @@ Forecast a series with no trend to follow by weighting recent years more than ol
 
 Add a slope component with beta to forecast a series that climbs or falls steadily. See why an undamped trend embarrasses you at long horizons, meet the damping parameter phi and its usual range, and compare the naive, Holt and damped-Holt forecasts on a decade of air passenger numbers.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Holt linear trend and the damped trend](Holt-Linear-Trend-and-Damped-Trend.html)
 
 ### Lesson 3: Holt-Winters seasonal methods
 
 Add a seasonal component with gamma to forecast a series with a repeating calendar pattern. Tell additive from multiplicative seasonality, meet the damped seasonal variant, and forecast quarterly tourism with each version side by side.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Holt-Winters seasonal methods](Holt-Winters-Seasonal-Methods.html)
 
 ### Lesson 4: The ETS taxonomy
 
