@@ -33,7 +33,7 @@
   document.title='The R '+ROLE[role]+' roadmap · r-statistics.co';
 
   // hero
-  document.getElementById('rchipText').textContent=CHIP[role];
+  var rchipText=document.getElementById('rchipText'); if(rchipText) rchipText.textContent=CHIP[role];
   document.getElementById('roleHead').innerHTML=L.head; // contains <em> accent
   document.getElementById('roleDek').textContent=L.become;
   document.getElementById('roleMeta').innerHTML=
