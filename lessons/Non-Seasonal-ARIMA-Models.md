@@ -1,0 +1,345 @@
+---
+title: "ARIMA and Seasonal ARIMA Lesson 4: Fitting a non-seasonal ARIMA model and reading its coefficients"
+catalog_blurb: "Fit an ARIMA model to real data and understand every coefficient it reports."
+description: "Fit a non-seasonal ARIMA(p, d, q) model in R with fable's ARIMA() and pdq(), read every fitted coefficient, and decide if a constant belongs in the equation."
+keywords: "ARIMA, ARIMA(p d q) notation, autoregressive AR term, moving average MA term, backshift operator, fable ARIMA(), pdq(), non-seasonal ARIMA, AICc, forecast drift constant"
+post_type: "LESSON"
+curriculum_id: "5.60.4"
+webr: true
+mathjax: true
+lesson_access: "pro"
+course_id: "ts-arima"
+course_title: "ARIMA and Seasonal ARIMA"
+course_lesson: "4"
+course_total: "7"
+course_landing: "ARIMA-and-Seasonal-ARIMA-Course.html"
+course_next: "Seasonal-ARIMA-SARIMA.html"
+course_prev: "Reading-the-ACF-and-PACF.html"
+---
+
+=== step === cover
+## Fitting a non-seasonal ARIMA model and reading its coefficients
+
+Today let's understand how to actually fit an ARIMA model in R with an explicit order, and read every number it hands back once it is fit.
+
+The running example is WWWusage, a dataset that ships inside R itself: the number of users connected to an internet server, recorded once a minute, for 100 straight minutes (Durbin and Koopman, 2001). A hundred minutes is nowhere near long enough to carry any daily or weekly repeat, so this series has no season to worry about, only a trend.
+
+Here is the raw series.
+
+::widget chart-plotter {"data":[{"x":1,"y":88},{"x":2,"y":84},{"x":3,"y":85},{"x":4,"y":85},{"x":5,"y":84},{"x":6,"y":85},{"x":7,"y":83},{"x":8,"y":85},{"x":9,"y":88},{"x":10,"y":89},{"x":11,"y":91},{"x":12,"y":99},{"x":13,"y":104},{"x":14,"y":112},{"x":15,"y":126},{"x":16,"y":138},{"x":17,"y":146},{"x":18,"y":151},{"x":19,"y":150},{"x":20,"y":148},{"x":21,"y":147},{"x":22,"y":149},{"x":23,"y":143},{"x":24,"y":132},{"x":25,"y":131},{"x":26,"y":139},{"x":27,"y":147},{"x":28,"y":150},{"x":29,"y":148},{"x":30,"y":145},{"x":31,"y":140},{"x":32,"y":134},{"x":33,"y":131},{"x":34,"y":131},{"x":35,"y":129},{"x":36,"y":126},{"x":37,"y":126},{"x":38,"y":132},{"x":39,"y":137},{"x":40,"y":140},{"x":41,"y":142},{"x":42,"y":150},{"x":43,"y":159},{"x":44,"y":167},{"x":45,"y":170},{"x":46,"y":171},{"x":47,"y":172},{"x":48,"y":172},{"x":49,"y":174},{"x":50,"y":175},{"x":51,"y":172},{"x":52,"y":172},{"x":53,"y":174},{"x":54,"y":174},{"x":55,"y":169},{"x":56,"y":165},{"x":57,"y":156},{"x":58,"y":142},{"x":59,"y":131},{"x":60,"y":121},{"x":61,"y":112},{"x":62,"y":104},{"x":63,"y":102},{"x":64,"y":99},{"x":65,"y":99},{"x":66,"y":95},{"x":67,"y":88},{"x":68,"y":84},{"x":69,"y":84},{"x":70,"y":87},{"x":71,"y":89},{"x":72,"y":88},{"x":73,"y":85},{"x":74,"y":86},{"x":75,"y":89},{"x":76,"y":91},{"x":77,"y":91},{"x":78,"y":94},{"x":79,"y":101},{"x":80,"y":110},{"x":81,"y":121},{"x":82,"y":135},{"x":83,"y":145},{"x":84,"y":149},{"x":85,"y":156},{"x":86,"y":165},{"x":87,"y":171},{"x":88,"y":175},{"x":89,"y":177},{"x":90,"y":182},{"x":91,"y":193},{"x":92,"y":204},{"x":93,"y":208},{"x":94,"y":210},{"x":95,"y":215},{"x":96,"y":222},{"x":97,"y":228},{"x":98,"y":226},{"x":99,"y":222},{"x":100,"y":220}],"geoms":["line"],"x":"minute","y":"users"}
+
+It climbs for a stretch, drops back, and climbs again, with no repeating shape anywhere in it and no sign of settling near one fixed level. Three plain integers, chosen carefully, are enough to turn a series like this into one fitted model.
+
+=== step === concept
+## The ARIMA(p, d, q) notation, read as a sentence
+
+::prose-only abstract notation, nothing to plot yet
+
+ARIMA stands for AutoRegressive Integrated Moving Average, and every model in the family is written with the same three integers, in the same fixed order: ARIMA(p, d, q).
+
+Each of the three counts something different:
+
+- p counts the autoregressive terms: how many of the series' own past values the model uses to explain today's value.
+- d counts the number of times the series gets differenced before fitting, which is exactly what "integrated" refers to in the name.
+- q counts the moving-average terms: how many past forecast errors the model uses.
+
+So ARIMA(2, 1, 1) reads as a sentence: 2 autoregressive terms, differenced once, 1 moving-average term. However large the three numbers get, every ARIMA order reads exactly this same way.
+
+=== step === concept
+## AR and MA terms, two ways to remember the past
+
+::prose-only abstract equations, nothing to plot yet
+
+An ARIMA model actually combines two separate ideas about how a series can depend on its own history: an AR term and an MA term. They are worth telling apart carefully, because each one conditions on something different.
+
+An AR(p) model, short for autoregressive, writes today's value as a weighted sum of the series' own last p values, plus fresh noise:
+
+\[ y_t = \phi_1 y_{t-1} + \phi_2 y_{t-2} + \cdots + \phi_p y_{t-p} + \varepsilon_t \]
+
+Here \(\phi_1\) through \(\phi_p\) are coefficients the model estimates, one for each lag, and \(\varepsilon_t\) is the noise left over once those lags are accounted for.
+
+An MA(q) model, short for moving average, writes today's value a different way: as today's own fresh noise plus a weighted sum of the last q noise terms:
+
+\[ y_t = \varepsilon_t + \theta_1 \varepsilon_{t-1} + \theta_2 \varepsilon_{t-2} + \cdots + \theta_q \varepsilon_{t-q} \]
+
+So an AR term looks back at the series' own past values, while an MA term looks back at the errors those earlier predictions made. Put both pieces in one equation, p autoregressive terms and q moving-average terms together, and you get an ARMA(p, q) model:
+
+\[ y_t = \phi_1 y_{t-1} + \cdots + \phi_p y_{t-p} + \varepsilon_t + \theta_1 \varepsilon_{t-1} + \cdots + \theta_q \varepsilon_{t-q} \]
+
+ARIMA adds exactly one more piece on top of ARMA: the d differences taken before any of this fitting starts. Pinning down d, p and q for WWWusage itself is the next thing worth doing.
+
+=== step === widget
+## Choosing d, p and q for the internet-usage series
+
+Start with d. The way to check whether a series needs differencing is to see how slowly its ACF decays: a raw series with a trend keeps a high autocorrelation across many lags, simply because each value sits close to its neighbours in absolute terms, not because of any real short-run dependence.
+
+Build WWWusage as a tsibble, then check its ACF over the first 10 lags.
+
+```r
+# Build the WWWusage tsibble and check how slowly its raw ACF decays
+library(tsibble)
+library(feasts)
+library(dplyr)
+
+www <- tsibble(minute = 1:100, users = as.numeric(WWWusage), index = minute)
+
+round((www |> ACF(users, lag_max = 10))$acf, 3)
+#>  [1] 0.960 0.901 0.829 0.746 0.657 0.565 0.469 0.371 0.274 0.181
+```
+
+The ACF barely moves. It is 0.960 at lag 1 and still 0.181 at lag 10, ten minutes later, decaying so slowly it looks like it might never clear a significance band on its own. That slow decay is the signature of a series that still needs differencing.
+
+Difference the series once, then recompute the ACF and the PACF over the same 10 lags.
+
+```r
+# Difference the series once, then compute its ACF and PACF over 10 lags
+www <- www |> mutate(d1 = difference(users))
+
+n_diff <- sum(!is.na(www$d1))
+n_diff
+#> [1] 99
+
+round(2 / sqrt(n_diff), 3)
+#> [1] 0.201
+
+round((www |> filter(!is.na(d1)) |> ACF(d1, lag_max = 10))$acf, 3)
+#>  [1] 0.792 0.520 0.406 0.382 0.332 0.226 0.104 0.049 0.086 0.126
+
+round((www |> filter(!is.na(d1)) |> PACF(d1, lag_max = 10))$pacf, 3)
+#>  [1] 0.792 -0.287 0.303 0.008 -0.030 -0.088 -0.093 0.063 0.116 0.003
+```
+
+One difference costs the series its first observation, leaving 99 values, and with that many values the significance band works out to about plus or minus 0.201.
+
+Look at the ACF first. It still decays, 0.792 down to 0.332 across the first five lags, and never really settles. Now look at the PACF. It clears the band at lag 1 (0.792), lag 2 (-0.287) and lag 3 (0.303), then drops inside it from lag 4 on and stays there through lag 10. A PACF that cuts off cleanly like that, while the ACF keeps decaying, is the AR(p) signature, and the lag where it stops clearing the band names p directly.
+
+See the PACF as a bar chart, each of the 10 lags marked against the band.
+
+::widget chart-plotter {"data":[{"x":1,"y":0.792,"fill":"Outside band"},{"x":2,"y":-0.287,"fill":"Outside band"},{"x":3,"y":0.303,"fill":"Outside band"},{"x":4,"y":0.008,"fill":"Inside band"},{"x":5,"y":-0.030,"fill":"Inside band"},{"x":6,"y":-0.088,"fill":"Inside band"},{"x":7,"y":-0.093,"fill":"Inside band"},{"x":8,"y":0.063,"fill":"Inside band"},{"x":9,"y":0.116,"fill":"Inside band"},{"x":10,"y":0.003,"fill":"Inside band"}],"geoms":["bar"],"x":"lag","y":"pacf"}
+
+Three bars clear the band, seven do not. So the order this series calls for is one difference and three autoregressive terms, with no moving-average term needed: d = 1, p = 3, q = 0, written ARIMA(3, 1, 0).
+
+=== step === concept
+## The backshift notation, just far enough to read the fable report
+
+::prose-only abstract backshift notation and equations, nothing to plot
+
+Before fitting ARIMA(3, 1, 0), it helps to see the whole equation written out properly, because that equation is exactly what fable's coefficient names refer to. The tool for writing it compactly is the backshift operator, written B.
+
+B shifts a series back one step: applying it to \(y_t\) gives the previous value, \(y_{t-1}\).
+
+\[ B y_t = y_{t-1} \]
+
+Apply it twice and you go back two steps, \(B^2 y_t = y_{t-2}\), and so on. Differencing, subtracting the previous value from the current one, is then just \((1 - B) y_t\), which expands to \(y_t - y_{t-1}\), exactly the difference already taken in the last step.
+
+The AR part of the equation is written the same way. With p = 3 autoregressive terms and their coefficients \(\phi_1\), \(\phi_2\) and \(\phi_3\), define:
+
+\[ \phi(B) = 1 - \phi_1 B - \phi_2 B^2 - \phi_3 B^3 \]
+
+There is no moving-average term here, q = 0, so the MA side is just \(\theta(B) = 1\), nothing left to write.
+
+Put the pieces together, and the whole fitted equation for WWWusage, one difference and three AR terms, is:
+
+\[ \phi(B)(1 - B) y_t = c + \varepsilon_t \]
+
+with c the constant term. This is the equation fable actually estimates whenever it fits ARIMA(3, 1, 0), and its coefficient names follow this equation directly: fable calls \(\phi_1\), \(\phi_2\) and \(\phi_3\) by the names ar1, ar2 and ar3. Once you see the fitted report, you will be reading exactly this equation, term by term.
+
+=== step === concept
+## Fitting ARIMA(y ~ pdq(3, 1, 0)) and reading the coefficients
+
+In the fable package, an explicit ARIMA order is given through pdq(), inside a model() call.
+
+Fit ARIMA(3, 1, 0) on WWWusage and read what comes back.
+
+```r
+# Fit ARIMA(3,1,0) on WWWusage with no constant, then read its coefficients
+library(fable)
+
+fit_nodrift <- www |> model(nodrift = ARIMA(users ~ pdq(3, 1, 0)))
+
+report(fit_nodrift)
+#> Series: users 
+#> Model: ARIMA(3,1,0) 
+#> 
+#> Coefficients:
+#>          ar1      ar2     ar3
+#>       1.1513  -0.6612  0.3407
+#> s.e.  0.0950   0.1353  0.0941
+#> 
+#> sigma^2 estimated as 9.656:  log likelihood=-252
+#> AIC=511.99   AICc=512.42   BIC=522.37
+```
+
+Match this against the equation from the last step. ar1, ar2 and ar3 are \(\phi_1\), \(\phi_2\) and \(\phi_3\): 1.1513, -0.6612 and 0.3407. Each also carries a standard error (s.e.) right underneath it, and the last line reports AICc, 512.42, the score this order will be compared against later in the lesson.
+
+tidy() turns the same fit into a tibble, and adds two columns report() leaves out: a test statistic and a p-value for each coefficient.
+
+```r
+# Turn the fitted coefficients into a tibble with a p-value for each one
+tidy(fit_nodrift)
+#> # A tibble: 3 x 6
+#>   .model  term  estimate std.error statistic  p.value
+#>   <chr>   <chr>    <dbl>     <dbl>     <dbl>    <dbl>
+#> 1 nodrift ar1      1.15     0.0950     12.1  2.83e-21
+#> 2 nodrift ar2     -0.661    0.135      -4.89 3.93e- 6
+#> 3 nodrift ar3      0.341    0.0941      3.62 4.68e- 4
+```
+
+All three p-values sit far below 0.001, so all three coefficients are estimated with real precision, not noise. ar2's p-value, 3.93e-6, is worth remembering for a moment: it says \(\phi_2\), the coefficient on \(y_{t-2}\) in the equation from the last step, is almost certainly not zero.
+
+=== step === quiz
+## Quick check: matching a coefficient to its term
+
+For the fit above, which named coefficient is \(\phi_2\) in \(\phi(B) = 1 - \phi_1 B - \phi_2 B^2 - \phi_3 B^3\), and what does its p-value say?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- ar1, because fable always lists the coefficient that matters most first. ::no
+- ar2, since \(\phi(B)\) puts \(\phi_2\) on the \(B^2\) term, and fable's ar2 is exactly that coefficient. Its p-value, 3.93e-6, is far below 0.001, so \(\phi_2\) is almost certainly not zero. ::ok Right. ar1, ar2 and ar3 are fable's names for \(\phi_1\), \(\phi_2\) and \(\phi_3\) in that same order, so ar2 is always the coefficient on the \(B^2\) term. A p-value this small says the estimate is real, not noise.
+- ar3, because it is the coefficient with the smallest estimate. ::no
+- None of them, since ar1, ar2 and ar3 are R's names and \(\phi_1\), \(\phi_2\), \(\phi_3\) are the equation's names, so they cannot refer to the same thing. ::no ar1, ar2 and ar3 are exactly fable's names for \(\phi_1\), \(\phi_2\) and \(\phi_3\), in that same order: the report prints the R name, the backshift equation uses the Greek letter, and both point at one and the same estimated number. \(\phi_2\) is ar2, and its p-value, 3.93e-6, says that estimate is far from zero.
+
+=== step === widget
+## The constant that decides long-run drift
+
+Every fable model can carry a constant term too, and once d is at least 1, fitting a nonzero constant does something specific: it becomes a drift, a fixed rate of climb (or fall) that keeps stacking up over every step of the forecast, on top of whatever the AR terms already predict.
+
+Fit ARIMA(3, 1, 0) again, this time with a constant, and compare it against the version without one.
+
+```r
+# Fit the same order but with a constant, which becomes a drift once d >= 1
+fit_drift <- www |> model(drift = ARIMA(users ~ 1 + pdq(3, 1, 0)))
+
+report(fit_drift)
+#> Series: users 
+#> Model: ARIMA(3,1,0) w/ drift 
+#> 
+#> Coefficients:
+#>          ar1      ar2     ar3  constant
+#>       1.1460  -0.6593  0.3346    0.1751
+#> s.e.  0.0954   0.1351  0.0947    0.2949
+#> 
+#> sigma^2 estimated as 9.729:  log likelihood=-251.83
+#> AIC=513.67   AICc=514.31   BIC=526.64
+
+tidy(fit_drift)
+#> # A tibble: 4 x 6
+#>   .model term     estimate std.error statistic  p.value
+#>   <chr>  <chr>       <dbl>     <dbl>     <dbl>    <dbl>
+#> 1 drift  ar1         1.15     0.0954    12.0   4.69e-21
+#> 2 drift  ar2        -0.659    0.135     -4.88  4.07e- 6
+#> 3 drift  ar3         0.335    0.0947     3.53  6.25e- 4
+#> 4 drift  constant    0.175    0.295      0.594 5.54e- 1
+```
+
+The constant comes out at 0.175, with a standard error of 0.295, almost twice its own size, and a p-value of 0.554. That is nowhere near significant: a constant this small, with an error this wide around it, is indistinguishable from zero. AICc backs the same call up, 514.31 against 512.42 for the model without a constant, worse by nearly two points.
+
+But an insignificant constant is not automatically a harmless one, especially once it turns into a drift. Forecast 20 minutes ahead from both fitted models and see where each one settles.
+
+```r
+# Forecast 20 minutes ahead from both models and compare where each settles
+fc_nodrift <- fit_nodrift |> forecast(h = 20)
+fc_drift <- fit_drift |> forecast(h = 20)
+
+round(tail(fc_nodrift$.mean, 1), 2)
+#> [1] 213.98
+
+round(tail(fc_drift$.mean, 1), 2)
+#> [1] 229.68
+```
+
+Without the constant, the forecast settles near 213.98 by minute 120. With it, the same forecast keeps climbing instead, reaching 229.68, almost 16 users higher. See both paths plotted together.
+
+::widget chart-plotter {"data":[{"x":101,"y":219.66,"fill":"No drift"},{"x":102,"y":219.23,"fill":"No drift"},{"x":103,"y":218.28,"fill":"No drift"},{"x":104,"y":217.35,"fill":"No drift"},{"x":105,"y":216.76,"fill":"No drift"},{"x":106,"y":216.38,"fill":"No drift"},{"x":107,"y":216.01,"fill":"No drift"},{"x":108,"y":215.63,"fill":"No drift"},{"x":109,"y":215.32,"fill":"No drift"},{"x":110,"y":215.07,"fill":"No drift"},{"x":111,"y":214.88,"fill":"No drift"},{"x":112,"y":214.70,"fill":"No drift"},{"x":113,"y":214.55,"fill":"No drift"},{"x":114,"y":214.42,"fill":"No drift"},{"x":115,"y":214.31,"fill":"No drift"},{"x":116,"y":214.22,"fill":"No drift"},{"x":117,"y":214.15,"fill":"No drift"},{"x":118,"y":214.08,"fill":"No drift"},{"x":119,"y":214.03,"fill":"No drift"},{"x":120,"y":213.98,"fill":"No drift"},{"x":101,"y":219.85,"fill":"With drift"},{"x":102,"y":219.84,"fill":"With drift"},{"x":103,"y":219.42,"fill":"With drift"},{"x":104,"y":219.08,"fill":"With drift"},{"x":105,"y":219.14,"fill":"With drift"},{"x":106,"y":219.46,"fill":"With drift"},{"x":107,"y":219.86,"fill":"With drift"},{"x":108,"y":220.29,"fill":"With drift"},{"x":109,"y":220.81,"fill":"With drift"},{"x":110,"y":221.43,"fill":"With drift"},{"x":111,"y":222.11,"fill":"With drift"},{"x":112,"y":222.84,"fill":"With drift"},{"x":113,"y":223.60,"fill":"With drift"},{"x":114,"y":224.40,"fill":"With drift"},{"x":115,"y":225.23,"fill":"With drift"},{"x":116,"y":226.09,"fill":"With drift"},{"x":117,"y":226.96,"fill":"With drift"},{"x":118,"y":227.86,"fill":"With drift"},{"x":119,"y":228.76,"fill":"With drift"},{"x":120,"y":229.68,"fill":"With drift"}],"geoms":["line"],"x":"minute","y":"forecast","code":{"line":"ggplot(df, aes(minute, forecast, color = group)) + geom_line(linewidth = 1)"}}
+
+That gap did not come from a coefficient the data actually supports. It came from a constant with p = 0.554, one that AICc had already marked as making the fit worse, quietly compounding into a real difference twenty minutes out. An insignificant constant with a worse AICc is a plain case: drop it, and keep ARIMA(3, 1, 0) without one.
+
+=== step === widget
+## Checking the residuals look like noise
+
+One more check before trusting ARIMA(3, 1, 0): its residuals, the gaps between what the model predicted and what actually happened, should look like plain noise. If they still climb, curve or fan out, the model left something on the table.
+
+Pull the residuals from the chosen fit and summarise them.
+
+```r
+# Check whether the chosen model's residuals still hide a pattern
+resid_nodrift <- residuals(fit_nodrift)
+
+round(mean(resid_nodrift$.resid), 2)
+#> [1] 0.23
+
+round(sd(resid_nodrift$.resid), 2)
+#> [1] 3.05
+
+round(range(resid_nodrift$.resid), 2)
+#> [1] -8.28  7.02
+```
+
+The mean sits at 0.23, close enough to zero, and the residuals range from -8.28 to 7.02 with a standard deviation of 3.05, no single value dominating the rest. Checked across all 100 minutes, they show no funnel widening over time and no curve bending one way then another, just noise scattered around zero.
+
+This widget runs its own small example, a healthy fit next to a funnel and a curve, but the healthy panel is exactly the shape WWWusage's own residuals already showed above.
+
+::widget residual-plot {"start": "healthy"}
+
+=== step === quiz
+## Quick check: order, backshift, the constant and the residuals
+
+For the chosen ARIMA(3, 1, 0) fit on WWWusage, which statement is correct?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The fitted equation is \(\phi(B)(1 - B) y_t = c + \varepsilon_t\) with a nonzero c, since a constant always belongs in an ARIMA equation once d is at least 1. ::no
+- The fitted equation is \(\phi(B)(1 - B) y_t = \varepsilon_t\), with no constant, because the constant's p-value of 0.554 gave no evidence it differs from zero and dropping it also lowered AICc; the residuals' 0.23 mean with no funnel or curve support trusting this order. ::ok Correct on all three counts. A p-value of 0.554 says the constant is indistinguishable from zero, AICc preferred the model without it, 512.42 against 514.31, and residuals with a near-zero mean and no funnel or curve back up trusting ARIMA(3, 1, 0) as fitted.
+- The residuals' range of -8.28 to 7.02 is itself evidence that a drift term is needed, since a wider range means more of a trend is left unexplained. ::no
+- Since ar1, ar2 and ar3 were all significant, the constant must be significant too, so it should stay in the equation regardless of its own p-value. ::no Each coefficient in a fitted ARIMA model gets its own standard error and its own p-value, so one coefficient's significance says nothing about another's. Here the constant's p-value, 0.554, and its worse AICc both point the same way: drop it. The fitted equation for WWWusage is \(\phi(B)(1 - B) y_t = \varepsilon_t\), with no constant, and the residuals' near-zero mean and clean shape support trusting that order.
+
+=== step === tryit
+## Your turn: fit ARIMA(2, 1, 0) and compare it against ARIMA(3, 1, 0)
+
+Fit ARIMA(2, 1, 0), the same order but with only two autoregressive terms instead of three, on the same www series. Complete the pdq() call below, then compare its AICc against 512.42, the AICc for ARIMA(3, 1, 0).
+
+```r
+# Fit ARIMA(2,1,0) on WWWusage and compare it against ARIMA(3,1,0)
+library(fable)
+
+# Complete this line: fit an ARIMA model on www with pdq(2, 1, 0),
+# named a210, then call report() on it. Press Check when you have it.
+
+```
+::check {"regex": "pdq[(]2,\\s*1,\\s*0[)]", "gate": true, "difficulty": "intermediate", "ok": "Right: ar1 = 1.0449, ar2 = -0.2966, and AICc = 522.43, worse than 512.42 for ARIMA(3, 1, 0), confirming p = 3 was the better order.", "no": "Call ARIMA(users ~ pdq(2, 1, 0)) inside model(), on www, the same pattern used for pdq(3, 1, 0) earlier."}
+::solution
+```r
+# Fit ARIMA(2,1,0) and compare its AICc against ARIMA(3,1,0)
+fit_210 <- www |> model(a210 = ARIMA(users ~ pdq(2, 1, 0)))
+
+report(fit_210)
+#> Series: users 
+#> Model: ARIMA(2,1,0) 
+#> 
+#> Coefficients:
+#>          ar1      ar2
+#>       1.0449  -0.2966
+#> s.e.  0.0961   0.0961
+#> 
+#> sigma^2 estimated as 10.85:  log likelihood=-258.09
+#> AIC=522.18   AICc=522.43   BIC=529.96
+```
+
+AICc comes out at 522.43, about 10 points worse than 512.42 for ARIMA(3, 1, 0). Dropping the third AR term costs real fit, confirming that the PACF's third bar, the one that cleared the significance band at 0.303, was carrying real information, not noise.
+
+=== step === concept
+## References
+
+- [Forecasting: Principles and Practice (3rd ed.)](https://otexts.com/fpp3/), chapter 9.5, Non-seasonal ARIMA models - Hyndman and Athanasopoulos, the source for the ARIMA(p, d, q) notation and the WWWusage worked example used throughout this lesson.
+- [fable package reference](https://fable.tidyverts.org/) - documentation for `ARIMA()`, `pdq()`, `report()` and `tidy()`.
+- [R's WWWusage dataset documentation](https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/WWWusage.html) (datasets package) - Durbin, J. and Koopman, S.J. (2001), Time Series Analysis by State Space Methods, Oxford University Press.
+- Box, Jenkins and Reinsel, "Time Series Analysis: Forecasting and Control" - the original source of the ARIMA notation and the backshift operator.
+
+=== step === complete
+## What you can do now
+
+You can read any ARIMA(p, d, q) order as a sentence, naming what each of the three integers counts, and tell an AR term, weighted on past values, apart from an MA term, weighted on past forecast errors.
+
+You can pick an order for a real series yourself: d from how slowly the raw ACF decays, then p and q from where the differenced series' ACF and PACF cut off, the way WWWusage's own PACF cut off after lag 3.
+
+You can fit an explicit order in fable with ARIMA(y ~ pdq(p, d, q)), read report()'s coefficient table against the backshift equation behind it, and use tidy()'s p-values to judge whether a coefficient, including a constant, actually belongs in the model.
+
+Next, you will add a seasonal part on top of this, three more integers and a repeating period, and fit the non-seasonal and seasonal pieces together in one ARIMA() call.
