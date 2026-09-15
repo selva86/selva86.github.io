@@ -1,0 +1,546 @@
+---
+title: "Forecasting Toolbox Lesson 6: Accuracy metrics: MASE, RMSSE and pinball loss"
+description: "See why RMSE, MAE and MAPE can mislead you, and how MASE, RMSSE, pinball loss and CRPS score a forecast fairly across scales and for real stocking decisions."
+keywords: "mase in r, rmsse in r, pinball loss, crps forecast accuracy, mean absolute scaled error, root mean squared scaled error, distribution accuracy measures, fable accuracy function, seasonal naive benchmark, time series forecast accuracy metrics"
+mathjax: false
+webr: true
+curriculum_id: "5.30.6"
+post_type: "LESSON"
+course_id: "ts-toolbox"
+course_title: "Forecasting Toolbox"
+course_lesson: "6"
+course_total: "6"
+course_landing: "Forecasting-Toolbox-Course.html"
+course_next: ""
+course_prev: "Time-Series-Cross-Validation-Rolling-Origin.html"
+lesson_access: "pro"
+catalog_blurb: "See why MASE, RMSSE and pinball loss score a forecast more fairly than RMSE."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Accuracy metrics: MASE, RMSSE and pinball loss</h2>
+
+<p>Today let's learn how to score a forecast honestly, using two months of cone sales from a small boardwalk ice-cream cart.</p>
+
+<p>Pier Nine sells cones from a cart on the boardwalk. Below are all 63 days of its sales, from June 1 to August 2, 2026. Weekdays run close to 15 cones a day, weekends climb to around 34, and every so often a rain washout drops a day down to almost nothing.</p>
+
+<p>The last 14 days are marked apart as the test window. No model gets to see them while it is being built. They only get used afterward, to check how good each forecast really was.</p>
+
+<p>Here is the whole series, with the test window marked apart.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"2026-06-01","y":11,"fill":"train"},{"x":"2026-06-02","y":14,"fill":"train"},{"x":"2026-06-03","y":13,"fill":"train"},{"x":"2026-06-04","y":12,"fill":"train"},{"x":"2026-06-05","y":13,"fill":"train"},{"x":"2026-06-06","y":33,"fill":"train"},{"x":"2026-06-07","y":33,"fill":"train"},{"x":"2026-06-08","y":14,"fill":"train"},{"x":"2026-06-09","y":9,"fill":"train"},{"x":"2026-06-10","y":18,"fill":"train"},{"x":"2026-06-11","y":11,"fill":"train"},{"x":"2026-06-12","y":10,"fill":"train"},{"x":"2026-06-13","y":29,"fill":"train"},{"x":"2026-06-14","y":23,"fill":"train"},{"x":"2026-06-15","y":15,"fill":"train"},{"x":"2026-06-16","y":14,"fill":"train"},{"x":"2026-06-17","y":17,"fill":"train"},{"x":"2026-06-18","y":11,"fill":"train"},{"x":"2026-06-19","y":2,"fill":"train"},{"x":"2026-06-20","y":2,"fill":"train"},{"x":"2026-06-21","y":38,"fill":"train"},{"x":"2026-06-22","y":14,"fill":"train"},{"x":"2026-06-23","y":13,"fill":"train"},{"x":"2026-06-24","y":14,"fill":"train"},{"x":"2026-06-25","y":15,"fill":"train"},{"x":"2026-06-26","y":9,"fill":"train"},{"x":"2026-06-27","y":32,"fill":"train"},{"x":"2026-06-28","y":32,"fill":"train"},{"x":"2026-06-29","y":8,"fill":"train"},{"x":"2026-06-30","y":12,"fill":"train"},{"x":"2026-07-01","y":16,"fill":"train"},{"x":"2026-07-02","y":15,"fill":"train"},{"x":"2026-07-03","y":13,"fill":"train"},{"x":"2026-07-04","y":36,"fill":"train"},{"x":"2026-07-05","y":45,"fill":"train"},{"x":"2026-07-06","y":18,"fill":"train"},{"x":"2026-07-07","y":0,"fill":"train"},{"x":"2026-07-08","y":18,"fill":"train"},{"x":"2026-07-09","y":19,"fill":"train"},{"x":"2026-07-10","y":11,"fill":"train"},{"x":"2026-07-11","y":35,"fill":"train"},{"x":"2026-07-12","y":1,"fill":"train"},{"x":"2026-07-13","y":10,"fill":"train"},{"x":"2026-07-14","y":24,"fill":"train"},{"x":"2026-07-15","y":2,"fill":"train"},{"x":"2026-07-16","y":20,"fill":"train"},{"x":"2026-07-17","y":1,"fill":"train"},{"x":"2026-07-18","y":2,"fill":"train"},{"x":"2026-07-19","y":35,"fill":"train"},{"x":"2026-07-20","y":9,"fill":"test"},{"x":"2026-07-21","y":9,"fill":"test"},{"x":"2026-07-22","y":11,"fill":"test"},{"x":"2026-07-23","y":13,"fill":"test"},{"x":"2026-07-24","y":0,"fill":"test"},{"x":"2026-07-25","y":29,"fill":"test"},{"x":"2026-07-26","y":26,"fill":"test"},{"x":"2026-07-27","y":0,"fill":"test"},{"x":"2026-07-28","y":15,"fill":"test"},{"x":"2026-07-29","y":18,"fill":"test"},{"x":"2026-07-30","y":14,"fill":"test"},{"x":"2026-07-31","y":16,"fill":"test"},{"x":"2026-08-01","y":29,"fill":"test"},{"x":"2026-08-02","y":41,"fill":"test"}],"geoms":["line","point"],"x":"date","y":"sales","code":{"line":"ggplot(df, aes(date, sales, color = group)) +\n  geom_line() +\n  geom_point(size = 1)","point":"ggplot(df, aes(date, sales, color = group)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That is the series every metric in this lesson scores against.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Two forecasts to score</h2>
+
+<p>Let's build that series for real, and split it the same way: the first 49 days to train two models on, the last 14 held back to test them against.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Pier Nine's 63 days of cone sales and split them into 49 training days and 14 test days
+library(tsibble)
+library(fable)
+library(fabletools)
+library(dplyr)
+
+set.seed(930)
+n &lt;- 63
+day &lt;- seq(as.Date(&quot;2026-06-01&quot;), by = &quot;day&quot;, length.out = n)
+weekend &lt;- as.integer(format(day, &quot;%u&quot;)) %in% c(6, 7)
+
+rain &lt;- rbinom(n, 1, 0.15) == 1
+base_sales &lt;- rpois(n, ifelse(weekend, 34, 15))
+rain_sales &lt;- sample(0:2, sum(rain), replace = TRUE)
+sales &lt;- base_sales
+sales[rain] &lt;- rain_sales
+
+cart &lt;- tsibble(date = day, sales = sales, index = date)
+train &lt;- cart |&gt; filter(date &lt;= as.Date(&quot;2026-07-19&quot;))
+test &lt;- cart |&gt; filter(date &gt; as.Date(&quot;2026-07-19&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two models get fit on those 49 training days. Seasonal_naive is the simplest forecast Pier Nine's owner could make by hand: repeat each day's sales from the same weekday, one week back, since a Monday tends to look like the Monday before it. ETS is fabletools's automatic exponential smoothing model. It looks at the same 49 days and works out its own level and weekly pattern, without being told what either one is.</p>
+
+<p>Fit both, forecast 14 days ahead, and line the first 5 up against what actually happened.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a seasonal-naive model and an ETS model on the training days, then forecast 14 days ahead
+fit &lt;- train |&gt; model(
+  Seasonal_naive = SNAIVE(sales ~ lag(&quot;week&quot;)),
+  ETS = ETS(sales)
+)
+fc &lt;- fit |&gt; forecast(h = 14)
+
+data.frame(
+  date = test$date,
+  actual = test$sales,
+  Seasonal_naive = round(fc$.mean[fc$.model == &quot;Seasonal_naive&quot;], 1),
+  ETS = round(fc$.mean[fc$.model == &quot;ETS&quot;], 2)
+)[1:5, ]
+#&gt;         date actual Seasonal_naive   ETS
+#&gt; 1 2026-07-20      9             10 12.07
+#&gt; 2 2026-07-21      9             24 11.19
+#&gt; 3 2026-07-22     11              2 15.17
+#&gt; 4 2026-07-23     13             20 14.11
+#&gt; 5 2026-07-24      0              1  9.40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at 21 July. Seasonal_naive forecasts 24 cones for a day that sold 9, off by 15. ETS lands much closer, at 11.19. Neither model is perfect on every day. Turning "how far off" into one honest number is the whole point from here.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>MAE and RMSE: the two everyday error scores</h2>
+
+<p>The most direct way to score a forecast is to look at how far its numbers sat from the real ones, on average.</p>
+
+<p>Mean Absolute Error, MAE, takes every gap between a forecast and the actual sales, drops the sign, and averages them. Root Mean Squared Error, RMSE, squares every gap before averaging, then takes the square root to bring the units back to cones. Both stay in the series' own unit, cones.</p>
+
+<p>fabletools's <code>accuracy()</code> function computes both at once, for every model, across the 14 test days.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score both models' point forecasts with RMSE and MAE
+accuracy(fc, cart) |&gt; select(.model, RMSE, MAE)
+#&gt; # A tibble: 2 x 3
+#&gt;   .model          RMSE   MAE
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ETS             5.98  4.84
+#&gt; 2 Seasonal_naive 13.7  11.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ETS scores RMSE 5.98 and MAE 4.84. Seasonal_naive scores RMSE 13.7 and MAE 11.3, a little over twice as high. Both scores are in cones, which is why a forecast off by 5 to 6 cones a day clearly beats one off by 11 to 14.</p>
+
+<p>Notice RMSE runs a little higher than MAE for both models. That is not a mistake. Squaring an error weights the big misses harder than the small ones, so the days Pier Nine's sales swing hard between a weekday and a weekend push RMSE up more than MAE.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Why RMSE and MAE can't compare across series</h2>
+
+<p>Here is the catch with MAE and RMSE. They are honest numbers, but only inside one series.</p>
+
+<p>Say Pier Nine's owner started reporting sales in cases of 10 cones instead of single cones, purely a change in bookkeeping. Nothing about how well Seasonal_naive actually forecasts would change. Let's check.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rescale sales by dividing by 10, as if Pier Nine reported in cases of 10 cones, refit Seasonal_naive, and rescore
+cart2 &lt;- cart |&gt; mutate(sales = sales / 10)
+train2 &lt;- cart2 |&gt; filter(date &lt;= as.Date(&quot;2026-07-19&quot;))
+fit2 &lt;- train2 |&gt; model(Seasonal_naive = SNAIVE(sales ~ lag(&quot;week&quot;)))
+fc2 &lt;- fit2 |&gt; forecast(h = 14)
+accuracy(fc2, cart2) |&gt; select(.model, RMSE, MAE)
+#&gt; # A tibble: 1 x 3
+#&gt;   .model          RMSE   MAE
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Seasonal_naive  1.37  1.13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>RMSE drops from 13.7 to 1.37. MAE drops from 11.3 to 1.13. Both fell by exactly a factor of 10, the same factor the sales were divided by. The forecast did not get better. The unit just got bigger.</p>
+
+<p>So a raw RMSE or MAE number means nothing on its own. An RMSE of 5.98 cones a day for a small boardwalk cart can never be compared against a chain's RMSE of a few hundred cones a day across a whole city, even if one forecast is really far more accurate than the other. What you need is a score built to cancel the scale out.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>MAPE and why it breaks on zero actuals</h2>
+
+<p>There is an obvious fix for comparing across series: turn the error into a percentage instead of a raw count. That is what Mean Absolute Percentage Error, MAPE, does. It divides each gap by the actual value, takes the absolute value, averages, and multiplies by 100.</p>
+
+<p>That sounds like a clean fix, until an actual value is 0.</p>
+
+<p>Rain washouts happen at Pier Nine, and two of them landed inside the 14-day test window.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Find the rain-washout days that sold zero cones inside the test window
+as.data.frame(test) |&gt; filter(sales == 0)
+#&gt;         date sales
+#&gt; 1 2026-07-24     0
+#&gt; 2 2026-07-27     0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both 24 July and 27 July sold exactly 0 cones. Divide any nonzero forecast miss by an actual of 0 and the result is undefined. R shows it as <code>Inf</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Show exactly why MAPE breaks: it divides the error by the actual value
+actual_0724 &lt;- test$sales[test$date == as.Date(&quot;2026-07-24&quot;)]
+ets_fc_0724 &lt;- round(fc$.mean[fc$.model == &quot;ETS&quot; &amp; fc$date == as.Date(&quot;2026-07-24&quot;)], 2)
+
+actual_0724
+#&gt; [1] 0
+ets_fc_0724
+#&gt; [1] 9.4
+100 * abs(ets_fc_0724 - actual_0724) / actual_0724
+#&gt; [1] Inf</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ETS forecast 9.4 cones for 24 July, real sales were 0, and 100 times the absolute gap over 0 cones has no defined value.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check the same accuracy() call for MPE and MAPE
+accuracy(fc, cart) |&gt; select(.model, MPE, MAPE)
+#&gt; # A tibble: 2 x 3
+#&gt;   .model           MPE  MAPE
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ETS             -Inf   Inf
+#&gt; 2 Seasonal_naive  -Inf   Inf</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both models come back <code>Inf</code>. That is not because either model did badly that day. It is because MAPE cannot survive an actual of 0. Even short of an exact zero, dividing by a small actual number stretches an ordinary miss into a huge percentage, so MAPE is unsafe any time actual values can sit near zero, not only when they hit it exactly.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>MASE and RMSSE: scaling error against the seasonal-naive benchmark</h2>
+
+<p>Here is the fix that actually works. Instead of dividing by the actual sales, which can hit 0, divide by how much the series naturally moves from one week to the next.</p>
+
+<p>Look inside the 49 training days only, the same days the models were built on, never the test days. Take the difference between each day's sales and the same weekday one week earlier. Average the absolute size of those differences and you get one fixed number: how much Pier Nine's daily sales typically swing week over week.</p>
+
+<p>Here is that swing, computed from the training days alone.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the training-only week-over-week benchmark scale
+train_diff7 &lt;- diff(train$sales, lag = 7)
+scale_mase &lt;- mean(abs(train_diff7))
+scale_rmsse &lt;- mean(train_diff7^2)
+round(c(scale_mase = scale_mase, scale_rmsse = scale_rmsse), 2)
+#&gt;  scale_mase scale_rmsse
+#&gt;        8.83      188.83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That number, 8.83 cones, never touches the test window and never touches any model's forecast. It is purely a property of the training data. Mean Absolute Scaled Error, MASE, divides a model's test MAE by that number.</p>
+
+<p>Divide ETS's test MAE and RMSE by that swing to get MASE and RMSSE by hand.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute MASE and RMSSE by hand from ETS's test error and the training-only scale
+acc &lt;- accuracy(fc, cart)
+mae_ets &lt;- acc$MAE[acc$.model == &quot;ETS&quot;]
+rmse_ets &lt;- acc$RMSE[acc$.model == &quot;ETS&quot;]
+
+round(mae_ets / scale_mase, 3)
+#&gt; [1] 0.548
+round(sqrt(rmse_ets^2 / scale_rmsse), 3)
+#&gt; [1] 0.435</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For ETS, 4.84 divided by 8.83 comes to 0.548. Root Mean Squared Scaled Error, RMSSE, does the same thing with squared differences: divide the model's squared test error by 188.83, the mean squared week-over-week difference in training, then take the square root. That gives 0.435.</p>
+
+<p>Compare the hand calculation against <code>accuracy()</code>'s own columns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># All four point-forecast scores side by side
+accuracy(fc, cart) |&gt; select(.model, RMSE, MAE, MASE, RMSSE)
+#&gt; # A tibble: 2 x 5
+#&gt;   .model          RMSE   MAE  MASE RMSSE
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ETS             5.98  4.84 0.548 0.435
+#&gt; 2 Seasonal_naive 13.7  11.3  1.28  0.997</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.548 and 0.435 for ETS, exactly matching the hand calculation. Seasonal_naive scores MASE 1.28 and RMSSE 0.997.</p>
+
+<p>Read MASE and RMSSE the same way. A score under 1 means the model beat what a plain seasonal-naive guess would have scored on the training data alone. A score at or above 1 means it did not. ETS clears that bar on both counts. Seasonal_naive barely clears it on RMSSE, and misses it on MASE.</p>
+
+<p>Because both scores divide by a number computed from the series' own swings, rescaling the series should not move them at all. Confirm that against the /10 rescale from a moment ago.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Confirm MASE and RMSSE are unchanged by the /10 rescale
+accuracy(fc2, cart2) |&gt; select(.model, MASE, RMSSE)
+#&gt; # A tibble: 1 x 3
+#&gt;   .model          MASE RMSSE
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Seasonal_naive  1.28 0.997</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>1.28 and 0.997, identical to what Seasonal_naive scored in whole cones. Divide the whole series by 10 and MASE and RMSSE do not move, because the numerator and the denominator shrink by the same factor and cancel out. That is what makes them safe to compare a boardwalk cart against a citywide chain: neither series' own unit survives the division.</p>
+
+<p>Here both models' scores sit side by side, cones on the left, unit-free on the right.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["model","RMSE","MAE","MASE","RMSSE"],"rows":[["ETS","5.98","4.84","0.548","0.435"],["Seasonal_naive","13.7","11.3","1.28","0.997"]],"title":"Pier Nine: ETS vs Seasonal_naive on the 14-day test window","note":"MASE and RMSSE below 1 beat a seasonal-naive guess trained on the 49 training days alone."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading a MASE score</h2>
+
+<p>A third model, fit to Pier Nine's own 49 training days, scores MASE 1.35 on the same 14-day test window. What does that tell you?</p>
+<section class="exercise" data-exercise-id="Accuracy-Metrics-MASE-RMSSE-and-Pinball-Loss-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It forecasts the test window worse, on average, than a seasonal-naive guess made from the training data alone.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It explains 135 percent of the variance in Pier Nine's cone sales.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It misses the actual sales by 1.35 cones a day on average.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It beats what a seasonal-naive guess would have scored on the training data alone.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. MASE compares a model's test error to what a seasonal-naive guess would have scored on the training data alone. Above 1 means the model did worse than that baseline, here by 35 percent.</div><div class="lesson-qfb lesson-qfb-no">MASE is a ratio against a seasonal-naive guess made from the training data alone, not a percentage, a cone count, or a plain accuracy score. Under 1 beats that baseline, at or above 1 does not, and 1.35 is above 1.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Point forecasts aren't enough for every decision: pinball loss</h2>
+
+<p>MASE and RMSSE both answer the same kind of question: how far off was the forecast, on average. That is not always the question Pier Nine's owner needs answered.</p>
+
+<p>Suppose the owner is not asking about an average day at all. The owner wants to know how many cones to stock so the cart runs out on at most 1 day in 10. That is not a point forecast anymore. It is a quantile: the 90th percentile of the possible sales for that day, written q90.</p>
+
+<p>ETS does not just forecast a single mean for each day. Fit with <code>model()</code>, it carries a full distribution for every day, and any quantile can be pulled straight out of it.</p>
+
+<p>Here is ETS's q90 forecast next to what Pier Nine actually sold, across all 14 test days.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"2026-07-20","y":9,"fill":"actual"},{"x":"2026-07-20","y":23.98,"fill":"q90"},{"x":"2026-07-21","y":9,"fill":"actual"},{"x":"2026-07-21","y":23.09,"fill":"q90"},{"x":"2026-07-22","y":11,"fill":"actual"},{"x":"2026-07-22","y":27.08,"fill":"q90"},{"x":"2026-07-23","y":13,"fill":"actual"},{"x":"2026-07-23","y":26.01,"fill":"q90"},{"x":"2026-07-24","y":0,"fill":"actual"},{"x":"2026-07-24","y":21.31,"fill":"q90"},{"x":"2026-07-25","y":29,"fill":"actual"},{"x":"2026-07-25","y":37.17,"fill":"q90"},{"x":"2026-07-26","y":26,"fill":"actual"},{"x":"2026-07-26","y":41.74,"fill":"q90"},{"x":"2026-07-27","y":0,"fill":"actual"},{"x":"2026-07-27","y":23.98,"fill":"q90"},{"x":"2026-07-28","y":15,"fill":"actual"},{"x":"2026-07-28","y":23.09,"fill":"q90"},{"x":"2026-07-29","y":18,"fill":"actual"},{"x":"2026-07-29","y":27.08,"fill":"q90"},{"x":"2026-07-30","y":14,"fill":"actual"},{"x":"2026-07-30","y":26.01,"fill":"q90"},{"x":"2026-07-31","y":16,"fill":"actual"},{"x":"2026-07-31","y":21.31,"fill":"q90"},{"x":"2026-08-01","y":29,"fill":"actual"},{"x":"2026-08-01","y":37.17,"fill":"q90"},{"x":"2026-08-02","y":41,"fill":"actual"},{"x":"2026-08-02","y":41.74,"fill":"q90"}],"geoms":["line","point"],"x":"date","y":"cones","code":{"line":"ggplot(df, aes(date, cones, color = group)) +\n  geom_line() +\n  geom_point(size = 1)","point":"ggplot(df, aes(date, cones, color = group)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at 27 July. ETS's q90 sat at about 24 cones, putting at least a 9 in 10 chance on sales landing at 24 or below that day. Real sales were 0, a rain washout.</p>
+
+<p>Stocking to a quantile makes the two kinds of miss unequal on purpose. Running out costs Pier Nine a lost sale and an annoyed customer. Overstocking costs a few melted cones. Pinball loss scores a quantile forecast with exactly that asymmetry built in. At level L, an understock, where actual sales come in at or above the forecast, gets weighted by L. An overstock, where actual sales fall below it, gets the smaller weight, (1 - L).</p>
+
+<p>Score 27 July by hand.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Find ETS's 90th-percentile forecast for 27 July and score it with pinball loss
+ets_q90 &lt;- fc |&gt; filter(.model == &quot;ETS&quot;, date == as.Date(&quot;2026-07-27&quot;)) |&gt;
+  pull(sales) |&gt; quantile(0.90) |&gt; round(1)
+actual_0727 &lt;- test$sales[test$date == as.Date(&quot;2026-07-27&quot;)]
+
+ets_q90
+#&gt; [1] 24
+actual_0727
+#&gt; [1] 0
+
+# Pier Nine overstocked: 0 actual sales came in under the 24-cone forecast
+overstock_loss &lt;- 2 * (1 - 0.90) * (ets_q90 - actual_0727)
+overstock_loss
+#&gt; [1] 4.8
+
+# The same 24-cone gap, scored as if it had gone the other way: an understock
+understock_loss &lt;- 2 * 0.90 * ets_q90
+understock_loss
+#&gt; [1] 43.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>27 July was an overstock: Pier Nine stocked for 24, sold 0. That gets the light weight, (1 - 0.90): loss = 0.10 * (24 - 0) = 2.4, doubled to 4.8 by fable's own <code>pinball_loss()</code> function, which multiplies every score by 2. Now imagine the identical 24-cone gap had gone the other way, demand landing 24 cones above what was stocked, an understock instead. That gets the heavy weight, 0.90: loss = 0.90 <em> 24 </em> 2 = 43.2, nine times as large for the same size of miss. That is not an accident. It is pinball loss doing exactly what Pier Nine's owner would want: punishing a stockout far harder than a little melted stock.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Averaging pinball loss across every quantile: CRPS</h2>
+
+<p>Pinball loss at q90 answers one specific question: how good was the stocking level for a 90 percent no-stockout target. But a forecast's whole distribution can be scored at once, not just one quantile of it.</p>
+
+<p>fabletools calls the average of pinball loss over percentiles 1 through 99 the percentile score. Its continuous limit, averaging over every quantile instead of 99 of them, is the Continuous Ranked Probability Score, CRPS. Both come from one function call.</p>
+
+<p>Score each model's whole predictive distribution with one function call.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score each model's whole predictive distribution with fabletools's distribution measures
+accuracy(fc, cart, measures = distribution_accuracy_measures)
+#&gt; # A tibble: 2 x 4
+#&gt;   .model         .type percentile  CRPS
+#&gt;   &lt;chr&gt;          &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ETS            Test        3.62  3.58
+#&gt; 2 Seasonal_naive Test        7.93  7.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ETS scores percentile 3.62 and CRPS 3.58. Seasonal_naive scores 7.93 and 7.85, roughly twice as large. The lower score means ETS's whole predictive distribution, not just its point forecast, sits closer to the real sales at every quantile, not only the 90th.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Picking the metric from the decision</h2>
+
+<p>Every metric in this lesson answers a slightly different question. The one worth using depends on the decision behind it, not habit.</p>
+
+<ul>
+
+<li>If two models forecast the same series, and an ordinary miss costs about the same as a big one, MAE is enough.</li>
+
+<li>If a big miss costs more than an ordinary one, RMSE already weights it that way.</li>
+
+<li>If the comparison crosses series of different scale, or against a naive benchmark, MAE and RMSE stop meaning anything: use MASE or RMSSE instead.</li>
+
+<li>If the decision needs one specific number, a stock level or a staffing count, score that quantile directly with pinball loss.</li>
+
+<li>If the decision needs one score for a model's entire predictive distribution, use CRPS.</li>
+
+<li>MAPE is never safe once an actual value can be 0 or sit close to it.</li>
+
+</ul>
+
+<p>Pier Nine's own numbers show all of this at once. ETS beat Seasonal_naive on RMSE, MAE, MASE, RMSSE, percentile score and CRPS. Neither model's MAPE meant anything at all, because two of the fourteen test days sold 0 cones.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing the right metric for the decision</h2>
+
+<p>Pier Nine's forecast scores RMSE 5.98 cones a day. A cart chain forecasting 50 carts citywide scores RMSE 340 cones a day across its whole network. The owner asks which forecast is more accurate. What do you check?</p>
+<section class="exercise" data-exercise-id="Accuracy-Metrics-MASE-RMSSE-and-Pinball-Loss-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Pier Nine's forecast, since RMSE 5.98 is a much smaller number than 340.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The chain's forecast, since a busier series always scores better on RMSE.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither number on its own. Compare their MASE or RMSSE instead, since those scale each forecast against its own seasonal-naive benchmark.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Their MAPE, since it is already a percentage.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. RMSE and MAE live in each series' own unit, so a boardwalk cart's score and a citywide chain's score are not on the same scale. MASE and RMSSE fix that by dividing each model's error by its own seasonal-naive benchmark, so a value like 0.55 means the same thing whether it comes from 6 cones a day or 600.</div><div class="lesson-qfb lesson-qfb-no">A raw RMSE or MAE number only means something within one series' own scale, and MAPE breaks the moment an actual value is 0 or close to it, which can happen on both a small cart and a busy chain. MASE and RMSSE are the ones built to compare across series like this.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: score both models' full distributions</h2>
+
+<p><code>fc</code> still holds both models' forecasts, and <code>cart</code> still holds all 63 days of real sales. Fill in the blank so the call scores both models' whole predictive distributions, the same way you just saw work, and press Check.</p>
+<section class="exercise" data-exercise-id="Accuracy-Metrics-MASE-RMSSE-and-Pinball-Loss-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="accuracy[(]\s*fc\s*,\s*cart\s*,\s*measures\s*=\s*distribution_accuracy_measures\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Score both models' whole predictive distributions, not just their point forecasts
+accuracy(____, cart, measures = distribution_accuracy_measures)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. fc holds both models' forecasts and cart holds the real sales to check them against, exactly like every accuracy() call in this lesson. ETS scores lower on CRPS, 3.58 against Seasonal_naive's 7.85, so its whole predictive distribution tracks the real days more closely.</span><span class="lesson-tryit-fb lesson-tryit-no">The forecast object built two steps back is called fc. Fill the blank with that name: accuracy(fc, cart, measures = distribution_accuracy_measures).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Score both models' whole predictive distributions
+accuracy(fc, cart, measures = distribution_accuracy_measures)
+#&gt; # A tibble: 2 x 4
+#&gt;   .model         .type percentile  CRPS
+#&gt;   &lt;chr&gt;          &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 ETS            Test        3.62  3.58
+#&gt; 2 Seasonal_naive Test        7.93  7.85</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/accuracy.html">Evaluating point forecast accuracy</a> - Hyndman, R.J. and Athanasopoulos, G., Forecasting: Principles and Practice (3rd ed), section 5.8.</li>
+
+<li><a href="https://otexts.com/fpp3/distaccuracy.html">Evaluating distributional forecasts</a> - Hyndman, R.J. and Athanasopoulos, G., Forecasting: Principles and Practice (3rd ed), section 5.9.</li>
+
+<li><a href="https://doi.org/10.1016/j.ijforecast.2006.03.001">Another look at measures of forecast accuracy</a> - Hyndman, R.J. and Koehler, A.B. (2006), International Journal of Forecasting, 22(4), 679-688. The paper that introduced MASE.</li>
+
+<li><a href="https://doi.org/10.1198/016214506000001437">Strictly Proper Scoring Rules, Prediction, and Estimation</a> - Gneiting, T. and Raftery, A.E. (2007), Journal of the American Statistical Association, 102(477), 359-378. The source for pinball loss and CRPS as proper scoring rules.</li>
+
+<li><a href="https://fabletools.tidyverts.org/reference/accuracy.html">accuracy() and distribution_accuracy_measures()</a> - fabletools package reference documentation.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>Pier Nine's numbers, one more time. ETS beat Seasonal_naive on every score tried: RMSE 5.98 against 13.7, MAE 4.84 against 11.3, MASE 0.548 against 1.28, RMSSE 0.435 against 0.997, percentile score 3.62 against 7.93, CRPS 3.58 against 7.85.</p>
+
+<ul>
+
+<li>RMSE and MAE only mean something inside one series' own unit. Rescale the series and they rescale right along with it.</li>
+
+<li>MAPE fails the moment an actual value is 0, and gets unreliable well before that.</li>
+
+<li>MASE and RMSSE fix both problems by dividing a model's error by what a seasonal-naive guess scores on the training data alone, which cancels the unit out.</li>
+
+<li>Pinball loss scores one chosen quantile, with a stockout weighted heavier than an overstock on purpose.</li>
+
+<li>CRPS averages that same idea across every quantile, for one score on a model's whole predictive distribution.</li>
+
+</ul>
+
+<p>You can now compute and choose among all seven of these for a forecast of your own, and pick the right one for whatever decision is actually behind it.</p>
+</section>
+
+{% endraw %}

@@ -1,0 +1,621 @@
+---
+title: "Time Series Regression Lesson 5: Selecting predictors with cross-validation"
+description: "Compare adjusted R-squared, AICc and BIC across candidate regression models, search with cross-validated error, and dodge the test-window leakage trap."
+keywords: "model selection in R, adjusted R-squared, AICc, BIC, cross-validated error, best subset selection R, forward stepwise selection, TSLM predictor selection, p-value model selection, data leakage cross-validation"
+mathjax: false
+webr: true
+curriculum_id: "5.40.5"
+post_type: "LESSON"
+course_id: "ts-regression"
+course_title: "Time Series Regression"
+course_lesson: "5"
+course_total: "6"
+course_landing: "Time-Series-Regression-Course.html"
+course_next: "Spurious-Regression-and-How-to-Avoid-It.html"
+course_prev: "Useful-Predictors-Lags-Calendar-and-Holidays.html"
+lesson_access: "pro"
+catalog_blurb: "Compare adjusted R-squared, AICc, BIC and cross-validated error to actually pick a model."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Selecting predictors with cross-validation</h2>
+
+<p>Today let's work out which of several candidate predictors actually belong in a regression, instead of throwing every number you have at the model and hoping for the best.</p>
+
+<p>Fairwind Bike Rentals has 48 months of revenue on record, January 2022 through December 2025. Alongside revenue, the shop has tracked four other numbers every month: how much it spent on ads, the average temperature, how many days it rained, and how many new cafes opened downtown that month. That last one, new cafes, has no obvious link to bike rentals at all, and it is one of the four candidates this lesson has to judge.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":18834},{"x":2,"y":19942},{"x":3,"y":22523},{"x":4,"y":25668},{"x":5,"y":31139},{"x":6,"y":25941},{"x":7,"y":29807},{"x":8,"y":27546},{"x":9,"y":28803},{"x":10,"y":28275},{"x":11,"y":23609},{"x":12,"y":26001},{"x":13,"y":20137},{"x":14,"y":23238},{"x":15,"y":21495},{"x":16,"y":27798},{"x":17,"y":30890},{"x":18,"y":32916},{"x":19,"y":33040},{"x":20,"y":31278},{"x":21,"y":30440},{"x":22,"y":28879},{"x":23,"y":29161},{"x":24,"y":23729},{"x":25,"y":29137},{"x":26,"y":30989},{"x":27,"y":27013},{"x":28,"y":33007},{"x":29,"y":26366},{"x":30,"y":32005},{"x":31,"y":30878},{"x":32,"y":32001},{"x":33,"y":32478},{"x":34,"y":30816},{"x":35,"y":28389},{"x":36,"y":30430},{"x":37,"y":27051},{"x":38,"y":27136},{"x":39,"y":28804},{"x":40,"y":29436},{"x":41,"y":28753},{"x":42,"y":35424},{"x":43,"y":35753},{"x":44,"y":34829},{"x":45,"y":32526},{"x":46,"y":31160},{"x":47,"y":32069},{"x":48,"y":26687}],"geoms":["point","line"],"x":"month","y":"revenue"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Revenue climbs overall but bounces around a lot from month to month, from a low of $18,834 in the first month to a high of $35,753 in month 43. Which of the four candidates actually explains that climb, and which ones just happen to be sitting nearby, is the question on the table.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why R-squared always goes up when you add a predictor</h2>
+
+<p>R-squared measures how much of the up-and-down in revenue a regression explains, as a share between 0 and 1. An R-squared of 0.90 means the model accounts for 90% of the variation in revenue, leaving the rest in the residuals, the part the model still misses.</p>
+
+<p>A regression like <code>TSLM()</code> fits by ordinary least squares: it picks coefficients that make the residual sum of squares, the total squared size of the misses, as small as possible. Adding one more predictor can never make that sum bigger. In the worst case the fitting procedure gives the new predictor a coefficient of exactly 0 and reproduces the old fit exactly. So R-squared, which is built directly from that residual sum of squares, can only hold steady or rise as you add predictors. It can never fall.</p>
+
+<p>Watch that happen for real. Fit revenue against ad spend alone, then keep adding the other three candidates one at a time.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Fairwind's 48 months of revenue and four candidate predictors, then fit four nested regressions
+library(tsibble)
+library(fable)
+library(fabletools)
+library(dplyr)
+
+set.seed(2026)
+n &lt;- 48
+month &lt;- yearmonth(&quot;2022 Jan&quot;) + 0:(n - 1)
+idx &lt;- 1:n
+
+avg_temp &lt;- 55 + 22 * sin(2 * pi * (idx - 4) / 12) + rnorm(n, 0, 4)
+rain_days &lt;- pmax(0, 10 - 0.15 * (avg_temp - 55) + rnorm(n, 0, 3))
+ad_spend &lt;- round(3500 + 25 * idx + rnorm(n, 0, 500))
+new_cafes &lt;- rpois(n, 2)
+revenue &lt;- round(9000 + 3.2 * ad_spend + 140 * avg_temp - 260 * rain_days + 45 * idx + rnorm(n, 0, 1200))
+
+bikes &lt;- tsibble(month = month, ad_spend = ad_spend, avg_temp = avg_temp,
+                  rain_days = rain_days, new_cafes = new_cafes, revenue = revenue,
+                  index = month)
+
+fits &lt;- bikes |&gt; model(
+  m1 = TSLM(revenue ~ ad_spend),
+  m2 = TSLM(revenue ~ ad_spend + avg_temp),
+  m3 = TSLM(revenue ~ ad_spend + avg_temp + rain_days),
+  m4 = TSLM(revenue ~ ad_spend + avg_temp + rain_days + new_cafes)
+)
+glance(fits) |&gt; select(.model, r_squared)
+#&gt; # A tibble: 4 x 2
+#&gt;   .model r_squared
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;
+#&gt; 1 m1         0.454
+#&gt; 2 m2         0.905
+#&gt; 3 m3         0.917
+#&gt; 4 m4         0.921</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every added predictor pushes R-squared up: 0.454, then 0.905, then 0.917, then 0.921. The jump from <code>m1</code> to <code>m2</code> is large, because average temperature genuinely drives revenue. The jump from <code>m3</code> to <code>m4</code> is tiny, 0.917 to 0.921, because new cafes barely helps at all. But it still went up, not down, not even by a hair. R-squared rewards every predictor you add, whether that predictor is real or worthless, so it can never be the thing that tells you to leave one out.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Adjusted R-squared: the penalty for an extra predictor</h2>
+
+<p>Adjusted R-squared fixes that by charging rent for every predictor in the model. The formula is <code>adjusted R-squared = 1 - (1 - R-squared) * (n - 1) / (n - p - 1)</code>, where <code>n</code> is the number of rows (48 months) and <code>p</code> is the number of predictors in that model, not counting the intercept. As <code>p</code> grows, the fraction <code>(n - 1) / (n - p - 1)</code> grows too, stretching the <code>(1 - R-squared)</code> gap wider before it gets subtracted from 1. A predictor has to earn back that stretch in R-squared, or adjusted R-squared falls even while plain R-squared rises.</p>
+
+<p>See it happen with new cafes. Fit revenue against ad spend alone, then against ad spend plus new cafes, and compare both R-squared values.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare R-squared and adjusted R-squared for ad_spend alone versus ad_spend plus new_cafes
+fit_pair &lt;- bikes |&gt; model(
+  base = TSLM(revenue ~ ad_spend),
+  plus_cafes = TSLM(revenue ~ ad_spend + new_cafes)
+)
+glance(fit_pair) |&gt; select(.model, r_squared, adj_r_squared)
+#&gt; # A tibble: 2 x 3
+#&gt;   .model     r_squared adj_r_squared
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;         &lt;dbl&gt;
+#&gt; 1 base           0.454         0.442
+#&gt; 2 plus_cafes     0.463         0.439</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now compute adjusted R-squared by hand from that same formula, and check it lines up with <code>glance()</code>'s own column.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute adjusted R-squared by hand from R-squared, n and p, and check it against glance()'s own column
+g_pair &lt;- glance(fit_pair) |&gt; select(.model, r_squared, adj_r_squared)
+
+p_base &lt;- 1   # ad_spend alone
+p_cafes &lt;- 2  # ad_spend + new_cafes
+
+r2_base &lt;- g_pair$r_squared[g_pair$.model == &quot;base&quot;]
+r2_cafes &lt;- g_pair$r_squared[g_pair$.model == &quot;plus_cafes&quot;]
+
+adj_r2_base_hand &lt;- 1 - (1 - r2_base) * (n - 1) / (n - p_base - 1)
+adj_r2_cafes_hand &lt;- 1 - (1 - r2_cafes) * (n - 1) / (n - p_cafes - 1)
+
+round(c(hand_base = adj_r2_base_hand, hand_plus_cafes = adj_r2_cafes_hand,
+        glance_base = g_pair$adj_r_squared[g_pair$.model == &quot;base&quot;],
+        glance_plus_cafes = g_pair$adj_r_squared[g_pair$.model == &quot;plus_cafes&quot;]), 4)
+#&gt;         hand_base   hand_plus_cafes       glance_base glance_plus_cafes 
+#&gt;            0.4425            0.4394            0.4425            0.4394</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hand-built numbers match <code>glance()</code>'s own column exactly, so the formula really is what <code>adj_r_squared</code> computes. And notice what happened: R-squared rose from 0.454 to 0.463 when new cafes joined the model, but adjusted R-squared fell from 0.442 to 0.439. New cafes did not earn back the rent it cost to add it.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>AICc and BIC: trading fit against complexity</h2>
+
+<p>AIC and BIC are two more ways to charge that same kind of rent, built from the model's log-likelihood, a number that scores how well the fitted model explains the data actually seen, with higher meaning a better fit. Both AIC and BIC subtract a penalty for every extra predictor from that log-likelihood score, so a smaller AIC or BIC is better, the reverse of R-squared. BIC's penalty grows with the sample size, so it punishes extra predictors harder than AIC does once you have more than a handful of rows.</p>
+
+<p>AICc is AIC with a small-sample correction added on top. That correction matters whenever the sample size is not much larger than the number of parameters being estimated, which is exactly Fairwind's situation: 48 months and up to 5 parameters (an intercept plus up to 4 predictors). With <code>n</code> that close to <code>p</code>, plain AIC understates its own penalty, so AICc, not AIC, is the number to read here.</p>
+
+<p>Pull AICc and BIC for the same two models just fit.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read AICc and BIC for the same two models
+glance(fit_pair) |&gt; select(.model, AICc, BIC)
+#&gt; # A tibble: 2 x 3
+#&gt;   .model      AICc   BIC
+#&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 base        773.  778.
+#&gt; 2 plus_cafes  775.  781.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both criteria agree with adjusted R-squared here: AICc worsens from 773 to 775, and BIC worsens from 778 to 781, when new cafes joins the model. Three separate ways of charging rent for an extra predictor, and all three say the same thing about this one.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Comparing all four criteria side by side</h2>
+
+<p>One table can hold all four nested models and all four criteria at once, so put them side by side.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["predictors","R-squared","adjusted R-squared","AICc","BIC"],"rows":[["ad_spend",0.454,0.442,773.0,778.1],["ad_spend + avg_temp",0.905,0.901,691.3,697.9],["ad_spend + avg_temp + rain_days",0.917,0.911,687.7,695.7],["ad_spend + avg_temp + rain_days + new_cafes",0.921,0.914,687.6,696.8]],"title":"Four nested models, compared on all four criteria","note":"R-squared rises at every step, no exception. Watch the last row: AICc still edges down, 687.7 to 687.6, favoring the full model, but BIC already turns the other way, 695.7 to 696.8, favoring the model without new_cafes."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>R-squared keeps climbing right to the end, exactly as it must. Adjusted R-squared, AICc and BIC all agree that the second and third models are worth far more than the first. But look closely at the last row, going from three predictors to four: AICc still edges down, favoring the full model, while BIC turns the other way and starts favoring the smaller one. The criteria do not have to agree, and here they already do not.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a smaller AICc or BIC means</h2>
+<section class="exercise" data-exercise-id="Selecting-Predictors-with-Cross-Validation-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It always means the model's fit is closer to the data, the same thing a higher R-squared shows.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It means the model strikes a better balance between how well it fits and how many predictors it used to reach that fit.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It means AICc and BIC always agree with adjusted R-squared about which model is best.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It means the model has a higher R-squared than the alternative.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. AICc and BIC both subtract a penalty that grows with the predictor count, so a smaller value says the fit was worth what it cost in extra predictors, not just that the raw fit got closer.</div><div class="lesson-qfb lesson-qfb-no">None of these follow. A smaller AICc or BIC says the trade-off between fit and predictor count came out ahead, not that the raw fit is closer (that is what R-squared alone measures) and not that every criterion agrees. The table above already shows AICc nudging toward the full model on the last step while BIC turns the other way. A model can even carry a smaller AICc and a lower R-squared than a bigger, more overfit alternative.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Why a coefficient's p-value is the wrong tool for selection</h2>
+
+<p>A coefficient's p-value tests one narrow question: could this one coefficient, in this one fitted model, plausibly be zero? It says nothing about whether dropping or keeping that predictor improves the model's forecasts, and nothing about any of the other models you might have fit instead.</p>
+
+<p>Look at the full model's own coefficient table.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the full model and read each coefficient's p-value
+fit_full &lt;- bikes |&gt; model(TSLM(revenue ~ ad_spend + avg_temp + rain_days + new_cafes))
+report(fit_full)
+#&gt; Series: revenue 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -2656.85  -772.49   -19.44   504.71  2620.57 
+#&gt; 
+#&gt; Coefficients:
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) 6282.5742  1571.0653   3.999 0.000246 ***
+#&gt; ad_spend       3.8124     0.2536  15.031  &lt; 2e-16 ***
+#&gt; avg_temp     153.5352    13.4067  11.452  1.2e-14 ***
+#&gt; rain_days   -137.1662    54.8587  -2.500 0.016299 *  
+#&gt; new_cafes   -249.1399   156.9476  -1.587 0.119747    
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 1178 on 43 degrees of freedom
+#&gt; Multiple R-squared: 0.9213,	Adjusted R-squared: 0.9139
+#&gt; F-statistic: 125.8 on 4 and 43 DF, p-value: &lt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rain_days</code> comes back with p = 0.0163, under the usual 0.05 bar. <code>new_cafes</code> comes back with p = 0.1197, well above it. So far that looks like a sensible way to tell a real predictor from a weak one. The trouble shows up once you go hunting for significance across many candidates at once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Regress revenue against 20 columns of pure random noise, one at a time, and count how many cross p &lt; 0.05
+set.seed(99)
+noise &lt;- matrix(rnorm(n * 20), nrow = n, ncol = 20)
+
+noise_pvals &lt;- sapply(1:20, function(i) {
+  fit_i &lt;- lm(revenue ~ noise[, i])
+  summary(fit_i)$coefficients[2, 4]
+})
+
+round(noise_pvals, 4)
+#&gt;  [1] 0.8137 0.5863 0.4155 0.4316 0.0078 0.5932 0.6706 0.2893 0.5100 0.9514
+#&gt; [11] 0.5279 0.2155 0.9797 0.4664 0.5607 0.1259 0.8428 0.9864 0.7699 0.3286
+sum(noise_pvals &lt; 0.05)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>None of those 20 columns has anything to do with revenue; they are <code>rnorm()</code> noise, nothing more. Yet one of them, the fifth, comes back at p = 0.0078, comfortably under 0.05. That is not a bug in the noise. A 5% significance threshold is built to let exactly 5% of pure-noise predictors through by chance, and 1 out of 20 is right on that rate. Test enough candidate predictors this way and some of them will look significant purely by luck, which is exactly why a p-value cannot be trusted to pick a model on its own.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>Cross-validated error: the out-of-sample score</h2>
+
+<p>Cross-validation asks a more direct question than any of the criteria so far: not "does this fit look good on the data it was trained on", but "how well would this model score on data it never saw". k-fold cross-validation is the standard way to answer that. It splits the data into <code>k</code> equal groups, called folds. It holds out one fold, fits the model on the rest, scores it on the held-out fold, then rotates until every fold has been held out exactly once. Averaging those <code>k</code> scores gives one number: the cross-validated error.</p>
+
+<p>Step through a generic version below. Its 20 rows are a stand-in to show the mechanics, not Fairwind's own 48 months.</p>
+<div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>For an ordinary linear regression like <code>TSLM()</code>, <code>glance()</code> already computes this same idea directly, using a shortcut formula for the case where every fold holds out just one row, called leave-one-out cross-validation. It gets the honest leave-one-out score without literally refitting the model 48 times.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read the full model's cross-validated error from glance()
+glance(fit_full) |&gt; select(CV)
+#&gt;        CV
+#&gt; 1 1578904</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full model's cross-validated error is 1,578,904. On its own that number means little; it only becomes useful once you compare it against the CV of other candidate models.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Best-subset selection: trying every combination</h2>
+
+<p>With 4 candidate predictors, there are <code>2^4 - 1 = 15</code> non-empty subsets to try: every single predictor alone, every pair, every triple, and the full set of four. Best-subset selection fits every one of those 15 models and ranks them by whichever criterion you trust.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build all 15 non-empty subsets of the four candidate predictors
+predictors &lt;- c(&quot;ad_spend&quot;, &quot;avg_temp&quot;, &quot;rain_days&quot;, &quot;new_cafes&quot;)
+all_subsets &lt;- unlist(lapply(1:4, function(k) combn(predictors, k, simplify = FALSE)), recursive = FALSE)
+length(all_subsets)
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fit every one of those 15 subsets and rank them by AICc.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit each of the 15 subsets and rank them by AICc
+subset_results &lt;- lapply(all_subsets, function(v) {
+  fit &lt;- bikes |&gt; model(m = TSLM(reformulate(v, response = &quot;revenue&quot;)))
+  g &lt;- glance(fit)
+  data.frame(predictors = paste(v, collapse = &quot; + &quot;),
+             adj_r_squared = round(g$adj_r_squared, 4), AICc = round(g$AICc, 1),
+             BIC = round(g$BIC, 1), CV = round(g$CV))
+})
+subset_table &lt;- do.call(rbind, subset_results)
+rownames(subset_table) &lt;- NULL
+
+by_aicc &lt;- subset_table[order(subset_table$AICc), ]
+rownames(by_aicc) &lt;- NULL
+by_aicc
+#&gt;                                     predictors adj_r_squared  AICc   BIC
+#&gt; 1  ad_spend + avg_temp + rain_days + new_cafes        0.9139 687.6 696.8
+#&gt; 2              ad_spend + avg_temp + rain_days        0.9110 687.7 695.7
+#&gt; 3                          ad_spend + avg_temp        0.9012 691.3 697.9
+#&gt; 4              ad_spend + avg_temp + new_cafes        0.9037 691.5 699.4
+#&gt; 5                         ad_spend + rain_days        0.6586 750.8 757.4
+#&gt; 6             ad_spend + rain_days + new_cafes        0.6594 752.1 760.1
+#&gt; 7                                     avg_temp        0.4706 770.6 775.6
+#&gt; 8                         avg_temp + rain_days        0.4809 770.9 777.5
+#&gt; 9                         avg_temp + new_cafes        0.4641 772.5 779.0
+#&gt; 10                                    ad_spend        0.4425 773.0 778.1
+#&gt; 11            avg_temp + rain_days + new_cafes        0.4740 773.0 780.9
+#&gt; 12                        ad_spend + new_cafes        0.4394 774.6 781.2
+#&gt; 13                                   rain_days        0.2478 787.4 792.5
+#&gt; 14                       rain_days + new_cafes        0.2333 789.7 796.2
+#&gt; 15                                   new_cafes       -0.0194 802.0 807.1
+#&gt;          CV
+#&gt; 1   1578904
+#&gt; 2   1614427
+#&gt; 3   1711759
+#&gt; 4   1680556
+#&gt; 5   5952992
+#&gt; 6   6059479
+#&gt; 7   8946430
+#&gt; 8   9133643
+#&gt; 9   9364220
+#&gt; 10  9493946
+#&gt; 11  9553457
+#&gt; 12  9776042
+#&gt; 13 12712368
+#&gt; 14 13227243
+#&gt; 15 17144012</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ranked by AICc, adjusted R-squared or cross-validated error, the full model wins: it has the smallest AICc (687.6), the highest adjusted R-squared (0.9139) and the smallest CV (1,578,904) of all 15 subsets. The worst subset, new cafes on its own, has a negative adjusted R-squared, -0.0194, meaning it explains revenue worse than just using the average revenue as the prediction for every month.</p>
+
+<p>Now sort that same table by BIC instead.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Same 15 subsets, now ranked by BIC instead
+by_bic &lt;- subset_table[order(subset_table$BIC), c(&quot;predictors&quot;, &quot;BIC&quot;, &quot;AICc&quot;)]
+rownames(by_bic) &lt;- NULL
+head(by_bic, 4)
+#&gt;                                     predictors   BIC  AICc
+#&gt; 1             ad_spend + avg_temp + rain_days 695.7 687.7
+#&gt; 2 ad_spend + avg_temp + rain_days + new_cafes 696.8 687.6
+#&gt; 3                         ad_spend + avg_temp 697.9 691.3
+#&gt; 4             ad_spend + avg_temp + new_cafes 699.4 691.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>BIC ranks the three-predictor model first, without new cafes, even though AICc still ranks the full model a hair ahead. That is not a contradiction. Adjusted R-squared, AICc and cross-validated error all say new cafes is worth keeping, barely. BIC's heavier penalty for extra predictors says it is not. Both readings are correct answers to two slightly different questions: how much does one more predictor have to earn to be worth its cost, judged by two different penalties.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Stepwise selection: a shortcut for more predictors</h2>
+
+<p>Best-subset search fits every possible combination, which gets expensive fast: 4 predictors is 15 models, but 20 predictors would be <code>2^20 - 1</code>, over a million. Forward stepwise search is a cheaper alternative. It starts with no predictors, and at each round adds whichever remaining candidate improves AICc the most. It keeps going until no remaining candidate helps.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run forward stepwise search: add whichever candidate improves AICc most, one round at a time
+chosen &lt;- character(0)
+remaining &lt;- predictors
+round_num &lt;- 1
+repeat {
+  candidate_aicc &lt;- sapply(remaining, function(p) {
+    v &lt;- c(chosen, p)
+    fit &lt;- bikes |&gt; model(m = TSLM(reformulate(v, response = &quot;revenue&quot;)))
+    glance(fit)$AICc
+  })
+  cat(&quot;Round&quot;, round_num, &quot;candidates:\n&quot;)
+  print(round(candidate_aicc, 1))
+  best_p &lt;- names(which.min(candidate_aicc))
+  cat(&quot;-&gt; adds&quot;, best_p, &quot;\n\n&quot;)
+  chosen &lt;- c(chosen, best_p)
+  remaining &lt;- setdiff(remaining, best_p)
+  round_num &lt;- round_num + 1
+  if (length(remaining) == 0) break
+}
+#&gt; Round 1 candidates:
+#&gt;  ad_spend  avg_temp rain_days new_cafes 
+#&gt;     773.0     770.6     787.4     802.0 
+#&gt; -&gt; adds avg_temp 
+#&gt; 
+#&gt; Round 2 candidates:
+#&gt;  ad_spend rain_days new_cafes 
+#&gt;     691.3     770.9     772.5 
+#&gt; -&gt; adds ad_spend 
+#&gt; 
+#&gt; Round 3 candidates:
+#&gt; rain_days new_cafes 
+#&gt;     687.7     691.5 
+#&gt; -&gt; adds rain_days 
+#&gt; 
+#&gt; Round 4 candidates:
+#&gt; new_cafes 
+#&gt;     687.6 
+#&gt; -&gt; adds new_cafes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Round 1 tries each predictor alone and picks average temperature, the smallest AICc at 770.6. Round 2 tries adding each remaining predictor to average temperature, and picks ad spend. Round 3 adds rain days. Round 4 has only new cafes left, so it goes in too. Four rounds, ten model fits total, and the search lands on the same full model best-subset search found by trying all 15. With 20 candidates, forward stepwise would need only about 210 fits to reach an answer, against well over a million for best-subset. The saving is real, but it comes at a cost: a greedy search locks in each choice before seeing the rest, so it can miss the true best subset when two predictors only help in combination.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>The leakage trap of selecting on the test window</h2>
+
+<p>Every comparison so far picked a model using all 48 months, then judged it using the very same 48 months, in-sample. A more honest test holds some months back entirely, chooses a model without ever looking at them, and only then checks the score. Split Fairwind's 48 months into the first 36 for training and the last 12 for testing.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split the 48 months into 36 training months and 12 held-out test months
+train &lt;- bikes |&gt; filter(month &lt;= yearmonth(&quot;2024 Dec&quot;))
+test &lt;- bikes |&gt; filter(month &gt; yearmonth(&quot;2024 Dec&quot;))
+nrow(train)
+#&gt; [1] 36
+nrow(test)
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Search all 15 subsets using only the 36 training months' own AICc, pick the winner, then forecast it onto the 12 test months it never saw.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Search all 15 subsets on the 36 training months only, pick the best by AICc, then score it on the 12 held-out months
+train_results &lt;- lapply(all_subsets, function(v) {
+  fit &lt;- train |&gt; model(m = TSLM(reformulate(v, response = &quot;revenue&quot;)))
+  data.frame(predictors = paste(v, collapse = &quot; + &quot;), AICc = round(glance(fit)$AICc, 1))
+})
+train_table &lt;- do.call(rbind, train_results)
+rownames(train_table) &lt;- NULL
+train_table &lt;- train_table[order(train_table$AICc), ]
+rownames(train_table) &lt;- NULL
+head(train_table, 3)
+#&gt;                                     predictors  AICc
+#&gt; 1 ad_spend + avg_temp + rain_days + new_cafes 517.1
+#&gt; 2             ad_spend + avg_temp + rain_days 519.8
+#&gt; 3                         ad_spend + avg_temp 525.2
+
+best_predictors &lt;- strsplit(train_table$predictors[1], &quot; \\+ &quot;)[[1]]
+fit_chosen &lt;- train |&gt; model(m = TSLM(reformulate(best_predictors, response = &quot;revenue&quot;)))
+fc_chosen &lt;- fit_chosen |&gt; forecast(new_data = test)
+rmse_honest &lt;- sqrt(mean((fc_chosen$.mean - test$revenue)^2))
+round(rmse_honest, 1)
+#&gt; [1] 1504.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The training-only search picks the full model again, and scoring it on the 12 months it never touched gives an RMSE, root-mean-square error, of 1,504.8. That is the honest number: those 12 months had no say in which model got chosen.</p>
+
+<p>Now do it the leaky way. Search all 15 subsets directly against those same 12 test months, picking whichever scores lowest.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Search all 15 subsets directly against the 12 test months, letting them pick the model too
+leak_results &lt;- lapply(all_subsets, function(v) {
+  fit &lt;- train |&gt; model(m = TSLM(reformulate(v, response = &quot;revenue&quot;)))
+  fc &lt;- fit |&gt; forecast(new_data = test)
+  data.frame(predictors = paste(v, collapse = &quot; + &quot;),
+             rmse = round(sqrt(mean((fc$.mean - test$revenue)^2)), 1))
+})
+leak_table &lt;- do.call(rbind, leak_results)
+rownames(leak_table) &lt;- NULL
+leak_table &lt;- leak_table[order(leak_table$rmse), ]
+rownames(leak_table) &lt;- NULL
+head(leak_table, 3)
+#&gt;                        predictors    rmse
+#&gt; 1 ad_spend + avg_temp + new_cafes 1066.9
+#&gt; 2             ad_spend + avg_temp 1067.0
+#&gt; 3 ad_spend + avg_temp + rain_days 1309.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That search reports 1,066.9 RMSE, well under the honest 1,504.8. Nothing about Fairwind's data changed between the two searches. What changed is that the second search let the same 12 test months choose the model as well as grade it, trying all 15 subsets against them and keeping whichever happened to fit those particular 12 months best. This mistake has a name: leakage, information from the data meant only to grade the model leaking into the process that chose it. The fix is the one the honest search already used: pick the model using only the training months, and touch the held-out months exactly once, to grade the one model you already chose.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why searching the test months first inflates the score</h2>
+
+<p>An analyst fits all 15 subsets on the training months, scores every one of them against the same 12 held-out months, and reports the lowest score as the model's expected accuracy.</p>
+<section class="exercise" data-exercise-id="Selecting-Predictors-with-Cross-Validation-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The problem is cross-validation itself: it always underestimates how well a model will do on new data.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Those 12 months chose the model as well as graded it, so the reported score is optimistic, not honest.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The problem is using best-subset search instead of forward stepwise search; stepwise would have avoided this.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The problem is using RMSE instead of a different accuracy metric.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Trying all 15 subsets against the same 12 months and keeping the best score is a search for whichever model happens to fit those particular months, not a fair test of any one model. The fix is to pick the model on the training months alone and touch the held-out months only once, to grade the one model already chosen.</div><div class="lesson-qfb lesson-qfb-no">None of these are the real issue. Cross-validation and best-subset search are not at fault, and swapping RMSE for another metric would not fix anything, since the same 15-way search over the same 12 months would still cherry-pick whichever model fits them best. The actual mistake is letting the held-out months influence which model got chosen, not just how it got scored.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="tryit" data-gate="1">
+<h2>Your turn: score one more candidate model</h2>
+
+<p><code>bikes</code> is already built from the earlier steps. Fit <code>TSLM(revenue ~ ad_spend + rain_days)</code>, a subset not shown in the ranked table above, and pull its AICc from <code>glance()</code>.</p>
+<section class="exercise" data-exercise-id="Selecting-Predictors-with-Cross-Validation-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*ad_spend)(?=[\s\S]*rain_days)(?=[\s\S]*AICc)"><textarea class="lesson-tryit-input" spellcheck="false"># bikes is already built. Fit TSLM(revenue ~ ad_spend + rain_days) inside model(),
+# then pull AICc from glance() on that fit.
+# One line to fit, one line to read AICc. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: ad_spend + rain_days lands at an AICc of about 750.8, far behind the full model's 687.6. Dropping avg_temp costs this model far more than ad_spend and rain_days together can make up.</span><span class="lesson-tryit-fb lesson-tryit-no">Fit TSLM(revenue ~ ad_spend + rain_days) inside model(), then pull AICc with glance(fit)$AICc or glance(fit) |> select(AICc).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit ad_spend + rain_days and read its AICc
+fit_try &lt;- bikes |&gt; model(TSLM(revenue ~ ad_spend + rain_days))
+round(glance(fit_try)$AICc, 1)
+#&gt; [1] 750.8</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/selecting-predictors.html">Forecasting: Principles and Practice, section 7.7, Selecting predictors</a> - Hyndman and Athanasopoulos (3rd ed.), on adjusted R-squared, AIC, AICc, BIC and cross-validation for choosing regression predictors.</li>
+
+<li>James, Witten, Hastie and Tibshirani, An Introduction to Statistical Learning, the chapter on subset selection methods, on best-subset and stepwise search.</li>
+
+<li><a href="https://fabletools.tidyverts.org/reference/glance.mdl_df.html">fabletools package reference documentation for glance.mdl_df()</a>, the AIC, AICc, BIC and CV columns returned for a fitted TSLM.</li>
+
+<li><a href="https://pkg.robjhyndman.com/forecast/reference/CV.html">forecast package reference documentation for CV()</a>, the PRESS-based leave-one-out cross-validation statistic behind the CV column.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You can now read and compare adjusted R-squared, AICc and BIC across candidate models, and you know why they can rank the same models differently: each one charges a different rent for an extra predictor, BIC's the steepest. You have seen why plain R-squared always favors the bigger model and why a coefficient's p-value only ever answers a question about one coefficient in one fitted model, never about which model forecasts best.</p>
+
+<p>You can run a best-subset search over every combination of a small set of candidates, or a forward stepwise search when there are too many candidates for that to be practical, using cross-validated error alongside the other criteria. And you know the leakage trap that catches people who already know all of this: choosing a model with the same data used to grade it, and the fix, a genuine holdout the whole search never sees until the one chosen model is graded on it, once.</p>
+
+<p>The next lesson turns to a different danger: two series that both trend upward can look strongly related in a regression even when neither one causes the other.</p>
+</section>
+
+{% endraw %}

@@ -1,0 +1,374 @@
+---
+title: "Forecasting Toolbox Lesson 1: Fitted values, residuals and innovations"
+description: "Learn what augment() adds to a fitted fable model, why a one-step fitted value differs from a real forecast, and which residual to trust for diagnostics."
+keywords: "augment fable r, fitted values vs forecast, one-step fitted value, innovation residuals, response residuals, RW drift model r, MASE out of sample accuracy, fable residual diagnostics"
+mathjax: false
+webr: true
+curriculum_id: "5.30.1"
+post_type: "LESSON"
+course_id: "ts-toolbox"
+course_title: "Forecasting Toolbox"
+course_lesson: "1"
+course_total: "6"
+course_landing: "Forecasting-Toolbox-Course.html"
+course_next: "Residual-Diagnostics-and-the-Ljung-Box-Test.html"
+course_prev: ""
+lesson_access: "pro"
+catalog_blurb: "See why a model's fitted line is not proof it can forecast."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Fitted values, residuals and innovations</h2>
+
+<p>Today let's understand fitted values, residuals and innovations, the three columns a fitted time series model hands back the moment it is fit.</p>
+
+<p>Northfield Outdoor Supply sells hiking and camping gear. Its owner keeps 60 months of revenue on record, January 2020 through December 2024. Revenue starts at $34,451 and climbs most years, with a summer peak that gets bigger in dollar terms as the business grows.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":34451},{"x":2,"y":34980},{"x":3,"y":37073},{"x":4,"y":41001},{"x":5,"y":48417},{"x":6,"y":52281},{"x":7,"y":51969},{"x":8,"y":49802},{"x":9,"y":44947},{"x":10,"y":41903},{"x":11,"y":37499},{"x":12,"y":39128},{"x":13,"y":39117},{"x":14,"y":39608},{"x":15,"y":36095},{"x":16,"y":46852},{"x":17,"y":49610},{"x":18,"y":56946},{"x":19,"y":52966},{"x":20,"y":51345},{"x":21,"y":57235},{"x":22,"y":50877},{"x":23,"y":48472},{"x":24,"y":42627},{"x":25,"y":43094},{"x":26,"y":40634},{"x":27,"y":47475},{"x":28,"y":54804},{"x":29,"y":52560},{"x":30,"y":61985},{"x":31,"y":59733},{"x":32,"y":62411},{"x":33,"y":58837},{"x":34,"y":59306},{"x":35,"y":49988},{"x":36,"y":48889},{"x":37,"y":47769},{"x":38,"y":47578},{"x":39,"y":51507},{"x":40,"y":59991},{"x":41,"y":61774},{"x":42,"y":68967},{"x":43,"y":72769},{"x":44,"y":77359},{"x":45,"y":62751},{"x":46,"y":62003},{"x":47,"y":57430},{"x":48,"y":54602},{"x":49,"y":53371},{"x":50,"y":59081},{"x":51,"y":56647},{"x":52,"y":62058},{"x":53,"y":68554},{"x":54,"y":71853},{"x":55,"y":75182},{"x":56,"y":71442},{"x":57,"y":76237},{"x":58,"y":66560},{"x":59,"y":64901},{"x":60,"y":57576}],"geoms":["point","line","bar"],"x":"month","y":"revenue"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at that climb, and the summer bumps riding on top of it. Once you fit a model to a series shaped like this, R can give back a fitted line that sits almost exactly on top of the real one, and it is tempting to read a line that close as proof the model can forecast. This lesson shows you exactly what that fitted line is built from, and why closeness like that is not the proof it looks like.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What augment() adds to a fitted model</h2>
+
+<p>To see what augment() adds, first fit a model to Northfield's revenue. Build the 60 months as a tsibble, the tidyverse's structure for a table indexed by time, then fit a random walk with drift to the logged revenue.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Northfield's 60 months as a tsibble, then fit a random walk with drift to logged revenue
+library(tsibble)
+library(fable)
+library(fabletools)
+library(dplyr)
+
+set.seed(2024)
+month &lt;- yearmonth(&quot;2020 Jan&quot;) + 0:59
+level &lt;- 40000 + 480 * (0:59)
+season &lt;- 1 + 0.18 * sin(2 * pi * (((0:59) %% 12) - 3) / 12)
+noise &lt;- exp(rnorm(60, 0, 0.05))
+revenue &lt;- round(level * season * noise)
+
+sales &lt;- tsibble(month = month, revenue = revenue, index = month)
+
+fit_full &lt;- model(sales, drift = RW(log(revenue) ~ drift()))
+invisible(report(fit_full))
+#&gt; Series: revenue
+#&gt; Model: RW w/ drift
+#&gt; Transformation: log(revenue)
+#&gt;
+#&gt; Drift: 0.0087 (se: 0.0123)
+#&gt; sigma^2: 0.0089</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>report() names the model RW w/ drift, a random walk with drift: its rule is last month's real value plus one constant step, called the drift, repeated every month. Because the model fit log(revenue) rather than revenue itself, that step lives on the log scale. The Drift row reads 0.0087, which works out to revenue growing by about 0.87% from one month to the next, on average across the whole series.</p>
+
+<p>Now ask fabletools for the model's own bookkeeping with augment(). Hand it the mable, the fitted-model table fit_full holds, and it adds three new columns onto the original month and revenue columns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add the model's own bookkeeping columns onto the original month and revenue columns
+aug_full &lt;- augment(fit_full)
+head(aug_full)
+#&gt; # A tsibble: 6 x 6 [1M]
+#&gt; # Key:       .model [1]
+#&gt;   .model    month revenue .fitted .resid   .innov
+#&gt;   &lt;chr&gt;     &lt;mth&gt;   &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 drift  2020 Jan   34451      NA     NA  NA
+#&gt; 2 drift  2020 Feb   34980   34752.   228.  0.00653
+#&gt; 3 drift  2020 Mar   37073   35286.  1787.  0.0494
+#&gt; 4 drift  2020 Apr   41001   37397.  3604.  0.0920
+#&gt; 5 drift  2020 May   48417   41359.  7058.  0.158
+#&gt; 6 drift  2020 Jun   52281   48840.  3441.  0.0681</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three new columns appear. .fitted holds the model's fitted value for that month, what it predicts revenue should have been. .resid holds the response residual, real revenue minus .fitted, in dollars. .innov holds the innovation residual, the miss measured on the scale the model actually fit, here the logged scale.</p>
+
+<p>Row 1, January 2020, is NA across all three columns. There is no earlier month in this series for the model to build a one-step value from yet.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>One-step fitted values are not forecasts</h2>
+
+<p>Look again at February 2020: .fitted reads 34,752 against a real 34,980, just 228 dollars off. That closeness is not luck. It comes straight from the formula .fitted uses.</p>
+
+<p>.fitted for month t is built from one rule: take last month's real revenue, move it up by the drift on the log scale, then convert back to dollars. In R that is exp(log(revenue[t-1]) + drift). Check it by hand for a few months and compare against augment()'s own numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hand-compute the one-step fitted value for a few months, and compare it to augment()'s own numbers
+drift &lt;- tidy(fit_full)$estimate
+round(drift, 4)
+#&gt; [1] 0.0087
+
+manual_fitted &lt;- exp(log(sales$revenue[1:5]) + drift)
+round(manual_fitted, 1)
+#&gt; [1] 34752.2 35285.8 37397.1 41359.5 48840.3
+
+round(aug_full$.fitted[2:6], 1)
+#&gt; [1] 34752.2 35285.8 37397.1 41359.5 48840.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two rows match exactly. Every .fitted value past the first is a one-step calculation: it only ever needs last month's real revenue plugged into that one formula.</p>
+
+<p>Now compare that with a genuine forecast. Call forecast(fit_full, h = 12) to forecast twelve months ahead, and the very first forecasted month still has a real previous month to plug in, so that first step is really the same one-step calculation you just did by hand. But the second forecasted month has no real revenue yet, the real month has not happened. So the model plugs in its own forecast from the first step instead, and the third step builds on the second one's forecast, and so on. Past the first step, every forecasted value compounds on the model's earlier guesses, never on the real series again.</p>
+
+<p>That is the entire difference between a fitted value and a forecast. A one-step fitted value always has a real number to start from. A forecast, past its first step, never does.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Reading the fitted line against the real series</h2>
+
+<p>See that mechanism on the chart itself. Plot Northfield's real revenue and fit_full's .fitted column on the same axis, month by month.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":34451,"fill":"actual"},{"x":2,"y":34980,"fill":"actual"},{"x":3,"y":37073,"fill":"actual"},{"x":4,"y":41001,"fill":"actual"},{"x":5,"y":48417,"fill":"actual"},{"x":6,"y":52281,"fill":"actual"},{"x":7,"y":51969,"fill":"actual"},{"x":8,"y":49802,"fill":"actual"},{"x":9,"y":44947,"fill":"actual"},{"x":10,"y":41903,"fill":"actual"},{"x":11,"y":37499,"fill":"actual"},{"x":12,"y":39128,"fill":"actual"},{"x":13,"y":39117,"fill":"actual"},{"x":14,"y":39608,"fill":"actual"},{"x":15,"y":36095,"fill":"actual"},{"x":16,"y":46852,"fill":"actual"},{"x":17,"y":49610,"fill":"actual"},{"x":18,"y":56946,"fill":"actual"},{"x":19,"y":52966,"fill":"actual"},{"x":20,"y":51345,"fill":"actual"},{"x":21,"y":57235,"fill":"actual"},{"x":22,"y":50877,"fill":"actual"},{"x":23,"y":48472,"fill":"actual"},{"x":24,"y":42627,"fill":"actual"},{"x":25,"y":43094,"fill":"actual"},{"x":26,"y":40634,"fill":"actual"},{"x":27,"y":47475,"fill":"actual"},{"x":28,"y":54804,"fill":"actual"},{"x":29,"y":52560,"fill":"actual"},{"x":30,"y":61985,"fill":"actual"},{"x":31,"y":59733,"fill":"actual"},{"x":32,"y":62411,"fill":"actual"},{"x":33,"y":58837,"fill":"actual"},{"x":34,"y":59306,"fill":"actual"},{"x":35,"y":49988,"fill":"actual"},{"x":36,"y":48889,"fill":"actual"},{"x":37,"y":47769,"fill":"actual"},{"x":38,"y":47578,"fill":"actual"},{"x":39,"y":51507,"fill":"actual"},{"x":40,"y":59991,"fill":"actual"},{"x":41,"y":61774,"fill":"actual"},{"x":42,"y":68967,"fill":"actual"},{"x":43,"y":72769,"fill":"actual"},{"x":44,"y":77359,"fill":"actual"},{"x":45,"y":62751,"fill":"actual"},{"x":46,"y":62003,"fill":"actual"},{"x":47,"y":57430,"fill":"actual"},{"x":48,"y":54602,"fill":"actual"},{"x":49,"y":53371,"fill":"actual"},{"x":50,"y":59081,"fill":"actual"},{"x":51,"y":56647,"fill":"actual"},{"x":52,"y":62058,"fill":"actual"},{"x":53,"y":68554,"fill":"actual"},{"x":54,"y":71853,"fill":"actual"},{"x":55,"y":75182,"fill":"actual"},{"x":56,"y":71442,"fill":"actual"},{"x":57,"y":76237,"fill":"actual"},{"x":58,"y":66560,"fill":"actual"},{"x":59,"y":64901,"fill":"actual"},{"x":60,"y":57576,"fill":"actual"},{"x":2,"y":34752,"fill":"fitted"},{"x":3,"y":35286,"fill":"fitted"},{"x":4,"y":37397,"fill":"fitted"},{"x":5,"y":41359,"fill":"fitted"},{"x":6,"y":48840,"fill":"fitted"},{"x":7,"y":52738,"fill":"fitted"},{"x":8,"y":52423,"fill":"fitted"},{"x":9,"y":50237,"fill":"fitted"},{"x":10,"y":45340,"fill":"fitted"},{"x":11,"y":42269,"fill":"fitted"},{"x":12,"y":37827,"fill":"fitted"},{"x":13,"y":39470,"fill":"fitted"},{"x":14,"y":39459,"fill":"fitted"},{"x":15,"y":39954,"fill":"fitted"},{"x":16,"y":36411,"fill":"fitted"},{"x":17,"y":47262,"fill":"fitted"},{"x":18,"y":50044,"fill":"fitted"},{"x":19,"y":57444,"fill":"fitted"},{"x":20,"y":53429,"fill":"fitted"},{"x":21,"y":51794,"fill":"fitted"},{"x":22,"y":57735,"fill":"fitted"},{"x":23,"y":51322,"fill":"fitted"},{"x":24,"y":48896,"fill":"fitted"},{"x":25,"y":43000,"fill":"fitted"},{"x":26,"y":43471,"fill":"fitted"},{"x":27,"y":40989,"fill":"fitted"},{"x":28,"y":47890,"fill":"fitted"},{"x":29,"y":55283,"fill":"fitted"},{"x":30,"y":53020,"fill":"fitted"},{"x":31,"y":62527,"fill":"fitted"},{"x":32,"y":60255,"fill":"fitted"},{"x":33,"y":62957,"fill":"fitted"},{"x":34,"y":59351,"fill":"fitted"},{"x":35,"y":59824,"fill":"fitted"},{"x":36,"y":50425,"fill":"fitted"},{"x":37,"y":49316,"fill":"fitted"},{"x":38,"y":48187,"fill":"fitted"},{"x":39,"y":47994,"fill":"fitted"},{"x":40,"y":51957,"fill":"fitted"},{"x":41,"y":60515,"fill":"fitted"},{"x":42,"y":62314,"fill":"fitted"},{"x":43,"y":69570,"fill":"fitted"},{"x":44,"y":73405,"fill":"fitted"},{"x":45,"y":78035,"fill":"fitted"},{"x":46,"y":63300,"fill":"fitted"},{"x":47,"y":62545,"fill":"fitted"},{"x":48,"y":57932,"fill":"fitted"},{"x":49,"y":55079,"fill":"fitted"},{"x":50,"y":53838,"fill":"fitted"},{"x":51,"y":59598,"fill":"fitted"},{"x":52,"y":57142,"fill":"fitted"},{"x":53,"y":62601,"fill":"fitted"},{"x":54,"y":69153,"fill":"fitted"},{"x":55,"y":72481,"fill":"fitted"},{"x":56,"y":75839,"fill":"fitted"},{"x":57,"y":72067,"fill":"fitted"},{"x":58,"y":76904,"fill":"fitted"},{"x":59,"y":67142,"fill":"fitted"},{"x":60,"y":65468,"fill":"fitted"}],"geoms":["line"],"x":"month","y":"revenue","code":{"line":"ggplot(monthly60, aes(month, revenue, color = group)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The two lines sit almost on top of each other for nearly the whole 60 months. That closeness is not evidence the model can forecast Northfield's revenue. It happens because every fitted point after the first is built from the real previous month's revenue, exactly like you just computed by hand. A fitted line hugging the real series this closely is what a one-step fitted value always looks like, not a sign the same model would do as well forecasting months it has never seen.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Proving it: fit on the past, forecast the future</h2>
+
+<p>So test it properly. Split Northfield's 60 months into a training window the model gets to see, 2020 through 2023, 48 months, and a test window it does not, all of 2024, 12 months.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split Northfield into a training window (2020-2023) and a held-back test window (2024), then fit the same model on training only
+train &lt;- sales |&gt; filter_index(&quot;2020 Jan&quot; ~ &quot;2023 Dec&quot;)
+test &lt;- sales |&gt; filter_index(&quot;2024 Jan&quot; ~ .)
+
+fit_train &lt;- model(train, drift = RW(log(revenue) ~ drift()))
+
+accuracy(fit_train) |&gt;
+  as.data.frame() |&gt;
+  transmute(type = .type, RMSE = round(RMSE), MASE = round(MASE, 2))
+#&gt;      type RMSE MASE
+#&gt;  Training 5085 0.68</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>RMSE, root mean squared error, says fit_train missed by about $5,085 a month on average, in dollars. MASE, mean absolute scaled error, compares that miss to a naive benchmark, last month's value, computed on the same training data; under 1 means beating naive, and 0.68 looks like a genuinely good model. But every number so far still comes from the training data fit_train has already seen, so none of it has proven anything about forecasting new months yet.</p>
+
+<p>Now forecast the 12 withheld months and score those forecasts against the real 2024 revenue.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast 12 months ahead with fit_train, then score those forecasts against the real, withheld 2024 revenue
+fc_train &lt;- forecast(fit_train, h = 12)
+
+accuracy(fc_train, sales) |&gt;
+  as.data.frame() |&gt;
+  transmute(type = .type, RMSE = round(RMSE), MASE = round(MASE, 2))
+#&gt;  type RMSE MASE
+#&gt;  Test 8329 1.13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>RMSE nearly doubles, to $8,329 a month. MASE crosses 1, to 1.13, worse than the naive guess it was supposed to beat. The exact same model that looked excellent by its training numbers loses to the simplest possible benchmark the moment it has to forecast months it never saw.</p>
+
+<p>That gap, 0.68 in-sample against 1.13 out-of-sample, is the whole point of this lesson. A close-fitting line proves nothing about forecast accuracy until it is checked against data the model never got to see while fitting.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a good fit on training data actually proves</h2>
+
+<p>fit_train's fitted values tracked its training data almost exactly, with a training MASE of 0.68.</p>
+<section class="exercise" data-exercise-id="Fitted-Values-Residuals-and-Innovations-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It will forecast well, since fit_train's own fit tracked the training data that closely.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It means .resid and .innov must already be identical for this model.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It says nothing about forecast accuracy until it is checked against data the model has never seen.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It means fit_train needs more parameters to fit the training data even more closely.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. fit_train's training numbers, RMSE 5,085 and MASE 0.68, looked fine on their own. But forecasting the withheld 2024 months gave RMSE 8,329 and MASE 1.13, worse than a naive guess. A close fit on training data and real forecast accuracy are two separate questions, and training accuracy alone never answers the second one.</div><div class="lesson-qfb lesson-qfb-no">A close training fit does not settle forecast skill either way, and it says nothing about which residual column to read or how many parameters a model needs. The only way to know if a model forecasts well is to test it against data it never saw while fitting, exactly what the train and test split just did.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Response residuals vs innovation residuals</h2>
+
+<p>Look again at those two residual columns, .resid and .innov, and see why fable keeps both instead of just one.</p>
+
+<p>Pull out two single months, four years apart: March 2020 and March 2024.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+# Compare .resid (dollars) against .innov (log scale) for the same month, four years apart
+mar_pair &lt;- aug_full |&gt;
+  filter(month %in% yearmonth(c(&quot;2020 Mar&quot;, &quot;2024 Mar&quot;))) |&gt;
+  as_tibble() |&gt;
+  mutate(pct_of_revenue = round(.resid / revenue * 100, 1)) |&gt;
+  select(month, revenue, .fitted, .resid, .innov, pct_of_revenue)
+mar_pair
+#&gt; # A tibble: 2 x 6
+#&gt;      month revenue .fitted .resid  .innov pct_of_revenue
+#&gt;      &lt;mth&gt;   &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;          &lt;dbl&gt;
+#&gt; 1 2020 Mar   37073  35286.   1787.  0.0494            4.8
+#&gt; 2 2024 Mar  56647.  59598.  -2951. -0.0508           -5.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>March 2020: revenue $37,073 against a fitted $35,286, a .resid of $1,787, about 4.8% of that month's revenue. March 2024: revenue $56,647 against a fitted $59,598, a .resid of -$2,951, about -5.2% of that month's revenue. In dollars those two misses are nowhere close, the 2024 one runs 65% bigger. But .innov barely moves, 0.049 against -0.051, almost the same size in either direction.</p>
+
+<p>.innov is the miss measured on the scale the model actually fit, the logged scale, so it tracks the proportion the model got wrong, not the dollar amount. Revenue itself grew by more than half between those two Marches, $37,073 to $56,647, up 53%. So even a model that is equally right or wrong in proportional terms lands a bigger dollar residual on the later, bigger month, purely from that growth, not from the model getting worse.</p>
+
+<p>See the same pattern hold across the whole series, not just these two months.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the typical size of .resid (dollars) against .innov (log scale) across each year
+aug_full |&gt;
+  as_tibble() |&gt;
+  filter(!is.na(.resid)) |&gt;
+  mutate(year = lubridate::year(as.Date(month))) |&gt;
+  group_by(year) |&gt;
+  summarise(mean_abs_resid = round(mean(abs(.resid))), mean_abs_innov = round(mean(abs(.innov)), 3), .groups = &quot;drop&quot;)
+#&gt; # A tibble: 5 x 3
+#&gt;    year mean_abs_resid mean_abs_innov
+#&gt;   &lt;dbl&gt;          &lt;dbl&gt;          &lt;dbl&gt;
+#&gt; 1  2020           3119          0.071
+#&gt; 2  2021           4336          0.09
+#&gt; 3  2022           4042          0.077
+#&gt; 4  2023           4483          0.072
+#&gt; 5  2024           4601          0.071</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>mean_abs_resid climbs from about $3,119 in 2020 to $4,601 in 2024, right in step with revenue's own growth. mean_abs_innov barely moves, holding between about 0.07 and 0.09 across all five years, no matter how big the series gets. .resid is a dollar-scale summary, so it inflates as the series itself grows even when the model's proportional accuracy has not changed. .innov strips that scale effect out.</p>
+
+<p>On a model with no transformation at all, fit directly to revenue, .resid and .innov are the same column. The split only matters, and only appears, once a model is fit on a transformed scale like this one.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>Reading a residuals-vs-fitted plot the right way</h2>
+
+<p>See what that scale difference means for the shape of a residuals-vs-fitted plot, the standard diagnostic plot for checking a model's assumptions.</p>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"funnel"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>This widget builds its own small example, a plain straight-line fit, not Northfield's data. But the funnel shape it shows is exactly what plotting .resid against .fitted would draw here too: since .resid grows with the series' level, exactly what you just measured, $3,119 to $4,601, it would fan out wider at the high end of the series, purely from the log transform, not because the model is failing. Switch a diagnostic plot like this one over to .innov instead and the funnel disappears, since .innov does not grow with the series' level. That is exactly why residual diagnostics get read off .innov, never off .resid, on any model fit on a transformed scale.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing the right residual</h2>
+
+<p>A colleague plots .resid against .fitted on a series that has been growing for years, sees a funnel widening to the right, and asks whether the model is broken.</p>
+<section class="exercise" data-exercise-id="Fitted-Values-Residuals-and-Innovations-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, refit the model with more lagged terms; a funnel always signals a missed pattern.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Check .innov instead of .resid; on a model fit on a transformed scale, .resid naturally grows with the series' level even when the model is fine.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, .resid and .innov are always identical, so the funnel does not matter.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">No, funnel shapes are only a concern outside time series data.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. .resid is a dollar-scale miss, so on a series whose level is growing it naturally fans out even when the model's proportional accuracy has not changed at all, exactly what you measured earlier. .innov, on the log scale the model actually fit, does not carry that scale effect, which is why diagnostics read .innov instead.</div><div class="lesson-qfb lesson-qfb-no">The funnel shape is real and worth explaining, but neither of these gets there: .resid and .innov are only identical when a model carries no transformation, and a growing dollar-scale residual is exactly as much of a concern in time series as anywhere else. The fix is to read the right column, .innov, not to dismiss the shape or assume the model is broken.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: confirm a fitted model's edge really holds on new data</h2>
+
+<p>train2 and test2 split Northfield's series differently, and fit2 is already fit on train2 alone.</p>
+<section class="exercise" data-exercise-id="Fitted-Values-Residuals-and-Innovations-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="forecast[(]\s*fit2\s*,\s*h\s*=\s*24\s*[)][\s\S]*accuracy[(]"><textarea class="lesson-tryit-input" spellcheck="false"># train2/test2 split the series differently, and fit2 is already fit on train2 alone
+train2 &lt;- sales |&gt; filter_index(&quot;2020 Jan&quot; ~ &quot;2022 Dec&quot;)
+test2 &lt;- sales |&gt; filter_index(&quot;2023 Jan&quot; ~ .)
+
+fit2 &lt;- model(train2, drift = RW(log(revenue) ~ drift()))
+
+accuracy(fit2) |&gt;
+  as.data.frame() |&gt;
+  transmute(type = .type, RMSE = round(RMSE), MASE = round(MASE, 2))
+#&gt;      type RMSE MASE
+#&gt;  Training 4754 0.72
+
+# fit2's training MASE is 0.72, printed above.
+# Forecast the 24 held-back months in test2 with fit2, then score
+# those forecasts against the real revenue in sales.
+# Two lines: fc2 &lt;- forecast(...), then accuracy(...).
+# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Test MASE comes out at 1.3, worse than fit2's training MASE of 0.72, the same gap you already proved once in this lesson. A close fit on training data never told you how the model would do on months it had not seen; only a genuine forecast against withheld data answers that, and here it says fit2 loses to naive again.</span><span class="lesson-tryit-fb lesson-tryit-no">Call forecast(fit2, h = 24) to genuinely forecast the 24 withheld months, store the result, then pass it to accuracy() together with sales to score it against the real values.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Forecast the 24 held-back months with fit2, then score those forecasts against the real revenue in sales
+fc2 &lt;- forecast(fit2, h = 24)
+
+accuracy(fc2, sales) |&gt;
+  as.data.frame() |&gt;
+  transmute(type = .type, RMSE = round(RMSE), MASE = round(MASE, 2))
+#&gt;  type RMSE MASE
+#&gt;  Test 8903  1.3</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/residuals.html">Forecasting: Principles and Practice, section 5.3, Fitted values and residuals</a> - Hyndman and Athanasopoulos (3rd ed.), the source for one-step fitted values and the response-versus-innovation residual split used in this lesson.</li>
+
+<li><a href="https://otexts.com/fpp3/accuracy.html">Forecasting: Principles and Practice, section 5.8, Evaluating point forecast accuracy</a> - Hyndman and Athanasopoulos (3rd ed.), the source for RMSE and MASE as used here.</li>
+
+<li><a href="https://fabletools.tidyverts.org/reference/augment.html">fabletools package reference documentation for augment()</a></li>
+
+<li><a href="https://fabletools.tidyverts.org/reference/accuracy.html">fabletools package reference documentation for accuracy() and its measures</a></li>
+
+<li>Hyndman, R.J. and Koehler, A.B. (2006), "Another look at measures of forecast accuracy," International Journal of Forecasting, 22(4), 679-688. The paper that introduced MASE.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You can now call augment() on a fitted mable and name what its three columns hold: .fitted, the model's one-step value built from the real previous observation, .resid, the plain dollar-scale miss, and .innov, the miss on the scale the model actually fit.</p>
+
+<p>You know why a close-fitting line is not proof of forecast skill: a one-step fitted value always has a real number to build from, while a genuine forecast, past its first step, only has its own earlier guesses to build on. Splitting a series into a training window and a withheld test window is the only way to find out which one you actually have.</p>
+
+<p>And you can pick the right residual for checking a model's assumptions: .innov, never .resid, on any model fit on a transformed scale, since .resid inflates with the series' own level while .innov does not.</p>
+
+<p>The next lesson checks whether a model's residuals actually behave like noise.</p>
+</section>
+
+{% endraw %}

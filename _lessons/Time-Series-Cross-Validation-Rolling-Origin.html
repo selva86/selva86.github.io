@@ -1,0 +1,344 @@
+---
+title: "Forecasting Toolbox Lesson 5: Time-series cross-validation with rolling origins"
+description: "See why a single train/test split gives one lucky score, and how rolling-origin cross-validation scores a forecasting method fairly across many origins instead."
+keywords: "time series cross validation in r, rolling origin cross validation, stretch_tsibble, tsibble stretch_tsibble function, fable accuracy by origin, time series train test split, cross validation for time series forecasting, comparing forecasting models fairly"
+mathjax: false
+webr: true
+curriculum_id: "5.30.5"
+post_type: "LESSON"
+course_id: "ts-toolbox"
+course_title: "Forecasting Toolbox"
+course_lesson: "5"
+course_total: "6"
+course_landing: "Forecasting-Toolbox-Course.html"
+course_next: "Accuracy-Metrics-MASE-RMSSE-and-Pinball-Loss.html"
+course_prev: "Point-Forecasts-vs-the-Whole-Distribution.html"
+lesson_access: "pro"
+catalog_blurb: "See why scoring a forecasting method on many rolling origins beats trusting one split."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Time-series cross-validation with rolling origins</h2>
+
+<p>Today let's look at how to judge a forecasting method fairly, using 5 years of monthly orders from a small online bookstore.</p>
+
+<p>Nordic Books ships about 200 orders a month, and that number climbs every October through December as shoppers buy gift copies for the holidays. Below is all 5 years of it, January 2021 through December 2025, 60 months in total.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":191,"fill":"train"},{"x":2,"y":177,"fill":"train"},{"x":3,"y":186,"fill":"train"},{"x":4,"y":189,"fill":"train"},{"x":5,"y":189,"fill":"train"},{"x":6,"y":186,"fill":"train"},{"x":7,"y":200,"fill":"train"},{"x":8,"y":189,"fill":"train"},{"x":9,"y":207,"fill":"train"},{"x":10,"y":202,"fill":"train"},{"x":11,"y":239,"fill":"train"},{"x":12,"y":268,"fill":"train"},{"x":13,"y":185,"fill":"train"},{"x":14,"y":195,"fill":"train"},{"x":15,"y":198,"fill":"train"},{"x":16,"y":205,"fill":"train"},{"x":17,"y":199,"fill":"train"},{"x":18,"y":182,"fill":"train"},{"x":19,"y":185,"fill":"train"},{"x":20,"y":216,"fill":"train"},{"x":21,"y":205,"fill":"train"},{"x":22,"y":204,"fill":"train"},{"x":23,"y":243,"fill":"train"},{"x":24,"y":276,"fill":"train"},{"x":25,"y":228,"fill":"train"},{"x":26,"y":210,"fill":"train"},{"x":27,"y":213,"fill":"train"},{"x":28,"y":203,"fill":"train"},{"x":29,"y":222,"fill":"train"},{"x":30,"y":214,"fill":"train"},{"x":31,"y":224,"fill":"train"},{"x":32,"y":228,"fill":"train"},{"x":33,"y":232,"fill":"train"},{"x":34,"y":230,"fill":"train"},{"x":35,"y":265,"fill":"train"},{"x":36,"y":269,"fill":"train"},{"x":37,"y":223,"fill":"train"},{"x":38,"y":223,"fill":"train"},{"x":39,"y":212,"fill":"train"},{"x":40,"y":233,"fill":"train"},{"x":41,"y":236,"fill":"train"},{"x":42,"y":233,"fill":"train"},{"x":43,"y":243,"fill":"train"},{"x":44,"y":232,"fill":"train"},{"x":45,"y":229,"fill":"train"},{"x":46,"y":254,"fill":"train"},{"x":47,"y":271,"fill":"train"},{"x":48,"y":310,"fill":"train"},{"x":49,"y":242,"fill":"test"},{"x":50,"y":252,"fill":"test"},{"x":51,"y":250,"fill":"test"},{"x":52,"y":243,"fill":"test"},{"x":53,"y":263,"fill":"test"},{"x":54,"y":257,"fill":"test"},{"x":55,"y":254,"fill":"test"},{"x":56,"y":257,"fill":"test"},{"x":57,"y":261,"fill":"test"},{"x":58,"y":268,"fill":"test"},{"x":59,"y":270,"fill":"test"},{"x":60,"y":317,"fill":"test"}],"geoms":["point","line"],"x":"Month","y":"Orders","code":{"point":"ggplot(df, aes(Month, Orders, colour = group)) +\n  geom_point(size = 2.4)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The first 48 months sit in one color, and the last 12 sit in a second color. That block of 12 held-out months is the one most people reach for first: fit a model on everything before it, then check how close the model's guesses land against those real 12 months.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>One split, one score</h2>
+
+<p>Let's do exactly that: fit a model on the first 48 months and score it against the last 12.</p>
+
+<p>The model here is SNAIVE, short for seasonal naive. It forecasts each month by repeating whatever Nordic Books sold in that same month one year earlier. December gets last December's number, January gets last January's, and so on. It is the standard first model to try on a series with a clear yearly pattern like this one.</p>
+
+<p>Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build five years of Nordic Books' orders, then score one train/test split
+library(tsibble)
+library(fable)
+library(fabletools)
+library(dplyr)
+
+set.seed(42)
+n &lt;- 60
+trend &lt;- seq(180, 260, length.out = n)
+month_num &lt;- rep(1:12, length.out = n)
+bump &lt;- ifelse(month_num == 10, 10, ifelse(month_num == 11, 35, ifelse(month_num == 12, 55, 0)))
+orders &lt;- round(trend + bump + rnorm(n, 0, 8))
+
+nb &lt;- tsibble(
+  month  = yearmonth(&quot;2021 Jan&quot;) + 0:(n - 1),
+  orders = orders,
+  index  = month
+)
+
+train1 &lt;- nb %&gt;% filter(month &lt;= yearmonth(&quot;2024 Dec&quot;))
+fc1    &lt;- train1 %&gt;% model(snaive = SNAIVE(orders)) %&gt;% forecast(h = 12)
+
+accuracy(fc1, nb) %&gt;% select(RMSE, MAE, MAPE)
+#&gt; # A tibble: 1 × 3
+#&gt;    RMSE   MAE  MAPE
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  22.5  19.8  7.70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>train1</code> keeps only the first 48 months. <code>SNAIVE(orders)</code> fits on that alone, and <code>forecast(h = 12)</code> produces one guess for each of the 12 held-out months. <code>accuracy()</code> then compares those 12 guesses against the 12 real values and boils the whole comparison down to a handful of numbers.</p>
+
+<p>RMSE (root mean squared error) came out at 22.5, and MAE (mean absolute error) at 19.8. Both are in orders, the same unit as the data itself, so on average SNAIVE's monthly guess missed by somewhere around 20 orders. MAPE puts that same miss on a percentage scale: 7.70%.</p>
+
+<p>That is one number for one particular way of drawing the line between train and test. Change where that line falls by even a month or two, and SNAIVE would land on a different set of 12 test months, each with its own mix of easy and hard ones to predict, and the RMSE would move too.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<h2>Data leakage in a time-ordered split</h2>
+
+<p>Splitting by date, like the split above, already avoids the most obvious mistake: it never tests on a month the model could see during training. But an honestly time-ordered split can still be fooled from a different direction.</p>
+
+<p>Below is a generic 20-block stand-in for any dataset, not Nordic Books itself. Think of each block as a few months, so the same trap can hide inside Nordic Books' real 60 months just as easily.</p>
+<div class="lesson-widget" data-widget-type="data-split" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Flip the switch above. With the honest split, test accuracy reads 0.78. Flip on the leaked feature and it jumps to 0.99, which looks like a huge improvement but is not one. The leaked column was built using information from across the whole dataset, test months included, so at test time the model is effectively copying an answer it was never supposed to see. That is data leakage: any information available at training time that would not actually be available at the moment you need the forecast. The fix is to build every feature using only the training rows, never the full series.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Folds and the cross-validated score</h2>
+
+<p>A single split, honest or not, only ever tests one slice of the data. Cross-validation fixes that for ordinary, independent rows by cutting the data into several folds, and letting every fold take a turn as the test set while the rest train.</p>
+
+<p>Below is another generic stand-in, this time 20 rows standing in for 20 hypothetical months, not Nordic Books' real history.</p>
+<div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":5}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Step through the folds. Each one holds out one fifth of the rows for validation and trains on the other four fifths, giving its own score. With k = 5, that produces 5 scores, and the CV mean at the end pools them into one number. Switch to k = 10 and each fold shrinks to one tenth of the data, so training uses more of it per fold, at the cost of running the fit 10 times instead of 5.</p>
+
+<p>Averaging several honest scores like this settles out the luck that any one split carries. But look closely at how each fold gets built: a row lands in whichever fold it happens to land in, with no regard for order. For 20 independent rows, that is completely fair. For 20 months sitting one after another, that fairness breaks down.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: one split vs many folds</h2>
+<section class="exercise" data-exercise-id="Time-Series-Cross-Validation-Rolling-Origin-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A single honest train/test split already gives the truest picture of accuracy, so averaging folds adds nothing.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A single split's score depends on which slice of months it happened to land on, and even an honestly time-ordered split can be inflated by a leaked feature. Averaging several folds trades that for a steadier estimate.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Cross-validation removes the need to check for leakage, because every row gets validated exactly once.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">More folds always beats fewer folds, no matter how the features were built.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The leak-demo widget moved accuracy from an honest 0.78 to a leaked 0.99 with the split itself unchanged, and the fold widget showed how averaging several honest scores settles the luck out of any one of them.</div><div class="lesson-qfb lesson-qfb-no"></div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Why ordinary folds don't work on a time series</h2>
+
+<p>Look again at what the 5-fold widget actually did. Fold 1 validated on the first fifth of the rows while folds 2 through 5 trained on the rest, which can include rows sitting anywhere: before fold 1, after it, mixed in around it. That is fine when the rows are independent of each other, a customer here, a transaction there, each one unrelated to its neighbours.</p>
+
+<p>Nordic Books' 60 months are not independent like that. Each month sits at a fixed point in time, and a forecast is only realistic if it is built using data from before the point it is predicting. If one fold covered January to December 2021 and trained on data running all the way through 2025, the model would be learning from years that, at the actual moment you needed a January 2021 forecast, had not happened yet. That is training on the future, and no real forecast ever gets that privilege.</p>
+
+<p>So cross-validation needs a version built for data with a fixed order. Instead of cutting the series into folds that rotate freely, you pick a cutoff point, called the origin: everything up to the origin trains, and a short stretch right after it tests. Then you slide the origin forward and repeat. The training window only ever grows forward in time; it never reaches into data that has not happened yet. That is rolling-origin cross-validation: instead of one score from one split, you get many scores, one from every origin, each built honestly from only the data that came before it.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Building the origins with stretch_tsibble()</h2>
+
+<p><code>stretch_tsibble()</code> builds exactly that: a training window that starts small and grows forward, one step at a time, never reaching past the point it will be judged from. Two arguments control it. <code>.init</code> sets how many months the very first window holds, and <code>.step</code> sets how many months to grow it by each time.</p>
+
+<p>Nordic Books has 60 months of history. Start the first window at 36 months, 3 full years, enough for SNAIVE to have seen every month of the year at least 3 times. Grow it by 3 months at a time, which also happens to match the 3-month horizon Nordic Books wants to forecast.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Grow the training window forward and keep only origins with a full 3-month horizon left
+origins &lt;- nb %&gt;%
+  stretch_tsibble(.init = 36, .step = 3) %&gt;%
+  filter(.id &lt;= 8)
+
+origins %&gt;% as_tibble() %&gt;% count(.id)
+#&gt; # A tibble: 8 × 2
+#&gt;     .id     n
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     1    36
+#&gt; 2     2    39
+#&gt; 3     3    42
+#&gt; 4     4    45
+#&gt; 5     5    48
+#&gt; 6     6    51
+#&gt; 7     7    54
+#&gt; 8     8    57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.id</code> labels each window, and <code>n</code> is how many months it holds. <code>.id</code> 1 has the first 36 months, <code>.id</code> 2 has 39, and so on up to <code>.id</code> 8's 57 months. <code>stretch_tsibble()</code> on its own would have produced a ninth window too, holding all 60 months, but that window has no data left after it to forecast against: there is no month 61, 62 or 63 to check a 3-month forecast against. <code>filter(.id &lt;= 8)</code> drops that one incomplete window, leaving 8 usable origins.</p>
+
+<p>Each <code>.id</code> is an origin: a point in time where the training window ends and a forecast begins. <code>.id</code> 1's origin sits at the end of month 36, December 2023. <code>.id</code> 8's origin sits at the end of month 57, September 2025. Between them, the origin has slid forward across nearly two years of Nordic Books' history, three months at a time.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Forecasting h steps from every origin</h2>
+
+<p>Every one of those 8 origins can now train its own SNAIVE and forecast the 3 months right after it, the way <code>.id</code> 1 forecasts January through March 2024 and <code>.id</code> 8 forecasts October through December 2025.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit SNAIVE separately inside every origin and forecast 3 months ahead
+fc_cv &lt;- origins %&gt;%
+  model(snaive = SNAIVE(orders)) %&gt;%
+  forecast(h = 3)
+
+fc_cv %&gt;% as_tibble() %&gt;% select(.id, month, .mean) %&gt;% head(6)
+#&gt; # A tibble: 6 × 3
+#&gt;     .id    month .mean
+#&gt;   &lt;int&gt;    &lt;mth&gt; &lt;dbl&gt;
+#&gt; 1     1 2024 Jan   228
+#&gt; 2     1 2024 Feb   210
+#&gt; 3     1 2024 Mar   213
+#&gt; 4     2 2024 Apr   203
+#&gt; 5     2 2024 May   222
+#&gt; 6     2 2024 Jun   214</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>model(snaive = SNAIVE(orders))</code> fits SNAIVE separately inside each <code>.id</code> group, so <code>.id</code> 1's model only ever sees <code>.id</code> 1's 36 months, and <code>.id</code> 2's model only ever sees its own 39. <code>forecast(h = 3)</code> then produces 3 months of guesses from every one of those 8 fits, 24 forecasted months in total. <code>.mean</code> is each forecast's point guess. The table above shows the first two origins: <code>.id</code> 1 guesses 228, 210 and 213 orders for January, February and March 2024, and <code>.id</code> 2 guesses 203, 222 and 214 for the 3 months after that.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Scoring every origin with accuracy()</h2>
+
+<p><code>accuracy()</code> can score all 24 of those forecasted months at once, either one origin at a time or pooled into a single number.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score each origin separately, then pool all 8 into one CV estimate
+acc_by_id &lt;- accuracy(fc_cv, nb, by = c(&quot;.id&quot;, &quot;.model&quot;))
+acc_by_id %&gt;% select(.id, RMSE, MAE, MAPE)
+#&gt; # A tibble: 8 × 4
+#&gt;     .id  RMSE   MAE  MAPE
+#&gt;   &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     1  8.06  6.33  2.85
+#&gt; 2     2 22.0  21     8.99
+#&gt; 3     3 11.3   8.67  3.62
+#&gt; 4     4 27.6  23.7   8.30
+#&gt; 5     5 29.7  28.7  11.5 
+#&gt; 6     6 21.6  20.3   7.91
+#&gt; 7     7 24.3  22.7   8.77
+#&gt; 8     8  9.06  7.33  2.60
+
+acc_overall &lt;- accuracy(fc_cv, nb, by = &quot;.model&quot;)
+acc_overall %&gt;% select(.model, RMSE, MAE, MAPE)
+#&gt; # A tibble: 1 × 4
+#&gt;   .model  RMSE   MAE  MAPE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 snaive  20.8  17.3  6.82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>by = c(&quot;.id&quot;, &quot;.model&quot;)</code> keeps every origin's score separate, so <code>acc_by_id</code> shows all 8 RMSEs side by side. They swing from 8.06, SNAIVE's best 3 months, up to 29.7, its worst. That spread is real: some 3-month stretches are genuinely easier to guess than others, and no single one of those 8 numbers alone tells you what SNAIVE is really worth on Nordic Books.</p>
+
+<p><code>by = &quot;.model&quot;</code> instead pools every origin's errors into one number per model. That single pooled RMSE, 20.8, is the cross-validated score: not the luckiest origin, not the unluckiest, but all 8 combined. Compare it to the RMSE from a single 48-month train/test split, 22.5. The two land close together here, but the cross-validated score carries the weight of 8 separately tested windows behind it instead of just one, which is why it is the number worth trusting when Nordic Books has to choose a forecasting method.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Comparing two methods on the same origins</h2>
+
+<p>The same 8 origins that scored SNAIVE can score any other forecasting method too, and because they are exactly the same 8 windows, the two scores are directly comparable.</p>
+
+<p>The drift method is the other benchmark worth trying here. Instead of repeating last year's number the way SNAIVE does, it draws a straight line from the training window's first point to its last, and extends that line forward. In fable, it is written <code>RW(orders ~ drift())</code>, a random walk with a drift term added.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score SNAIVE and the drift method across the identical 8 origins
+fc_cmp &lt;- origins %&gt;%
+  model(snaive = SNAIVE(orders), drift = RW(orders ~ drift())) %&gt;%
+  forecast(h = 3)
+
+accuracy(fc_cmp, nb, by = &quot;.model&quot;) %&gt;% select(.model, RMSE, MAE, MAPE)
+#&gt; # A tibble: 2 × 4
+#&gt;   .model  RMSE   MAE  MAPE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 drift   38.3  28.4 11.4 
+#&gt; 2 snaive  20.8  17.3  6.82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>model()</code> now fits both methods inside every one of the 8 origins, so each one gets scored on precisely the same 24 forecasted months. Drift's pooled RMSE, 38.3, is nearly double SNAIVE's 20.8. That is a fair result, not a lucky one: both methods faced the same origins, the same 3-month horizons and the same real orders to be checked against. Nordic Books' seasonal spikes each December are exactly what drift's straight line cannot see coming, while SNAIVE, by construction, always remembers last year's December.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing the more accurate method</h2>
+<section class="exercise" data-exercise-id="Time-Series-Cross-Validation-Rolling-Origin-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Compare the drift method's pooled RMSE across the 8 origins to SNAIVE's RMSE of 22.5 from the single 48-month split.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Score both methods across the same 8 rolling origins with accuracy(by = ".model") and compare the pooled RMSE.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Check which method's forecast lands closer to the real orders in December 2025 alone.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Whichever method fits the 8 training windows with the smaller in-sample error wins.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. Identical origins make the two RMSEs comparable: SNAIVE's pooled 20.8 beats drift's 38.3 because both were judged on exactly the same 8 windows and the same 24 forecasted months.</div><div class="lesson-qfb lesson-qfb-no">A fitted line always looks better than it forecasts, because fitting error is measured on data the model already saw. Only accuracy() on the forecasted, held-out months, pooled across identical origins, tells you which method actually predicts better.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: build the rolling-origin comparison</h2>
+
+<p><code>origins</code> still holds the 8 rolling windows built from Nordic Books. Score SNAIVE and the drift method across them the same way, and read off which one wins.</p>
+<section class="exercise" data-exercise-id="Time-Series-Cross-Validation-Rolling-Origin-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="RW[(]orders\s*~\s*drift[(][)][)]"><textarea class="lesson-tryit-input" spellcheck="false"># origins holds the 8 rolling windows already built from Nordic Books.
+# Fit snaive = SNAIVE(orders) and drift = RW(orders ~ drift()) on origins,
+# forecast 3 months ahead from each origin, then pool the scores with
+# accuracy(..., by = &quot;.model&quot;).
+# Four lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: drift comes back with RMSE 38.3 against SNAIVE's 20.8, scored on the identical 8 origins.</span><span class="lesson-tryit-fb lesson-tryit-no">Fit both models inside origins with model(snaive = SNAIVE(orders), drift = RW(orders ~ drift())), then forecast(h = 3) and accuracy(nb, by = ".model").</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit both methods across origins, forecast h = 3, and pool the scores by model
+fc_cmp &lt;- origins %&gt;%
+  model(snaive = SNAIVE(orders), drift = RW(orders ~ drift())) %&gt;%
+  forecast(h = 3)
+
+accuracy(fc_cmp, nb, by = &quot;.model&quot;) %&gt;% select(.model, RMSE, MAE, MAPE)
+#&gt; # A tibble: 2 × 4
+#&gt;   .model  RMSE   MAE  MAPE
+#&gt;   &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 drift   38.3  28.4 11.4 
+#&gt; 2 snaive  20.8  17.3  6.82</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/tscv.html">Forecasting: Principles and Practice, section 5.10, Time series cross-validation</a> - Hyndman and Athanasopoulos (3rd ed.), the source for rolling-origin cross-validation and why a single split undersells its own uncertainty.</li>
+
+<li><a href="https://tsibble.tidyverts.org/reference/stretch_tsibble.html">tsibble package reference documentation for stretch_tsibble()</a></li>
+
+<li><a href="https://fabletools.tidyverts.org/reference/accuracy.html">fabletools package reference documentation for accuracy()</a></li>
+
+<li>Bergmeir, C. and Benitez, J.M. (2012), "On the use of cross-validation for time series predictor evaluation", Information Sciences, 191, 192-213.</li>
+
+<li><a href="https://robjhyndman.com/hyndsight/tscv/">Cross-validation for time series, Hyndsight blog</a> - Rob Hyndman's own walkthrough of rolling-origin evaluation.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>What rolling-origin cross-validation buys you</h2>
+
+<p>A single train/test split hands back one RMSE, and that RMSE is only as trustworthy as whichever 12 months happened to fall in the test window. Ordinary cross-validation fixes that for independent rows by rotating the validation fold and averaging several scores, but it cheats on a time series, because a rotating fold trains on rows that have not happened yet at the point it is forecasting.</p>
+
+<p>Rolling-origin cross-validation grows the training window forward in time instead, one origin at a time, and scores every origin honestly using only the data that came before it. Nordic Books' 8 origins gave SNAIVE RMSEs from 8.06 up to 29.7, and pooling all 8 turned that spread into one steadier number, 20.8, a score that held up when compared fairly against the drift method's 38.3 on the identical windows.</p>
+
+<p>RMSE, MAE and MAPE did the scoring here. The next lesson looks at metrics built specifically for comparing across different series and different horizons: MASE, RMSSE and pinball loss.</p>
+</section>
+
+{% endraw %}
