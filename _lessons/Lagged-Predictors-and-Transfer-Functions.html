@@ -1,0 +1,445 @@
+---
+title: "Dynamic Regression and Complex Seasonality Lesson 6: Lagged predictors, transfer functions, and forecasting the predictor first"
+description: "See a predictor's effect spread across several lags, choose the best lag length with AICc, and forecast a model that needs its own predictor forecast first."
+keywords: "lagged predictors, distributed lag model, transfer function, lag() in fable, AICc lag selection, ex-ante forecast, ex-post forecast, dynamic regression, ARIMA errors, BJsales BJsales.lead, forecasting a predictor"
+mathjax: true
+webr: true
+curriculum_id: "5.70.6"
+post_type: "LESSON"
+course_id: "ts-dynamic"
+course_title: "Dynamic Regression and Complex Seasonality"
+course_lesson: "6"
+course_total: "6"
+course_landing: "Dynamic-Regression-and-Complex-Seasonality-Course.html"
+course_next: ""
+course_prev: "Forecasting-with-Prophet.html"
+lesson_access: "pro"
+catalog_blurb: "Choose how many lags an effect needs, then forecast the predictor before the outcome."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Lagged predictors, transfer functions, and forecasting the predictor first</h2>
+
+<p>Today let's understand what to do when a predictor's effect on your outcome does not land all at once, but keeps showing up for several periods afterward.</p>
+
+<p>Here's the running example. BJsales is a real sales series, 150 consecutive periods, alongside BJsales.lead, a leading indicator recorded at those same 150 periods. Both come from Box and Jenkins' 1976 time series text and ship inside base R. Over the 150 periods, sales ranged from 198.6 to 263.3, averaging 230.0.</p>
+
+<p>Here's the whole sales series, one point for each period.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":200.1},{"x":2,"y":199.5},{"x":3,"y":199.4},{"x":4,"y":198.9},{"x":5,"y":199},{"x":6,"y":200.2},{"x":7,"y":198.6},{"x":8,"y":200},{"x":9,"y":200.3},{"x":10,"y":201.2},{"x":11,"y":201.6},{"x":12,"y":201.5},{"x":13,"y":201.5},{"x":14,"y":203.5},{"x":15,"y":204.9},{"x":16,"y":207.1},{"x":17,"y":210.5},{"x":18,"y":210.5},{"x":19,"y":209.8},{"x":20,"y":208.8},{"x":21,"y":209.5},{"x":22,"y":213.2},{"x":23,"y":213.7},{"x":24,"y":215.1},{"x":25,"y":218.7},{"x":26,"y":219.8},{"x":27,"y":220.5},{"x":28,"y":223.8},{"x":29,"y":222.8},{"x":30,"y":223.8},{"x":31,"y":221.7},{"x":32,"y":222.3},{"x":33,"y":220.8},{"x":34,"y":219.4},{"x":35,"y":220.1},{"x":36,"y":220.6},{"x":37,"y":218.9},{"x":38,"y":217.8},{"x":39,"y":217.7},{"x":40,"y":215},{"x":41,"y":215.3},{"x":42,"y":215.9},{"x":43,"y":216.7},{"x":44,"y":216.7},{"x":45,"y":217.7},{"x":46,"y":218.7},{"x":47,"y":222.9},{"x":48,"y":224.9},{"x":49,"y":222.2},{"x":50,"y":220.7},{"x":51,"y":220},{"x":52,"y":218.7},{"x":53,"y":217},{"x":54,"y":215.9},{"x":55,"y":215.8},{"x":56,"y":214.1},{"x":57,"y":212.3},{"x":58,"y":213.9},{"x":59,"y":214.6},{"x":60,"y":213.6},{"x":61,"y":212.1},{"x":62,"y":211.4},{"x":63,"y":213.1},{"x":64,"y":212.9},{"x":65,"y":213.3},{"x":66,"y":211.5},{"x":67,"y":212.3},{"x":68,"y":213},{"x":69,"y":211},{"x":70,"y":210.7},{"x":71,"y":210.1},{"x":72,"y":211.4},{"x":73,"y":210},{"x":74,"y":209.7},{"x":75,"y":208.8},{"x":76,"y":208.8},{"x":77,"y":208.8},{"x":78,"y":210.6},{"x":79,"y":211.9},{"x":80,"y":212.8},{"x":81,"y":212.5},{"x":82,"y":214.8},{"x":83,"y":215.3},{"x":84,"y":217.5},{"x":85,"y":218.8},{"x":86,"y":220.7},{"x":87,"y":222.2},{"x":88,"y":226.7},{"x":89,"y":228.4},{"x":90,"y":233.2},{"x":91,"y":235.7},{"x":92,"y":237.1},{"x":93,"y":240.6},{"x":94,"y":243.8},{"x":95,"y":245.3},{"x":96,"y":246},{"x":97,"y":246.3},{"x":98,"y":247.7},{"x":99,"y":247.6},{"x":100,"y":247.8},{"x":101,"y":249.4},{"x":102,"y":249},{"x":103,"y":249.9},{"x":104,"y":250.5},{"x":105,"y":251.5},{"x":106,"y":249},{"x":107,"y":247.6},{"x":108,"y":248.8},{"x":109,"y":250.4},{"x":110,"y":250.7},{"x":111,"y":253},{"x":112,"y":253.7},{"x":113,"y":255},{"x":114,"y":256.2},{"x":115,"y":256},{"x":116,"y":257.4},{"x":117,"y":260.4},{"x":118,"y":260},{"x":119,"y":261.3},{"x":120,"y":260.4},{"x":121,"y":261.6},{"x":122,"y":260.8},{"x":123,"y":259.8},{"x":124,"y":259},{"x":125,"y":258.9},{"x":126,"y":257.4},{"x":127,"y":257.7},{"x":128,"y":257.9},{"x":129,"y":257.4},{"x":130,"y":257.3},{"x":131,"y":257.6},{"x":132,"y":258.9},{"x":133,"y":257.8},{"x":134,"y":257.7},{"x":135,"y":257.2},{"x":136,"y":257.5},{"x":137,"y":256.8},{"x":138,"y":257.5},{"x":139,"y":257},{"x":140,"y":257.6},{"x":141,"y":257.3},{"x":142,"y":257.5},{"x":143,"y":259.6},{"x":144,"y":261.1},{"x":145,"y":262.9},{"x":146,"y":263.3},{"x":147,"y":262.8},{"x":148,"y":261.8},{"x":149,"y":262.2},{"x":150,"y":262.7}],"geoms":["line","point"],"x":"Period","y":"Sales"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>It isn't a straight climb. Sales start near 200, climb into the low 220s within the first thirty periods, dip back down near 210 around the midpoint, then climb again through the second half to finish near 263.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The leading indicator, and how closely it already tracks sales</h2>
+
+<p>A leading indicator is a series recorded alongside your target whose past values may carry information about the target's future. BJsales.lead is exactly that: it is recorded at the same 150 periods as sales, ranging from 9.75 to 13.87 and averaging 11.85.</p>
+
+<p>Plot sales against the leading indicator recorded at the very same period, and the relationship is already easy to see.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":10.01,"y":200.1},{"x":10.07,"y":199.5},{"x":10.32,"y":199.4},{"x":9.75,"y":198.9},{"x":10.33,"y":199},{"x":10.13,"y":200.2},{"x":10.36,"y":198.6},{"x":10.32,"y":200},{"x":10.13,"y":200.3},{"x":10.16,"y":201.2},{"x":10.58,"y":201.6},{"x":10.62,"y":201.5},{"x":10.86,"y":201.5},{"x":11.2,"y":203.5},{"x":10.74,"y":204.9},{"x":10.56,"y":207.1},{"x":10.48,"y":210.5},{"x":10.77,"y":210.5},{"x":11.33,"y":209.8},{"x":10.96,"y":208.8},{"x":11.16,"y":209.5},{"x":11.7,"y":213.2},{"x":11.39,"y":213.7},{"x":11.42,"y":215.1},{"x":11.94,"y":218.7},{"x":11.24,"y":219.8},{"x":11.59,"y":220.5},{"x":10.96,"y":223.8},{"x":11.4,"y":222.8},{"x":11.02,"y":223.8},{"x":11.01,"y":221.7},{"x":11.23,"y":222.3},{"x":11.33,"y":220.8},{"x":10.83,"y":219.4},{"x":10.84,"y":220.1},{"x":11.14,"y":220.6},{"x":10.38,"y":218.9},{"x":10.9,"y":217.8},{"x":11.05,"y":217.7},{"x":11.11,"y":215},{"x":11.01,"y":215.3},{"x":11.22,"y":215.9},{"x":11.21,"y":216.7},{"x":11.91,"y":216.7},{"x":11.69,"y":217.7},{"x":10.93,"y":218.7},{"x":10.99,"y":222.9},{"x":11.01,"y":224.9},{"x":10.84,"y":222.2},{"x":10.76,"y":220.7},{"x":10.77,"y":220},{"x":10.88,"y":218.7},{"x":10.49,"y":217},{"x":10.5,"y":215.9},{"x":11,"y":215.8},{"x":10.98,"y":214.1},{"x":10.61,"y":212.3},{"x":10.48,"y":213.9},{"x":10.53,"y":214.6},{"x":11.07,"y":213.6},{"x":10.61,"y":212.1},{"x":10.86,"y":211.4},{"x":10.34,"y":213.1},{"x":10.78,"y":212.9},{"x":10.8,"y":213.3},{"x":10.33,"y":211.5},{"x":10.44,"y":212.3},{"x":10.5,"y":213},{"x":10.75,"y":211},{"x":10.4,"y":210.7},{"x":10.4,"y":210.1},{"x":10.34,"y":211.4},{"x":10.55,"y":210},{"x":10.46,"y":209.7},{"x":10.82,"y":208.8},{"x":10.91,"y":208.8},{"x":10.87,"y":208.8},{"x":10.67,"y":210.6},{"x":11.11,"y":211.9},{"x":10.88,"y":212.8},{"x":11.28,"y":212.5},{"x":11.27,"y":214.8},{"x":11.44,"y":215.3},{"x":11.52,"y":217.5},{"x":12.1,"y":218.8},{"x":11.83,"y":220.7},{"x":12.62,"y":222.2},{"x":12.41,"y":226.7},{"x":12.43,"y":228.4},{"x":12.73,"y":233.2},{"x":13.01,"y":235.7},{"x":12.74,"y":237.1},{"x":12.73,"y":240.6},{"x":12.76,"y":243.8},{"x":12.92,"y":245.3},{"x":12.64,"y":246},{"x":12.79,"y":246.3},{"x":13.05,"y":247.7},{"x":12.69,"y":247.6},{"x":13.01,"y":247.8},{"x":12.9,"y":249.4},{"x":13.12,"y":249},{"x":12.47,"y":249.9},{"x":12.47,"y":250.5},{"x":12.94,"y":251.5},{"x":13.1,"y":249},{"x":12.91,"y":247.6},{"x":13.39,"y":248.8},{"x":13.13,"y":250.4},{"x":13.34,"y":250.7},{"x":13.34,"y":253},{"x":13.14,"y":253.7},{"x":13.49,"y":255},{"x":13.87,"y":256.2},{"x":13.39,"y":256},{"x":13.59,"y":257.4},{"x":13.27,"y":260.4},{"x":13.7,"y":260},{"x":13.2,"y":261.3},{"x":13.32,"y":260.4},{"x":13.15,"y":261.6},{"x":13.3,"y":260.8},{"x":12.94,"y":259.8},{"x":13.29,"y":259},{"x":13.26,"y":258.9},{"x":13.08,"y":257.4},{"x":13.24,"y":257.7},{"x":13.31,"y":257.9},{"x":13.52,"y":257.4},{"x":13.02,"y":257.3},{"x":13.25,"y":257.6},{"x":13.12,"y":258.9},{"x":13.26,"y":257.8},{"x":13.11,"y":257.7},{"x":13.3,"y":257.2},{"x":13.06,"y":257.5},{"x":13.32,"y":256.8},{"x":13.1,"y":257.5},{"x":13.27,"y":257},{"x":13.64,"y":257.6},{"x":13.58,"y":257.3},{"x":13.87,"y":257.5},{"x":13.53,"y":259.6},{"x":13.41,"y":261.1},{"x":13.25,"y":262.9},{"x":13.5,"y":263.3},{"x":13.58,"y":262.8},{"x":13.51,"y":261.8},{"x":13.77,"y":262.2},{"x":13.4,"y":262.7}],"geoms":["point"],"x":"Lead","y":"Sales"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The points climb from lower left to upper right, and the correlation shown above the chart, r = 0.951, says the same thing in one number: periods where the indicator sat higher are periods where sales sat higher too, at that very same period. That is already a strong relationship. But a same-period correlation is not the whole story, and that is worth checking directly, next.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Which lag fits best? Reading a cross-correlation table</h2>
+
+<p>To check whether the indicator's effect on sales lands only in the same period, or keeps showing up afterward, compute the correlation between sales at period t and the indicator at period t minus k, for k running from 0 up to 6 periods back.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>k (periods back)</th>
+<th>correlation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0.951</td>
+</tr>
+<tr>
+<td>1</td>
+<td>0.960</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0.967</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.982</td>
+</tr>
+<tr>
+<td>4</td>
+<td>0.983</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0.983</td>
+</tr>
+<tr>
+<td>6</td>
+<td>0.981</td>
+</tr>
+</tbody>
+</table>
+
+<p>The correlation does not peak at k = 0. It climbs sharply through k = 3, sits above 0.98 all the way through k = 5, then eases only slightly at k = 6. So the indicator recorded three periods ago lines up with today's sales even more tightly than today's own reading of the indicator does.</p>
+
+<p>See that directly. Plot sales against the indicator from three periods back instead of the same period.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":10.01,"y":198.9},{"x":10.07,"y":199},{"x":10.32,"y":200.2},{"x":9.75,"y":198.6},{"x":10.33,"y":200},{"x":10.13,"y":200.3},{"x":10.36,"y":201.2},{"x":10.32,"y":201.6},{"x":10.13,"y":201.5},{"x":10.16,"y":201.5},{"x":10.58,"y":203.5},{"x":10.62,"y":204.9},{"x":10.86,"y":207.1},{"x":11.2,"y":210.5},{"x":10.74,"y":210.5},{"x":10.56,"y":209.8},{"x":10.48,"y":208.8},{"x":10.77,"y":209.5},{"x":11.33,"y":213.2},{"x":10.96,"y":213.7},{"x":11.16,"y":215.1},{"x":11.7,"y":218.7},{"x":11.39,"y":219.8},{"x":11.42,"y":220.5},{"x":11.94,"y":223.8},{"x":11.24,"y":222.8},{"x":11.59,"y":223.8},{"x":10.96,"y":221.7},{"x":11.4,"y":222.3},{"x":11.02,"y":220.8},{"x":11.01,"y":219.4},{"x":11.23,"y":220.1},{"x":11.33,"y":220.6},{"x":10.83,"y":218.9},{"x":10.84,"y":217.8},{"x":11.14,"y":217.7},{"x":10.38,"y":215},{"x":10.9,"y":215.3},{"x":11.05,"y":215.9},{"x":11.11,"y":216.7},{"x":11.01,"y":216.7},{"x":11.22,"y":217.7},{"x":11.21,"y":218.7},{"x":11.91,"y":222.9},{"x":11.69,"y":224.9},{"x":10.93,"y":222.2},{"x":10.99,"y":220.7},{"x":11.01,"y":220},{"x":10.84,"y":218.7},{"x":10.76,"y":217},{"x":10.77,"y":215.9},{"x":10.88,"y":215.8},{"x":10.49,"y":214.1},{"x":10.5,"y":212.3},{"x":11,"y":213.9},{"x":10.98,"y":214.6},{"x":10.61,"y":213.6},{"x":10.48,"y":212.1},{"x":10.53,"y":211.4},{"x":11.07,"y":213.1},{"x":10.61,"y":212.9},{"x":10.86,"y":213.3},{"x":10.34,"y":211.5},{"x":10.78,"y":212.3},{"x":10.8,"y":213},{"x":10.33,"y":211},{"x":10.44,"y":210.7},{"x":10.5,"y":210.1},{"x":10.75,"y":211.4},{"x":10.4,"y":210},{"x":10.4,"y":209.7},{"x":10.34,"y":208.8},{"x":10.55,"y":208.8},{"x":10.46,"y":208.8},{"x":10.82,"y":210.6},{"x":10.91,"y":211.9},{"x":10.87,"y":212.8},{"x":10.67,"y":212.5},{"x":11.11,"y":214.8},{"x":10.88,"y":215.3},{"x":11.28,"y":217.5},{"x":11.27,"y":218.8},{"x":11.44,"y":220.7},{"x":11.52,"y":222.2},{"x":12.1,"y":226.7},{"x":11.83,"y":228.4},{"x":12.62,"y":233.2},{"x":12.41,"y":235.7},{"x":12.43,"y":237.1},{"x":12.73,"y":240.6},{"x":13.01,"y":243.8},{"x":12.74,"y":245.3},{"x":12.73,"y":246},{"x":12.76,"y":246.3},{"x":12.92,"y":247.7},{"x":12.64,"y":247.6},{"x":12.79,"y":247.8},{"x":13.05,"y":249.4},{"x":12.69,"y":249},{"x":13.01,"y":249.9},{"x":12.9,"y":250.5},{"x":13.12,"y":251.5},{"x":12.47,"y":249},{"x":12.47,"y":247.6},{"x":12.94,"y":248.8},{"x":13.1,"y":250.4},{"x":12.91,"y":250.7},{"x":13.39,"y":253},{"x":13.13,"y":253.7},{"x":13.34,"y":255},{"x":13.34,"y":256.2},{"x":13.14,"y":256},{"x":13.49,"y":257.4},{"x":13.87,"y":260.4},{"x":13.39,"y":260},{"x":13.59,"y":261.3},{"x":13.27,"y":260.4},{"x":13.7,"y":261.6},{"x":13.2,"y":260.8},{"x":13.32,"y":259.8},{"x":13.15,"y":259},{"x":13.3,"y":258.9},{"x":12.94,"y":257.4},{"x":13.29,"y":257.7},{"x":13.26,"y":257.9},{"x":13.08,"y":257.4},{"x":13.24,"y":257.3},{"x":13.31,"y":257.6},{"x":13.52,"y":258.9},{"x":13.02,"y":257.8},{"x":13.25,"y":257.7},{"x":13.12,"y":257.2},{"x":13.26,"y":257.5},{"x":13.11,"y":256.8},{"x":13.3,"y":257.5},{"x":13.06,"y":257},{"x":13.32,"y":257.6},{"x":13.1,"y":257.3},{"x":13.27,"y":257.5},{"x":13.64,"y":259.6},{"x":13.58,"y":261.1},{"x":13.87,"y":262.9},{"x":13.53,"y":263.3},{"x":13.41,"y":262.8},{"x":13.25,"y":261.8},{"x":13.5,"y":262.2},{"x":13.58,"y":262.7}],"geoms":["point"],"x":"Lead, lag 3","y":"Sales"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The points sit tighter around a line than they did in the same-period scatter two steps back, matching the jump from r = 0.951 to r = 0.982. So the indicator's effect on sales is not confined to one period; it spreads across several. A model that only uses today's indicator reading, and throws away the last several periods of it, is throwing away real signal.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what the rising correlation means</h2>
+
+<p>The correlation between sales and the indicator kept climbing well past lag 0, reaching 0.982 by lag 3 and staying above 0.98 through lag 5. What does that pattern actually tell you?</p>
+<section class="exercise" data-exercise-id="Lagged-Predictors-and-Transfer-Functions-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Today's reading of the indicator already explains sales as well as it ever will, so there is no need to look at any lag.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The indicator's effect on sales is not confined to the same period; it keeps showing up for several periods afterward, which is exactly why the correlation keeps climbing past lag 0.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The indicator must be caused by sales, not the other way around, since it lines up with sales that closely.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A correlation below 1 means the two series are not really related at all.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A same-period correlation of 0.951 is already strong, but its climb to 0.982 by lag 3 shows the indicator's influence spreads across several periods rather than landing all at once in the same one.</div><div class="lesson-qfb lesson-qfb-no">A correlation of 1 would mean a perfect straight-line relationship, which real data almost never shows. 0.982 is close to that ceiling and counts as a strong relationship, not a weak one.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Distributed lag models: give every recent lag its own coefficient</h2>
+
+<p>Since the indicator's effect spreads over several periods, the right model does not pick one best lag and discard the rest. It gives several recent lags their own coefficient, and adds them all in at once. That is a distributed lag model.</p>
+
+<p>\[ \text{sales}_t = \beta_0\,\text{lead}_t + \beta_1\,\text{lead}_{t-1} + \beta_2\,\text{lead}_{t-2} + \cdots + \beta_k\,\text{lead}_{t-k} + \eta_t \]</p>
+
+<p>Sales at period t is a weighted sum of the indicator at period t and at each of the last k periods, each with its own coefficient \(\beta\), plus a leftover error \(\eta_t\). That leftover error is not assumed independent; it is left free to follow its own \(\text{ARIMA}(p, d, q)\) process.</p>
+
+<p>fable fits this the same way, ARIMA(), with the extra lag terms written straight into the formula using lag(). Build the tsibble from BJsales and BJsales.lead, hold out the last 6 of the 150 periods as a test set, and fit the smallest distributed lag model, one lag term beyond the same-period one, on the remaining 144.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the tsibble from BJsales and BJsales.lead, split it into a 144-period training set and the last 6 periods as a test set, and fit a distributed lag model with one lag term beyond lead itself
+library(tsibble)
+library(fable)
+library(fabletools)
+library(dplyr)
+
+d &lt;- tsibble(period = 1:150, sales = as.numeric(BJsales), lead = as.numeric(BJsales.lead), index = period)
+
+train &lt;- d |&gt; filter(period &lt;= 144)
+test  &lt;- d |&gt; filter(period &gt; 144)
+
+nrow(train)
+#&gt; [1] 144
+nrow(test)
+#&gt; [1] 6
+
+m1 &lt;- train |&gt; model(m1 = ARIMA(sales ~ lead + lag(lead, 1) + pdq(d = 0)))
+report(m1)
+#&gt; Series: sales 
+#&gt; Model: LM w/ ARIMA(0,0,5) errors 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          ma1     ma2     ma3     ma4     ma5    lead  lag(lead, 1)  intercept
+#&gt;       2.0454  1.9824  1.4445  1.0046  0.3843  4.5562        6.4547    99.3046
+#&gt; s.e.  0.1006  0.2300  0.2319  0.1842  0.0933  0.4830        0.5664    11.8123
+#&gt; 
+#&gt; sigma^2 estimated as 4.105:  log likelihood=-302.84
+#&gt; AIC=623.68   AICc=625.02   BIC=650.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>pdq(d = 0) tells fable's search that the leftover error itself needs no differencing. Read the two coefficients that belong to the predictors: lead's own coefficient is 4.5562, and lag(lead, 1), the indicator one period back, adds another 6.4547 on top. Both lags matter, and lag 1 actually carries more weight than lag 0 does.</p>
+
+<p>The AICc for this one-lag model, Akaike's corrected information criterion, a fit score where a lower number means a better balance of fit and simplicity, comes out at 625.02. Is one lag term enough, or does adding more keep helping? That's next.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Choosing the lag length with AICc</h2>
+
+<p>AICc is what lets you compare specifications with different numbers of predictors fairly. It scores a model on how well it fits, then subtracts a penalty for every extra parameter, so adding more lag terms does not automatically win; a lag term only lowers AICc if it earns its keep.</p>
+
+<p>One rule has to hold for that comparison to stay valid. The differencing order d inside pdq() has to stay the same across every specification you compare. A once-differenced series measures period-to-period changes rather than raw levels, so AICc values computed at different values of d sit on different scales and are not comparable. Fix d at 0 for every specification in this search, the same way the one-lag model above did.</p>
+
+<p>Add lag columns for the indicator one through six periods back, then refit the same distributed lag model with k = 0 through 6 of those lag terms included, each time holding d at 0.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+# Add lag columns 1 through 6 for the indicator, then refit the distributed lag model with k = 0 through 6 lag terms, holding d at 0 every time, and collect each specification's AICc
+for (j in 1:6) train[[paste0(&quot;lag&quot;, j)]] &lt;- dplyr::lag(train$lead, j)
+
+aicc_by_k &lt;- numeric(7)
+aicc_by_k[1] &lt;- glance(train |&gt; model(ARIMA(sales ~ lead + pdq(d = 0))))$AICc
+aicc_by_k[2] &lt;- glance(train |&gt; model(ARIMA(sales ~ lead + lag1 + pdq(d = 0))))$AICc
+aicc_by_k[3] &lt;- glance(train |&gt; model(ARIMA(sales ~ lead + lag1 + lag2 + pdq(d = 0))))$AICc
+aicc_by_k[4] &lt;- glance(train |&gt; model(ARIMA(sales ~ lead + lag1 + lag2 + lag3 + pdq(d = 0))))$AICc
+aicc_by_k[5] &lt;- glance(train |&gt; model(ARIMA(sales ~ lead + lag1 + lag2 + lag3 + lag4 + pdq(d = 0))))$AICc
+aicc_by_k[6] &lt;- glance(train |&gt; model(ARIMA(sales ~ lead + lag1 + lag2 + lag3 + lag4 + lag5 + pdq(d = 0))))$AICc
+aicc_by_k[7] &lt;- glance(train |&gt; model(ARIMA(sales ~ lead + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + pdq(d = 0))))$AICc
+
+round(aicc_by_k, 2)
+#&gt; [1] 868.47 625.02 321.12 490.07 356.88 164.80 133.23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>See that same table read as a report-ready table.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["k","AICc"],"rows":[[0,868.47],[1,625.02],[2,321.12],[3,490.07],[4,356.88],[5,164.8],[6,133.23]],"title":"AICc across lag depth k, d held at 0","note":"Every specification here fixes d at 0 in pdq(), so every AICc value sits on the same scale and the seven rows can be compared directly."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Two things stand out. AICc does not fall smoothly: it jumps back up at k = 3 (490.07, higher than k = 2's 321.12) before falling again, so a lag term earning its keep is checked, not assumed, at every step. And the lowest AICc in the table sits at k = 6, the largest lag depth tested here. That is a boundary chosen for this lesson, not a law: there is no reason to expect this indicator's effect on this series to reach back further than six periods, so the search stopped there. With a different series, testing k = 7 or beyond would be the next reasonable step.</p>
+
+<p>Take the k = 6 model forward. Its coefficients are next.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>The winning model's shape: a delay, then a decay</h2>
+
+<p>Fit the k = 6 model, the one with the lowest AICc, and read its seven coefficients: one for lead itself, and one for each of lag(lead, 1) through lag(lead, 6).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the k = 6 distributed lag model, the lowest AICc from the table above, and read its coefficients on lead and its six lags
+m6 &lt;- train |&gt; model(m6 = ARIMA(sales ~ lead + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + pdq(d = 0)))
+
+co &lt;- coef(m6) |&gt; filter(term %in% c(&quot;lead&quot;, &quot;lag1&quot;, &quot;lag2&quot;, &quot;lag3&quot;, &quot;lag4&quot;, &quot;lag5&quot;, &quot;lag6&quot;))
+data.frame(lag = 0:6, coefficient = round(co$estimate, 3))
+#&gt;   lag coefficient
+#&gt; 1   0      -0.195
+#&gt; 2   1      -0.283
+#&gt; 3   2      -0.361
+#&gt; 4   3       4.207
+#&gt; 5   4       2.756
+#&gt; 6   5       1.419
+#&gt; 7   6       0.688</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>See the same shape in a chart.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0,"y":-0.195},{"x":1,"y":-0.283},{"x":2,"y":-0.361},{"x":3,"y":4.207},{"x":4,"y":2.756},{"x":5,"y":1.419},{"x":6,"y":0.688}],"geoms":["bar"],"x":"Lag k","y":"Coefficient"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Read that shape left to right. Lag 0 and lag 1 are both small and even slightly negative, meaning the indicator's own same-period and one-period-back reading contribute almost nothing once the other lags are in the model. Then lag 3 jumps to 4.207, by far the largest coefficient of the seven. After that jump, each coefficient is smaller than the one right before it: 2.756, then 1.419, then 0.688.</p>
+
+<p>Put a number on how fast that fall happens. Divide each coefficient from lag 4 onward by the one right before it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute how much each coefficient shrinks from the one right before it, from lag 4 onward
+lag3 &lt;- co$estimate[co$term == &quot;lag3&quot;]
+lag4 &lt;- co$estimate[co$term == &quot;lag4&quot;]
+lag5 &lt;- co$estimate[co$term == &quot;lag5&quot;]
+lag6 &lt;- co$estimate[co$term == &quot;lag6&quot;]
+
+round(c(lag4 / lag3, lag5 / lag4, lag6 / lag5), 3)
+#&gt; [1] 0.655 0.515 0.484</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each ratio lands close to one half: 0.655, then 0.515, then 0.484. So from lag 3 onward, the indicator's effect roughly halves every period. That whole shape, a delay before the effect shows up followed by a roughly steady decay, is exactly what Box and Jenkins named a transfer function when they introduced it using this same dataset. Instead of reporting seven separate coefficients, a transfer function packs that shape into two numbers: how many periods the effect is delayed, and how quickly it decays once it starts. Fitting one directly needs a specialized routine outside fable's toolkit, but you have already found its shape by hand, in the coefficients and decay ratios above.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Forecasting the predictor before forecasting with it</h2>
+
+<p>Now try to forecast sales for the 6 held-out periods, 145 through 150, using the k = 6 model. There is a catch. That model's formula includes lead at lag 0, so forecasting sales at period 145 needs the indicator's own value at period 145. But period 145 sits right after the end of the training window, so that value has not been observed within it.</p>
+
+<p>A forecast built only from information available at the moment you are forecasting from is called an ex-ante forecast, the honest kind, the one you could actually have produced in real time. A forecast that instead uses the real, already-known future values of a predictor, useful only for checking a model's shape after the fact, is an ex-post forecast. To produce a genuine ex-ante forecast for sales, you first need an ex-ante forecast for the indicator itself.</p>
+
+<p>Fit an ordinary ARIMA model to the indicator series on its own, no predictors this time, and forecast it 6 periods ahead.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit an ARIMA model to the leading indicator on its own, and forecast it 6 periods ahead
+mlead &lt;- train |&gt; model(mlead = ARIMA(lead))
+report(mlead)
+#&gt; Series: lead 
+#&gt; Model: ARIMA(0,1,1) w/ drift 
+#&gt; 
+#&gt; Coefficients:
+#&gt;           ma1  constant
+#&gt;       -0.4724    0.0244
+#&gt; s.e.   0.0649    0.0125
+#&gt; 
+#&gt; sigma^2 estimated as 0.08066:  log likelihood=-22.02
+#&gt; AIC=50.04   AICc=50.21   BIC=58.93
+
+flead &lt;- forecast(mlead, h = 6)
+data.frame(period = flead$period, lead_forecast = round(flead$.mean, 3))
+#&gt;   period lead_forecast
+#&gt; 1    145        13.551
+#&gt; 2    146        13.576
+#&gt; 3    147        13.600
+#&gt; 4    148        13.625
+#&gt; 5    149        13.649
+#&gt; 6    150        13.673</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ARIMA(0,1,1) with drift found its own shape for the indicator: one difference to remove its gentle upward drift, one moving-average term, and a small constant drift of 0.0244 added back on top of that. Its forecast climbs gently and steadily, from 13.551 at period 145 to 13.673 at period 150, which is exactly what a drifting-upward series should do when projected forward with nothing else known.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Plugging the forecasted indicator into the sales model</h2>
+
+<p>With a forecast for the indicator in hand, build the future predictor table the k = 6 sales model actually needs: lead at each of the 6 future periods, plus its lags 1 through 6 at each of those same periods.</p>
+
+<p>Here is the part worth sitting with. Lag 1 at period 145 is the indicator's real, observed value from period 144, so that part is solid. But lag 1 at period 150 is the indicator's forecasted value from period 149, not an observed one. As the future table reaches further out, more and more of what feeds the sales forecast is itself forecasted rather than observed, so whatever uncertainty sits in flead compounds into the sales forecast too, and grows with the horizon.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the future predictor table for periods 145-150: the indicator's forecast at each period, plus its own lags 1 through 6 built from the combined observed-and-forecasted indicator values
+lead_forecast &lt;- flead$.mean
+lead_history  &lt;- c(train$lead, lead_forecast)
+n_train &lt;- nrow(train)
+
+future &lt;- tsibble(period = 145:150, index = period)
+future$lead &lt;- lead_forecast
+future$lag1 &lt;- lead_history[(n_train):(n_train + 5)]
+future$lag2 &lt;- lead_history[(n_train - 1):(n_train + 4)]
+future$lag3 &lt;- lead_history[(n_train - 2):(n_train + 3)]
+future$lag4 &lt;- lead_history[(n_train - 3):(n_train + 2)]
+future$lag5 &lt;- lead_history[(n_train - 4):(n_train + 1)]
+future$lag6 &lt;- lead_history[(n_train - 5):(n_train)]
+
+fc &lt;- forecast(m6, new_data = future)
+data.frame(period = 145:150, forecast = round(fc$.mean, 2), actual = test$sales)
+#&gt;   period forecast actual
+#&gt; 1    145   263.18  262.9
+#&gt; 2    146   263.04  263.3
+#&gt; 3    147   262.19  262.8
+#&gt; 4    148   262.38  261.8
+#&gt; 5    149   262.63  262.2
+#&gt; 6    150   263.04  262.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Score that forecast, and compare it against the simplest possible benchmark, a naive forecast that just repeats the last training value, 261.1, for all 6 periods.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score the distributed lag forecast, and compare it against a naive forecast that repeats the last training value for all 6 periods
+mae  &lt;- mean(abs(fc$.mean - test$sales))
+rmse &lt;- sqrt(mean((fc$.mean - test$sales)^2))
+round(c(MAE = mae, RMSE = rmse), 3)
+#&gt;   MAE  RMSE 
+#&gt; 0.415 0.438 
+
+naive_pred &lt;- rep(train$sales[nrow(train)], 6)
+mae_naive  &lt;- mean(abs(naive_pred - test$sales))
+rmse_naive &lt;- sqrt(mean((naive_pred - test$sales)^2))
+round(c(MAE = mae_naive, RMSE = rmse_naive), 3)
+#&gt;   MAE  RMSE 
+#&gt; 1.517 1.593 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.415 against 1.517, and 0.438 against 1.593. The distributed lag model misses by about 3.6 times less than a forecast that ignores the indicator completely, on both measures. All that work, the cross-correlation table, the AICc search, forecasting the indicator before the outcome, earns a real, measurable improvement over the simplest possible guess.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why forecast the indicator first</h2>
+
+<p>The k = 6 sales model includes lead at lag 0, so forecasting sales at any of the 6 held-out periods needs the indicator's value at that same period. Why does that force you to forecast the indicator first, instead of just forecasting sales directly?</p>
+<section class="exercise" data-exercise-id="Lagged-Predictors-and-Transfer-Functions-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because ARIMA() cannot fit a model that includes a lag-0 predictor term.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because those 6 future values of the indicator have not been observed yet, and the sales model cannot run without a value for every predictor at every period it forecasts.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because forecasting always needs two separate models, no matter which predictors a model uses.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Because the fitted sales model already forecasts the indicator's own future values internally, since lead is one of its terms.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. lead is a predictor in the sales model, and a predictor needs a value supplied for every period you want a forecast for. Since periods 145 through 150 have not happened, that value has to come from an ex-ante forecast of the indicator itself.</div><div class="lesson-qfb lesson-qfb-no">The sales model only uses whatever indicator values you hand it; it does not generate new ones on its own. Since periods 145 to 150 have not happened, those values have to come from somewhere else, an ex-ante forecast of the indicator, which is exactly what fitting ARIMA(lead) and forecasting it did two steps back.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: fit the four-lag version and read its AICc</h2>
+
+<p>The loop two steps back fit ARIMA models for k = 0 through 6 lag terms. Fit just the k = 4 version on its own: sales explained by lead plus lag1 through lag4, with d fixed at 0, on the same train tsibble, name it mtry, and print its AICc.</p>
+<section class="exercise" data-exercise-id="Lagged-Predictors-and-Transfer-Functions-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="356\.[89]"><textarea class="lesson-tryit-input" spellcheck="false"># The loop earlier fit ARIMA models for k = 0 through 6 lag terms.
+# Fit the k = 4 version alone: sales ~ lead + lag1 + lag2 + lag3 + lag4 + pdq(d = 0),
+# on the same train tsibble, name the model mtry, then print its AICc with glance().
+# Two lines. Press Check when you have them.
+</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 356.88, matching the table two steps back. Adding the fifth and sixth lag terms is what pulls AICc down further from there, from 356.88 to 133.23.</span><span class="lesson-tryit-fb lesson-tryit-no">Fit ARIMA(sales ~ lead + lag1 + lag2 + lag3 + lag4 + pdq(d = 0)) inside model(), on train, name it mtry, then call round(as.numeric(glance(mtry)$AICc), 2).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit the k = 4 distributed lag model alone, and read its AICc
+mtry &lt;- train |&gt; model(mtry = ARIMA(sales ~ lead + lag1 + lag2 + lag3 + lag4 + pdq(d = 0)))
+round(as.numeric(glance(mtry)$AICc), 2)
+#&gt; [1] 356.88</code></pre></details></div>
+</section>
+<p>356.88, the same number the k = 4 row of the table showed two steps back. fable's search is deterministic on the same data and the same formula, so fitting it again on its own never turns up a different answer.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li>Box, G.E.P. and Jenkins, G.M. (1976). Time Series Analysis: Forecasting and Control. Holden-Day. Source of the BJsales and BJsales.lead data, and the transfer-function model this lesson names.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/BJsales.html">BJsales documentation</a> - the datasets package, base R: the dataset's description and citation.</li>
+
+<li>Brockwell, P.J. and Davis, R.A. (1991). Time Series: Theory and Methods (2nd ed.). Springer. Example 11.2.2, an alternate worked treatment of the same sales and leading-indicator data.</li>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice (3rd ed.)</a> - Hyndman, R.J. and Athanasopoulos, G. Dynamic regression with lagged predictors and AICc-based predictor selection, the fable-side practice this lesson follows.</li>
+
+<li><a href="https://fable.tidyverts.org/">fable package reference</a> - documentation for ARIMA(), pdq(), the lag() special used inside its formula interface, and forecast().</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You can fit a distributed lag model in fable, sales explained by lead plus lag(lead, 1) through lag(lead, k) with pdq(d = 0), and choose how many lag terms to keep by comparing AICc across specifications while holding the differencing order fixed.</p>
+
+<p>You can read a set of lag coefficients for the shape Box and Jenkins named a transfer function, a delay before the effect appears followed by a roughly steady decay, and put a number on that decay with a simple ratio between consecutive coefficients.</p>
+
+<p>You can explain why a dynamic regression model with a lag-0 predictor term needs an ex-ante forecast of that predictor before it can forecast the outcome, and you can build the future predictor table that makes that forecast possible.</p>
+
+<p>This is also the last lesson in the Dynamic Regression and Complex Seasonality course.</p>
+</section>
+
+{% endraw %}
