@@ -33,31 +33,31 @@ See why ordinary regression residuals on a time series are autocorrelated, fit `
 
 Replace seasonal ARIMA with Fourier terms for the seasonal shape plus an ARIMA error for the short-run dynamics, choose K by AICc, and see why this handles long seasonal periods that seasonal ARIMA cannot reach.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Dynamic harmonic regression](Dynamic-Harmonic-Regression.html)
 
 ### Lesson 3: Multiple seasonal periods
 
 Work with a series that carries a daily cycle and a weekly cycle at once, see both in the plots and the ACF, add Fourier terms for two periods in the same model, and read which cycle actually carries the variance.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Multiple seasonal periods](Multiple-Seasonal-Periods.html)
 
 ### Lesson 4: TBATS for complex seasonality
 
 Meet what the letters in TBATS stand for, trigonometric terms, Box-Cox transform, ARMA errors, trend and seasonal components, fit `tbats()` from the forecast package on a series with two periods, and weigh its fitting cost against dynamic harmonic regression.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: TBATS for complex seasonality](TBATS-for-Complex-Seasonality.html)
 
 ### Lesson 5: Forecasting with Prophet
 
 Learn the additive trend, seasonality and holiday components behind Prophet, how changepoints and their prior are specified, and an honest comparison against a Fourier-plus-piecewise-trend model in `fable`, the runnable stand-in for where Prophet itself is not run in the browser.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Forecasting with Prophet](Forecasting-with-Prophet.html)
 
 ### Lesson 6: Lagged predictors and transfer functions
 
 Handle a predictor whose effect lingers, like advertising that keeps moving sales for months, with distributed lag terms inside `ARIMA()`, choose the lag length by AICc, and forecast when the predictor itself has to be forecast first.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Lagged predictors and transfer functions](Lagged-Predictors-and-Transfer-Functions.html)
 
 ## Who this is for
 

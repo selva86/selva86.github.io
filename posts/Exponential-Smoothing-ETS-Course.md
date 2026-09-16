@@ -45,7 +45,7 @@ Add a seasonal component with gamma to forecast a series with a repeating calend
 
 Learn what the three letters in ETS, error, trend and season, actually mean, and which of the thirty combinations are stable enough to fit. See the state-space form behind an additive versus a multiplicative error, and why that choice decides the width of your prediction interval as much as the point forecast does.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: The ETS taxonomy](The-ETS-Taxonomy.html)
 
 ### Lesson 5: Automatic ETS model selection
 

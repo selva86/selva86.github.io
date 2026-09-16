@@ -33,37 +33,37 @@ See a time series as a hidden level plus noise, write its observation and state 
 
 Work the predict-then-update loop by hand on a local level model for a few steps, read the gain as a trust dial between the model and the data, see filtering versus smoothing, and reproduce the numbers with a base-R implementation.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: The Kalman filter and smoother](The-Kalman-Filter-and-Smoother.html)
 
 ### Lesson 3: Local level and local linear trend models
 
 Meet the two simplest state space forms, see what the signal-to-noise ratio does to the fitted level, fit their ETS equivalents (ANN and AAN) in fable, and read the smoothed states as a component plot.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Local level and local linear trend models](Local-Level-and-Local-Linear-Trend-Models.html)
 
 ### Lesson 4: Basic structural time series
 
 Split a series into level, slope, seasonal and irregular as separate states, fit it with StructTS() in base R, compare its components against an STL decomposition of the same series, and forecast from the structural model.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Basic structural time series](Basic-Structural-Time-Series.html)
 
 ### Lesson 5: Bayesian structural time series (bsts)
 
 Put priors and MCMC on the same components, use spike-and-slab regression to choose predictors, read a posterior forecast distribution, and see what the bsts package buys you over the fitted version.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Bayesian structural time series (bsts)](Bayesian-Structural-Time-Series-bsts.html)
 
 ### Lesson 6: Dynamic linear models with dlm
 
 Learn the general DLM notation, write regression with time-varying coefficients as a DLM, see what the dlm package provides, and read a coefficient that drifts over time instead of sitting still.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Dynamic linear models with dlm](Dynamic-Linear-Models-with-dlm.html)
 
 ### Lesson 7: Time-varying parameters
 
 Understand why a fixed coefficient can be the wrong assumption, compare a rolling-window regression against the principled state space version, and see how to report a coefficient path honestly.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Time-varying parameters](Time-Varying-Parameters.html)
 
 ## Who this is for
 
