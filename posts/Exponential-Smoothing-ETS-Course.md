@@ -51,13 +51,13 @@ Lesson 4 is coming soon.
 
 Let `ETS()` search the whole taxonomy for you. See how maximum likelihood estimates the parameters and initial states, how AICc ranks the candidates, how to read `report()` output, and the cases where the automatic choice still needs a human override.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Automatic ETS model selection](Automatic-ETS-Model-Selection.html)
 
 ### Lesson 6: Forecasting with ETS in fable
 
 Turn a fitted ETS model into a forecast you can trust. Call `forecast(h = )`, compare prediction intervals from the state-space form against simulation, pull apart the fitted states with `components()` and `autoplot()`, check the residuals, and benchmark the result against the naive and seasonal-naive baselines with `accuracy()`.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Forecasting with ETS in fable](Forecasting-with-ETS-in-fable.html)
 
 ## Who this is for
 
