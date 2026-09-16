@@ -1,0 +1,320 @@
+---
+title: "ARIMA and Seasonal ARIMA Lesson 1: Testing whether a series is stationary with KPSS"
+description: "Learn what stationarity means, why a trend and a growing season break it, and how to test with KPSS and unitroot_ndiffs before fitting an ARIMA model."
+keywords: "KPSS test in R, stationarity test, unit root test, urca ur.kpss, unitroot_kpss, unitroot_ndiffs, differencing a time series, AirPassengers stationarity"
+mathjax: false
+webr: true
+curriculum_id: "5.60.1"
+post_type: "LESSON"
+course_id: "ts-arima"
+course_title: "ARIMA and Seasonal ARIMA"
+course_lesson: "1"
+course_total: "7"
+course_landing: "ARIMA-and-Seasonal-ARIMA-Course.html"
+course_next: "Differencing-and-Seasonal-Differencing.html"
+course_prev: ""
+lesson_access: "pro"
+catalog_blurb: "Test whether a series is stationary before you fit an ARIMA model on it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Testing whether a series is stationary with KPSS</h2>
+
+<p>Today let's understand what it means for a time series to be stationary, and how to test for it, working through one real series from start to finish.</p>
+
+<p>AirPassengers is a dataset built into R: the monthly count of international airline passengers, in thousands, from January 1949 to December 1960, 144 months in all. It was first published by Box and Jenkins, and time series courses have reached for it ever since.</p>
+
+<p>Here is the whole series, plotted month by month.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":112},{"x":2,"y":118},{"x":3,"y":132},{"x":4,"y":129},{"x":5,"y":121},{"x":6,"y":135},{"x":7,"y":148},{"x":8,"y":148},{"x":9,"y":136},{"x":10,"y":119},{"x":11,"y":104},{"x":12,"y":118},{"x":13,"y":115},{"x":14,"y":126},{"x":15,"y":141},{"x":16,"y":135},{"x":17,"y":125},{"x":18,"y":149},{"x":19,"y":170},{"x":20,"y":170},{"x":21,"y":158},{"x":22,"y":133},{"x":23,"y":114},{"x":24,"y":140},{"x":25,"y":145},{"x":26,"y":150},{"x":27,"y":178},{"x":28,"y":163},{"x":29,"y":172},{"x":30,"y":178},{"x":31,"y":199},{"x":32,"y":199},{"x":33,"y":184},{"x":34,"y":162},{"x":35,"y":146},{"x":36,"y":166},{"x":37,"y":171},{"x":38,"y":180},{"x":39,"y":193},{"x":40,"y":181},{"x":41,"y":183},{"x":42,"y":218},{"x":43,"y":230},{"x":44,"y":242},{"x":45,"y":209},{"x":46,"y":191},{"x":47,"y":172},{"x":48,"y":194},{"x":49,"y":196},{"x":50,"y":196},{"x":51,"y":236},{"x":52,"y":235},{"x":53,"y":229},{"x":54,"y":243},{"x":55,"y":264},{"x":56,"y":272},{"x":57,"y":237},{"x":58,"y":211},{"x":59,"y":180},{"x":60,"y":201},{"x":61,"y":204},{"x":62,"y":188},{"x":63,"y":235},{"x":64,"y":227},{"x":65,"y":234},{"x":66,"y":264},{"x":67,"y":302},{"x":68,"y":293},{"x":69,"y":259},{"x":70,"y":229},{"x":71,"y":203},{"x":72,"y":229},{"x":73,"y":242},{"x":74,"y":233},{"x":75,"y":267},{"x":76,"y":269},{"x":77,"y":270},{"x":78,"y":315},{"x":79,"y":364},{"x":80,"y":347},{"x":81,"y":312},{"x":82,"y":274},{"x":83,"y":237},{"x":84,"y":278},{"x":85,"y":284},{"x":86,"y":277},{"x":87,"y":317},{"x":88,"y":313},{"x":89,"y":318},{"x":90,"y":374},{"x":91,"y":413},{"x":92,"y":405},{"x":93,"y":355},{"x":94,"y":306},{"x":95,"y":271},{"x":96,"y":306},{"x":97,"y":315},{"x":98,"y":301},{"x":99,"y":356},{"x":100,"y":348},{"x":101,"y":355},{"x":102,"y":422},{"x":103,"y":465},{"x":104,"y":467},{"x":105,"y":404},{"x":106,"y":347},{"x":107,"y":305},{"x":108,"y":336},{"x":109,"y":340},{"x":110,"y":318},{"x":111,"y":362},{"x":112,"y":348},{"x":113,"y":363},{"x":114,"y":435},{"x":115,"y":491},{"x":116,"y":505},{"x":117,"y":404},{"x":118,"y":359},{"x":119,"y":310},{"x":120,"y":337},{"x":121,"y":360},{"x":122,"y":342},{"x":123,"y":406},{"x":124,"y":396},{"x":125,"y":420},{"x":126,"y":472},{"x":127,"y":548},{"x":128,"y":559},{"x":129,"y":463},{"x":130,"y":407},{"x":131,"y":362},{"x":132,"y":405},{"x":133,"y":417},{"x":134,"y":391},{"x":135,"y":419},{"x":136,"y":461},{"x":137,"y":472},{"x":138,"y":535},{"x":139,"y":622},{"x":140,"y":606},{"x":141,"y":508},{"x":142,"y":461},{"x":143,"y":390},{"x":144,"y":432}],"geoms":["line"],"x":"month","y":"passengers"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The line climbs across the whole twelve years, and the summer bump on top of it gets taller every year. Both of those, the climb and the growing bump, are exactly what this lesson is going to test for.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What "stationary" means: three properties that stay constant</h2>
+
+<p>A series is stationary when three things about it hold still as time passes. Its mean stays the same, its variance stays the same, and its autocorrelation structure, meaning how strongly a value relates to its own recent past, stays the same too. None of the three is allowed to drift as you move from the start of the series to the end.</p>
+
+<p>That sounds abstract, so let's put a number on the first two for AirPassengers as a whole, before checking whether they actually hold.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the AirPassengers tsibble and compute its overall mean and standard deviation
+library(tsibble)
+library(dplyr)
+
+air &lt;- as_tsibble(AirPassengers) |&gt; rename(passengers = value, month = index)
+
+mean(air$passengers)
+#&gt; [1] 280.2986
+sd(air$passengers)
+#&gt; [1] 119.9663</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across the whole series, the mean is about 280 and the standard deviation is about 120, both in thousands of passengers a month, the same units the data itself is recorded in. Those two numbers, 280.30 and 119.97, are the baseline. If AirPassengers really is stationary, any stretch of it you pull out on its own should land close to those same two numbers. Let's check that next.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<h2>Splitting the series in half to see the mean and variance move</h2>
+
+<p>A single mean and standard deviation for the whole series cannot tell you whether they are drifting. To check that, split AirPassengers into its first half and its second half, and compute the same two numbers on each piece separately.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split AirPassengers into its first half and second half, and compare their mean and standard deviation
+air_first_half &lt;- air |&gt; filter_index(&quot;1949 01&quot; ~ &quot;1954 12&quot;)
+air_second_half &lt;- air |&gt; filter_index(&quot;1955 01&quot; ~ &quot;1960 12&quot;)
+
+mean(air_first_half$passengers)
+#&gt; [1] 182.9028
+sd(air_first_half$passengers)
+#&gt; [1] 47.70424
+
+mean(air_second_half$passengers)
+#&gt; [1] 377.6944
+sd(air_second_half$passengers)
+#&gt; [1] 86.43921</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>filter_index()</code> is tsibble's way of slicing a series by date range: here, "1949 01" through "1954 12" for the first six years, and "1955 01" through "1960 12" for the last six.</p>
+
+<p>The first half averages about 183 with a standard deviation of about 48. The second half averages about 378 with a standard deviation of about 86, more than double both numbers. Compare that to the whole-series baseline from the last step, 280 and 120: neither half matches it, and the two halves do not match each other either.</p>
+
+<p>Here is the same split plotted, with the first half and second half shaded differently.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":112,"fill":"First half"},{"x":2,"y":118,"fill":"First half"},{"x":3,"y":132,"fill":"First half"},{"x":4,"y":129,"fill":"First half"},{"x":5,"y":121,"fill":"First half"},{"x":6,"y":135,"fill":"First half"},{"x":7,"y":148,"fill":"First half"},{"x":8,"y":148,"fill":"First half"},{"x":9,"y":136,"fill":"First half"},{"x":10,"y":119,"fill":"First half"},{"x":11,"y":104,"fill":"First half"},{"x":12,"y":118,"fill":"First half"},{"x":13,"y":115,"fill":"First half"},{"x":14,"y":126,"fill":"First half"},{"x":15,"y":141,"fill":"First half"},{"x":16,"y":135,"fill":"First half"},{"x":17,"y":125,"fill":"First half"},{"x":18,"y":149,"fill":"First half"},{"x":19,"y":170,"fill":"First half"},{"x":20,"y":170,"fill":"First half"},{"x":21,"y":158,"fill":"First half"},{"x":22,"y":133,"fill":"First half"},{"x":23,"y":114,"fill":"First half"},{"x":24,"y":140,"fill":"First half"},{"x":25,"y":145,"fill":"First half"},{"x":26,"y":150,"fill":"First half"},{"x":27,"y":178,"fill":"First half"},{"x":28,"y":163,"fill":"First half"},{"x":29,"y":172,"fill":"First half"},{"x":30,"y":178,"fill":"First half"},{"x":31,"y":199,"fill":"First half"},{"x":32,"y":199,"fill":"First half"},{"x":33,"y":184,"fill":"First half"},{"x":34,"y":162,"fill":"First half"},{"x":35,"y":146,"fill":"First half"},{"x":36,"y":166,"fill":"First half"},{"x":37,"y":171,"fill":"First half"},{"x":38,"y":180,"fill":"First half"},{"x":39,"y":193,"fill":"First half"},{"x":40,"y":181,"fill":"First half"},{"x":41,"y":183,"fill":"First half"},{"x":42,"y":218,"fill":"First half"},{"x":43,"y":230,"fill":"First half"},{"x":44,"y":242,"fill":"First half"},{"x":45,"y":209,"fill":"First half"},{"x":46,"y":191,"fill":"First half"},{"x":47,"y":172,"fill":"First half"},{"x":48,"y":194,"fill":"First half"},{"x":49,"y":196,"fill":"First half"},{"x":50,"y":196,"fill":"First half"},{"x":51,"y":236,"fill":"First half"},{"x":52,"y":235,"fill":"First half"},{"x":53,"y":229,"fill":"First half"},{"x":54,"y":243,"fill":"First half"},{"x":55,"y":264,"fill":"First half"},{"x":56,"y":272,"fill":"First half"},{"x":57,"y":237,"fill":"First half"},{"x":58,"y":211,"fill":"First half"},{"x":59,"y":180,"fill":"First half"},{"x":60,"y":201,"fill":"First half"},{"x":61,"y":204,"fill":"First half"},{"x":62,"y":188,"fill":"First half"},{"x":63,"y":235,"fill":"First half"},{"x":64,"y":227,"fill":"First half"},{"x":65,"y":234,"fill":"First half"},{"x":66,"y":264,"fill":"First half"},{"x":67,"y":302,"fill":"First half"},{"x":68,"y":293,"fill":"First half"},{"x":69,"y":259,"fill":"First half"},{"x":70,"y":229,"fill":"First half"},{"x":71,"y":203,"fill":"First half"},{"x":72,"y":229,"fill":"First half"},{"x":73,"y":242,"fill":"Second half"},{"x":74,"y":233,"fill":"Second half"},{"x":75,"y":267,"fill":"Second half"},{"x":76,"y":269,"fill":"Second half"},{"x":77,"y":270,"fill":"Second half"},{"x":78,"y":315,"fill":"Second half"},{"x":79,"y":364,"fill":"Second half"},{"x":80,"y":347,"fill":"Second half"},{"x":81,"y":312,"fill":"Second half"},{"x":82,"y":274,"fill":"Second half"},{"x":83,"y":237,"fill":"Second half"},{"x":84,"y":278,"fill":"Second half"},{"x":85,"y":284,"fill":"Second half"},{"x":86,"y":277,"fill":"Second half"},{"x":87,"y":317,"fill":"Second half"},{"x":88,"y":313,"fill":"Second half"},{"x":89,"y":318,"fill":"Second half"},{"x":90,"y":374,"fill":"Second half"},{"x":91,"y":413,"fill":"Second half"},{"x":92,"y":405,"fill":"Second half"},{"x":93,"y":355,"fill":"Second half"},{"x":94,"y":306,"fill":"Second half"},{"x":95,"y":271,"fill":"Second half"},{"x":96,"y":306,"fill":"Second half"},{"x":97,"y":315,"fill":"Second half"},{"x":98,"y":301,"fill":"Second half"},{"x":99,"y":356,"fill":"Second half"},{"x":100,"y":348,"fill":"Second half"},{"x":101,"y":355,"fill":"Second half"},{"x":102,"y":422,"fill":"Second half"},{"x":103,"y":465,"fill":"Second half"},{"x":104,"y":467,"fill":"Second half"},{"x":105,"y":404,"fill":"Second half"},{"x":106,"y":347,"fill":"Second half"},{"x":107,"y":305,"fill":"Second half"},{"x":108,"y":336,"fill":"Second half"},{"x":109,"y":340,"fill":"Second half"},{"x":110,"y":318,"fill":"Second half"},{"x":111,"y":362,"fill":"Second half"},{"x":112,"y":348,"fill":"Second half"},{"x":113,"y":363,"fill":"Second half"},{"x":114,"y":435,"fill":"Second half"},{"x":115,"y":491,"fill":"Second half"},{"x":116,"y":505,"fill":"Second half"},{"x":117,"y":404,"fill":"Second half"},{"x":118,"y":359,"fill":"Second half"},{"x":119,"y":310,"fill":"Second half"},{"x":120,"y":337,"fill":"Second half"},{"x":121,"y":360,"fill":"Second half"},{"x":122,"y":342,"fill":"Second half"},{"x":123,"y":406,"fill":"Second half"},{"x":124,"y":396,"fill":"Second half"},{"x":125,"y":420,"fill":"Second half"},{"x":126,"y":472,"fill":"Second half"},{"x":127,"y":548,"fill":"Second half"},{"x":128,"y":559,"fill":"Second half"},{"x":129,"y":463,"fill":"Second half"},{"x":130,"y":407,"fill":"Second half"},{"x":131,"y":362,"fill":"Second half"},{"x":132,"y":405,"fill":"Second half"},{"x":133,"y":417,"fill":"Second half"},{"x":134,"y":391,"fill":"Second half"},{"x":135,"y":419,"fill":"Second half"},{"x":136,"y":461,"fill":"Second half"},{"x":137,"y":472,"fill":"Second half"},{"x":138,"y":535,"fill":"Second half"},{"x":139,"y":622,"fill":"Second half"},{"x":140,"y":606,"fill":"Second half"},{"x":141,"y":508,"fill":"Second half"},{"x":142,"y":461,"fill":"Second half"},{"x":143,"y":390,"fill":"Second half"},{"x":144,"y":432,"fill":"Second half"}],"geoms":["line","point"],"x":"month","y":"passengers"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The plot makes it obvious: the second half does not just sit higher, its peaks and troughs are further apart too. That is a mean that has moved and a variance that has grown, exactly the two numbers you just computed.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading what stays constant</h2>
+<section class="exercise" data-exercise-id="Stationarity-and-Unit-Root-Tests-KPSS-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Only the mean rose between the two halves; the standard deviation stayed about the same.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both the mean and the standard deviation are higher in the second half: about 183 and 48 in the first half against about 378 and 86 in the second.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A rising mean by itself already proves the series is non-stationary, so there is no need to check the standard deviation too.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Neither property held still: the mean nearly doubled and the standard deviation nearly doubled too, so both the mean and the variance fail to stay constant across the split.</div><div class="lesson-qfb lesson-qfb-no">Both properties matter here. The mean moved from about 183 to about 378, and the standard deviation moved from about 48 to about 86: it takes checking both to say the series fails stationarity, not the mean on its own.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Why a trend and a growing season break stationarity</h2>
+
+<p>You just saw the mean and the standard deviation move between the two halves. It is worth understanding why, because both come from the same two things you can already see in the plot: a trend, and a seasonal swing that keeps growing.</p>
+
+<p>A trend is a mean that keeps moving in one direction as time passes, by construction. AirPassengers climbs almost every year, so its local average in 1960 sits well above its local average in 1949. A series cannot hold its mean constant while it is trending upward.</p>
+
+<p>The seasonal swing, the gap between a year's quietest month and its busiest month, is doing something else. Look at how that gap changes across the twelve years.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute each calendar year's seasonal swing (max minus min) and compare early years against late years
+air_years &lt;- air |&gt; mutate(year = as.integer(format(month, &quot;%Y&quot;)))
+
+early &lt;- air_years |&gt; filter(year %in% c(1949, 1950, 1951)) |&gt;
+  as_tibble() |&gt; group_by(year) |&gt; summarise(swing = max(passengers) - min(passengers))
+late &lt;- air_years |&gt; filter(year %in% c(1958, 1959, 1960)) |&gt;
+  as_tibble() |&gt; group_by(year) |&gt; summarise(swing = max(passengers) - min(passengers))
+
+early
+#&gt; # A tibble: 3 × 2
+#&gt;    year swing
+#&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1  1949    44
+#&gt; 2  1950    56
+#&gt; 3  1951    54
+
+late
+#&gt; # A tibble: 3 × 2
+#&gt;    year swing
+#&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1  1958   195
+#&gt; 2  1959   217
+#&gt; 3  1960   232</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In 1949 the gap between the quiet month and the busy month was 44. By 1960 that same gap had grown to 232, more than five times as wide. A season that widens as the series' level rises is called multiplicative seasonality, and it is exactly why the variance you computed two steps back grew along with the mean: a bigger seasonal swing spreads the values further from their local average.</p>
+
+<p>The autocorrelation structure shifts for the same reason. Early on, one month's value relates to the next month's value across a gap of about 44. Later, that same relationship plays out across a gap five times as wide. The relationship between a value and its own recent past is not the relationship it used to be, so the third stationarity property fails right along with the other two.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>The KPSS test: reading the statistic against the critical value</h2>
+
+<p>So far you have seen non-stationarity by eye and by hand. KPSS turns that into a single test you can run on any series.</p>
+
+<p>KPSS stands for Kwiatkowski-Phillips-Schmidt-Shin, the four statisticians who published it in 1992. Its null hypothesis, the assumption the test starts from and looks for evidence against, is that the series IS stationary. That is the opposite of most statistical tests you may have met before, where the null hypothesis is usually the boring, nothing-going-on option. Here, stationary is the boring option, and the test is looking for evidence that the series is not boring after all.</p>
+
+<p>Run it on AirPassengers with <code>urca::ur.kpss()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the KPSS test on the whole series and read the statistic against its critical values
+library(urca)
+
+kpss_air &lt;- ur.kpss(air$passengers, type = &quot;mu&quot;)
+summary(kpss_air)
+#&gt;
+#&gt; #######################
+#&gt; # KPSS Unit Root Test #
+#&gt; #######################
+#&gt;
+#&gt; Test is of type: mu with 4 lags.
+#&gt;
+#&gt; Value of test-statistic is: 2.7395
+#&gt;
+#&gt; Critical value for a significance level of:
+#&gt;                 10pct  5pct 2.5pct  1pct
+#&gt; critical values 0.347 0.463  0.574 0.739</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>type = &quot;mu&quot;</code> tells <code>ur.kpss()</code> to test against a constant mean, the plain stationarity you have been checking so far, rather than against a trend.</p>
+
+<p>The output gives you two things to compare: the test statistic, 2.7395, and a row of critical values, one for each significance level. Read them the way you would read any critical-value table: if the statistic sits above the critical value for a given level, you reject the null hypothesis at that level.</p>
+
+<p>AirPassengers' statistic, 2.7395, sits above every critical value in that row, even the strictest one, 0.739 at the 1 percent level. So KPSS rejects stationarity here about as firmly as it can. That matches everything you already found by hand: the mean moved, the variance moved, and now a formal test agrees.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<h2>What a non-stationary error process does to a confidence interval</h2>
+
+<p>You have now confirmed AirPassengers is not stationary. Before moving on to fixing that, it is worth seeing why any of this matters beyond a test passing or failing.</p>
+
+<p>Ordinary regression, and the confidence intervals built around it, assume the errors are independent of each other, meaning one observation's error carries no information about the next one's. A trending, non-stationary series is one common way that assumption breaks: the level itself carries over from one time step to the next, so nearby errors end up correlated too, a property called autocorrelation.</p>
+
+<p>The widget below runs that as a separate experiment. It fits many regressions on data built with a chosen amount of autocorrelation in the errors, and it measures two things every time: how often the model's 95 percent interval actually contains the true value, called coverage, and how good the fit looks, R-squared. It uses a fresh simulated regression, not AirPassengers itself, but the same problem applies to any non-stationary series with real autocorrelation left in it.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the dial from independent toward severe. Coverage, the share of intervals that actually contain the truth, collapses well below the nominal 95 percent as the errors become more strongly autocorrelated. Now watch R-squared while you do it: it does not get worse, and it may even rise, because a smooth, slowly drifting error series happens to flatter the fit at the same moment it is destroying the interval.</p>
+
+<p>That is the real cost of skipping a stationarity check. A model can look just as good, or even better, by its fit statistic, while the interval built around it has quietly become worthless.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>The shortcut: unitroot_kpss() and unitroot_ndiffs()</h2>
+
+<p>Running <code>ur.kpss()</code> and reading its critical-value table by hand works, but the feasts package wraps the same idea into a one-line function, and adds a second one that tells you what to do about a non-stationary series.</p>
+
+<p>First, a quick definition, since the second function's answer is a count of how many times to do this. Differencing means subtracting each value from the one right before it, which removes a trend: a series that keeps climbing by roughly the same amount each step turns, after differencing, into a series of those step sizes instead, which no longer climbs.</p>
+
+<p><code>unitroot_kpss()</code> gives you the same statistic and a p-value in one call.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the KPSS test and count the differences AirPassengers needs, using feasts
+library(feasts)
+
+air |&gt; features(passengers, unitroot_kpss)
+#&gt; # A tibble: 1 × 2
+#&gt;   kpss_stat kpss_pvalue
+#&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1      2.74        0.01
+
+air |&gt; features(passengers, unitroot_ndiffs)
+#&gt; # A tibble: 1 × 1
+#&gt;   ndiffs
+#&gt;    &lt;int&gt;
+#&gt; 1      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>kpss_stat</code> is 2.74, the same number <code>ur.kpss()</code> gave you a couple of steps back, just rounded. <code>kpss_pvalue</code> of 0.01 is feasts' way of saying the statistic fell at or beyond the most extreme value in the KPSS table, the 1 percent row: the same rejection you already read off the table by hand.</p>
+
+<p><code>unitroot_ndiffs</code> answers the practical question that follows a rejection: how many times do you need to difference this series before a model can treat it as stationary? For AirPassengers, the answer is 1. One round of ordinary differencing, each value minus the one before it, is what this series needs before you fit an ARIMA model on it.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: putting the statistic, the table and the count together</h2>
+<section class="exercise" data-exercise-id="Stationarity-and-Unit-Root-Tests-KPSS-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The KPSS statistic (2.74) sits above the 1 percent critical value (0.739), rejecting stationarity, so an ndiffs count of 1 means the series needs one round of ordinary differencing before you fit a model on it.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">ndiffs = 1 is really the test's p-value, so a value this close to zero already tells you the series is stationary.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The dial widget from the last step showed R-squared, the model's fit, collapsing as autocorrelation grew; that is the part that should worry you here.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The statistic beating every critical value rejects stationarity, and the ndiffs count of 1 is the practical next step it hands you: difference once before modeling.</div><div class="lesson-qfb lesson-qfb-no">The ndiffs count of 1 is a count of differences, not a p-value: the KPSS p-value was 0.01, a separate number. And the widget showed coverage collapsing while R-squared held steady or rose, the opposite of what this option claims. The chain that matters: statistic above the 1 percent critical value rejects stationarity, and ndiffs = 1 says to difference once.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: test a slice of the series yourself</h2>
+
+<p><code>air_first_half</code>, the first six years of AirPassengers, is still sitting in your session from a few steps back. Run the same two feasts checks on it: <code>unitroot_kpss</code> to test whether it is stationary, and <code>unitroot_ndiffs</code> to see how many times it needs differencing. Then compare that ndiffs count to the full series' count from two steps ago.</p>
+<section class="exercise" data-exercise-id="Stationarity-and-Unit-Root-Tests-KPSS-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*air_first_half)(?=[\s\S]*unitroot_kpss)(?=[\s\S]*unitroot_ndiffs)(?=[\s\S]*features[(])"><textarea class="lesson-tryit-input" spellcheck="false"># Test air_first_half for stationarity and count how many differences it needs
+</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: air_first_half's KPSS statistic is 1.62, smaller than the full series' 2.74 but still above the 1 percent critical value of 0.739, so it still rejects stationarity. And its ndiffs count is 1, the same count the full series needed: even six years of AirPassengers alone still carries the trend that one round of differencing removes.</span><span class="lesson-tryit-fb lesson-tryit-no">Call features() on air_first_half twice, once testing passengers with unitroot_kpss and once with unitroot_ndiffs: air_first_half |> features(passengers, unitroot_kpss) and air_first_half |> features(passengers, unitroot_ndiffs).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Test air_first_half for stationarity and count how many differences it needs
+air_first_half |&gt; features(passengers, unitroot_kpss)
+#&gt; # A tibble: 1 × 2
+#&gt;   kpss_stat kpss_pvalue
+#&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1      1.62        0.01
+
+air_first_half |&gt; features(passengers, unitroot_ndiffs)
+#&gt; # A tibble: 1 × 1
+#&gt;   ndiffs
+#&gt;    &lt;int&gt;
+#&gt; 1      1</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice (3rd ed.)</a> - Hyndman and Athanasopoulos, the free online textbook. Section 9.1 covers stationarity and differencing, the source for the KPSS and ndiffs workflow taught here.</li>
+
+<li>Kwiatkowski, Phillips, Schmidt and Shin (1992), "Testing the null hypothesis of stationarity against the alternative of a unit root", Journal of Econometrics 54(1-3), 159-178 - the original KPSS paper and the source of the critical value table.</li>
+
+<li><a href="https://pkg.robjhyndman.com/feasts/">feasts package reference</a> - documentation for <code>unitroot_kpss()</code> and <code>unitroot_ndiffs()</code>.</li>
+
+<li><a href="https://cran.r-project.org/package=urca">urca package reference</a> - documentation for <code>ur.kpss()</code>.</li>
+
+<li>R's AirPassengers dataset documentation (datasets package) - originally published in Box and Jenkins, "Time Series Analysis: Forecasting and Control" (1976).</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You now have the whole chain, start to finish. Define stationarity as three properties holding still: mean, variance and autocorrelation structure. See it break on a real series, AirPassengers' climbing mean and widening season. Test it formally with KPSS, reading a statistic against a critical-value table, or the same read in one line with <code>unitroot_kpss()</code>. And count exactly how many times to difference a series before modeling it, with <code>unitroot_ndiffs()</code>.</p>
+
+<p>Differencing itself, subtracting each value from the one right before it, is what actually removes that trend and hands a model a series whose mean, variance and autocorrelation structure hold still enough to work with.</p>
+</section>
+
+{% endraw %}
