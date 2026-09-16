@@ -1,0 +1,311 @@
+---
+title: "Exponential Smoothing ETS Lesson 4: The ETS taxonomy: what the three letters mean"
+catalog_blurb: "See how the three ETS letters set both the model and its forecast uncertainty."
+description: "Learn what the Error, Trend and Season letters in ETS(A,A,M) mean, why fable searches only 18 of 30 combinations, and how they shape forecast intervals."
+keywords: "ETS taxonomy, ETS(A,A,M) meaning, error trend season, exponential smoothing model names, fable ETS(), multiplicative trend forecasting, closed-form prediction interval, simulated forecast interval, AICc model comparison, state space exponential smoothing"
+post_type: "LESSON"
+curriculum_id: "5.50.4"
+webr: true
+mathjax: true
+lesson_access: "pro"
+course_id: "ts-ets"
+course_title: "Exponential Smoothing ETS"
+course_lesson: "4"
+course_total: "6"
+course_landing: "Exponential-Smoothing-ETS-Course.html"
+course_next: "Automatic-ETS-Model-Selection.html"
+course_prev: "Holt-Winters-Seasonal-Methods.html"
+---
+
+=== step === cover
+## The ETS taxonomy: what the three letters mean
+
+Today let's understand the ETS taxonomy: the naming system behind every exponential smoothing model this course has fitted so far.
+
+Every model fit in this course so far already had a three-letter name like ETS(A,A,M), even though nobody spelled it out yet. Each one is a point on the same three-letter scale, and by the end of this lesson you can read that scale directly, for any model in the family.
+
+Here is Western Australia's domestic holiday trips again, the 80 quarters of real tourism numbers every one of those models was fit on.
+
+::widget chart-plotter {"data":[{"x":"1998 Q1","y":772.5},{"x":"1998 Q2","y":719.7},{"x":"1998 Q3","y":754.9},{"x":"1998 Q4","y":813.8},{"x":"1999 Q1","y":943.0},{"x":"1999 Q2","y":845.1},{"x":"1999 Q3","y":823.1},{"x":"1999 Q4","y":697.5},{"x":"2000 Q1","y":905.4},{"x":"2000 Q2","y":904.6},{"x":"2000 Q3","y":671.5},{"x":"2000 Q4","y":716.0},{"x":"2001 Q1","y":709.3},{"x":"2001 Q2","y":738.5},{"x":"2001 Q3","y":761.6},{"x":"2001 Q4","y":812.6},{"x":"2002 Q1","y":871.0},{"x":"2002 Q2","y":772.8},{"x":"2002 Q3","y":788.5},{"x":"2002 Q4","y":643.2},{"x":"2003 Q1","y":846.3},{"x":"2003 Q2","y":714.1},{"x":"2003 Q3","y":722.2},{"x":"2003 Q4","y":765.7},{"x":"2004 Q1","y":941.6},{"x":"2004 Q2","y":685.5},{"x":"2004 Q3","y":772.1},{"x":"2004 Q4","y":726.9},{"x":"2005 Q1","y":817.4},{"x":"2005 Q2","y":645.5},{"x":"2005 Q3","y":649.6},{"x":"2005 Q4","y":624.3},{"x":"2006 Q1","y":863.4},{"x":"2006 Q2","y":761.1},{"x":"2006 Q3","y":679.3},{"x":"2006 Q4","y":799.4},{"x":"2007 Q1","y":851.7},{"x":"2007 Q2","y":786.3},{"x":"2007 Q3","y":702.0},{"x":"2007 Q4","y":762.2},{"x":"2008 Q1","y":899.9},{"x":"2008 Q2","y":653.8},{"x":"2008 Q3","y":736.0},{"x":"2008 Q4","y":655.3},{"x":"2009 Q1","y":747.5},{"x":"2009 Q2","y":642.4},{"x":"2009 Q3","y":570.1},{"x":"2009 Q4","y":583.5},{"x":"2010 Q1","y":636.1},{"x":"2010 Q2","y":627.1},{"x":"2010 Q3","y":602.6},{"x":"2010 Q4","y":567.0},{"x":"2011 Q1","y":732.7},{"x":"2011 Q2","y":647.6},{"x":"2011 Q3","y":612.5},{"x":"2011 Q4","y":666.0},{"x":"2012 Q1","y":778.8},{"x":"2012 Q2","y":679.9},{"x":"2012 Q3","y":628.5},{"x":"2012 Q4","y":691.7},{"x":"2013 Q1","y":917.7},{"x":"2013 Q2","y":745.1},{"x":"2013 Q3","y":679.9},{"x":"2013 Q4","y":690.7},{"x":"2014 Q1","y":1265.7},{"x":"2014 Q2","y":1065.8},{"x":"2014 Q3","y":855.0},{"x":"2014 Q4","y":897.9},{"x":"2015 Q1","y":1167.8},{"x":"2015 Q2","y":990.3},{"x":"2015 Q3","y":928.0},{"x":"2015 Q4","y":960.3},{"x":"2016 Q1","y":1165.7},{"x":"2016 Q2","y":1053.8},{"x":"2016 Q3","y":803.5},{"x":"2016 Q4","y":982.8},{"x":"2017 Q1","y":1134.4},{"x":"2017 Q2","y":997.9},{"x":"2017 Q3","y":880.0},{"x":"2017 Q4","y":1026.3}],"x":"Quarter","y":"Trips (thousands)","geoms":["line"]}
+
+Every rise and fall in that line is the same series each model in this course has tried to explain.
+
+=== step === concept
+## Every model you have fit already has a three-letter name
+
+Fit that same three-part idea properly in fable and it hands the name straight back to you. The formula `error("A") + trend("A") + season("M")` says additive error, additive trend, multiplicative season, in that order. Error always comes first, then trend, then season. That order never changes.
+
+Fit it on the WA series and read the model line `report()` prints.
+
+```r
+# Build the WA holiday trips series and fit ETS(A,A,M) on it
+library(fable)
+library(tsibble)
+
+wa_trips <- c(772.5305, 719.6978, 754.9296, 813.8203, 943.0276, 845.0692,
+823.1308, 697.4556, 905.4482, 904.5783, 671.5013, 715.9972, 709.2501,
+738.4847, 761.6353, 812.5854, 871.0173, 772.7951, 788.5008, 643.1905,
+846.2764, 714.0563, 722.1808, 765.7262, 941.6153, 685.453, 772.0889,
+726.8811, 817.3691, 645.5258, 649.5991, 624.3395, 863.3794, 761.078,
+679.3309, 799.3583, 851.7432, 786.3122, 701.9789, 762.1728, 899.8878,
+653.8436, 735.9842, 655.3446, 747.5275, 642.4111, 570.141, 583.5386,
+636.0903, 627.149, 602.5672, 567.0174, 732.6574, 647.6459, 612.5326,
+665.9596, 778.8399, 679.9151, 628.522, 691.6633, 917.7258, 745.1224,
+679.8861, 690.6982, 1265.7146, 1065.8001, 854.9872, 897.896,
+1167.7514, 990.3225, 928.0221, 960.3365, 1165.718, 1053.7725,
+803.5157, 982.7526, 1134.352, 997.8522, 879.9885, 1026.286)
+
+wa <- tsibble(Quarter = yearquarter(seq(as.Date("1998-01-01"), by = "quarter", length.out = 80)),
+              Trips = wa_trips, index = Quarter)
+
+fit_aam <- wa |> model(ets = ETS(Trips ~ error("A") + trend("A") + season("M")))
+report(fit_aam)
+#> Series: Trips 
+#> Model: ETS(A,A,M) 
+#>   Smoothing parameters:
+#>     alpha = 0.4063169 
+#>     beta  = 0.0001000025 
+#>     gamma = 0.1403905 
+#> 
+#>   Initial states:
+#>      l[0]     b[0]      s[0]     s[-1]     s[-2]    s[-3]
+#>  798.6236 7.225898 0.9595522 0.9689424 0.9623976 1.109108
+#> 
+#>   sigma^2:  7867.922
+#> 
+#>      AIC     AICc      BIC 
+#> 1077.777 1080.349 1099.215 
+```
+
+`report()` printed `Model: ETS(A,A,M)`. That is fable reading back the exact three arguments you gave `error()`, `trend()` and `season()`, and stringing their letters together in that fixed order: error first, then trend, then season. The formula you wrote and the label `report()` printed are the same statement, just written two different ways.
+
+=== step === widget
+## What each letter can be, and why that is thirty models
+
+Now widen the lens from one model to the whole family. Each of the three letters in ETS(Error, Trend, Season) can only take a handful of values, and multiplying those choices together gives you every model this naming system can produce.
+
+Error can be A (additive) or M (multiplicative): 2 choices. Trend has three base shapes, N for none, A for additive, M for multiplicative, and the two non-flat shapes can each also be damped, written Ad and Md, so trend really has 5 labels: N, A, Ad, M, Md. Season follows the same additive-or-multiplicative pattern as error, plus none: N, A or M, 3 choices.
+
+Multiply the three counts together: 2 times 5 times 3 is 30. Every valid ETS label is one of those 30 combinations, no more and no fewer.
+
+Here is the full set of 30, with a column marking which ones the automatic search actually tries.
+
+::widget styled-table {"title":"The 30 ETS labels","note":"18 of the 30 are the ones the automatic search tries by default. The other 12 all have a multiplicative trend, M or Md.","cols":["Error","Trend","Season","ETS label","In the automatic search"],"rows":[["A","N","N","ETS(A,N,N)","Yes"],["A","N","A","ETS(A,N,A)","Yes"],["A","N","M","ETS(A,N,M)","Yes"],["A","A","N","ETS(A,A,N)","Yes"],["A","A","A","ETS(A,A,A)","Yes"],["A","A","M","ETS(A,A,M)","Yes"],["A","Ad","N","ETS(A,Ad,N)","Yes"],["A","Ad","A","ETS(A,Ad,A)","Yes"],["A","Ad","M","ETS(A,Ad,M)","Yes"],["A","M","N","ETS(A,M,N)","No"],["A","M","A","ETS(A,M,A)","No"],["A","M","M","ETS(A,M,M)","No"],["A","Md","N","ETS(A,Md,N)","No"],["A","Md","A","ETS(A,Md,A)","No"],["A","Md","M","ETS(A,Md,M)","No"],["M","N","N","ETS(M,N,N)","Yes"],["M","N","A","ETS(M,N,A)","Yes"],["M","N","M","ETS(M,N,M)","Yes"],["M","A","N","ETS(M,A,N)","Yes"],["M","A","A","ETS(M,A,A)","Yes"],["M","A","M","ETS(M,A,M)","Yes"],["M","Ad","N","ETS(M,Ad,N)","Yes"],["M","Ad","A","ETS(M,Ad,A)","Yes"],["M","Ad","M","ETS(M,Ad,M)","Yes"],["M","M","N","ETS(M,M,N)","No"],["M","M","A","ETS(M,M,A)","No"],["M","M","M","ETS(M,M,M)","No"],["M","Md","N","ETS(M,Md,N)","No"],["M","Md","A","ETS(M,Md,A)","No"],["M","Md","M","ETS(M,Md,M)","No"]]}
+
+Eighteen of the thirty carry a Yes. The other twelve, all of them trend M or trend Md, carry a No.
+
+=== step === quiz
+## Quick check: reading a label and counting the family
+
+Try reading one label the same way, letter by letter: ETS(M,Ad,N).
+
+::quiz {"correct": 1, "gate": true, "difficulty": "beginner"}
+- Multiplicative error, a damped additive trend, and no seasonal component: one of 30 possible ETS labels. ::ok Right. M is the error letter, Ad is the damped additive trend, and N means no season. Multiply 2 times 5 times 3 and this label is one of exactly 30.
+- Additive error, a damped multiplicative trend, and no seasonal component: one of 30 possible labels. ::no Re-read the letters in order. The first letter, M, is the error term, not the trend, and Ad is a damped additive trend, not a damped multiplicative one.
+- Multiplicative error, a damped additive trend, and no seasonal component: one of 18 labels the default search actually tries. ::no The letters are read correctly here, but the count is wrong. 18 is how many of the 30 labels the automatic search tries. The full family, which is what this label is one member of, has 30.
+- Multiplicative error, no trend, and a damped additive season: one of 30 possible labels. ::no The middle letter, Ad, names the trend, not the season. Season only ever takes N, A or M, never a damped form.
+
+=== step === concept
+## Why a multiplicative trend gets left out of the search
+
+You just saw that trend has 5 possible labels, but two of them, M and Md, never show up in that Yes column. Here is why.
+
+An additive trend adds a fixed amount to the level every period. A multiplicative trend instead multiplies the level by a fixed rate every period. Add a fixed amount and a series climbs in a straight line. Multiply by a fixed rate instead and the series compounds: each period's gain is a percentage of an already bigger number, so the climb accelerates.
+
+Here is that difference on plain numbers, starting both paths at the same value of 1,000.
+
+```r
+# Compare a fixed additive step with a fixed compounding rate over many quarters
+level0 <- 1000
+h <- c(4, 20, 40, 80)
+additive <- level0 + 20 * h
+multiplicative <- level0 * 1.02 ^ h
+data.frame(quarters_ahead = h, years = h / 4,
+           additive_plus20_per_q = round(additive, 1),
+           multiplicative_2pct_per_q = round(multiplicative, 1))
+#>   quarters_ahead years additive_plus20_per_q multiplicative_2pct_per_q
+#> 1              4     1                  1080                    1082.4
+#> 2             20     5                  1400                    1485.9
+#> 3             40    10                  1800                    2208.0
+#> 4             80    20                  2600                    4875.4
+```
+
+Four quarters in, the two paths are almost identical, 1,080 against 1,082.4. But by 20 years out, the additive path has only reached 2,600 while the compounding path is above 4,875, nearly double. A trend that compounds for long enough can run away from anything the additive version predicts, and the forecasting literature documents real series where that runaway shows up as a poor, unstable forecast.
+
+That risk is exactly why the automatic search skips trend M and Md by default: not because a multiplicative trend always fails, but because it can, and the automatic search has no way to know in advance which series will be the ones where it does.
+
+fable's `trend()` special still accepts M if you name it directly, so nothing stops you from forcing it. Fit that forced version on the WA series and compare its AICc with the ETS(A,A,M) model from earlier.
+
+```r
+# Force a multiplicative trend and compare its AICc with the additive-trend fit
+library(dplyr)
+fit_trend_m <- wa |> model(ets = ETS(Trips ~ error("A") + trend("M") + season("M")))
+
+tibble::tibble(
+  model = c("ETS(A,A,M)", "ETS(A,M,M)"),
+  AICc  = c(glance(fit_aam)$AICc, glance(fit_trend_m)$AICc)
+)
+#> # A tibble: 2 × 2
+#>   model       AICc
+#>   <chr>      <dbl>
+#> 1 ETS(A,A,M) 1080.
+#> 2 ETS(A,M,M) 1079.
+```
+
+On this particular series, forcing a multiplicative trend does not obviously go wrong. Its AICc, 1079.2, sits close to ETS(A,A,M)'s 1080.3, even slightly better. That is the point: the WA series happens not to be one of the series where a multiplicative trend runs away, so nothing here warns you. The exclusion is a blanket rule precisely because you cannot always tell in advance which series will misbehave.
+
+=== step === concept
+## Error is a letter too: additive noise vs multiplicative noise
+
+Trend and season describe the shape fable expects to see. Error describes something different: how the random part, the part no shape can predict, gets added onto that shape.
+
+Write \\(\\text{signal}_t\\) for whatever the trend and season shapes predict for period t, before any noise. An additive error adds a fixed-size shock to that signal:
+
+\\[ y_t = \\text{signal}_t + \\varepsilon_t \\]
+
+A multiplicative error instead scales the shock by the signal itself:
+
+\\[ y_t = \\text{signal}_t \\times (1 + \\varepsilon_t) \\]
+
+So the same-sized shock is a bigger absolute move when the signal is high, and a smaller one when the signal is low.
+
+Read the actual numbers behind the last quarter ETS(A,A,M) fit, 2017 Q4, and check both formulas against it.
+
+```r
+# Read the level, slope, season and residual around the last fitted quarter
+comp <- components(fit_aam) |> as_tibble() |> select(Quarter, level, slope, season)
+res  <- residuals(fit_aam) |> as_tibble() |> select(Quarter, .resid)
+
+states <- comp |>
+  left_join(res, by = "Quarter") |>
+  mutate(level_prev = lag(level), slope_prev = lag(slope), season_lag = lag(season, 4)) |>
+  tail(1)
+states
+#> # A tibble: 1 × 8
+#>   Quarter level slope season .resid level_prev slope_prev season_lag
+#>     <qtr> <dbl> <dbl>  <dbl>  <dbl>      <dbl>      <dbl>      <dbl>
+#> 1 2017 Q4 1074.  7.15  0.924   75.5      1033.       7.14      0.914
+```
+
+`level_prev` and `slope_prev` are the level and slope carried over from 2017 Q3, and `season_lag` is the seasonal index from the same quarter one year back, 2016 Q4. Multiply them and add the residual to check the additive form, then write that same residual as a fraction of the signal to check the multiplicative form.
+
+```r
+# Additive-error and multiplicative-error updates from the same numbers
+signal <- (states$level_prev + states$slope_prev) * states$season_lag
+additive_y <- signal + states$.resid
+frac <- states$.resid / signal
+multiplicative_y <- signal * (1 + frac)
+round(c(signal = signal, additive_y = additive_y, fraction = frac, multiplicative_y = multiplicative_y), 4)
+#>           signal       additive_y         fraction multiplicative_y 
+#>         950.7830        1026.2860           0.0794        1026.2860 
+```
+
+`signal` comes out to 950.8 thousand trips. Add the real residual, 75.5, and you land on 1,026.3, the actual value fable fit for 2017 Q4. Now write that same 75.5 as a fraction of the signal instead: 75.5 divided by 950.8 is about 0.079, a shock of just under 8%. Multiply the signal by 1 plus that fraction and you land on exactly the same 1,026.3. Additive and multiplicative error are two different ways of writing the identical shock, one in trips, one as a percentage of the signal.
+
+=== step === concept
+## Inside fable: when the interval has a formula, and when not
+
+The letters do more than name a model. They also decide how fable computes the shaded range around a forecast.
+
+fable's `forecast.ETS()` checks the three letters against three specific patterns. Additive error with a trend of N or A and a season of N or A gets a closed-form bell-curve interval. Multiplicative error with that same trend-and-season restriction gets one too. And multiplicative error with any trend except M, paired with a multiplicative season, also gets one. Every other combination, including additive error paired with a multiplicative season, falls back to simulating 5,000 future paths and reading the spread of those paths as the interval.
+
+Fit ETS(A,A,M) and ETS(M,A,M), same trend and season, only the error letter different, and print what `forecast()` actually returns. fable's own default asks for 5,000 simulated paths whenever it has to simulate; ask for 200 here instead, just to keep this particular run quick. The pattern you are checking, formula versus simulation, comes out identical either way.
+
+```r
+# Fit both models and see which prediction-interval method each one used
+fit_cmp <- wa |> model(aam = ETS(Trips ~ error("A") + trend("A") + season("M")),
+                        mam = ETS(Trips ~ error("M") + trend("A") + season("M")))
+set.seed(2024)
+fc_cmp <- forecast(fit_cmp, h = 4, times = 200)
+fc_cmp
+#> # A fable: 8 x 4 [1Q]
+#> # Key:     .model [2]
+#>   .model Quarter          Trips .mean
+#>   <chr>    <qtr>         <dist> <dbl>
+#> 1 aam    2018 Q1    sample[200] 1235.
+#> 2 aam    2018 Q2    sample[200] 1057.
+#> 3 aam    2018 Q3    sample[200]  939.
+#> 4 aam    2018 Q4    sample[200] 1020.
+#> 5 mam    2018 Q1 N(1211, 16927) 1211.
+#> 6 mam    2018 Q2 N(1047, 15840) 1047.
+#> 7 mam    2018 Q3  N(986, 17129)  986.
+#> 8 mam    2018 Q4 N(1013, 21632) 1013.
+```
+
+Look at the Trips column. Every row for aam prints `sample[200]`: additive error with a multiplicative season is not one of the three closed-form patterns, so fable fell back to simulation, 200 paths of it here. Every row for mam instead prints something like `N(1211, 16927)`, a mean and a variance, the closed-form bell curve. Same trend, same season, only the error letter changed, and that alone flipped which method fable used.
+
+=== step === widget
+## Two models, two kinds of interval
+
+Turn that same pair of models into an 8-quarter-ahead forecast table and the difference in method becomes a difference you can see. Here are both models' point forecasts and 95% intervals for the next 8 quarters, 2018 Q1 through 2019 Q4.
+
+::widget styled-table {"title":"Two models, eight quarters ahead","note":"A,A,M has an additive error term. M,A,M has a multiplicative one. Trend and season are identical in both.","cols":["Quarter","A,A,M mean","A,A,M lower","A,A,M upper","A,A,M width","M,A,M mean","M,A,M lower","M,A,M upper","M,A,M width"],"rows":[["2018 Q1",1233.4,1060.9,1409.4,348.6,1210.6,955.6,1465.6,510.0],["2018 Q2",1049.0,860.6,1229.5,368.9,1046.8,800.2,1293.5,493.4],["2018 Q3",939.4,740.5,1134.7,394.2,985.9,729.4,1242.4,513.0],["2018 Q4",1017.9,804.5,1227.4,422.9,1013.4,725.1,1301.6,576.5],["2019 Q1",1264.8,1022.9,1512.6,489.7,1253.2,866.5,1640.0,773.5],["2019 Q2",1078.6,836.5,1319.3,482.7,1083.4,723.0,1443.7,720.7],["2019 Q3",966.0,726.5,1204.3,477.8,1020.0,656.3,1383.7,727.5],["2019 Q4",1045.9,791.2,1306.9,515.7,1048.1,649.2,1447.0,797.9]]}
+
+A,A,M and M,A,M sit close together in the mean columns. It is the lower, upper and width columns that pull apart.
+
+=== step === concept
+## Reading the comparison: close forecasts, different uncertainty
+
+Look at the mean columns first. Quarter by quarter, A,A,M and M,A,M land within about 2% of each other: as close as 0.2% apart in 2018 Q2, no more than about 5.6% apart even at the widest gap, 2019 Q3. Changing only the error letter barely moved the point forecast.
+
+Now look at the width column. M,A,M's interval runs 30% to 58% wider than A,A,M's at every single quarter, about 45% wider on average. Same trend, same season, and a point forecast that agrees to within a couple of percent, yet one model's honest range is nearly half again as wide as the other's.
+
+That is the error letter's real job. It does not change what fable expects to happen. It changes how sure fable is willing to say it is, and by how much that sureness can be trusted.
+
+=== step === quiz
+## Quick check: which 18, and why
+
+Would the automatic ETS() search ever propose ETS(A,Md,A) on its own?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- Yes, the automatic search tries all 30 labels, this one included. ::no The automatic search only tries 18 of the 30. This label carries trend Md, one of the two trend letters the search always skips.
+- No. Trend Md is one of the 12 combinations the automatic search always skips, no matter what the error or season letters are. ::ok Exactly. The search excludes trend M and Md outright. The error letter (A here) and the season letter (A here) never come into that decision at all.
+- No, because season A never appears in the automatic search. ::no Season A is not the problem. Plenty of models the automatic search does try, like ETS(A,A,A), carry season A. Look again at which letter this label shares with the 12 excluded ones.
+- No, because error A cannot be paired with a damped trend. ::no Error is not the reason either. ETS(A,Ad,A), with the same error letter and an undamped-to-damped additive trend, is one of the 18 the automatic search does try. It is trend Md specifically that is excluded.
+
+=== step === tryit
+## Your turn: predict the interval, then check it
+
+A few steps back you fit ETS(A,A,M) and ETS(M,A,M) and watched one print a simulated interval while the other printed a formula. Use that same three-case rule on a label you have not tried yet: ETS(M,N,A), multiplicative error, no trend, additive season. Decide first: closed-form or simulated? Then fit it on `wa` and read `forecast()`'s printed distribution column to check yourself.
+
+```r
+# Fit ETS(M,N,A) on wa, forecast 4 quarters ahead, and read the printed
+# Trips column: does it show N(mean, variance) or sample[5000]?
+# Two lines. Press Check when you have them.
+```
+::check {"regex": "error[(]\"M\"[)][\\s\\S]*trend[(]\"N\"[)][\\s\\S]*season[(]\"A\"[)]", "gate": true, "difficulty": "intermediate", "ok": "Right: multiplicative error with trend N and season A matches the second closed-form case, so forecast() reports N(mean, variance), not a simulation.", "no": "Name all three specials in order inside ETS(): error with M, trend with N, season with A, then call forecast() on the fitted model."}
+::solution
+```r
+# Fit ETS(M,N,A) and read whether the interval is a formula or a simulation
+fit_mna <- wa |> model(mna = ETS(Trips ~ error("M") + trend("N") + season("A")))
+forecast(fit_mna, h = 4)
+#> # A fable: 4 x 4 [1Q]
+#> # Key:     .model [1]
+#>   .model Quarter          Trips .mean
+#>   <chr>    <qtr>         <dist> <dbl>
+#> 1 mna    2018 Q1 N(1131, 14541) 1131.
+#> 2 mna    2018 Q2 N(1007, 14248) 1007.
+#> 3 mna    2018 Q3  N(963, 15427)  963.
+#> 4 mna    2018 Q4  N(970, 17563)  970.
+```
+
+Multiplicative error with trend N and season A matches the second case exactly, error M with trend in N or A and season in N or A, so every row above prints `N(mean, variance)`. No simulation needed here.
+
+=== step === concept
+## References
+
+- [Forecasting: Principles and Practice, chapter 8, "A taxonomy of exponential smoothing methods"](https://otexts.com/fpp3/) - Hyndman and Athanasopoulos (3rd ed.).
+- [A state space framework for automatic forecasting using exponential smoothing methods](https://doi.org/10.1016/S0169-2070(01)00110-8) - Hyndman, R.J., Koehler, A.B., Snyder, R.D. and Grose, S. (2002), International Journal of Forecasting, 18(3), 439-454. The paper that introduced the automatic ETS search this lesson explains.
+- [Forecasting with Exponential Smoothing: The State Space Approach](https://doi.org/10.1007/978-3-540-71918-2) - Hyndman, R.J., Koehler, A.B., Ord, J.K. and Snyder, R.D. (2008), Springer.
+- [Exponential smoothing: the state of the art, Part II](https://doi.org/10.1016/j.ijforecast.2006.03.005) - Gardner, E.S. (2006), International Journal of Forecasting, 22(4), 637-666.
+- [fable package reference documentation for ETS()](https://fable.tidyverts.org/reference/ETS.html)
+
+=== step === complete
+## Quick recap
+
+- ETS(Error, Trend, Season): Error is A or M, Trend is N, A, Ad, M or Md, Season is N, A or M. Multiply 2 by 5 by 3 and the family has 30 members.
+- The automatic ETS() search tries only 18 of them. The other 12 all share one thing: a multiplicative trend, M or Md, which can compound without bound on some series.
+- The error letter decides how fable computes a forecast's uncertainty. Some letter combinations get a closed-form bell-curve interval; the rest get 5,000 simulated future paths instead.
+- Two models can agree almost exactly on the point forecast and still disagree sharply on how wide the honest range around it should be. ETS(A,A,M) and ETS(M,A,M) did exactly that on the WA series: forecasts within about 2% of each other, intervals up to 58% wider for one than the other.
+
+You can now look at any ETS label, ETS(M,Ad,N), ETS(A,N,A), any of the thirty, and know exactly what each letter is doing and what kind of interval it will hand you.
