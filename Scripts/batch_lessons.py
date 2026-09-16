@@ -173,6 +173,61 @@ def sync():
     subprocess.run([sys.executable, os.path.join('_build', 'build_exercise_manifest.py')], cwd=ROOT)
 
 
+# ---- Remediation: catch, fix, re-check, then advance ----
+#
+# A stage that fails is not the end of the lesson. The runner applies the
+# deterministic fixers in Scripts/lesson_autofix.py, re-runs the hard gate,
+# and retries the failed stage ONCE. A stage that timed out is retried once
+# with double the budget. Only after that does the lesson get a failed status
+# (owner rule 2026-09-16: catch, fix, then advance; never skip past a fixable
+# fault). Everything here is mechanical; judgment fixes stay with the skills.
+
+def autofix(slug):
+    """Run the fixers; return the list of applied fixes (empty = nothing to fix)."""
+    r = subprocess.run([sys.executable, os.path.join('Scripts', 'lesson_autofix.py'), slug],
+                       cwd=ROOT, capture_output=True, text=True)
+    fixes = [l[len('fixed: '):] for l in (r.stdout or '').splitlines() if l.startswith('fixed: ')]
+    for f in fixes:
+        print('  autofix: ' + f, flush=True)
+    return fixes
+
+
+def gate_ok(slug):
+    """Re-run the deterministic lesson gate; True when it passes."""
+    path = os.path.join(ROOT, 'lessons', slug + '.md')
+    r = subprocess.run([sys.executable, os.path.join('Scripts', 'lesson_quality_check.py'), path],
+                       cwd=ROOT, capture_output=True, text=True)
+    ok = r.returncode == 0
+    print('  gate after remediation: %s' % ('PASS' if ok else 'FAIL'), flush=True)
+    if not ok:
+        for l in (r.stdout or '').splitlines()[-6:]:
+            print('    ' + l)
+    return ok
+
+
+def run_stage(cli, slug, name, prompt, timeout, verify):
+    """Run one stage with remediation.
+
+    verify() -> (ok, why). Sequence: run -> verify; on failure: autofix + gate,
+    and retry once (with 2x budget if the first attempt timed out). Returns
+    (ok, why). The caller decides the status label."""
+    rc = run_claude(cli, prompt, timeout)
+    ok, why = verify() if rc == 0 else (False, '%s exited %d' % (name, rc))
+    if ok:
+        return True, ''
+    print('  %s failed (%s); remediating' % (name, why), flush=True)
+    fixes = autofix(slug) if os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')) else []
+    gate = gate_ok(slug) if fixes else None
+    if rc == 124 or fixes:
+        retry_timeout = (timeout * 2) if (rc == 124 and timeout) else timeout
+        print('  retrying %s once (%s)' % (name, 'after fixes' if fixes else 'longer budget'), flush=True)
+        rc = run_claude(cli, prompt, retry_timeout)
+        ok, why = verify() if rc == 0 else (False, '%s exited %d on retry' % (name, rc))
+        if ok:
+            return True, ''
+    return False, why
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--slug', action='append', help='lesson slug; repeatable to build several in ONE run (no chaining)')
@@ -246,8 +301,12 @@ def main():
                 save_status(st)
                 print('  plan approved (plan-only): %s' % slug)
                 continue
-            if run_claude(args.claude, build_prompt(slug), args.timeout or None) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
+            _md = os.path.join(ROOT, 'lessons', slug + '.md')
+            ok, why = run_stage(args.claude, slug, 'build', build_prompt(slug), args.timeout or None,
+                                lambda: (os.path.exists(_md), 'no lesson markdown written'))
+            if not ok:
                 st[slug]['status'] = 'failed'
+                st[slug]['last_error'] = why
                 save_status(st)
                 print('  write failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
                 continue
@@ -262,16 +321,11 @@ def main():
 
             st[slug]['status'] = 'publishing'
             save_status(st)
-            if run_claude(args.claude, publish_prompt(slug), args.timeout or None) != 0:
-                st[slug]['status'] = 'publish_failed'
-                save_status(st)
-                print('  publish failed: %s' % slug)
-                continue
-
-            # The exit code above proves nothing: `claude -p` exits 0 whether or
-            # not the publisher finished. Check the artifacts before recording
-            # done, or the tracker ends up claiming lessons the site never got.
-            ok, why = verify_published(slug, fragment_dirs=('_lessons', '_posts'))
+            # The exit code proves nothing: `claude -p` exits 0 whether or not the
+            # publisher finished. run_stage verifies the artifacts, and on a miss
+            # applies the fixers, re-gates and retries the publish once.
+            ok, why = run_stage(args.claude, slug, 'publish', publish_prompt(slug), args.timeout or None,
+                                lambda: verify_published(slug, fragment_dirs=('_lessons', '_posts')))
             if not ok:
                 st[slug]['status'] = 'publish_failed'
                 st[slug]['last_error'] = 'publish exited 0 but ' + why

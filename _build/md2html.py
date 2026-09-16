@@ -316,6 +316,23 @@ def convert(md_text, slug='post'):
         i += 1
     lines = fixed_lines
 
+    # Safety pre-pass: `#>` output lines left just AFTER a closing ``` fence are
+    # neither headings nor prose. Fold them back into the fence (the same fix
+    # Scripts/lesson_autofix.py applies) so the dispatcher below always has a
+    # rule for them. Before 2026-09-16 such a line hung convert() forever.
+    _folded, _k = [], 0
+    while _k < len(lines):
+        if (lines[_k].strip() == '```' and _k + 1 < len(lines) and lines[_k + 1].startswith('#>')
+                and sum(1 for _l in _folded if _l.startswith('```')) % 2 == 1):
+            _j = _k + 1
+            while _j < len(lines) and lines[_j].startswith('#>'):
+                _folded.append(lines[_j]); _j += 1
+            print(f"  WARN: folded {_j - _k - 1} stray #> output line(s) into the fence ending at line {_k+1}")
+            _folded.append(lines[_k]); _k = _j
+            continue
+        _folded.append(lines[_k]); _k += 1
+    lines = _folded
+
     out = []
     i = 0
     _pending_engagement = None  # deferred until after <p class="lead">
@@ -774,6 +791,13 @@ def convert(md_text, slug='post'):
         if para_lines:
             text = md_inline(' '.join(l.strip() for l in para_lines))
             out.append(f'<p>{text}</p>')
+        else:
+            # Progress guard: no rule consumed this line (e.g. a bare '#' line that
+            # is not a heading). Render it as text and move on; the loop must
+            # never spin on one line, or every build hangs.
+            print(f"  WARN: unparsed line {i+1} rendered as text: {lines[i].strip()[:60]!r}")
+            out.append(f'<p>{md_inline(lines[i].strip())}</p>')
+            i += 1
 
     # Wrap exercises in <section class="exercise"> for the engagement layer.
     # EX hubs only — see _build/exercise-hub-contract.md.
