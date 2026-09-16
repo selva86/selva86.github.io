@@ -1,0 +1,355 @@
+---
+title: "Dynamic Regression and Complex Seasonality Lesson 5: How Prophet fits trend, seasonality and holidays"
+description: "Fit Prophet's trend, weekly pattern and holiday effects on real electricity demand, then compare its accuracy against a fable model on a 14-day holdout."
+keywords: "Prophet forecasting, changepoint_prior_scale, Prophet R package, additive model, Laplace prior, weekly seasonality Fourier terms, holiday effects, prophet_plot_components, TSLM piecewise trend, fable vs Prophet, time series forecasting in R"
+mathjax: true
+webr: true
+curriculum_id: "5.70.5"
+post_type: "LESSON"
+course_id: "ts-dynamic"
+course_title: "Dynamic Regression and Complex Seasonality"
+course_lesson: "5"
+course_total: "6"
+course_landing: "Dynamic-Regression-and-Complex-Seasonality-Course.html"
+course_next: "Lagged-Predictors-and-Transfer-Functions.html"
+course_prev: "TBATS-for-Complex-Seasonality.html"
+lesson_access: "pro"
+catalog_blurb: "How Prophet splits demand into trend, season and holiday effects, and where it loses."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>How Prophet fits trend, seasonality and holidays</h2>
+
+<p>Today let's understand Prophet, a forecasting model that splits a series into a trend, a repeating season and a set of holiday effects, fits each one separately, and adds them back together.</p>
+
+<p>Here is the running example. Victoria, the Australian state, records its electricity grid demand every half hour. Add those readings up into a daily total and take 120 consecutive days, November 1, 2012 through February 28, 2013, real numbers from the tsibbledata package. Over those 120 days demand averaged 220.0 GWh a day, as low as 161.1 GWh on its quietest day and as high as 294.5 GWh on its busiest.</p>
+
+<p>Here is the whole series, one point for each day.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":221.2},{"x":2,"y":218.4},{"x":3,"y":187.4},{"x":4,"y":183.4},{"x":5,"y":210.7},{"x":6,"y":190.5},{"x":7,"y":216.7},{"x":8,"y":217.3},{"x":9,"y":210.9},{"x":10,"y":184.7},{"x":11,"y":178.6},{"x":12,"y":214.9},{"x":13,"y":215},{"x":14,"y":216.1},{"x":15,"y":220},{"x":16,"y":215.9},{"x":17,"y":190.5},{"x":18,"y":181.2},{"x":19,"y":215.7},{"x":20,"y":224.6},{"x":21,"y":219.7},{"x":22,"y":219.3},{"x":23,"y":221.3},{"x":24,"y":206.5},{"x":25,"y":187.8},{"x":26,"y":220.9},{"x":27,"y":228.3},{"x":28,"y":243.6},{"x":29,"y":294.5},{"x":30,"y":265},{"x":31,"y":199.5},{"x":32,"y":181.2},{"x":33,"y":212.4},{"x":34,"y":212.5},{"x":35,"y":216.7},{"x":36,"y":221},{"x":37,"y":231.2},{"x":38,"y":222},{"x":39,"y":180.8},{"x":40,"y":215.8},{"x":41,"y":230.8},{"x":42,"y":260.3},{"x":43,"y":271.2},{"x":44,"y":236.2},{"x":45,"y":200.8},{"x":46,"y":182.6},{"x":47,"y":215},{"x":48,"y":228.5},{"x":49,"y":236.3},{"x":50,"y":216.4},{"x":51,"y":205.4},{"x":52,"y":195.6},{"x":53,"y":227.8},{"x":54,"y":212},{"x":55,"y":161.1},{"x":56,"y":169.5},{"x":57,"y":194.3},{"x":58,"y":185.5},{"x":59,"y":174.6},{"x":60,"y":169.9},{"x":61,"y":183.7},{"x":62,"y":175.9},{"x":63,"y":195.7},{"x":64,"y":242.9},{"x":65,"y":294.4},{"x":66,"y":220.5},{"x":67,"y":196.4},{"x":68,"y":252.6},{"x":69,"y":233.4},{"x":70,"y":206},{"x":71,"y":218.2},{"x":72,"y":247.9},{"x":73,"y":190},{"x":74,"y":178.1},{"x":75,"y":208.2},{"x":76,"y":224.6},{"x":77,"y":234.1},{"x":78,"y":281.6},{"x":79,"y":251.4},{"x":80,"y":192.6},{"x":81,"y":191.7},{"x":82,"y":240.2},{"x":83,"y":232.3},{"x":84,"y":227.3},{"x":85,"y":264.6},{"x":86,"y":241.9},{"x":87,"y":191},{"x":88,"y":185.2},{"x":89,"y":191.2},{"x":90,"y":216},{"x":91,"y":225.5},{"x":92,"y":229.9},{"x":93,"y":213.9},{"x":94,"y":188.3},{"x":95,"y":186.7},{"x":96,"y":221.8},{"x":97,"y":237.2},{"x":98,"y":270.5},{"x":99,"y":266.9},{"x":100,"y":249.7},{"x":101,"y":209},{"x":102,"y":186.6},{"x":103,"y":223.9},{"x":104,"y":234.6},{"x":105,"y":252.1},{"x":106,"y":261.2},{"x":107,"y":258.8},{"x":108,"y":237.3},{"x":109,"y":236.9},{"x":110,"y":292.9},{"x":111,"y":246.1},{"x":112,"y":233.4},{"x":113,"y":248.5},{"x":114,"y":254.9},{"x":115,"y":228.4},{"x":116,"y":231.2},{"x":117,"y":274},{"x":118,"y":250},{"x":119,"y":243.2},{"x":120,"y":213.8}],"geoms":["point","line"],"x":"Day","y":"Demand (GWh)"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Notice three things in that line. It drifts a little higher through the back half of the window than the front. It rises and falls on a roughly weekly rhythm. And a handful of days drop sharply below their neighbours, for no reason a calendar-free eye could name.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The three components Prophet adds together</h2>
+
+<p>Prophet writes demand on day \(t\) as one sum of three parts plus whatever is left over:</p>
+
+<p>\[ y(t) = \text{trend}(t) + \text{seasonality}(t) + \text{holidays}(t) + \varepsilon(t) \]</p>
+
+<p>trend(t) is the slow drift: whether demand is generally climbing or falling as the months pass. seasonality(t) is what an ordinary week looks like, the repeating rise and fall from Monday through Sunday. holidays(t) is which specific calendar dates break that ordinary pattern, a public holiday for instance. \(\varepsilon(t)\) is the error, everything on that day the other three do not explain.</p>
+
+<p>These four pieces add together, they never multiply. So a big holiday effect on a low-trend day still just subtracts from whatever trend and season already put there, it does not scale them up or down.</p>
+
+<p>Before fitting anything, ground trend and swing in the series' own numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the running example: 120 days of real Victorian electricity demand
+library(tsibble)
+library(tsibbledata)
+library(dplyr)
+library(lubridate)
+
+daily &lt;- tsibbledata::vic_elec |&gt;
+  index_by(Date = as_date(Time)) |&gt;
+  summarise(Demand = sum(Demand) / 1000, Holiday = any(Holiday), .groups = &quot;drop&quot;) |&gt;
+  mutate(Demand = round(Demand, 1))
+
+d &lt;- daily |&gt;
+  filter(Date &gt;= as_date(&quot;2012-11-01&quot;), Date &lt;= as_date(&quot;2013-02-28&quot;))
+
+# See the series' own average level and how far it typically swings
+round(mean(d$Demand), 1)
+round(sd(d$Demand), 1)
+#&gt; [1] 220
+#&gt; [1] 28.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>220 GWh a day is the level trend(t) drifts around. 28.6 GWh is roughly how far a typical day sits from that level, once you mix in every week's rise and fall together with every holiday's drop. trend(t), seasonality(t) and holidays(t) each pull one piece of that 28.6 GWh swing away from the rest, starting with trend(t).</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The piecewise-linear trend and what a changepoint is</h2>
+
+<p>trend(t) is not one straight line for the whole 120 days. Prophet builds it out of straight segments joined end to end, and each joint is called a changepoint: a point where the slope is allowed, not required, to change.</p>
+
+<p>By default Prophet places up to 25 candidate changepoints spread across the first 80% of the history it is given, day 1 through day 96 here. Most of them end up doing nothing at all, their slope change comes out at zero, and the trend only actually bends at the few that do.</p>
+
+<p>A Prophet fit on these 120 days shows exactly that. Here is its trend column, plotted day by day.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":209},{"x":2,"y":209.2},{"x":3,"y":209.3},{"x":4,"y":209.5},{"x":5,"y":209.7},{"x":6,"y":209.9},{"x":7,"y":210.1},{"x":8,"y":210.2},{"x":9,"y":210.4},{"x":10,"y":210.6},{"x":11,"y":210.8},{"x":12,"y":211},{"x":13,"y":211.1},{"x":14,"y":211.3},{"x":15,"y":211.5},{"x":16,"y":211.7},{"x":17,"y":211.9},{"x":18,"y":212},{"x":19,"y":212.2},{"x":20,"y":212.4},{"x":21,"y":212.6},{"x":22,"y":212.8},{"x":23,"y":212.9},{"x":24,"y":213.1},{"x":25,"y":213.3},{"x":26,"y":213.5},{"x":27,"y":213.7},{"x":28,"y":213.8},{"x":29,"y":214},{"x":30,"y":214.2},{"x":31,"y":214.4},{"x":32,"y":214.6},{"x":33,"y":214.7},{"x":34,"y":214.9},{"x":35,"y":215.1},{"x":36,"y":215.3},{"x":37,"y":215.5},{"x":38,"y":215.6},{"x":39,"y":215.8},{"x":40,"y":216},{"x":41,"y":216.2},{"x":42,"y":216.4},{"x":43,"y":216.5},{"x":44,"y":216.7},{"x":45,"y":216.9},{"x":46,"y":217.1},{"x":47,"y":217.3},{"x":48,"y":217.4},{"x":49,"y":217.6},{"x":50,"y":217.8},{"x":51,"y":218},{"x":52,"y":218.2},{"x":53,"y":218.3},{"x":54,"y":218.5},{"x":55,"y":218.7},{"x":56,"y":218.9},{"x":57,"y":219.1},{"x":58,"y":219.3},{"x":59,"y":219.6},{"x":60,"y":219.8},{"x":61,"y":220.1},{"x":62,"y":220.3},{"x":63,"y":220.6},{"x":64,"y":220.9},{"x":65,"y":221.2},{"x":66,"y":221.5},{"x":67,"y":221.9},{"x":68,"y":222.2},{"x":69,"y":222.5},{"x":70,"y":222.8},{"x":71,"y":223.1},{"x":72,"y":223.5},{"x":73,"y":223.8},{"x":74,"y":224.1},{"x":75,"y":224.4},{"x":76,"y":224.7},{"x":77,"y":225.1},{"x":78,"y":225.4},{"x":79,"y":225.7},{"x":80,"y":226},{"x":81,"y":226.3},{"x":82,"y":226.7},{"x":83,"y":227},{"x":84,"y":227.3},{"x":85,"y":227.6},{"x":86,"y":227.9},{"x":87,"y":228.3},{"x":88,"y":228.6},{"x":89,"y":228.9},{"x":90,"y":229.2},{"x":91,"y":229.6},{"x":92,"y":229.9},{"x":93,"y":230.2},{"x":94,"y":230.5},{"x":95,"y":230.8},{"x":96,"y":231.2},{"x":97,"y":231.5},{"x":98,"y":231.8},{"x":99,"y":232.1},{"x":100,"y":232.5},{"x":101,"y":232.8},{"x":102,"y":233.1},{"x":103,"y":233.4},{"x":104,"y":233.7},{"x":105,"y":234.1},{"x":106,"y":234.4},{"x":107,"y":234.7},{"x":108,"y":235},{"x":109,"y":235.3},{"x":110,"y":235.7},{"x":111,"y":236},{"x":112,"y":236.3},{"x":113,"y":236.6},{"x":114,"y":237},{"x":115,"y":237.3},{"x":116,"y":237.6},{"x":117,"y":237.9},{"x":118,"y":238.2},{"x":119,"y":238.6},{"x":120,"y":238.9}],"geoms":["line","point"],"x":"Day","y":"Trend (GWh)"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Framed as the trend a local Prophet fit produced, since Prophet does not run on this page: this trend climbs from 209.0 GWh on day 1 to 214.4 on day 31 (December 1) to 218.5 on day 54 (December 24), a gentle rise of about 0.18 GWh a day. Past day 54 it climbs faster, 222.5 by day 69 (January 8), 224.7 by day 76 (January 15), and 238.9 by day 120 (February 28), roughly 0.31 GWh a day from there on, nearly double the earlier slope. That change in steepness around Christmas is a changepoint doing real work.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>changepoint_prior_scale: how much bend the trend is allowed</h2>
+
+<p>Every one of the 25 candidate changepoints gets its own slope-change number, called delta. Prophet does not estimate these deltas freely. It puts a prior on them, a Laplace distribution centred at zero:</p>
+
+<p>\[ \delta_j \sim \text{Laplace}(0, \tau) \]</p>
+
+<p>\(\tau\) is changepoint_prior_scale, and it is the width of that Laplace distribution. A narrow width pulls almost every delta back to exactly zero, so the trend stays close to one straight line. A wide width lets deltas wander further from zero, so more changepoints end up bending the trend.</p>
+
+<p>A local fit at the default \(\tau = 0.05\) leaves 5 of the 25 deltas above 0.001 in size: 0.0073 on December 24, 0.0236 on December 28, 0.0190 on January 1, 0.0046 on January 5 and 0.0026 on January 8. That cluster of five is exactly the stretch where the last step's chart bent faster. Push \(\tau\) down to 0.001 and none of the 25 move at all, a perfectly straight line. Push it up to 0.5 and 8 of the 25 move, one of them by as much as 0.474, a visibly wiggly trend.</p>
+
+<p>The widget below does not run on Victoria's demand. It fits its own generic scatter, with a slider that sets how flexible the fit is allowed to be, but the trade-off it shows, stiff to a good fit to a wiggly overfit, is the same one changepoint_prior_scale controls on the trend above.</p>
+<div class="lesson-widget" data-widget-type="spline-smoother" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Somewhere between 0.001 and 0.5 sits the changepoint_prior_scale that lets the trend follow a real bend, like the one at Christmas, without also chasing noise in a week that has none.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a bigger changepoint_prior_scale does</h2>
+
+<p>At 0.05, 5 of the 25 changepoints move. At 0.5, 8 of them move, one by as much as 0.474. Raise changepoint_prior_scale from 0.05 toward 0.5: what actually changes?</p>
+<section class="exercise" data-exercise-id="Forecasting-with-Prophet-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It adds more candidate changepoints for the trend to use.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">More of the 25 candidate slope changes move further from zero, so the trend bends more sharply at more of its changepoints.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The trend goes flatter, since a wider prior keeps the deltas closer together.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It changes how many days of history Prophet searches for changepoints in.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Going from 0.05 to 0.5 took the count of changepoints with a real slope change from 5 of 25 to 8 of 25, and the largest single delta grew from 0.0236 to 0.474.</div><div class="lesson-qfb lesson-qfb-no">changepoint_prior_scale sets the width of the Laplace prior on each slope change, nothing else. It never adds changepoints (that count is fixed at 25 by n.changepoints) and it never changes how far back Prophet looks for them (that window is fixed at the first 80% of the history by changepoint_range). A wider prior lets existing deltas move further from zero, in either direction, which bends the trend more, not less.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Weekly seasonality as a Fourier series</h2>
+
+<p>seasonality(t) has to represent one repeating shape, an ordinary week, using numbers a model can estimate. Prophet does this the same way fable's fourier() does: a sine and cosine pair for each harmonic, added together to trace the week's rise and fall.</p>
+
+<p>See that weekly rhythm directly, by averaging demand for each day of the week across the whole 120 days.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average demand for each day of the week, Monday first
+weekday_means &lt;- as_tibble(d) |&gt;
+  mutate(Weekday = wday(Date, label = TRUE, abbr = TRUE, week_start = 1)) |&gt;
+  group_by(Weekday) |&gt;
+  summarise(MeanDemand = round(mean(Demand), 1))
+weekday_means
+#&gt; # A tibble: 7 x 2
+#&gt;   Weekday MeanDemand
+#&gt;   &lt;ord&gt;        &lt;dbl&gt;
+#&gt; 1 Mon           224.
+#&gt; 2 Tue           220.
+#&gt; 3 Wed           228.
+#&gt; 4 Thu           239 
+#&gt; 5 Fri           236.
+#&gt; 6 Sat           201.
+#&gt; 7 Sun           192.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Weekdays sit noticeably above weekends, Thursday highest at 239.0 GWh, Sunday lowest at 192.1 GWh, a raw swing of 46.9 GWh. A local Prophet fit's isolated weekly component, the seasonality(t) it recovered once trend and holidays were pulled out, ranges from -29.77 to +17.17 GWh, a swing of 46.94 GWh, matching that raw weekday spread almost exactly. That is seasonality(t) doing its job: explaining the week-to-week wobble already visible back in the cover chart.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Holidays as their own additive component</h2>
+
+<p>holidays(t) exists because a public holiday is not explained by trend or by an ordinary weekday pattern. It is a specific date, and demand drops on it for a reason a calendar carries, not a reason the week's rhythm carries.</p>
+
+<p>Five real Victorian public holidays fall inside these 120 days: Melbourne Cup Day (November 6), Christmas Day (December 25), Boxing Day (December 26), New Year's Day (January 1) and Australia Day observed (January 28). Mark them apart from the other 115 days on the same series.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":221.2,"fill":"Regular day"},{"x":2,"y":218.4,"fill":"Regular day"},{"x":3,"y":187.4,"fill":"Regular day"},{"x":4,"y":183.4,"fill":"Regular day"},{"x":5,"y":210.7,"fill":"Regular day"},{"x":6,"y":190.5,"fill":"Holiday"},{"x":7,"y":216.7,"fill":"Regular day"},{"x":8,"y":217.3,"fill":"Regular day"},{"x":9,"y":210.9,"fill":"Regular day"},{"x":10,"y":184.7,"fill":"Regular day"},{"x":11,"y":178.6,"fill":"Regular day"},{"x":12,"y":214.9,"fill":"Regular day"},{"x":13,"y":215,"fill":"Regular day"},{"x":14,"y":216.1,"fill":"Regular day"},{"x":15,"y":220,"fill":"Regular day"},{"x":16,"y":215.9,"fill":"Regular day"},{"x":17,"y":190.5,"fill":"Regular day"},{"x":18,"y":181.2,"fill":"Regular day"},{"x":19,"y":215.7,"fill":"Regular day"},{"x":20,"y":224.6,"fill":"Regular day"},{"x":21,"y":219.7,"fill":"Regular day"},{"x":22,"y":219.3,"fill":"Regular day"},{"x":23,"y":221.3,"fill":"Regular day"},{"x":24,"y":206.5,"fill":"Regular day"},{"x":25,"y":187.8,"fill":"Regular day"},{"x":26,"y":220.9,"fill":"Regular day"},{"x":27,"y":228.3,"fill":"Regular day"},{"x":28,"y":243.6,"fill":"Regular day"},{"x":29,"y":294.5,"fill":"Regular day"},{"x":30,"y":265,"fill":"Regular day"},{"x":31,"y":199.5,"fill":"Regular day"},{"x":32,"y":181.2,"fill":"Regular day"},{"x":33,"y":212.4,"fill":"Regular day"},{"x":34,"y":212.5,"fill":"Regular day"},{"x":35,"y":216.7,"fill":"Regular day"},{"x":36,"y":221,"fill":"Regular day"},{"x":37,"y":231.2,"fill":"Regular day"},{"x":38,"y":222,"fill":"Regular day"},{"x":39,"y":180.8,"fill":"Regular day"},{"x":40,"y":215.8,"fill":"Regular day"},{"x":41,"y":230.8,"fill":"Regular day"},{"x":42,"y":260.3,"fill":"Regular day"},{"x":43,"y":271.2,"fill":"Regular day"},{"x":44,"y":236.2,"fill":"Regular day"},{"x":45,"y":200.8,"fill":"Regular day"},{"x":46,"y":182.6,"fill":"Regular day"},{"x":47,"y":215,"fill":"Regular day"},{"x":48,"y":228.5,"fill":"Regular day"},{"x":49,"y":236.3,"fill":"Regular day"},{"x":50,"y":216.4,"fill":"Regular day"},{"x":51,"y":205.4,"fill":"Regular day"},{"x":52,"y":195.6,"fill":"Regular day"},{"x":53,"y":227.8,"fill":"Regular day"},{"x":54,"y":212,"fill":"Regular day"},{"x":55,"y":161.1,"fill":"Holiday"},{"x":56,"y":169.5,"fill":"Holiday"},{"x":57,"y":194.3,"fill":"Regular day"},{"x":58,"y":185.5,"fill":"Regular day"},{"x":59,"y":174.6,"fill":"Regular day"},{"x":60,"y":169.9,"fill":"Regular day"},{"x":61,"y":183.7,"fill":"Regular day"},{"x":62,"y":175.9,"fill":"Holiday"},{"x":63,"y":195.7,"fill":"Regular day"},{"x":64,"y":242.9,"fill":"Regular day"},{"x":65,"y":294.4,"fill":"Regular day"},{"x":66,"y":220.5,"fill":"Regular day"},{"x":67,"y":196.4,"fill":"Regular day"},{"x":68,"y":252.6,"fill":"Regular day"},{"x":69,"y":233.4,"fill":"Regular day"},{"x":70,"y":206,"fill":"Regular day"},{"x":71,"y":218.2,"fill":"Regular day"},{"x":72,"y":247.9,"fill":"Regular day"},{"x":73,"y":190,"fill":"Regular day"},{"x":74,"y":178.1,"fill":"Regular day"},{"x":75,"y":208.2,"fill":"Regular day"},{"x":76,"y":224.6,"fill":"Regular day"},{"x":77,"y":234.1,"fill":"Regular day"},{"x":78,"y":281.6,"fill":"Regular day"},{"x":79,"y":251.4,"fill":"Regular day"},{"x":80,"y":192.6,"fill":"Regular day"},{"x":81,"y":191.7,"fill":"Regular day"},{"x":82,"y":240.2,"fill":"Regular day"},{"x":83,"y":232.3,"fill":"Regular day"},{"x":84,"y":227.3,"fill":"Regular day"},{"x":85,"y":264.6,"fill":"Regular day"},{"x":86,"y":241.9,"fill":"Regular day"},{"x":87,"y":191,"fill":"Regular day"},{"x":88,"y":185.2,"fill":"Regular day"},{"x":89,"y":191.2,"fill":"Holiday"},{"x":90,"y":216,"fill":"Regular day"},{"x":91,"y":225.5,"fill":"Regular day"},{"x":92,"y":229.9,"fill":"Regular day"},{"x":93,"y":213.9,"fill":"Regular day"},{"x":94,"y":188.3,"fill":"Regular day"},{"x":95,"y":186.7,"fill":"Regular day"},{"x":96,"y":221.8,"fill":"Regular day"},{"x":97,"y":237.2,"fill":"Regular day"},{"x":98,"y":270.5,"fill":"Regular day"},{"x":99,"y":266.9,"fill":"Regular day"},{"x":100,"y":249.7,"fill":"Regular day"},{"x":101,"y":209,"fill":"Regular day"},{"x":102,"y":186.6,"fill":"Regular day"},{"x":103,"y":223.9,"fill":"Regular day"},{"x":104,"y":234.6,"fill":"Regular day"},{"x":105,"y":252.1,"fill":"Regular day"},{"x":106,"y":261.2,"fill":"Regular day"},{"x":107,"y":258.8,"fill":"Regular day"},{"x":108,"y":237.3,"fill":"Regular day"},{"x":109,"y":236.9,"fill":"Regular day"},{"x":110,"y":292.9,"fill":"Regular day"},{"x":111,"y":246.1,"fill":"Regular day"},{"x":112,"y":233.4,"fill":"Regular day"},{"x":113,"y":248.5,"fill":"Regular day"},{"x":114,"y":254.9,"fill":"Regular day"},{"x":115,"y":228.4,"fill":"Regular day"},{"x":116,"y":231.2,"fill":"Regular day"},{"x":117,"y":274,"fill":"Regular day"},{"x":118,"y":250,"fill":"Regular day"},{"x":119,"y":243.2,"fill":"Regular day"},{"x":120,"y":213.8,"fill":"Regular day"}],"geoms":["point"],"x":"Day","y":"Demand (GWh)"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>All 5 marked days sit near the bottom of the whole cloud of points, well under the 220.0 GWh mean: 190.5, 161.1, 169.5, 175.9 and 191.2 GWh. A local Prophet fit assigns a single holiday effect of -46.93 GWh to every one of them, on top of whatever trend(t) and seasonality(t) that date already carries. That one number is holidays(t): the same subtraction, applied only on days the calendar names.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Specifying, fitting and reading a Prophet model in R</h2>
+
+<p>Fitting Prophet means handing it two tables: the series itself, and a table of the dates to treat as holidays. Here is the call, framed to run locally, since Prophet needs a Stan toolchain this page does not have.</p>
+
+<pre><code class="language-r"># Fit Prophet on the 120-day series with the 5 real holiday dates supplied
+library(prophet)
+
+df &lt;- data.frame(ds = d$Date, y = d$Demand)
+
+holidays_df &lt;- data.frame(
+  holiday = &quot;public_holiday&quot;,
+  ds = as.Date(c(&quot;2012-11-06&quot;, &quot;2012-12-25&quot;, &quot;2012-12-26&quot;, &quot;2013-01-01&quot;, &quot;2013-01-28&quot;)),
+  lower_window = 0,
+  upper_window = 0
+)
+
+m &lt;- prophet(df, holidays = holidays_df)
+fcst &lt;- predict(m, df)
+prophet_plot_components(m, fcst)</code></pre>
+
+<p>df needs exactly two columns, ds for the date and y for the series, Prophet's own naming convention. holidays_df lists each holiday's date under ds, with lower_window and upper_window both at 0, meaning the effect applies only to that exact day, not the days around it. Prophet fits by finding the maximum a posteriori estimate, a single best-fitting set of numbers found by numerical search, rather than the full likelihood an ARIMA fit works out.</p>
+
+<p>prophet_plot_components() draws three stacked panels, trend, weekly and holidays, and every number in them is one you have already seen in this lesson.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["Panel","What it plots","Fitted values already seen","What it means"],"rows":[["trend","One piecewise-linear line, bending at whichever of the 25 candidate changepoints got a real delta","209.0 GWh on day 1, rising to 238.9 GWh on day 120","the slow drift baseline demand rides on"],["weekly","One repeating week, drawn from the Fourier terms in seasonality(t)","-29.77 GWh to +17.17 GWh, a swing of 46.94 GWh","which weekday adds to or subtracts from the trend"],["holidays","A flat effect on the 5 marked dates only, 0 everywhere else","-46.93 GWh on Nov 6, Dec 25, Dec 26, Jan 1 and Jan 28","the extra drop the calendar explains on top of trend and weekday"]],"title":"prophet_plot_components(m, fcst): the three panels, by the numbers already seen in this lesson"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Read the table top to bottom and the whole additive model is right there: trend sets the baseline, weekly nudges it up or down by day of week, and holidays subtracts a further 46.93 GWh on exactly the 5 days that need it.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>The fable equivalent that actually runs here</h2>
+
+<p>Prophet's own fit is illustrative only, since it cannot run on this page. But the same idea, a piecewise trend plus Fourier terms plus a holiday effect, builds and runs live right here, with TSLM() from fable.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a piecewise trend, three Fourier pairs for the week, and a Holiday regressor
+library(fable)
+library(fabletools)
+
+fit &lt;- d |&gt;
+  model(fit = TSLM(Demand ~ trend(knots = as_date(&quot;2012-12-28&quot;)) + fourier(period = 7, K = 3) + Holiday))
+report(fit)
+#&gt; Series: Demand 
+#&gt; Model: TSLM 
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -46.680 -11.541  -3.186   7.846  63.664 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                                               Estimate Std. Error t value
+#&gt; (Intercept)                                  213.57791    4.96627  43.006
+#&gt; trend(knots = as_date(&quot;2012-12-28&quot;))trend      0.01228    0.12445   0.099
+#&gt; trend(knots = as_date(&quot;2012-12-28&quot;))trend_58   0.46011    0.21297   2.160
+#&gt; fourier(period = 7, K = 3)C1_7                16.05432    2.56970   6.248
+#&gt; fourier(period = 7, K = 3)S1_7               -10.10264    2.67538  -3.776
+#&gt; fourier(period = 7, K = 3)C2_7                 2.66405    2.59161   1.028
+#&gt; fourier(period = 7, K = 3)S2_7                12.73461    2.59207   4.913
+#&gt; fourier(period = 7, K = 3)C3_7                -1.81681    2.56875  -0.707
+#&gt; fourier(period = 7, K = 3)S3_7                -2.83111    2.59008  -1.093
+#&gt; HolidayTRUE                                  -45.94374    9.66681  -4.753
+#&gt;                                              Pr(&gt;|t|)    
+#&gt; (Intercept)                                   &lt; 2e-16 ***
+#&gt; trend(knots = as_date(&quot;2012-12-28&quot;))trend    0.921558    
+#&gt; trend(knots = as_date(&quot;2012-12-28&quot;))trend_58 0.032906 *  
+#&gt; fourier(period = 7, K = 3)C1_7               8.07e-09 ***
+#&gt; fourier(period = 7, K = 3)S1_7               0.000259 ***
+#&gt; fourier(period = 7, K = 3)C2_7               0.306229    
+#&gt; fourier(period = 7, K = 3)S2_7               3.15e-06 ***
+#&gt; fourier(period = 7, K = 3)C3_7               0.480892    
+#&gt; fourier(period = 7, K = 3)S3_7               0.276756    
+#&gt; HolidayTRUE                                  6.11e-06 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 19.94 on 110 degrees of freedom
+#&gt; Multiple R-squared: 0.5513,	Adjusted R-squared: 0.5146
+#&gt; F-statistic: 15.02 on 9 and 110 DF, p-value: 1.1453e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>trend(knots = as_date("2012-12-28")) plays the same role as Prophet's piecewise trend, except with one knot chosen by hand instead of 25 searched automatically: the slope is 0.012 GWh a day before December 28, and 0.012 + 0.460 = 0.472 GWh a day after it, the same steepening seen in Prophet's trend column. fourier(period = 7, K = 3) plays the role of seasonality(t), three sine and cosine pairs standing in for the week. Holiday plays the role of holidays(t) directly: its coefficient, -45.944 GWh, lands within 1 GWh of Prophet's own -46.93.</p>
+
+<p>The model explains 55.1% of the variance in daily demand (Multiple R-squared 0.5513), on 110 residual degrees of freedom (120 rows minus the 10 estimated coefficients).</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Where Prophet wins, where the fable toolkit wins</h2>
+
+<p>A coefficient table is not a verdict on accuracy. To compare Prophet against this fable model honestly, refit both on an earlier stretch of the data and score them on days neither one was allowed to see.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hold out the last 14 days and refit on the 106 days before them
+train &lt;- d |&gt; filter(Date &lt;= as_date(&quot;2013-02-14&quot;))
+test &lt;- d |&gt; filter(Date &gt; as_date(&quot;2013-02-14&quot;))
+
+fit_train &lt;- train |&gt;
+  model(fit = TSLM(Demand ~ trend(knots = as_date(&quot;2012-12-28&quot;)) + fourier(period = 7, K = 3) + Holiday))
+fc &lt;- forecast(fit_train, new_data = test)
+
+# Root mean squared error of the 14-day forecast against the real demand
+rmse &lt;- sqrt(mean((fc$.mean - test$Demand)^2))
+round(rmse, 2)
+#&gt; [1] 27.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>106 days train the model, the 14 days from February 15 to 28 test it, and none of the 5 real holidays fall inside that window. On this fold the fable piecewise model scores an RMSE of 27.57 GWh. A local Prophet refit on the same 106 training days, scored on the same 14 test days, comes back at 29.65 GWh, close, and slightly in fable's favour here.</p>
+
+<p>That single number does not settle which tool is generally better, only which one won this one fold. Prophet's real advantages sit elsewhere: a holiday list handed in as plain dates instead of hand-built dummy columns, an automatic search over 25 candidate changepoints instead of one knot chosen by eye, and an interface built for someone who has never fit an ARIMA model. The fable toolkit's advantages are just as real: a transparent coefficient table you can read line by line, no external Stan toolchain to install, and one consistent model() interface shared by every model fable fits.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Reading the holdout comparison honestly</h2>
+
+<p>fable scored 27.57 GWh on the 14-day holdout, Prophet scored 29.65 GWh. Should that be read as fable generally beating Prophet on this kind of series?</p>
+<section class="exercise" data-exercise-id="Forecasting-with-Prophet-step11" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">No, because RMSE cannot be used to compare two different model classes like this one.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No, because none of the 5 real holidays fall inside that 14-day window, so neither model's holiday handling was tested there, and one 14-day fold is too short to generalise a verdict from.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, because the two models always produce identical forecasts, so the 2.08 GWh gap is measurement noise.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Yes, a lower RMSE on any holdout settles which model is better going forward.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The test window runs February 15 to 28, and every real holiday in this example, November 6 through January 28, falls before it. A single 14-day fold with no holidays in it says nothing about how either model handles the one component this lesson spent three steps on.</div><div class="lesson-qfb lesson-qfb-no">A single 14-day holdout that happens to contain no holidays cannot settle a general verdict, especially when holidays are the one component this lesson spent three steps on and this window tests neither model on it. Widen the window, or score several holdout folds instead of one, before trusting a 2.08 GWh gap this far.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: score the holdout a second way</h2>
+
+<p>fc, the fable forecast, and test, the 14-day holdout, both still exist from two steps back. Complete one line: the mean absolute error, the average of the unsigned gaps between forecast and actual, instead of RMSE's squared ones.</p>
+<section class="exercise" data-exercise-id="Forecasting-with-Prophet-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mean[(]abs[(](fc\$\.mean\s*-\s*test\$Demand|test\$Demand\s*-\s*fc\$\.mean)[)][)]"><textarea class="lesson-tryit-input" spellcheck="false"># fc (the fable forecast) and test (the 14-day holdout) still exist from two steps back.
+# Complete one line: the mean absolute error, mean(abs(fc$.mean - test$Demand)).
+# Press Check when you have it.
+</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 21.68 GWh, a different number from the 27.57 GWh RMSE you read two steps back, since MAE averages the plain gaps instead of squaring them first.</span><span class="lesson-tryit-fb lesson-tryit-no">Call mean(abs(fc$.mean - test$Demand)), the same fc and test objects the RMSE line used two steps back, with abs() in place of squaring and no square root at the end.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Score the same 14-day holdout with mean absolute error instead of RMSE
+round(mean(abs(fc$.mean - test$Demand)), 2)
+#&gt; [1] 21.68</code></pre></details></div>
+</section>
+<p>21.68 GWh, lower than the 27.57 GWh RMSE on the very same forecast. RMSE squares every gap before averaging, so a few unusually large misses (like February 18 and February 28, both over 40 GWh off) pull it up further than a plain average of the gaps would.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://peerj.com/preprints/3190/">Forecasting at Scale</a> - Taylor, S.J. and Letham, B. (2018), The American Statistician, 72(1), 37-45. Introduces Prophet's additive trend, seasonality and holiday model and its changepoint prior.</li>
+
+<li><a href="https://cran.r-project.org/package=prophet">Prophet R package documentation</a> - the <code>prophet()</code> and <code>prophet_plot_components()</code> reference, for the argument names used in this lesson.</li>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice (3rd ed.)</a> - Hyndman, R.J. and Athanasopoulos, G. Dynamic regression and Fourier-term seasonality, the fable side of this lesson's comparison.</li>
+
+<li><a href="https://tsibbledata.tidyverts.org/reference/vic_elec.html">tsibbledata::vic_elec documentation</a> - source of the half-hourly Victorian electricity demand and Holiday flag aggregated to daily totals here, from the Australian Energy Market Operator.</li>
+
+<li>Makridakis, S., Spiliotis, E. and Assimakopoulos, V. (2020). "The M4 Competition: 100,000 time series and 61 forecasting methods." International Journal of Forecasting, 36(1). Widely cited evidence that classical methods often match or beat Prophet on point-forecast accuracy.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You can now state Prophet's additive model, \(y(t) = \text{trend}(t) + \text{seasonality}(t) + \text{holidays}(t) + \varepsilon(t)\), and name what each of its three parts explains.</p>
+
+<p>You can explain changepoint_prior_scale as the width of a Laplace prior on each changepoint's slope change: narrow keeps the trend close to a straight line, wide lets it bend more freely, and the numbers on this page, 5 of 25 changepoints moving at the default versus 8 of 25 at a wider setting, show exactly what that width buys.</p>
+
+<p>And you can weigh Prophet against a fable model the honest way, on a real held-out number, 27.57 GWh against 29.65 GWh here, rather than a rule of thumb, while knowing exactly what a single 14-day fold can and cannot tell you.</p>
+
+<p>Well done for making it through a genuinely dense lesson. Take a short break before the next one.</p>
+</section>
+
+{% endraw %}
