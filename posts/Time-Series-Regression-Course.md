@@ -33,31 +33,31 @@ Fit an ordinary regression line to 48 months of a SaaS company's user growth wit
 
 Add `season()` alongside `trend()` in `TSLM(y ~ trend() + season())`, avoid the dummy variable trap, fit a piecewise linear trend with knots, read seasonal coefficients against a baseline period, and see why a linear trend is a dangerous tool to extrapolate far beyond the data.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Trend and seasonal dummy variables](Trend-and-Seasonal-Dummy-Variables.html)
 
 ### Lesson 3: Fourier terms for seasonality
 
 Replace a long run of seasonal dummies with a compact sine and cosine basis. Use `fourier(K = )` inside TSLM, choose K by AICc, and see why Fourier terms beat dummies once a series has a long or multiple seasonal period.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Fourier terms for seasonality](Fourier-Terms-for-Seasonality.html)
 
 ### Lesson 4: Useful predictors: lags, calendar and holidays
 
 Add lagged predictors, and learn why the lag has to be known at forecast time. Build calendar, holiday and intervention dummies, and separate an ex-ante forecast from an ex-post one when a predictor's own future path is only a scenario.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Useful predictors: lags, calendar and holidays](Useful-Predictors-Lags-Calendar-and-Holidays.html)
 
 ### Lesson 5: Selecting predictors with cross-validation
 
 Compare adjusted R-squared, AICc and BIC as selection criteria, see why a predictor's p-value is the wrong tool for choosing it, and use cross-validated error as the honest test. Walk through best-subset versus stepwise selection, and the leakage trap of selecting a model on the same window you test it on.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Selecting predictors with cross-validation](Selecting-Predictors-with-Cross-Validation.html)
 
 ### Lesson 6: Spurious regression and how to avoid it
 
 Regress two completely unrelated trending series against each other and watch r climb near 0.97. See why non-stationary regressors produce huge t-statistics and an autocorrelated residual ACF, use that residual ACF as the alarm, and learn the three cures: difference the data, model the errors directly, or move to dynamic regression.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Spurious regression and how to avoid it](Spurious-Regression-and-How-to-Avoid-It.html)
 
 ## Who this is for
 

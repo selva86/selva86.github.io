@@ -33,37 +33,37 @@ See what it means for a series to be stationary, in the three properties that ha
 
 Take a first difference to remove a trend and a seasonal difference at lag 12 to remove a repeating pattern, in the order that usually works: seasonal first. Check the result with a plot and the ACF, see what over-differencing costs you, and undo a differenced forecast back to the original scale.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Differencing and seasonal differencing](Differencing-and-Seasonal-Differencing.html)
 
 ### Lesson 3: Reading the ACF and PACF
 
 Learn to read the partial autocorrelation as what is left over once the intermediate lags are accounted for, then use that to tell an AR(p) signature (PACF cuts off, ACF decays) from an MA(q) signature (ACF cuts off, PACF decays) with `gg_tsdisplay(plot_type = "partial")` on real series.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Reading the ACF and PACF](Reading-the-ACF-and-PACF.html)
 
 ### Lesson 4: Non-seasonal ARIMA models
 
 Meet the ARIMA(p, d, q) notation and what the AR and MA terms each remember about the past. Fit `ARIMA(y ~ pdq(p, d, q))` in `fable`, read the coefficients it returns, and see what the constant term does to a forecast's long-run drift.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Non-seasonal ARIMA models](Non-Seasonal-ARIMA-Models.html)
 
 ### Lesson 5: Seasonal ARIMA
 
 Add the seasonal (P, D, Q)[m] part and see how it multiplies against the non-seasonal terms. Fit `ARIMA(y ~ pdq() + PDQ())` on a monthly retail series, spot the seasonal signature in the ACF at lags m, 2m and 3m, and forecast with the fitted SARIMA model.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Seasonal ARIMA](Seasonal-ARIMA-SARIMA.html)
 
 ### Lesson 6: ARIMA versus ETS, when to use each
 
 Put the two forecasting families side by side: which ETS models have an ARIMA twin, which do not, and why AICc cannot referee across them. Settle the argument with time-series cross-validation on the same series, and come away with practical rules of thumb for choosing.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: ARIMA versus ETS, when to use each](ARIMA-vs-ETS-When-to-Use-Each.html)
 
 ### Lesson 7: Automatic and manual ARIMA selection
 
 See exactly what `ARIMA()` does with no formula: unit-root tests decide d, then a stepwise search over p and q ranks candidates by AICc. Turn off `stepwise` and `approximation` for a fuller search, know when to override the automatic choice by hand, and run the residual checks that come before trusting any order.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Automatic and manual ARIMA selection](Automatic-and-Manual-ARIMA-Selection.html)
 
 ## Who this is for
 

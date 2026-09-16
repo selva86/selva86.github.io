@@ -124,6 +124,18 @@ def check_lesson(path):
     except Exception as _e:
         warn('voice lint unavailable: %s' % _e)
 
+    # R output lines belong INSIDE their code fence. Outside one, a `#>` line is
+    # not a heading and not prose; the shared converter now renders it as text
+    # (it used to hang), which is still wrong on the page. Fail so the writer
+    # or the reviewer moves it (Scripts/lesson_autofix.py does it mechanically).
+    _in_fence = False
+    for _ln_no, _ln in enumerate(body.split(chr(10)), 1):
+        if _ln.startswith('```'):
+            _in_fence = not _in_fence
+        elif not _in_fence and _ln.startswith('#>'):
+            fail('R output line outside a code fence at body line %d (%r); move it inside the fence' % (_ln_no, _ln[:50]))
+            break
+
     # Every code block opens with a one-line comment saying what the block
     # achieves (owner rule 2026-08-21). Applies to runnable, try-it, solution
     # and static blocks alike.

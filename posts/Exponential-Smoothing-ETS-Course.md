@@ -33,13 +33,13 @@ Forecast a series with no trend to follow by weighting recent years more than ol
 
 Add a slope component with beta to forecast a series that climbs or falls steadily. See why an undamped trend embarrasses you at long horizons, meet the damping parameter phi and its usual range, and compare the naive, Holt and damped-Holt forecasts on a decade of air passenger numbers.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Holt linear trend and the damped trend](Holt-Linear-Trend-and-Damped-Trend.html)
 
 ### Lesson 3: Holt-Winters seasonal methods
 
 Add a seasonal component with gamma to forecast a series with a repeating calendar pattern. Tell additive from multiplicative seasonality, meet the damped seasonal variant, and forecast quarterly tourism with each version side by side.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Holt-Winters seasonal methods](Holt-Winters-Seasonal-Methods.html)
 
 ### Lesson 4: The ETS taxonomy
 
@@ -51,13 +51,13 @@ Lesson 4 is coming soon.
 
 Let `ETS()` search the whole taxonomy for you. See how maximum likelihood estimates the parameters and initial states, how AICc ranks the candidates, how to read `report()` output, and the cases where the automatic choice still needs a human override.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Automatic ETS model selection](Automatic-ETS-Model-Selection.html)
 
 ### Lesson 6: Forecasting with ETS in fable
 
 Turn a fitted ETS model into a forecast you can trust. Call `forecast(h = )`, compare prediction intervals from the state-space form against simulation, pull apart the fitted states with `components()` and `autoplot()`, check the residuals, and benchmark the result against the naive and seasonal-naive baselines with `accuracy()`.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Forecasting with ETS in fable](Forecasting-with-ETS-in-fable.html)
 
 ## Who this is for
 
