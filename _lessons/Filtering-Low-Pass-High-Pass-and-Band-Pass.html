@@ -1,0 +1,457 @@
+---
+title: "Spectral and Frequency Domain Analysis Lesson 3: Low-pass, high-pass and band-pass filtering"
+description: "Turn a moving average into a low-pass filter, turn differencing into a high-pass filter, and combine both into a band-pass filter with base R's filter()."
+keywords: "moving average filter in R, low-pass filter, high-pass filter, band-pass filter, filter() sides argument, frequency response, gain function, differencing time series, phase shift, causal filter"
+mathjax: true
+webr: true
+curriculum_id: "5.90.3"
+post_type: "LESSON"
+course_id: "ts-spectral"
+course_title: "Spectral and Frequency Domain Analysis"
+course_lesson: "3"
+course_total: "5"
+course_landing: "Spectral-and-Frequency-Domain-Analysis-Course.html"
+course_next: "Detecting-Hidden-Periodicities.html"
+course_prev: "Estimating-the-Spectral-Density.html"
+lesson_access: "pro"
+catalog_blurb: "See which frequencies a filter keeps, and the delay a real-time one costs."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Low-pass, high-pass and band-pass filtering</h2>
+
+<p>Today let's understand filtering: how to choose which frequencies of a series survive, and which ones get erased.</p>
+
+<p>Northside Diner is a lunch restaurant that logged how many lunch covers it served every day for ten weeks, seventy days in all, averaging 119.2 a day with a standard deviation of 25.4. Two real cycles sit hidden inside that series: one repeating every 7 days, at frequency 1/7, and a smaller one repeating every 3.5 days, at frequency 2/7. Neither cycle is visible by eye in the raw line below.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":110},{"x":2,"y":105},{"x":3,"y":101},{"x":4,"y":134},{"x":5,"y":174},{"x":6,"y":149},{"x":7,"y":108},{"x":8,"y":99},{"x":9,"y":88},{"x":10,"y":91},{"x":11,"y":119},{"x":12,"y":167},{"x":13,"y":144},{"x":14,"y":105},{"x":15,"y":68},{"x":16,"y":99},{"x":17,"y":93},{"x":18,"y":141},{"x":19,"y":146},{"x":20,"y":116},{"x":21,"y":114},{"x":22,"y":104},{"x":23,"y":111},{"x":24,"y":100},{"x":25,"y":140},{"x":26,"y":147},{"x":27,"y":135},{"x":28,"y":109},{"x":29,"y":80},{"x":30,"y":99},{"x":31,"y":88},{"x":32,"y":133},{"x":33,"y":157},{"x":34,"y":148},{"x":35,"y":98},{"x":36,"y":104},{"x":37,"y":104},{"x":38,"y":98},{"x":39,"y":130},{"x":40,"y":166},{"x":41,"y":127},{"x":42,"y":102},{"x":43,"y":105},{"x":44,"y":120},{"x":45,"y":91},{"x":46,"y":137},{"x":47,"y":165},{"x":48,"y":143},{"x":49,"y":109},{"x":50,"y":120},{"x":51,"y":95},{"x":52,"y":95},{"x":53,"y":130},{"x":54,"y":152},{"x":55,"y":129},{"x":56,"y":88},{"x":57,"y":109},{"x":58,"y":98},{"x":59,"y":113},{"x":60,"y":136},{"x":61,"y":178},{"x":62,"y":145},{"x":63,"y":108},{"x":64,"y":102},{"x":65,"y":117},{"x":66,"y":101},{"x":67,"y":116},{"x":68,"y":169},{"x":69,"y":141},{"x":70,"y":81}],"geoms":["line","point"],"x":"day","y":"covers"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Toggle between line and point to look at that raw shape one more time. Everything from here changes what this line looks like: keeping its slow rise and fall, keeping only its jitter, or keeping just a narrow slice in between.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>A filter is a weighted average of nearby values</h2>
+
+<p>Rebuild Northside Diner's series first, so every step in this lesson works from the same real numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rebuild Northside Diner's 70 days of lunch covers
+set.seed(2024)
+day &lt;- 1:70
+baseline &lt;- 120
+fundamental &lt;- 30 * cos(2 * pi * (day - 5) / 7)
+harmonic &lt;- 12 * cos(4 * pi * (day - 5) / 7)
+noise &lt;- rnorm(70, 0, 10)
+northside_covers &lt;- round(baseline + fundamental + harmonic + noise)
+
+round(mean(northside_covers), 1)
+round(sd(northside_covers), 1)
+#&gt; [1] 119.2
+#&gt; [1] 25.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A filter turns a series into a new series where every output value is a weighted sum of nearby input values. The simplest filter is a moving average: replace each day's value with the average of that day and some of its neighbours. In base R, <code>filter()</code> builds one directly. Its second argument is the vector of weights, and its third argument, <code>sides</code>, decides where the window sits relative to each day. <code>sides = 2</code> centers the window: each output uses one day before, the day itself, and one day after. <code>sides = 1</code> trails it: each output uses only the day itself and days before it, never a day that has not happened yet.</p>
+
+<p>Build a 3-day centered moving average, giving equal weight to a day and each of its two neighbours.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a 3-day centered moving average with filter()
+ma3 &lt;- filter(northside_covers, rep(1/3, 3), sides = 2)
+
+round(ma3[1:8], 2)
+#&gt; [1]     NA 105.33 113.33 136.33 152.33 143.67 118.67  98.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rep(1/3, 3)</code> hands <code>filter()</code> three equal weights, each 1/3, so every output is a plain average of three days, not a scaled-up or scaled-down sum. Day 1 comes back <code>NA</code>, since a centered 3-day window needs a day before day 1, and there isn't one. Day 5 comes back 152.33, the average of days 4, 5 and 6: (134 + 174 + 149) / 3.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The 3-day moving average as a low-pass filter</h2>
+
+<p>Compare the spread of the raw series with the spread of its 3-day average, then look at what happened to the busiest stretch of days.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare spread before and after smoothing, and look at the Friday peak
+round(sd(northside_covers), 2)
+round(sd(ma3, na.rm = TRUE), 2)
+northside_covers[5:9]
+round(ma3[5:9], 2)
+#&gt; [1] 25.36
+#&gt; [1] 16.9
+#&gt; [1] 174 149 108  99  88
+#&gt; [1] 152.33 143.67 118.67  98.33  92.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The standard deviation fell from 25.36 to 16.9. Averaging over 3 days pulls in the fast, day-to-day jitter, the noise that has no real pattern, while the slower weekly rise and fall survives underneath it. Days 5 through 9, Northside Diner's Friday peak and its decline, still show the same shape after smoothing: 152.33 down to 92.67, instead of 174 down to 88, smaller swings but the same rise and fall.</p>
+
+<p>A filter that keeps a series' slow movement and damps its fast swings like this is called a low-pass filter: low frequencies pass through mostly intact, high frequencies get reduced. Toggle between line and point below to see the raw series and its 3-day average together across all 70 days.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":110,"fill":"raw covers"},{"x":2,"y":105,"fill":"raw covers"},{"x":3,"y":101,"fill":"raw covers"},{"x":4,"y":134,"fill":"raw covers"},{"x":5,"y":174,"fill":"raw covers"},{"x":6,"y":149,"fill":"raw covers"},{"x":7,"y":108,"fill":"raw covers"},{"x":8,"y":99,"fill":"raw covers"},{"x":9,"y":88,"fill":"raw covers"},{"x":10,"y":91,"fill":"raw covers"},{"x":11,"y":119,"fill":"raw covers"},{"x":12,"y":167,"fill":"raw covers"},{"x":13,"y":144,"fill":"raw covers"},{"x":14,"y":105,"fill":"raw covers"},{"x":15,"y":68,"fill":"raw covers"},{"x":16,"y":99,"fill":"raw covers"},{"x":17,"y":93,"fill":"raw covers"},{"x":18,"y":141,"fill":"raw covers"},{"x":19,"y":146,"fill":"raw covers"},{"x":20,"y":116,"fill":"raw covers"},{"x":21,"y":114,"fill":"raw covers"},{"x":22,"y":104,"fill":"raw covers"},{"x":23,"y":111,"fill":"raw covers"},{"x":24,"y":100,"fill":"raw covers"},{"x":25,"y":140,"fill":"raw covers"},{"x":26,"y":147,"fill":"raw covers"},{"x":27,"y":135,"fill":"raw covers"},{"x":28,"y":109,"fill":"raw covers"},{"x":29,"y":80,"fill":"raw covers"},{"x":30,"y":99,"fill":"raw covers"},{"x":31,"y":88,"fill":"raw covers"},{"x":32,"y":133,"fill":"raw covers"},{"x":33,"y":157,"fill":"raw covers"},{"x":34,"y":148,"fill":"raw covers"},{"x":35,"y":98,"fill":"raw covers"},{"x":36,"y":104,"fill":"raw covers"},{"x":37,"y":104,"fill":"raw covers"},{"x":38,"y":98,"fill":"raw covers"},{"x":39,"y":130,"fill":"raw covers"},{"x":40,"y":166,"fill":"raw covers"},{"x":41,"y":127,"fill":"raw covers"},{"x":42,"y":102,"fill":"raw covers"},{"x":43,"y":105,"fill":"raw covers"},{"x":44,"y":120,"fill":"raw covers"},{"x":45,"y":91,"fill":"raw covers"},{"x":46,"y":137,"fill":"raw covers"},{"x":47,"y":165,"fill":"raw covers"},{"x":48,"y":143,"fill":"raw covers"},{"x":49,"y":109,"fill":"raw covers"},{"x":50,"y":120,"fill":"raw covers"},{"x":51,"y":95,"fill":"raw covers"},{"x":52,"y":95,"fill":"raw covers"},{"x":53,"y":130,"fill":"raw covers"},{"x":54,"y":152,"fill":"raw covers"},{"x":55,"y":129,"fill":"raw covers"},{"x":56,"y":88,"fill":"raw covers"},{"x":57,"y":109,"fill":"raw covers"},{"x":58,"y":98,"fill":"raw covers"},{"x":59,"y":113,"fill":"raw covers"},{"x":60,"y":136,"fill":"raw covers"},{"x":61,"y":178,"fill":"raw covers"},{"x":62,"y":145,"fill":"raw covers"},{"x":63,"y":108,"fill":"raw covers"},{"x":64,"y":102,"fill":"raw covers"},{"x":65,"y":117,"fill":"raw covers"},{"x":66,"y":101,"fill":"raw covers"},{"x":67,"y":116,"fill":"raw covers"},{"x":68,"y":169,"fill":"raw covers"},{"x":69,"y":141,"fill":"raw covers"},{"x":70,"y":81,"fill":"raw covers"},{"x":2,"y":105.33,"fill":"3-day average"},{"x":3,"y":113.33,"fill":"3-day average"},{"x":4,"y":136.33,"fill":"3-day average"},{"x":5,"y":152.33,"fill":"3-day average"},{"x":6,"y":143.67,"fill":"3-day average"},{"x":7,"y":118.67,"fill":"3-day average"},{"x":8,"y":98.33,"fill":"3-day average"},{"x":9,"y":92.67,"fill":"3-day average"},{"x":10,"y":99.33,"fill":"3-day average"},{"x":11,"y":125.67,"fill":"3-day average"},{"x":12,"y":143.33,"fill":"3-day average"},{"x":13,"y":138.67,"fill":"3-day average"},{"x":14,"y":105.67,"fill":"3-day average"},{"x":15,"y":90.67,"fill":"3-day average"},{"x":16,"y":86.67,"fill":"3-day average"},{"x":17,"y":111,"fill":"3-day average"},{"x":18,"y":126.67,"fill":"3-day average"},{"x":19,"y":134.33,"fill":"3-day average"},{"x":20,"y":125.33,"fill":"3-day average"},{"x":21,"y":111.33,"fill":"3-day average"},{"x":22,"y":109.67,"fill":"3-day average"},{"x":23,"y":105,"fill":"3-day average"},{"x":24,"y":117,"fill":"3-day average"},{"x":25,"y":129,"fill":"3-day average"},{"x":26,"y":140.67,"fill":"3-day average"},{"x":27,"y":130.33,"fill":"3-day average"},{"x":28,"y":108,"fill":"3-day average"},{"x":29,"y":96,"fill":"3-day average"},{"x":30,"y":89,"fill":"3-day average"},{"x":31,"y":106.67,"fill":"3-day average"},{"x":32,"y":126,"fill":"3-day average"},{"x":33,"y":146,"fill":"3-day average"},{"x":34,"y":134.33,"fill":"3-day average"},{"x":35,"y":116.67,"fill":"3-day average"},{"x":36,"y":102,"fill":"3-day average"},{"x":37,"y":102,"fill":"3-day average"},{"x":38,"y":110.67,"fill":"3-day average"},{"x":39,"y":131.33,"fill":"3-day average"},{"x":40,"y":141,"fill":"3-day average"},{"x":41,"y":131.67,"fill":"3-day average"},{"x":42,"y":111.33,"fill":"3-day average"},{"x":43,"y":109,"fill":"3-day average"},{"x":44,"y":105.33,"fill":"3-day average"},{"x":45,"y":116,"fill":"3-day average"},{"x":46,"y":131,"fill":"3-day average"},{"x":47,"y":148.33,"fill":"3-day average"},{"x":48,"y":139,"fill":"3-day average"},{"x":49,"y":124,"fill":"3-day average"},{"x":50,"y":108,"fill":"3-day average"},{"x":51,"y":103.33,"fill":"3-day average"},{"x":52,"y":106.67,"fill":"3-day average"},{"x":53,"y":125.67,"fill":"3-day average"},{"x":54,"y":137,"fill":"3-day average"},{"x":55,"y":123,"fill":"3-day average"},{"x":56,"y":108.67,"fill":"3-day average"},{"x":57,"y":98.33,"fill":"3-day average"},{"x":58,"y":106.67,"fill":"3-day average"},{"x":59,"y":115.67,"fill":"3-day average"},{"x":60,"y":142.33,"fill":"3-day average"},{"x":61,"y":153,"fill":"3-day average"},{"x":62,"y":143.67,"fill":"3-day average"},{"x":63,"y":118.33,"fill":"3-day average"},{"x":64,"y":109,"fill":"3-day average"},{"x":65,"y":106.67,"fill":"3-day average"},{"x":66,"y":111.33,"fill":"3-day average"},{"x":67,"y":128.67,"fill":"3-day average"},{"x":68,"y":142,"fill":"3-day average"},{"x":69,"y":130.33,"fill":"3-day average"}],"geoms":["line","point"],"x":"day","y":"covers"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>The frequency response: how much of each frequency survives</h2>
+
+<p>Every linear filter has what is called a frequency response: a curve that says, for each frequency, how much of a wave at that frequency comes out the other side. The height of that curve at a given frequency is the filter's gain there. A gain of 1 means a wave at that frequency survives at full strength. A gain of 0 means it disappears completely. A gain of 0.5 means it comes out at half its original strength.</p>
+
+<p>For an N-day centered moving average, the gain at frequency \(f\) works out to this formula.</p>
+
+<p>\[ \text{gain}(f) = \left| \frac{\sin(N \pi f)}{N \sin(\pi f)} \right| \]</p>
+
+<p>Compute it for the 3-day average at Northside Diner's two real frequencies, and at the fastest frequency a daily series can show, 0.5 cycles a day.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the 3-day average's gain at the two real cycles and at 0.5
+gain_ma &lt;- function(f, N) abs(sin(pi * f * N) / (N * sin(pi * f)))
+
+round(gain_ma(1/7, 3), 3)
+round(gain_ma(2/7, 3), 3)
+round(gain_ma(0.5, 3), 3)
+#&gt; [1] 0.749
+#&gt; [1] 0.185
+#&gt; [1] 0.333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At frequency 1/7, the 3-day average's gain is 0.749: the weekly cycle keeps about three quarters of its strength. At 2/7, gain drops to 0.185: the faster of the two real cycles loses most of its strength. At 0.5, the fastest frequency a daily series can show, gain is only 0.333. That is the low-pass shape in numbers: gain highest at the lowest frequency, falling as frequency climbs.</p>
+
+<p>Here is that same gain, plotted across every frequency this 70-day series can show, 1/70 up to 0.5.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.0143,"y":0.9973},{"x":0.0286,"y":0.9893},{"x":0.0429,"y":0.976},{"x":0.0571,"y":0.9575},{"x":0.0714,"y":0.934},{"x":0.0857,"y":0.9056},{"x":0.1,"y":0.8727},{"x":0.1143,"y":0.8354},{"x":0.1286,"y":0.794},{"x":0.1429,"y":0.749},{"x":0.1571,"y":0.7006},{"x":0.1714,"y":0.6492},{"x":0.1857,"y":0.5954},{"x":0.2,"y":0.5393},{"x":0.2143,"y":0.4817},{"x":0.2286,"y":0.4228},{"x":0.2429,"y":0.3632},{"x":0.2571,"y":0.3034},{"x":0.2714,"y":0.2438},{"x":0.2857,"y":0.185},{"x":0.3,"y":0.1273},{"x":0.3143,"y":0.0713},{"x":0.3286,"y":0.0174},{"x":0.3429,"y":0.0339},{"x":0.3571,"y":0.0823},{"x":0.3714,"y":0.1274},{"x":0.3857,"y":0.1687},{"x":0.4,"y":0.206},{"x":0.4143,"y":0.239},{"x":0.4286,"y":0.2673},{"x":0.4429,"y":0.2908},{"x":0.4571,"y":0.3093},{"x":0.4714,"y":0.3226},{"x":0.4857,"y":0.3306},{"x":0.5,"y":0.3333}],"geoms":["line","point"],"x":"frequency","y":"gain"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>The window-length gotcha: when a low-pass filter erases the wrong cycle</h2>
+
+<p>The gain formula from the last step has a sharp edge: whenever frequency times window length, \(f \times N\), lands exactly on a whole number, \(\sin(N \pi f)\) is exactly 0, and so is the gain. Northside Diner's own window length, 7 days, does exactly that to both of its real cycles: \(7 \times 1/7 = 1\) and \(7 \times 2/7 = 2\), both whole numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check the 7-day average's gain at the two real cycles, and its spread
+ma7 &lt;- filter(northside_covers, rep(1/7, 7), sides = 2)
+
+round(sd(ma7, na.rm = TRUE), 2)
+round(gain_ma(1/7, 7), 4)
+round(gain_ma(2/7, 7), 4)
+#&gt; [1] 4.19
+#&gt; [1] 0
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both gains come back exactly 0. A 7-day average does not merely smooth Northside Diner's weekly cycle, it erases it: the standard deviation collapses from 25.36 all the way to 4.19, an almost flat line. Toggle between line and point below to see the difference: the 3-day average kept the Friday peak's shape, but the 7-day average removes it entirely, not just softens it.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":110,"fill":"raw covers"},{"x":2,"y":105,"fill":"raw covers"},{"x":3,"y":101,"fill":"raw covers"},{"x":4,"y":134,"fill":"raw covers"},{"x":5,"y":174,"fill":"raw covers"},{"x":6,"y":149,"fill":"raw covers"},{"x":7,"y":108,"fill":"raw covers"},{"x":8,"y":99,"fill":"raw covers"},{"x":9,"y":88,"fill":"raw covers"},{"x":10,"y":91,"fill":"raw covers"},{"x":11,"y":119,"fill":"raw covers"},{"x":12,"y":167,"fill":"raw covers"},{"x":13,"y":144,"fill":"raw covers"},{"x":14,"y":105,"fill":"raw covers"},{"x":15,"y":68,"fill":"raw covers"},{"x":16,"y":99,"fill":"raw covers"},{"x":17,"y":93,"fill":"raw covers"},{"x":18,"y":141,"fill":"raw covers"},{"x":19,"y":146,"fill":"raw covers"},{"x":20,"y":116,"fill":"raw covers"},{"x":21,"y":114,"fill":"raw covers"},{"x":22,"y":104,"fill":"raw covers"},{"x":23,"y":111,"fill":"raw covers"},{"x":24,"y":100,"fill":"raw covers"},{"x":25,"y":140,"fill":"raw covers"},{"x":26,"y":147,"fill":"raw covers"},{"x":27,"y":135,"fill":"raw covers"},{"x":28,"y":109,"fill":"raw covers"},{"x":29,"y":80,"fill":"raw covers"},{"x":30,"y":99,"fill":"raw covers"},{"x":31,"y":88,"fill":"raw covers"},{"x":32,"y":133,"fill":"raw covers"},{"x":33,"y":157,"fill":"raw covers"},{"x":34,"y":148,"fill":"raw covers"},{"x":35,"y":98,"fill":"raw covers"},{"x":36,"y":104,"fill":"raw covers"},{"x":37,"y":104,"fill":"raw covers"},{"x":38,"y":98,"fill":"raw covers"},{"x":39,"y":130,"fill":"raw covers"},{"x":40,"y":166,"fill":"raw covers"},{"x":41,"y":127,"fill":"raw covers"},{"x":42,"y":102,"fill":"raw covers"},{"x":43,"y":105,"fill":"raw covers"},{"x":44,"y":120,"fill":"raw covers"},{"x":45,"y":91,"fill":"raw covers"},{"x":46,"y":137,"fill":"raw covers"},{"x":47,"y":165,"fill":"raw covers"},{"x":48,"y":143,"fill":"raw covers"},{"x":49,"y":109,"fill":"raw covers"},{"x":50,"y":120,"fill":"raw covers"},{"x":51,"y":95,"fill":"raw covers"},{"x":52,"y":95,"fill":"raw covers"},{"x":53,"y":130,"fill":"raw covers"},{"x":54,"y":152,"fill":"raw covers"},{"x":55,"y":129,"fill":"raw covers"},{"x":56,"y":88,"fill":"raw covers"},{"x":57,"y":109,"fill":"raw covers"},{"x":58,"y":98,"fill":"raw covers"},{"x":59,"y":113,"fill":"raw covers"},{"x":60,"y":136,"fill":"raw covers"},{"x":61,"y":178,"fill":"raw covers"},{"x":62,"y":145,"fill":"raw covers"},{"x":63,"y":108,"fill":"raw covers"},{"x":64,"y":102,"fill":"raw covers"},{"x":65,"y":117,"fill":"raw covers"},{"x":66,"y":101,"fill":"raw covers"},{"x":67,"y":116,"fill":"raw covers"},{"x":68,"y":169,"fill":"raw covers"},{"x":69,"y":141,"fill":"raw covers"},{"x":70,"y":81,"fill":"raw covers"},{"x":4,"y":125.86,"fill":"7-day average"},{"x":5,"y":124.29,"fill":"7-day average"},{"x":6,"y":121.86,"fill":"7-day average"},{"x":7,"y":120.43,"fill":"7-day average"},{"x":8,"y":118.29,"fill":"7-day average"},{"x":9,"y":117.29,"fill":"7-day average"},{"x":10,"y":116.57,"fill":"7-day average"},{"x":11,"y":116.14,"fill":"7-day average"},{"x":12,"y":111.71,"fill":"7-day average"},{"x":13,"y":113.29,"fill":"7-day average"},{"x":14,"y":113.57,"fill":"7-day average"},{"x":15,"y":116.71,"fill":"7-day average"},{"x":16,"y":113.71,"fill":"7-day average"},{"x":17,"y":109.71,"fill":"7-day average"},{"x":18,"y":111,"fill":"7-day average"},{"x":19,"y":116.14,"fill":"7-day average"},{"x":20,"y":117.86,"fill":"7-day average"},{"x":21,"y":118.86,"fill":"7-day average"},{"x":22,"y":118.71,"fill":"7-day average"},{"x":23,"y":118.86,"fill":"7-day average"},{"x":24,"y":121.57,"fill":"7-day average"},{"x":25,"y":120.86,"fill":"7-day average"},{"x":26,"y":117.43,"fill":"7-day average"},{"x":27,"y":115.71,"fill":"7-day average"},{"x":28,"y":114,"fill":"7-day average"},{"x":29,"y":113,"fill":"7-day average"},{"x":30,"y":114.43,"fill":"7-day average"},{"x":31,"y":116.29,"fill":"7-day average"},{"x":32,"y":114.71,"fill":"7-day average"},{"x":33,"y":118.14,"fill":"7-day average"},{"x":34,"y":118.86,"fill":"7-day average"},{"x":35,"y":120.29,"fill":"7-day average"},{"x":36,"y":119.86,"fill":"7-day average"},{"x":37,"y":121.14,"fill":"7-day average"},{"x":38,"y":118.14,"fill":"7-day average"},{"x":39,"y":118.71,"fill":"7-day average"},{"x":40,"y":118.86,"fill":"7-day average"},{"x":41,"y":121.14,"fill":"7-day average"},{"x":42,"y":120.14,"fill":"7-day average"},{"x":43,"y":121.14,"fill":"7-day average"},{"x":44,"y":121,"fill":"7-day average"},{"x":45,"y":123.29,"fill":"7-day average"},{"x":46,"y":124.29,"fill":"7-day average"},{"x":47,"y":126.43,"fill":"7-day average"},{"x":48,"y":122.86,"fill":"7-day average"},{"x":49,"y":123.43,"fill":"7-day average"},{"x":50,"y":122.43,"fill":"7-day average"},{"x":51,"y":120.57,"fill":"7-day average"},{"x":52,"y":118.57,"fill":"7-day average"},{"x":53,"y":115.57,"fill":"7-day average"},{"x":54,"y":114,"fill":"7-day average"},{"x":55,"y":114.43,"fill":"7-day average"},{"x":56,"y":117,"fill":"7-day average"},{"x":57,"y":117.86,"fill":"7-day average"},{"x":58,"y":121.57,"fill":"7-day average"},{"x":59,"y":123.86,"fill":"7-day average"},{"x":60,"y":126.71,"fill":"7-day average"},{"x":61,"y":125.71,"fill":"7-day average"},{"x":62,"y":128.43,"fill":"7-day average"},{"x":63,"y":126.71,"fill":"7-day average"},{"x":64,"y":123.86,"fill":"7-day average"},{"x":65,"y":122.57,"fill":"7-day average"},{"x":66,"y":122,"fill":"7-day average"},{"x":67,"y":118.14,"fill":"7-day average"}],"geoms":["line","point"],"x":"day","y":"covers"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading a low-pass filter's blind spot</h2>
+
+<p>A moving average's gain hits exactly 0 only when frequency times window length lands on a whole number, the same rule that made the 7-day average erase both of Northside Diner's real cycles.</p>
+<section class="exercise" data-exercise-id="Filtering-Low-Pass-High-Pass-and-Band-Pass-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A 14-day average has gain exactly 0 at both 1/7 and 2/7, since 14 times 1/7 is 2 and 14 times 2/7 is 4, both whole numbers; it would erase the weekly shape completely, the same way the 7-day average did.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A 9-day average nulls the 1/7 cycle too, since 9 is close to 7.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A 5-day average would erase both real cycles completely, the same way a 7-day or 14-day average does.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. 14 x 1/7 = 2 and 14 x 2/7 = 4, both whole numbers, so a 14-day average has gain exactly 0 at both frequencies. A 9-day or 5-day average only damps the cycles, since neither 9 nor 5 times 1/7 lands on a whole number.</div><div class="lesson-qfb lesson-qfb-no">A moving average's gain hits exactly 0 only when frequency times window length is a whole number: 14 x 1/7 = 2 and 14 x 2/7 = 4 both qualify, so a 14-day average erases the weekly shape completely. Neither 5 x 1/7 nor 9 x 1/7 is a whole number, so those window lengths only damp the cycles, they never erase them.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Differencing as a high-pass filter</h2>
+
+<p><code>filter()</code> is not the only way to build a filter. Differencing, <code>diff()</code>, subtracting each day's value from the one that follows it, is a filter too, and a very different one from a moving average.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Difference the series, and compare its spread with the raw series
+d1 &lt;- diff(northside_covers)
+
+round(sd(northside_covers), 2)
+round(sd(d1), 2)
+#&gt; [1] 25.36
+#&gt; [1] 28.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The differenced series is louder than the raw one, 28.05 against 25.36. A moving average shrank the spread; differencing grew it. Its gain formula is simpler than a moving average's.</p>
+
+<p>\[ \text{gain}(f) = 2 \sin(\pi f) \]</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute differencing's gain near frequency 0, at the two real cycles, and at 0.5
+gain_diff &lt;- function(f) 2 * sin(pi * f)
+
+round(gain_diff(1/70), 3)
+round(gain_diff(1/7), 3)
+round(gain_diff(2/7), 3)
+round(gain_diff(0.5), 3)
+#&gt; [1] 0.09
+#&gt; [1] 0.868
+#&gt; [1] 1.564
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At the lowest frequency this series can show, 1/70, differencing's gain is only 0.09: slow movement barely survives. At 0.5, the fastest frequency, gain reaches 2: fast movement is amplified, not just passed through. At Northside Diner's two real cycles, gain is 0.868 at 1/7 and 1.564 at 2/7, both grown past their original strength. A filter that damps low frequencies and boosts high ones like this is called a high-pass filter, the opposite of the low-pass moving average.</p>
+
+<p>Toggle between line and point to see how much jumpier the differenced series looks next to the raw one.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":110,"fill":"raw covers"},{"x":2,"y":105,"fill":"raw covers"},{"x":3,"y":101,"fill":"raw covers"},{"x":4,"y":134,"fill":"raw covers"},{"x":5,"y":174,"fill":"raw covers"},{"x":6,"y":149,"fill":"raw covers"},{"x":7,"y":108,"fill":"raw covers"},{"x":8,"y":99,"fill":"raw covers"},{"x":9,"y":88,"fill":"raw covers"},{"x":10,"y":91,"fill":"raw covers"},{"x":11,"y":119,"fill":"raw covers"},{"x":12,"y":167,"fill":"raw covers"},{"x":13,"y":144,"fill":"raw covers"},{"x":14,"y":105,"fill":"raw covers"},{"x":15,"y":68,"fill":"raw covers"},{"x":16,"y":99,"fill":"raw covers"},{"x":17,"y":93,"fill":"raw covers"},{"x":18,"y":141,"fill":"raw covers"},{"x":19,"y":146,"fill":"raw covers"},{"x":20,"y":116,"fill":"raw covers"},{"x":21,"y":114,"fill":"raw covers"},{"x":22,"y":104,"fill":"raw covers"},{"x":23,"y":111,"fill":"raw covers"},{"x":24,"y":100,"fill":"raw covers"},{"x":25,"y":140,"fill":"raw covers"},{"x":26,"y":147,"fill":"raw covers"},{"x":27,"y":135,"fill":"raw covers"},{"x":28,"y":109,"fill":"raw covers"},{"x":29,"y":80,"fill":"raw covers"},{"x":30,"y":99,"fill":"raw covers"},{"x":31,"y":88,"fill":"raw covers"},{"x":32,"y":133,"fill":"raw covers"},{"x":33,"y":157,"fill":"raw covers"},{"x":34,"y":148,"fill":"raw covers"},{"x":35,"y":98,"fill":"raw covers"},{"x":36,"y":104,"fill":"raw covers"},{"x":37,"y":104,"fill":"raw covers"},{"x":38,"y":98,"fill":"raw covers"},{"x":39,"y":130,"fill":"raw covers"},{"x":40,"y":166,"fill":"raw covers"},{"x":41,"y":127,"fill":"raw covers"},{"x":42,"y":102,"fill":"raw covers"},{"x":43,"y":105,"fill":"raw covers"},{"x":44,"y":120,"fill":"raw covers"},{"x":45,"y":91,"fill":"raw covers"},{"x":46,"y":137,"fill":"raw covers"},{"x":47,"y":165,"fill":"raw covers"},{"x":48,"y":143,"fill":"raw covers"},{"x":49,"y":109,"fill":"raw covers"},{"x":50,"y":120,"fill":"raw covers"},{"x":51,"y":95,"fill":"raw covers"},{"x":52,"y":95,"fill":"raw covers"},{"x":53,"y":130,"fill":"raw covers"},{"x":54,"y":152,"fill":"raw covers"},{"x":55,"y":129,"fill":"raw covers"},{"x":56,"y":88,"fill":"raw covers"},{"x":57,"y":109,"fill":"raw covers"},{"x":58,"y":98,"fill":"raw covers"},{"x":59,"y":113,"fill":"raw covers"},{"x":60,"y":136,"fill":"raw covers"},{"x":61,"y":178,"fill":"raw covers"},{"x":62,"y":145,"fill":"raw covers"},{"x":63,"y":108,"fill":"raw covers"},{"x":64,"y":102,"fill":"raw covers"},{"x":65,"y":117,"fill":"raw covers"},{"x":66,"y":101,"fill":"raw covers"},{"x":67,"y":116,"fill":"raw covers"},{"x":68,"y":169,"fill":"raw covers"},{"x":69,"y":141,"fill":"raw covers"},{"x":70,"y":81,"fill":"raw covers"},{"x":2,"y":-5,"fill":"day-to-day change"},{"x":3,"y":-4,"fill":"day-to-day change"},{"x":4,"y":33,"fill":"day-to-day change"},{"x":5,"y":40,"fill":"day-to-day change"},{"x":6,"y":-25,"fill":"day-to-day change"},{"x":7,"y":-41,"fill":"day-to-day change"},{"x":8,"y":-9,"fill":"day-to-day change"},{"x":9,"y":-11,"fill":"day-to-day change"},{"x":10,"y":3,"fill":"day-to-day change"},{"x":11,"y":28,"fill":"day-to-day change"},{"x":12,"y":48,"fill":"day-to-day change"},{"x":13,"y":-23,"fill":"day-to-day change"},{"x":14,"y":-39,"fill":"day-to-day change"},{"x":15,"y":-37,"fill":"day-to-day change"},{"x":16,"y":31,"fill":"day-to-day change"},{"x":17,"y":-6,"fill":"day-to-day change"},{"x":18,"y":48,"fill":"day-to-day change"},{"x":19,"y":5,"fill":"day-to-day change"},{"x":20,"y":-30,"fill":"day-to-day change"},{"x":21,"y":-2,"fill":"day-to-day change"},{"x":22,"y":-10,"fill":"day-to-day change"},{"x":23,"y":7,"fill":"day-to-day change"},{"x":24,"y":-11,"fill":"day-to-day change"},{"x":25,"y":40,"fill":"day-to-day change"},{"x":26,"y":7,"fill":"day-to-day change"},{"x":27,"y":-12,"fill":"day-to-day change"},{"x":28,"y":-26,"fill":"day-to-day change"},{"x":29,"y":-29,"fill":"day-to-day change"},{"x":30,"y":19,"fill":"day-to-day change"},{"x":31,"y":-11,"fill":"day-to-day change"},{"x":32,"y":45,"fill":"day-to-day change"},{"x":33,"y":24,"fill":"day-to-day change"},{"x":34,"y":-9,"fill":"day-to-day change"},{"x":35,"y":-50,"fill":"day-to-day change"},{"x":36,"y":6,"fill":"day-to-day change"},{"x":37,"y":0,"fill":"day-to-day change"},{"x":38,"y":-6,"fill":"day-to-day change"},{"x":39,"y":32,"fill":"day-to-day change"},{"x":40,"y":36,"fill":"day-to-day change"},{"x":41,"y":-39,"fill":"day-to-day change"},{"x":42,"y":-25,"fill":"day-to-day change"},{"x":43,"y":3,"fill":"day-to-day change"},{"x":44,"y":15,"fill":"day-to-day change"},{"x":45,"y":-29,"fill":"day-to-day change"},{"x":46,"y":46,"fill":"day-to-day change"},{"x":47,"y":28,"fill":"day-to-day change"},{"x":48,"y":-22,"fill":"day-to-day change"},{"x":49,"y":-34,"fill":"day-to-day change"},{"x":50,"y":11,"fill":"day-to-day change"},{"x":51,"y":-25,"fill":"day-to-day change"},{"x":52,"y":0,"fill":"day-to-day change"},{"x":53,"y":35,"fill":"day-to-day change"},{"x":54,"y":22,"fill":"day-to-day change"},{"x":55,"y":-23,"fill":"day-to-day change"},{"x":56,"y":-41,"fill":"day-to-day change"},{"x":57,"y":21,"fill":"day-to-day change"},{"x":58,"y":-11,"fill":"day-to-day change"},{"x":59,"y":15,"fill":"day-to-day change"},{"x":60,"y":23,"fill":"day-to-day change"},{"x":61,"y":42,"fill":"day-to-day change"},{"x":62,"y":-33,"fill":"day-to-day change"},{"x":63,"y":-37,"fill":"day-to-day change"},{"x":64,"y":-6,"fill":"day-to-day change"},{"x":65,"y":15,"fill":"day-to-day change"},{"x":66,"y":-16,"fill":"day-to-day change"},{"x":67,"y":15,"fill":"day-to-day change"},{"x":68,"y":53,"fill":"day-to-day change"},{"x":69,"y":-28,"fill":"day-to-day change"},{"x":70,"y":-60,"fill":"day-to-day change"}],"geoms":["line","point"],"x":"day","y":"covers"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Comparing a low-pass curve with a high-pass curve</h2>
+
+<p>Put the 3-day average's gain curve and differencing's gain curve side by side, at the same frequency, 1/7.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the low-pass and high-pass gains at the same frequency
+fseq &lt;- (1:35) / 70
+gain_lowpass &lt;- gain_ma(fseq, 3)
+gain_highpass &lt;- gain_diff(fseq)
+
+round(c(low_pass = gain_lowpass[10], high_pass = gain_highpass[10]), 3)
+#&gt;  low_pass high_pass 
+#&gt;     0.749     0.868 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two curves' overall shape rather than one frequency at a time. The 3-day average's gain starts near 1 at the lowest frequency and slides down toward 0 as frequency rises: it lets slow movement through and blocks fast movement, the low-pass shape. Differencing's gain does the opposite: it starts near 0 at the lowest frequency and climbs toward 2 as frequency rises: it blocks slow movement and lets fast movement through, the high-pass shape.</p>
+
+<p>Toggle between line and point to see both curves plotted together.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.0143,"y":0.9973,"fill":"3-day average (low-pass)"},{"x":0.0286,"y":0.9893,"fill":"3-day average (low-pass)"},{"x":0.0429,"y":0.976,"fill":"3-day average (low-pass)"},{"x":0.0571,"y":0.9575,"fill":"3-day average (low-pass)"},{"x":0.0714,"y":0.934,"fill":"3-day average (low-pass)"},{"x":0.0857,"y":0.9056,"fill":"3-day average (low-pass)"},{"x":0.1,"y":0.8727,"fill":"3-day average (low-pass)"},{"x":0.1143,"y":0.8354,"fill":"3-day average (low-pass)"},{"x":0.1286,"y":0.794,"fill":"3-day average (low-pass)"},{"x":0.1429,"y":0.749,"fill":"3-day average (low-pass)"},{"x":0.1571,"y":0.7006,"fill":"3-day average (low-pass)"},{"x":0.1714,"y":0.6492,"fill":"3-day average (low-pass)"},{"x":0.1857,"y":0.5954,"fill":"3-day average (low-pass)"},{"x":0.2,"y":0.5393,"fill":"3-day average (low-pass)"},{"x":0.2143,"y":0.4817,"fill":"3-day average (low-pass)"},{"x":0.2286,"y":0.4228,"fill":"3-day average (low-pass)"},{"x":0.2429,"y":0.3632,"fill":"3-day average (low-pass)"},{"x":0.2571,"y":0.3034,"fill":"3-day average (low-pass)"},{"x":0.2714,"y":0.2438,"fill":"3-day average (low-pass)"},{"x":0.2857,"y":0.185,"fill":"3-day average (low-pass)"},{"x":0.3,"y":0.1273,"fill":"3-day average (low-pass)"},{"x":0.3143,"y":0.0713,"fill":"3-day average (low-pass)"},{"x":0.3286,"y":0.0174,"fill":"3-day average (low-pass)"},{"x":0.3429,"y":0.0339,"fill":"3-day average (low-pass)"},{"x":0.3571,"y":0.0823,"fill":"3-day average (low-pass)"},{"x":0.3714,"y":0.1274,"fill":"3-day average (low-pass)"},{"x":0.3857,"y":0.1687,"fill":"3-day average (low-pass)"},{"x":0.4,"y":0.206,"fill":"3-day average (low-pass)"},{"x":0.4143,"y":0.239,"fill":"3-day average (low-pass)"},{"x":0.4286,"y":0.2673,"fill":"3-day average (low-pass)"},{"x":0.4429,"y":0.2908,"fill":"3-day average (low-pass)"},{"x":0.4571,"y":0.3093,"fill":"3-day average (low-pass)"},{"x":0.4714,"y":0.3226,"fill":"3-day average (low-pass)"},{"x":0.4857,"y":0.3306,"fill":"3-day average (low-pass)"},{"x":0.5,"y":0.3333,"fill":"3-day average (low-pass)"},{"x":0.0143,"y":0.0897,"fill":"differencing (high-pass)"},{"x":0.0286,"y":0.1793,"fill":"differencing (high-pass)"},{"x":0.0429,"y":0.2685,"fill":"differencing (high-pass)"},{"x":0.0571,"y":0.3571,"fill":"differencing (high-pass)"},{"x":0.0714,"y":0.445,"fill":"differencing (high-pass)"},{"x":0.0857,"y":0.5321,"fill":"differencing (high-pass)"},{"x":0.1,"y":0.618,"fill":"differencing (high-pass)"},{"x":0.1143,"y":0.7027,"fill":"differencing (high-pass)"},{"x":0.1286,"y":0.7861,"fill":"differencing (high-pass)"},{"x":0.1429,"y":0.8678,"fill":"differencing (high-pass)"},{"x":0.1571,"y":0.9477,"fill":"differencing (high-pass)"},{"x":0.1714,"y":1.0258,"fill":"differencing (high-pass)"},{"x":0.1857,"y":1.1018,"fill":"differencing (high-pass)"},{"x":0.2,"y":1.1756,"fill":"differencing (high-pass)"},{"x":0.2143,"y":1.247,"fill":"differencing (high-pass)"},{"x":0.2286,"y":1.3159,"fill":"differencing (high-pass)"},{"x":0.2429,"y":1.3821,"fill":"differencing (high-pass)"},{"x":0.2571,"y":1.4456,"fill":"differencing (high-pass)"},{"x":0.2714,"y":1.5061,"fill":"differencing (high-pass)"},{"x":0.2857,"y":1.5637,"fill":"differencing (high-pass)"},{"x":0.3,"y":1.618,"fill":"differencing (high-pass)"},{"x":0.3143,"y":1.6691,"fill":"differencing (high-pass)"},{"x":0.3286,"y":1.7169,"fill":"differencing (high-pass)"},{"x":0.3429,"y":1.7612,"fill":"differencing (high-pass)"},{"x":0.3571,"y":1.8019,"fill":"differencing (high-pass)"},{"x":0.3714,"y":1.8391,"fill":"differencing (high-pass)"},{"x":0.3857,"y":1.8725,"fill":"differencing (high-pass)"},{"x":0.4,"y":1.9021,"fill":"differencing (high-pass)"},{"x":0.4143,"y":1.9279,"fill":"differencing (high-pass)"},{"x":0.4286,"y":1.9499,"fill":"differencing (high-pass)"},{"x":0.4429,"y":1.9679,"fill":"differencing (high-pass)"},{"x":0.4571,"y":1.9819,"fill":"differencing (high-pass)"},{"x":0.4714,"y":1.9919,"fill":"differencing (high-pass)"},{"x":0.4857,"y":1.998,"fill":"differencing (high-pass)"},{"x":0.5,"y":2,"fill":"differencing (high-pass)"}],"geoms":["line","point"],"x":"frequency","y":"gain"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Building a band-pass filter from two moving averages</h2>
+
+<p>Build a much slower moving average, one wide enough to smooth away both of Northside Diner's real cycles, and check its own gain first.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a 15-day average and check its gain at the two real cycles and near 0
+ma15 &lt;- filter(northside_covers, rep(1/15, 15), sides = 2)
+
+round(gain_ma(1/7, 15), 3)
+round(gain_ma(2/7, 15), 3)
+round(gain_ma(1/70, 15), 4)
+#&gt; [1] 0.067
+#&gt; [1] 0.067
+#&gt; [1] 0.9265</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 15-day average damps both real cycles down to about 7% of their strength, 0.067 at each, but at 1/70, the lowest frequency this series can show, its gain is still 0.9265: slow drift passes through almost untouched. So the 15-day average is just another low-pass filter, one with a much lower cutoff than the 3-day average.</p>
+
+<p>Subtract that slow average from the fast one, and what is left is only what the fast average sees but the slow one does not: a band of frequencies in between, neither the slowest nor the fastest.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the band-pass filter and rebuild the true combined wave to check it against
+band &lt;- ma3 - ma15
+wave_7day &lt;- 30 * cos(2 * pi * (day - 5) / 7)
+wave_35day &lt;- 12 * cos(4 * pi * (day - 5) / 7)
+true_cycle &lt;- wave_7day + wave_35day
+
+round(sd(band, na.rm = TRUE), 2)
+round(sd(true_cycle), 2)
+round(cor(band, true_cycle, use = &quot;complete.obs&quot;), 3)
+#&gt; [1] 15.38
+#&gt; [1] 23.01
+#&gt; [1] 0.879</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>true_cycle</code> is the two real cycles added together with no noise at all, buildable here only because this series was simulated and its exact formula is known. <code>band</code>, the filter's actual output, correlates with it at 0.879, close but not perfect: <code>band</code> still carries some leftover noise the two moving averages did not fully remove. This kind of filter, one that blocks both very slow and very fast movement but lets a middle band through, is called a band-pass filter. Its gain follows directly from the two averages' own gains at each frequency: 0.749 minus 0.067 is 0.682 at 1/7, and 0.185 minus 0.067 is 0.118 at 2/7, both far from 0 but nowhere near the 3-day average's gain on its own.</p>
+
+<p>Toggle between line and point to see how closely <code>band</code> tracks the true combined wave.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":8,"y":-19.13,"fill":"band-pass output"},{"x":9,"y":-24.07,"fill":"band-pass output"},{"x":10,"y":-16.6,"fill":"band-pass output"},{"x":11,"y":7.07,"fill":"band-pass output"},{"x":12,"y":23.93,"fill":"band-pass output"},{"x":13,"y":23.13,"fill":"band-pass output"},{"x":14,"y":-7.53,"fill":"band-pass output"},{"x":15,"y":-22.27,"fill":"band-pass output"},{"x":16,"y":-27.07,"fill":"band-pass output"},{"x":17,"y":-3.53,"fill":"band-pass output"},{"x":18,"y":8.87,"fill":"band-pass output"},{"x":19,"y":14.67,"fill":"band-pass output"},{"x":20,"y":7.8,"fill":"band-pass output"},{"x":21,"y":-3.87,"fill":"band-pass output"},{"x":22,"y":-3.87,"fill":"band-pass output"},{"x":23,"y":-10.6,"fill":"band-pass output"},{"x":24,"y":2.13,"fill":"band-pass output"},{"x":25,"y":11.47,"fill":"band-pass output"},{"x":26,"y":22.07,"fill":"band-pass output"},{"x":27,"y":11.6,"fill":"band-pass output"},{"x":28,"y":-9.53,"fill":"band-pass output"},{"x":29,"y":-20.87,"fill":"band-pass output"},{"x":30,"y":-27.87,"fill":"band-pass output"},{"x":31,"y":-9.33,"fill":"band-pass output"},{"x":32,"y":8,"fill":"band-pass output"},{"x":33,"y":26.27,"fill":"band-pass output"},{"x":34,"y":15.93,"fill":"band-pass output"},{"x":35,"y":0.47,"fill":"band-pass output"},{"x":36,"y":-13.93,"fill":"band-pass output"},{"x":37,"y":-16.6,"fill":"band-pass output"},{"x":38,"y":-7.4,"fill":"band-pass output"},{"x":39,"y":10,"fill":"band-pass output"},{"x":40,"y":17.53,"fill":"band-pass output"},{"x":41,"y":9.13,"fill":"band-pass output"},{"x":42,"y":-8.6,"fill":"band-pass output"},{"x":43,"y":-12.4,"fill":"band-pass output"},{"x":44,"y":-15.47,"fill":"band-pass output"},{"x":45,"y":-4.2,"fill":"band-pass output"},{"x":46,"y":8.67,"fill":"band-pass output"},{"x":47,"y":24.53,"fill":"band-pass output"},{"x":48,"y":17.67,"fill":"band-pass output"},{"x":49,"y":5.27,"fill":"band-pass output"},{"x":50,"y":-11.2,"fill":"band-pass output"},{"x":51,"y":-15.4,"fill":"band-pass output"},{"x":52,"y":-11.6,"fill":"band-pass output"},{"x":53,"y":4.4,"fill":"band-pass output"},{"x":54,"y":13,"fill":"band-pass output"},{"x":55,"y":0.33,"fill":"band-pass output"},{"x":56,"y":-11.67,"fill":"band-pass output"},{"x":57,"y":-21.53,"fill":"band-pass output"},{"x":58,"y":-13,"fill":"band-pass output"},{"x":59,"y":-4.4,"fill":"band-pass output"},{"x":60,"y":20.87,"fill":"band-pass output"},{"x":61,"y":28.93,"fill":"band-pass output"},{"x":62,"y":20.33,"fill":"band-pass output"},{"x":63,"y":-1.8,"fill":"band-pass output"},{"x":8,"y":-19.55,"fill":"true combined wave"},{"x":9,"y":-19.55,"fill":"true combined wave"},{"x":10,"y":-17.49,"fill":"true combined wave"},{"x":11,"y":16.03,"fill":"true combined wave"},{"x":12,"y":42,"fill":"true combined wave"},{"x":13,"y":16.03,"fill":"true combined wave"},{"x":14,"y":-17.49,"fill":"true combined wave"},{"x":15,"y":-19.55,"fill":"true combined wave"},{"x":16,"y":-19.55,"fill":"true combined wave"},{"x":17,"y":-17.49,"fill":"true combined wave"},{"x":18,"y":16.03,"fill":"true combined wave"},{"x":19,"y":42,"fill":"true combined wave"},{"x":20,"y":16.03,"fill":"true combined wave"},{"x":21,"y":-17.49,"fill":"true combined wave"},{"x":22,"y":-19.55,"fill":"true combined wave"},{"x":23,"y":-19.55,"fill":"true combined wave"},{"x":24,"y":-17.49,"fill":"true combined wave"},{"x":25,"y":16.03,"fill":"true combined wave"},{"x":26,"y":42,"fill":"true combined wave"},{"x":27,"y":16.03,"fill":"true combined wave"},{"x":28,"y":-17.49,"fill":"true combined wave"},{"x":29,"y":-19.55,"fill":"true combined wave"},{"x":30,"y":-19.55,"fill":"true combined wave"},{"x":31,"y":-17.49,"fill":"true combined wave"},{"x":32,"y":16.03,"fill":"true combined wave"},{"x":33,"y":42,"fill":"true combined wave"},{"x":34,"y":16.03,"fill":"true combined wave"},{"x":35,"y":-17.49,"fill":"true combined wave"},{"x":36,"y":-19.55,"fill":"true combined wave"},{"x":37,"y":-19.55,"fill":"true combined wave"},{"x":38,"y":-17.49,"fill":"true combined wave"},{"x":39,"y":16.03,"fill":"true combined wave"},{"x":40,"y":42,"fill":"true combined wave"},{"x":41,"y":16.03,"fill":"true combined wave"},{"x":42,"y":-17.49,"fill":"true combined wave"},{"x":43,"y":-19.55,"fill":"true combined wave"},{"x":44,"y":-19.55,"fill":"true combined wave"},{"x":45,"y":-17.49,"fill":"true combined wave"},{"x":46,"y":16.03,"fill":"true combined wave"},{"x":47,"y":42,"fill":"true combined wave"},{"x":48,"y":16.03,"fill":"true combined wave"},{"x":49,"y":-17.49,"fill":"true combined wave"},{"x":50,"y":-19.55,"fill":"true combined wave"},{"x":51,"y":-19.55,"fill":"true combined wave"},{"x":52,"y":-17.49,"fill":"true combined wave"},{"x":53,"y":16.03,"fill":"true combined wave"},{"x":54,"y":42,"fill":"true combined wave"},{"x":55,"y":16.03,"fill":"true combined wave"},{"x":56,"y":-17.49,"fill":"true combined wave"},{"x":57,"y":-19.55,"fill":"true combined wave"},{"x":58,"y":-19.55,"fill":"true combined wave"},{"x":59,"y":-17.49,"fill":"true combined wave"},{"x":60,"y":16.03,"fill":"true combined wave"},{"x":61,"y":42,"fill":"true combined wave"},{"x":62,"y":16.03,"fill":"true combined wave"},{"x":63,"y":-17.49,"fill":"true combined wave"}],"geoms":["line","point"],"x":"day","y":"value"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>The phase shift a causal filter pays for</h2>
+
+<p>Build the same 3-day average again, but trailing this time, using only each day and the two before it, then compare both windows around Northside Diner's first Friday peak.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a trailing 3-day average and compare it with the centered one
+ma3_trail &lt;- filter(northside_covers, rep(1/3, 3), sides = 1)
+
+data.frame(day = 1:12, raw = northside_covers[1:12],
+           ma3 = round(ma3[1:12], 2), ma3_trail = round(ma3_trail[1:12], 2))
+#&gt;    day raw    ma3 ma3_trail
+#&gt; 1    1 110     NA        NA
+#&gt; 2    2 105 105.33        NA
+#&gt; 3    3 101 113.33    105.33
+#&gt; 4    4 134 136.33    113.33
+#&gt; 5    5 174 152.33    136.33
+#&gt; 6    6 149 143.67    152.33
+#&gt; 7    7 108 118.67    143.67
+#&gt; 8    8  99  98.33    118.67
+#&gt; 9    9  88  92.67     98.33
+#&gt; 10  10  91  99.33     92.67
+#&gt; 11  11 119 125.67     99.33
+#&gt; 12  12 167 143.33    125.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The raw series peaks on day 5, at 174, the real Friday. The centered <code>ma3</code> peaks there too, at 152.33, matching the true wave's own peak day exactly. But <code>ma3_trail</code>'s peak in this same stretch lands on day 6, at that identical value, 152.33, one full day later. The reason is mechanical: <code>ma3_trail</code> on day 6 averages days 4, 5 and 6, exactly the same three days <code>ma3</code> already averaged and reported on day 5. Trailing simply reports that average a day late, on the day the last of its three inputs arrived, instead of on the middle day.</p>
+
+<p>This kind of delay, where a filter's output has the right shape but arrives late, is called a phase shift. A trailing filter only ever uses values it already has, so it is called a causal filter, one that could genuinely run in real time: reporting each day's smoothed value using only that day and the past. A centered filter needs a value from the future relative to the day it reports on, so it can only be computed after the fact, never live. For a window of \(N\) days, a trailing average lags a centered average of the same window by \((N-1)/2\) days: \((3-1)/2 = 1\) day here.</p>
+
+<p>Toggle between line and point to see that one-day lag repeat across the whole series.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2,"y":105.33,"fill":"centered 3-day average"},{"x":3,"y":113.33,"fill":"centered 3-day average"},{"x":4,"y":136.33,"fill":"centered 3-day average"},{"x":5,"y":152.33,"fill":"centered 3-day average"},{"x":6,"y":143.67,"fill":"centered 3-day average"},{"x":7,"y":118.67,"fill":"centered 3-day average"},{"x":8,"y":98.33,"fill":"centered 3-day average"},{"x":9,"y":92.67,"fill":"centered 3-day average"},{"x":10,"y":99.33,"fill":"centered 3-day average"},{"x":11,"y":125.67,"fill":"centered 3-day average"},{"x":12,"y":143.33,"fill":"centered 3-day average"},{"x":13,"y":138.67,"fill":"centered 3-day average"},{"x":14,"y":105.67,"fill":"centered 3-day average"},{"x":15,"y":90.67,"fill":"centered 3-day average"},{"x":16,"y":86.67,"fill":"centered 3-day average"},{"x":17,"y":111,"fill":"centered 3-day average"},{"x":18,"y":126.67,"fill":"centered 3-day average"},{"x":19,"y":134.33,"fill":"centered 3-day average"},{"x":20,"y":125.33,"fill":"centered 3-day average"},{"x":21,"y":111.33,"fill":"centered 3-day average"},{"x":22,"y":109.67,"fill":"centered 3-day average"},{"x":23,"y":105,"fill":"centered 3-day average"},{"x":24,"y":117,"fill":"centered 3-day average"},{"x":25,"y":129,"fill":"centered 3-day average"},{"x":26,"y":140.67,"fill":"centered 3-day average"},{"x":27,"y":130.33,"fill":"centered 3-day average"},{"x":28,"y":108,"fill":"centered 3-day average"},{"x":29,"y":96,"fill":"centered 3-day average"},{"x":30,"y":89,"fill":"centered 3-day average"},{"x":31,"y":106.67,"fill":"centered 3-day average"},{"x":32,"y":126,"fill":"centered 3-day average"},{"x":33,"y":146,"fill":"centered 3-day average"},{"x":34,"y":134.33,"fill":"centered 3-day average"},{"x":35,"y":116.67,"fill":"centered 3-day average"},{"x":36,"y":102,"fill":"centered 3-day average"},{"x":37,"y":102,"fill":"centered 3-day average"},{"x":38,"y":110.67,"fill":"centered 3-day average"},{"x":39,"y":131.33,"fill":"centered 3-day average"},{"x":40,"y":141,"fill":"centered 3-day average"},{"x":41,"y":131.67,"fill":"centered 3-day average"},{"x":42,"y":111.33,"fill":"centered 3-day average"},{"x":43,"y":109,"fill":"centered 3-day average"},{"x":44,"y":105.33,"fill":"centered 3-day average"},{"x":45,"y":116,"fill":"centered 3-day average"},{"x":46,"y":131,"fill":"centered 3-day average"},{"x":47,"y":148.33,"fill":"centered 3-day average"},{"x":48,"y":139,"fill":"centered 3-day average"},{"x":49,"y":124,"fill":"centered 3-day average"},{"x":50,"y":108,"fill":"centered 3-day average"},{"x":51,"y":103.33,"fill":"centered 3-day average"},{"x":52,"y":106.67,"fill":"centered 3-day average"},{"x":53,"y":125.67,"fill":"centered 3-day average"},{"x":54,"y":137,"fill":"centered 3-day average"},{"x":55,"y":123,"fill":"centered 3-day average"},{"x":56,"y":108.67,"fill":"centered 3-day average"},{"x":57,"y":98.33,"fill":"centered 3-day average"},{"x":58,"y":106.67,"fill":"centered 3-day average"},{"x":59,"y":115.67,"fill":"centered 3-day average"},{"x":60,"y":142.33,"fill":"centered 3-day average"},{"x":61,"y":153,"fill":"centered 3-day average"},{"x":62,"y":143.67,"fill":"centered 3-day average"},{"x":63,"y":118.33,"fill":"centered 3-day average"},{"x":64,"y":109,"fill":"centered 3-day average"},{"x":65,"y":106.67,"fill":"centered 3-day average"},{"x":66,"y":111.33,"fill":"centered 3-day average"},{"x":67,"y":128.67,"fill":"centered 3-day average"},{"x":68,"y":142,"fill":"centered 3-day average"},{"x":69,"y":130.33,"fill":"centered 3-day average"},{"x":3,"y":105.33,"fill":"trailing 3-day average"},{"x":4,"y":113.33,"fill":"trailing 3-day average"},{"x":5,"y":136.33,"fill":"trailing 3-day average"},{"x":6,"y":152.33,"fill":"trailing 3-day average"},{"x":7,"y":143.67,"fill":"trailing 3-day average"},{"x":8,"y":118.67,"fill":"trailing 3-day average"},{"x":9,"y":98.33,"fill":"trailing 3-day average"},{"x":10,"y":92.67,"fill":"trailing 3-day average"},{"x":11,"y":99.33,"fill":"trailing 3-day average"},{"x":12,"y":125.67,"fill":"trailing 3-day average"},{"x":13,"y":143.33,"fill":"trailing 3-day average"},{"x":14,"y":138.67,"fill":"trailing 3-day average"},{"x":15,"y":105.67,"fill":"trailing 3-day average"},{"x":16,"y":90.67,"fill":"trailing 3-day average"},{"x":17,"y":86.67,"fill":"trailing 3-day average"},{"x":18,"y":111,"fill":"trailing 3-day average"},{"x":19,"y":126.67,"fill":"trailing 3-day average"},{"x":20,"y":134.33,"fill":"trailing 3-day average"},{"x":21,"y":125.33,"fill":"trailing 3-day average"},{"x":22,"y":111.33,"fill":"trailing 3-day average"},{"x":23,"y":109.67,"fill":"trailing 3-day average"},{"x":24,"y":105,"fill":"trailing 3-day average"},{"x":25,"y":117,"fill":"trailing 3-day average"},{"x":26,"y":129,"fill":"trailing 3-day average"},{"x":27,"y":140.67,"fill":"trailing 3-day average"},{"x":28,"y":130.33,"fill":"trailing 3-day average"},{"x":29,"y":108,"fill":"trailing 3-day average"},{"x":30,"y":96,"fill":"trailing 3-day average"},{"x":31,"y":89,"fill":"trailing 3-day average"},{"x":32,"y":106.67,"fill":"trailing 3-day average"},{"x":33,"y":126,"fill":"trailing 3-day average"},{"x":34,"y":146,"fill":"trailing 3-day average"},{"x":35,"y":134.33,"fill":"trailing 3-day average"},{"x":36,"y":116.67,"fill":"trailing 3-day average"},{"x":37,"y":102,"fill":"trailing 3-day average"},{"x":38,"y":102,"fill":"trailing 3-day average"},{"x":39,"y":110.67,"fill":"trailing 3-day average"},{"x":40,"y":131.33,"fill":"trailing 3-day average"},{"x":41,"y":141,"fill":"trailing 3-day average"},{"x":42,"y":131.67,"fill":"trailing 3-day average"},{"x":43,"y":111.33,"fill":"trailing 3-day average"},{"x":44,"y":109,"fill":"trailing 3-day average"},{"x":45,"y":105.33,"fill":"trailing 3-day average"},{"x":46,"y":116,"fill":"trailing 3-day average"},{"x":47,"y":131,"fill":"trailing 3-day average"},{"x":48,"y":148.33,"fill":"trailing 3-day average"},{"x":49,"y":139,"fill":"trailing 3-day average"},{"x":50,"y":124,"fill":"trailing 3-day average"},{"x":51,"y":108,"fill":"trailing 3-day average"},{"x":52,"y":103.33,"fill":"trailing 3-day average"},{"x":53,"y":106.67,"fill":"trailing 3-day average"},{"x":54,"y":125.67,"fill":"trailing 3-day average"},{"x":55,"y":137,"fill":"trailing 3-day average"},{"x":56,"y":123,"fill":"trailing 3-day average"},{"x":57,"y":108.67,"fill":"trailing 3-day average"},{"x":58,"y":98.33,"fill":"trailing 3-day average"},{"x":59,"y":106.67,"fill":"trailing 3-day average"},{"x":60,"y":115.67,"fill":"trailing 3-day average"},{"x":61,"y":142.33,"fill":"trailing 3-day average"},{"x":62,"y":153,"fill":"trailing 3-day average"},{"x":63,"y":143.67,"fill":"trailing 3-day average"},{"x":64,"y":118.33,"fill":"trailing 3-day average"},{"x":65,"y":109,"fill":"trailing 3-day average"},{"x":66,"y":106.67,"fill":"trailing 3-day average"},{"x":67,"y":111.33,"fill":"trailing 3-day average"},{"x":68,"y":128.67,"fill":"trailing 3-day average"},{"x":69,"y":142,"fill":"trailing 3-day average"},{"x":70,"y":130.33,"fill":"trailing 3-day average"}],"geoms":["line","point"],"x":"day","y":"covers"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Closing quiz: reading a filter's frequency response</h2>
+
+<p>A different filter has gain 0.92 at a low frequency and gain 0.05 at a high frequency, the low-pass shape from a few steps back. Run this filter on Northside Diner's series as a 9-day centered average and again as a 9-day trailing average.</p>
+<section class="exercise" data-exercise-id="Filtering-Low-Pass-High-Pass-and-Band-Pass-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Gain near 1 at low frequency and near 0 at high frequency is the low-pass shape; a 9-day average has gain exactly 0 at frequency 1/9, so a cycle at exactly that frequency would vanish completely, not just shrink; and the 9-day trailing average lags the 9-day centered average by (9-1)/2 = 4 days.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That gain shape is high-pass, since a high-pass filter is the one that damps fast movement.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The 9-day centered average is the one that lags, since it waits to see values on both sides before it can report a day.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A 9-day average only damps a cycle at frequency 1/9, the same way it damps every other frequency; gain never actually reaches exactly 0.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right, all three pieces. Gain near 1 at a low frequency and near 0 at a high one is the low-pass shape, the opposite of differencing's high-pass curve. A moving average's gain hits exactly 0 whenever frequency times window length is a whole number, and 9 x 1/9 = 1, so a 9-day average would erase a cycle at frequency 1/9 completely. And a trailing filter only sees past and current values, so it always lags a centered filter of the same window by (N-1)/2 days, 4 days here.</div><div class="lesson-qfb lesson-qfb-no">Check each piece on its own. The low-pass shape is gain near 1 at low frequency falling to near 0 at high frequency, the opposite of the high-pass curve differencing produces. A moving average's gain hits exactly 0 whenever frequency times window length lands on a whole number, not merely damped, so a 9-day average erases a cycle at exactly frequency 1/9. And a trailing filter, since it only sees past and current values, is always the one that lags: it delays its peak by (N-1)/2 days behind a centered filter of the same window, never the reverse.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: build a second band-pass filter</h2>
+
+<p><code>ma3</code> and <code>gain_ma()</code> still exist from earlier steps.</p>
+<section class="exercise" data-exercise-id="Filtering-Low-Pass-High-Pass-and-Band-Pass-step12" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*ma11\s*&lt;-\s*filter[(])(?=[\s\S]*band2\s*&lt;-\s*ma3\s*-\s*ma11)(?=[\s\S]*gain_ma[(])"><textarea class="lesson-tryit-input" spellcheck="false"># ma3 and gain_ma() already exist from earlier steps.
+# Build ma11, an 11-day centered moving average, with filter().
+# Then build band2 as ma3 minus ma11.
+# Finally print gain_ma(1/7, 3), gain_ma(1/7, 11) and gain_ma(1/7, 15)
+# together, to see how the passband narrows as the slow average's
+# window grows.
+# Four lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 0.749, 0.204 and 0.067. An 11-day average still damps the 1/7 cycle far more than the 3-day average does, but it lets more through than the 15-day average did, since 15 is further from a whole-number multiple of the cycle's own period.</span><span class="lesson-tryit-fb lesson-tryit-no">Build ma11 with filter(northside_covers, rep(1/11, 11), sides = 2), subtract it from ma3 to get band2, then call gain_ma(1/7, N) for N = 3, 11 and 15 inside one print() or c().</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Build an 11-day average, its band-pass difference, and compare gains
+ma11 &lt;- filter(northside_covers, rep(1/11, 11), sides = 2)
+band2 &lt;- ma3 - ma11
+print(c(gain_ma(1/7, 3), gain_ma(1/7, 11), gain_ma(1/7, 15)))
+#&gt; [1] 0.74899320 0.20427087 0.06666667</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.stat.pitt.edu/stoffer/tsa4/">Shumway, R.H. & Stoffer, D.S. (2017), Time Series Analysis and Its Applications (4th ed.)</a> - Springer, Ch. 4 "Spectral Analysis and Filtering": linear filters and their frequency response function.</li>
+
+<li><a href="https://www.routledge.com/The-Analysis-of-Time-Series-An-Introduction-with-R/Chatfield-Xing/p/book/9781498706954">Chatfield, C. (2003), The Analysis of Time Series: An Introduction (6th ed.)</a> - Chapman & Hall/CRC, Ch. 7 "Spectral Analysis": the gain and phase of a linear filter.</li>
+
+<li>Percival, D.B. & Walden, A.T. (1993), Spectral Analysis for Physical Applications - Cambridge University Press: digital filters, gain functions and phase response.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/filter.html">R documentation, stats::filter()</a></li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You can now look at a linear filter and know exactly which frequencies survive after it runs, and what running it live actually costs. To summarize:</p>
+
+<ul>
+
+<li>A moving average is a low-pass filter: gain near 1 at low frequency, falling toward 0 at high frequency. Pick the wrong window length, though, and its gain can hit exactly 0 on a real cycle, erasing it completely rather than merely smoothing it, the way a 7-day average erased Northside Diner's own weekly cycle.</li>
+
+<li>Differencing is a high-pass filter: gain near 0 at low frequency, climbing toward 2 at the fastest frequency a daily series can show.</li>
+
+<li>Subtracting a slower moving average from a faster one builds a band-pass filter: near 0 at both the lowest and highest frequencies, higher in between, 0.682 and 0.118 on Northside Diner's two real cycles.</li>
+
+<li>A trailing, causal filter can run in real time, but it lags a centered filter of the same window by (N-1)/2 days. A centered filter has no such lag, but it needs future values it cannot have live.</li>
+
+</ul>
+
+<p>Next, you will use these same tools to test whether a periodogram's tallest spike is too tall to be chance, and what happens when a series is sampled too slowly to see the cycle it actually has.</p>
+</section>
+
+{% endraw %}
