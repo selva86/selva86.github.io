@@ -20,7 +20,8 @@
 // Per-email flags gate each sender (welcome-email, lifecycle-engine, cap-email).
 
 import type { User } from "./db";
-import { resolvePass } from "./pass";
+import { resolvePass, passCoupon, mintPassCoupon } from "./pass";
+import proLessonsJson from "../_data/pro-lessons.json";
 import { meterMonth, METER_LIMIT } from "./meter";
 import { sendMail } from "./email";
 import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
@@ -33,6 +34,23 @@ export interface BrainEnv {
   ZOHO_ZEPTOMAIL_SENDER: string;
   EMAIL_UNSUB_SECRET?: string;
   EMAIL_TEST_ALLOWLIST?: string;
+  // Pass day-27 coupon minting (pass.ts); absent = the coupon emails are skipped.
+  PADDLE_API_KEY?: string;
+  PADDLE_PRICE_SINGLE_MONTH?: string;
+  PADDLE_PRICE_SINGLE_YEAR?: string;
+  PADDLE_PRICE_AA_MONTH?: string;
+  PADDLE_PRICE_AA_YEAR?: string;
+}
+
+const TRACK_NAMES: Record<string, string> = {
+  foundations: "New to R", analyst: "Data Analyst", ds: "Data Scientist", ts: "Forecaster",
+  researcher: "Researcher", developer: "R Developer", mleng: "ML Engineer",
+};
+const PRO_LESSON_TRACK = proLessonsJson as Record<string, string>;
+
+function fmtHour(sec: number): string {
+  const d = new Date(sec * 1000);
+  return d.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
 }
 
 export interface Decision {
@@ -118,6 +136,8 @@ export async function runBrain(
     cap: (await env.KV.get("flag:cap-email")) === "on",
     meter: (await env.KV.get("flag:exercise-meter")) === "on",
     seq: (await env.KV.get("flag:nurture-sequence")) === "on",
+    wall: (await env.KV.get("flag:wall-email")) === "on",
+    flip: (await env.KV.get("flag:flip-broadcast")) === "on",
   };
 
   const candidates: Candidate[] = [];
@@ -197,11 +217,93 @@ export async function runBrain(
         };
         if (day >= 23 && day <= 25) {
           candidates.push({ u, key: "pass-23", template: "pass-23", category: "offers", priority: 5, data: dataCommon, why: `pass day ${day}` });
-        } else if (day === 30 && now < endsAt) {
-          candidates.push({ u, key: "pass-30", template: "pass-30", category: "offers", priority: 1, data: dataCommon, why: `pass day 30, ends ${fmtDate(endsAt)}` });
-        } else if (day >= 31 && day <= 33) {
-          candidates.push({ u, key: "pass-31", template: "pass-31", category: "offers", priority: 6, data: dataCommon, why: `pass day ${day}, landed` });
+        } else if (day >= 26 && day <= 28) {
+          // The one-time 72-hour code (copy book 2c). Minted only when this
+          // run really sends, so dry runs never litter Paddle with codes.
+          const c = (execute && live)
+            ? await mintPassCoupon(env, u.id, now).catch(() => null)
+            : { code: "PASS23PREVIEW", expires_at: now + 72 * 3600 };
+          if (c) {
+            candidates.push({ u, key: "pass-27", template: "pass-27", category: "offers", priority: 2, data: {
+              ...dataCommon, coupon_code: c.code, coupon_expiry: fmtHour(c.expires_at),
+              offer_url: `${SITE}/pricing.html?code=${encodeURIComponent(c.code)}&src=pass&exp=${c.expires_at}`,
+            }, why: `pass day ${day}, coupon ${c.code}` });
+          }
+        } else if (day === 29 && now < endsAt) {  // the last full day (day 30 never satisfies now < endsAt)
+          const c = await passCoupon(env, u.id, now);
+          candidates.push({ u, key: "pass-30", template: "pass-30", category: "offers", priority: 1, data: {
+            ...dataCommon,
+            coupon_line: c ? `Your 23% code ${c.code} still works until ${fmtHour(c.expires_at)}.` : "",
+          }, why: `pass last day, ends ${fmtDate(endsAt)}` });
+        } else if (day >= 30 && day <= 32) {
+          const c = await passCoupon(env, u.id, now);
+          candidates.push({ u, key: "pass-31", template: "pass-31", category: "offers", priority: 6, data: {
+            ...dataCommon,
+            coupon_last_call: c ? `One practical note: your 23% code ${c.code} is valid for a few more hours, until ${fmtHour(c.expires_at)}. After that it is gone.` : "",
+          }, why: `pass day ${day}, landed` });
         }
+      }
+    }
+  }
+
+  // ---- wall follow-up (offers, FAST; copy book 3e). A signed-in free user
+  // hit a Pro lesson wall (intent signal pro_wall_hit, written by the player)
+  // 30 minutes to 24 hours ago. Once per lesson ever, at most once per 14
+  // days, three lifetime. Pro users drop out by derivation. --------------------
+  if (flags.wall) {
+    const rows = await env.DB.prepare(
+      `SELECT i.user_id, i.path, i.meta, MAX(i.at) AS at,
+              u.id, u.email, u.display_name, u.created_at, u.pro_until,
+              u.signup_gate, u.signup_slug, u.email_status, u.email_progress
+       FROM intent_signals i JOIN users u ON u.id = i.user_id
+       WHERE i.signal = 'pro_wall_hit' AND i.user_id IS NOT NULL
+         AND i.at BETWEEN ?1 AND ?2
+         AND u.deleted_at IS NULL
+         AND (u.pro_until IS NULL OR (u.pro_until <> -1 AND u.pro_until < ?3))
+       GROUP BY i.user_id, i.path
+       LIMIT 300`,
+    ).bind(now - 24 * 3600, now - 30 * 60, now).all<UserRow & { user_id: string; path: string; meta: string | null; at: number }>();
+    for (const r of rows.results ?? []) {
+      const slug = (r.path || "").replace(/^\//, "").replace(/\.html?$/i, "");
+      if (!slug) continue;
+      const key = `wall:${slug}`;
+      const mine = ledger.get(r.id);
+      if (mine?.has(key)) continue;
+      const wallKeys = [...(mine?.keys() ?? [])].filter((k) => k.startsWith("wall:"));
+      if (wallKeys.length >= 3) continue;
+      const lastWall = Math.max(0, ...wallKeys.map((k) => mine?.get(k) ?? 0));
+      if (lastWall && now - lastWall < 14 * 86400) continue;
+      // meta = courseId:lessonOrder|title (player); title falls back to the slug words.
+      const title = ((r.meta || "").split("|")[1] || slug.replace(/-/g, " ")).trim();
+      const track = TRACK_NAMES[PRO_LESSON_TRACK[slug] || ""] || "same";
+      candidates.push({ u: r, key, template: "wall", category: "offers", priority: 3, data: {
+        first_name: r.display_name,
+        lesson_title: title,
+        track_name: track,
+        lesson_url: `${SITE}/${slug}.html?utm_source=email&utm_campaign=wall`,
+        offer_url: `${SITE}/pricing.html?utm_source=email&utm_campaign=wall`,
+      }, why: `pro wall on ${slug} ${Math.round((now - r.at) / 60)}min ago` });
+    }
+  }
+
+  // ---- the flip announcement (account, FAST, one-time broadcast; copy book
+  // 4). Everyone whose account predates KV flip:at gets it exactly once, in
+  // slices of 150 per run so the hourly Worker never trips its budget. ----------
+  if (flags.flip) {
+    const flipAt = parseInt((await env.KV.get("flip:at")) || "0", 10);
+    if (flipAt > 0) {
+      const rows = await env.DB.prepare(
+        `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
+                u.signup_gate, u.signup_slug, u.email_status, u.email_progress
+         FROM users u
+         WHERE u.deleted_at IS NULL AND u.created_at < ?1
+           AND NOT EXISTS (SELECT 1 FROM sent_emails s WHERE s.user_id = u.id AND s.email_key = 'flip')
+         ORDER BY u.created_at DESC
+         LIMIT 150`,
+      ).bind(flipAt).all<UserRow>();
+      for (const u of rows.results ?? []) {
+        candidates.push({ u, key: "flip", template: "flip", category: "account", priority: 0,
+          data: { first_name: u.display_name }, why: "flip announcement (one-time)" });
       }
     }
   }

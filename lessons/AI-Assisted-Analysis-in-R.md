@@ -6,7 +6,7 @@ keywords: "AI assisted analysis, LLM in R, ellmer, large language model, structu
 post_type: "LESSON"
 curriculum_id: "2.9.3"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-communicate"
 course_title: "Communicate and Automate with R"
 course_lesson: "3"

@@ -6,7 +6,7 @@ keywords: "Quarto, R Markdown, reproducible reports, qmd, YAML header, code chun
 post_type: "LESSON"
 curriculum_id: "2.9.1"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-communicate"
 course_title: "Communicate and Automate with R"
 course_lesson: "1"

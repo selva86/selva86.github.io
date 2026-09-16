@@ -118,9 +118,12 @@
     var manage = 'Renews ' + renews + '. Update your card, download invoices, or cancel.';
     if (plan && plan.will_renew === false && renews) manage = 'Ends ' + renews + ' and will not renew. Update your card, download invoices, or resume.';
 
-    /* ---- Free member: only the Free tier changes ---- */
+    /* ---- Free member: the Free tier is marked, and the page speaks to what
+       they were doing (their next Pro lesson) instead of to a stranger. ---- */
     if (kind === 'free') {
       if (free) { ribbon(free, 'Your plan'); setCta(free, 'flat', 'You are on this plan'); }
+      personalLine(me, token);
+      passCouponBanner(me);
       return;
     }
 
@@ -257,6 +260,55 @@
     if (kind === 'allaccess' || kind === 'lifetime' || kind === 'team') {
       foundStrip('Looking for something you cannot find? Every Pro lesson is open to you. If a lesson still asks you to choose a plan, that is a bug on our side.', 'Report it', '/feedback.html', true);
     }
+  }
+
+  /* The visitor's own next step, from the same local progress the player and
+     the dashboard keep (rsc-course-v1:<course>), matched against /courses.json.
+     Falls back to a plain sentence when there is no progress yet. */
+  function personalLine(me, token) {
+    var dek = $('.hero .dek'); if (!dek) return;
+    var best = null;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i); if (!k || k.indexOf('rsc-course-v1:') !== 0) continue;
+        var st = JSON.parse(localStorage.getItem(k) || '{}'); var n = Object.keys(st.completed || {}).length;
+        var at = st.at || st.updated || 0;
+        if (!best || at > best.at || (at === best.at && n > best.n)) best = { cid: k.slice(14), n: n, at: at, completed: st.completed || {} };
+      }
+    } catch (e) {}
+    function say(text) { var p = document.createElement('p'); p.className = 'dek rs-personal'; p.style.marginTop = '10px'; p.style.color = 'var(--ink)'; p.style.fontWeight = '500'; p.textContent = text; dek.insertAdjacentElement('afterend', p); }
+    if (!best) { say('Every track opens with a free section. Pro opens the rest tonight, on whichever track you pick.'); return; }
+    fetch('/courses.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (c) {
+      var cs = Array.isArray(c) ? c : (c.courses || []);
+      var course = null;
+      (Array.isArray(cs) ? cs : Object.keys(cs).map(function (k) { return cs[k]; })).forEach(function (x) { if (x && x.course_id === best.cid) course = x; });
+      if (!course) { say('Every track opens with a free section. Pro opens the rest tonight, on whichever track you pick.'); return; }
+      var lessons = (course.lessons || []).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+      var next = null;
+      for (var j = 0; j < lessons.length; j++) { if (!best.completed[lessons[j].slug]) { next = lessons[j]; break; } }
+      var track = (course.roadmap && course.roadmap.trackLabel) || course.trackLabel || 'your';
+      var doneN = Object.keys(best.completed).length;
+      if (next && String(next.access).toLowerCase() === 'pro') {
+        say('You have finished ' + doneN + ' lesson' + (doneN === 1 ? '' : 's') + ' of ' + (course.title || course.course_id) + '. Next up is ' + (next.title || next.slug) + ', a Pro lesson. That is what Pro opens tonight.');
+      } else if (next) {
+        say('You have finished ' + doneN + ' lesson' + (doneN === 1 ? '' : 's') + ' of ' + (course.title || course.course_id) + '. The next one, ' + (next.title || next.slug) + ', is still free. Pro opens the rest of the ' + track + ' track after it.');
+      } else {
+        say('You have finished every lesson in ' + (course.title || course.course_id) + '. Pro opens the rest of the ' + track + ' track tonight.');
+      }
+    }).catch(function () {});
+  }
+
+  /* A live pass coupon (pass day 27 email) is applied here too, so the email
+     and the page never disagree. The checkout opener reads window.recoveryCode. */
+  function passCouponBanner(me) {
+    var c = me && me.pass && me.pass.coupon; if (!c || !c.code) return;
+    if (!window.recoveryCode) window.recoveryCode = c.code;
+    var host = $('.tiers'); if (!host || document.getElementById('offerBanner')) return;
+    var el = document.createElement('div'); el.id = 'offerBanner';
+    el.style.cssText = 'margin:0 0 18px;padding:12px 16px;border:1px solid #c9ddd3;background:#f2f8f5;color:#0f1a2b;font-size:15px;line-height:1.5';
+    var when = ''; try { when = new Date(c.expires_at * 1000).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }); } catch (e) {}
+    el.textContent = 'Your 23% code ' + c.code + ' is applied at checkout on any plan' + (when ? ', until ' + when : '') + '.';
+    host.parentNode.insertBefore(el, host);
   }
 
   var done = false;

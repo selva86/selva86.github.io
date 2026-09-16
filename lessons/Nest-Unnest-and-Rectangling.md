@@ -6,7 +6,7 @@ keywords: "nest, unnest, list columns, rectangling, unnest_wider, unnest_longer,
 post_type: "LESSON"
 curriculum_id: "2.2.4"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-joins"
 course_title: "Joining and Reshaping Data in R"
 course_lesson: "4"

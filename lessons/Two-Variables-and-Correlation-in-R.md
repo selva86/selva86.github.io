@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "2.3.2"
 webr: true
 mathjax: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-eda"
 course_title: "Exploratory Data Analysis in R"
 course_lesson: "2"

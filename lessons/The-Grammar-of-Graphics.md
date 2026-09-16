@@ -6,7 +6,7 @@ keywords: "ggplot2, grammar of graphics, aesthetic mapping, aes, geom, ggplot la
 post_type: "LESSON"
 curriculum_id: "2.4.1"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-ggplot"
 course_title: "Data Visualization with ggplot2"
 course_lesson: "1"

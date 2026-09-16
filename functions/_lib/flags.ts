@@ -68,4 +68,9 @@ export const FLAGS = {
   // and the "email me if there is ever a discount" flow (hourly sweep).
   QUIET_PROBE: "quiet-probe",
   PRICE_ALERTS: "price-alerts",
+  // 2026-09-17 conversion stack: the wall follow-up (copy book 3e) and the
+  // one-time flip announcement (copy book 4). The broadcast also needs KV
+  // flip:at = <unix seconds>; only accounts created before it are mailed.
+  WALL_EMAIL: "wall-email",
+  FLIP_BROADCAST: "flip-broadcast",
 } as const;

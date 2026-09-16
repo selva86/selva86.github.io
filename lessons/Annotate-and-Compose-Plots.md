@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "2.5.3"
 webr: true
 mathjax: false
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-ggplot2-adv"
 course_title: "Advanced ggplot2"
 course_lesson: "3"

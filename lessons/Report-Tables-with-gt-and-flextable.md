@@ -6,7 +6,7 @@ keywords: "gt R package, flextable, kableExtra, report tables in R, format numbe
 post_type: "LESSON"
 curriculum_id: "2.7.1"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-tables"
 course_title: "Report-Ready Tables in R"
 course_lesson: "1"

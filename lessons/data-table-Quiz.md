@@ -5,7 +5,7 @@ keywords: "R quiz, data analyst, da-datatable, practice"
 post_type: "LESSON"
 curriculum_id: "2.6.5"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-datatable"
 course_title: "Fast Data Wrangling with data.table"
 course_lesson: "5"

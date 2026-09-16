@@ -6,7 +6,7 @@ keywords: "Quarto dashboard, format dashboard, value box, valuebox, crosstalk, l
 post_type: "LESSON"
 curriculum_id: "2.8.2"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-dashboards"
 course_title: "Interactive Dashboards in R"
 course_lesson: "2"

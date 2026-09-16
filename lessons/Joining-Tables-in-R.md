@@ -6,7 +6,7 @@ keywords: "dplyr joins, inner_join, left_join, right_join, full_join, semi_join,
 post_type: "LESSON"
 curriculum_id: "2.2.1"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-joins"
 course_title: "Joining and Reshaping Data in R"
 course_lesson: "1"

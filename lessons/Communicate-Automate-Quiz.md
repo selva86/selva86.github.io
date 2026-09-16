@@ -5,7 +5,7 @@ keywords: "R quiz, data analyst, da-communicate, practice"
 post_type: "LESSON"
 curriculum_id: "2.9.4"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-communicate"
 course_title: "Communicate and Automate with R"
 course_lesson: "4"

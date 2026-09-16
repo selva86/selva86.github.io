@@ -5,7 +5,7 @@ keywords: "R quiz, data analyst, da-ggplot, practice"
 post_type: "LESSON"
 curriculum_id: "2.4.5"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-ggplot"
 course_title: "Data Visualization with ggplot2"
 course_lesson: "5"

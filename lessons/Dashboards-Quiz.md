@@ -5,7 +5,7 @@ keywords: "R quiz, data analyst, da-dashboards, practice"
 post_type: "LESSON"
 curriculum_id: "2.8.4"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-dashboards"
 course_title: "Interactive Dashboards in R"
 course_lesson: "4"

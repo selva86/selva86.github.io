@@ -5,7 +5,7 @@ keywords: "R quiz, data analyst, da-joins, practice"
 post_type: "LESSON"
 curriculum_id: "2.2.5"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-joins"
 course_title: "Joining and Reshaping Data in R"
 course_lesson: "5"

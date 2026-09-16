@@ -5,7 +5,7 @@ keywords: "R quiz, data analyst, da-tables, practice"
 post_type: "LESSON"
 curriculum_id: "2.7.3"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-tables"
 course_title: "Report-Ready Tables in R"
 course_lesson: "3"

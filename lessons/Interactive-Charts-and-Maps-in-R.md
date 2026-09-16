@@ -6,7 +6,7 @@ keywords: "plotly in R, ggplotly, interactive charts in R, leaflet R maps, addCi
 post_type: "LESSON"
 curriculum_id: "2.8.1"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-dashboards"
 course_title: "Interactive Dashboards in R"
 course_lesson: "1"

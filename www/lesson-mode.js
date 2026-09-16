@@ -230,9 +230,12 @@
     // pass only changes the gate's copy, never its behavior.
     var passState = null;
 
+    var meState = null;
     document.addEventListener('auth-hydrated', function (e) {
       var me = e.detail && e.detail.me;
+      meState = me || null;
       passState = (me && me.pass) || null;
+      if (me && me.user && !me.pro && locked) upgradeGateForMember();
       if (passState && passState.active && locked && !stripped) {
         locked = false;
         render();
@@ -501,7 +504,10 @@
       if (!g.querySelector('.lm-gate-pass-note')) {
         var n = document.createElement('p');
         n.className = 'lm-gate-pass-note';
-        n.textContent = 'Everything you finished stays on your profile, and the New to R course stays free.';
+        var cpn = gateCoupon();
+        n.textContent = cpn
+          ? 'Everything you finished stays on your profile. Your 23% code ' + cpn.code + ' works until ' + new Date(cpn.expires_at * 1000).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' }) + '.'
+          : 'Everything you finished stays on your profile, and the first section of every track stays free.';
         var pos = g.querySelector('.lm-gate-pos') || h;
         if (pos && pos.parentNode) pos.parentNode.insertBefore(n, pos.nextSibling);
       }
@@ -525,6 +531,41 @@
         if (String(l.access || '').toLowerCase() !== 'pro' && l.built !== false && l.slug !== curSlug) {
           a.href = '/' + esc(l.slug) + '.html'; a.hidden = false; return;
         }
+      }
+    }
+    /* Wall-to-checkout (2026-09-17). A signed-in free member at the wall is at
+       peak intent, so the wall itself sells: the local price, one click into
+       Paddle, and the pass coupon applied when one exists. Anonymous visitors
+       keep the sign-in path; the pricing page stays one link away. */
+    var gateUpgraded = false;
+    function gateCoupon() { return (passState && passState.coupon && passState.coupon.code) ? passState.coupon : null; }
+    function upgradeGateForMember() {
+      var g = stage.querySelector('.lm-gate');
+      if (!g || gateUpgraded || body.classList.contains('pro')) return;
+      gateUpgraded = true;
+      var title = (document.querySelector('h1') || {}).textContent || document.title || curSlug;
+      rsSignal('pro_wall_hit', (courseId ? courseId + ':' + lessonOrder : '') + '|' + String(title).replace(/\s+/g, ' ').trim().slice(0, 120));
+      var cta = g.querySelector('[data-gate-cta]');
+      if (cta) {
+        cta.textContent = 'Unlock with All-Access';
+        cta.setAttribute('href', '#');
+        cta.setAttribute('data-gate-buy', 'allaccess');
+        var alt = document.createElement('a');
+        alt.className = 'lm-gate-alt'; alt.href = '/pricing.html'; alt.textContent = 'All plans, Single Track from $65 a year';
+        cta.insertAdjacentElement('afterend', alt);
+      }
+      var price = g.querySelector('.lm-gate-price');
+      var fine = g.querySelector('.lm-gate-fine');
+      var c = gateCoupon();
+      if (price) price.textContent = c ? 'Your 23% code ' + c.code + ' is applied at checkout.' : '$129 a year, or $14 a month.';
+      if (fine) fine.textContent = '14-day full refund, no questions asked. Cancel anytime.';
+      if (!document.getElementById('rs-checkout-js')) {
+        var sc = document.createElement('script'); sc.id = 'rs-checkout-js'; sc.src = '/www/checkout.js?v=1'; sc.defer = true;
+        sc.onload = function () { if (window.rsCheckout) window.rsCheckout.ready(function (p) {
+          var y = p.price('allaccess', 'year'), m = p.price('allaccess', 'month');
+          if (price && y) price.textContent = (c ? 'Your 23% code ' + c.code + ' comes off ' : '') + y + ' a year' + (m ? ', or ' + m + ' a month' : '') + (c ? ' at checkout.' : '.');
+        }); };
+        document.head.appendChild(sc);
       }
     }
     function renderProGate() {
@@ -569,11 +610,20 @@
         g.addEventListener('click', function (ev) {
           var t = ev.target.closest && ev.target.closest('[data-gate-cta],[data-gate-free]');
           if (!t) return;
+          if (t.hasAttribute('data-gate-buy')) {
+            ev.preventDefault();
+            var cp = gateCoupon();
+            try { if (typeof gtag === 'function') gtag('event', 'pro_gate_cta', { target: 'checkout', lesson: curSlug }); } catch (e) {}
+            if (window.rsCheckout) window.rsCheckout.open(t.getAttribute('data-gate-buy'), { term: 'year', code: cp ? cp.code : null });
+            else location.href = '/pricing.html';
+            return;
+          }
           try { if (typeof gtag === 'function') gtag('event', 'pro_gate_cta', { target: t.hasAttribute('data-gate-cta') ? 'pricing' : 'free-lesson', lesson: curSlug }); } catch (e) {}
         });
         try { if (typeof gtag === 'function') gtag('event', 'pro_gate_view', { lesson: curSlug, course: courseId || '' }); } catch (e) {}
       } else { g.style.display = ''; }
       if (passState && passState.claimed && !passState.active) updateGatePassCopy();
+      if (meState && meState.user && !meState.pro) upgradeGateForMember();
       fillGateFreeLink();
       segEls.forEach(function (e2) { e2.className = ''; });
       curEl.textContent = 1;

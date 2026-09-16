@@ -6,7 +6,7 @@ keywords: "pivot_longer, pivot_wider, tidyr, reshape data in R, wide to long, lo
 post_type: "LESSON"
 curriculum_id: "2.2.2"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-joins"
 course_title: "Joining and Reshaping Data in R"
 course_lesson: "2"

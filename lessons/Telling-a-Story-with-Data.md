@@ -6,7 +6,7 @@ keywords: "data storytelling, executive summary, BLUF, lead with the answer, inv
 post_type: "LESSON"
 curriculum_id: "2.9.2"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-communicate"
 course_title: "Communicate and Automate with R"
 course_lesson: "2"

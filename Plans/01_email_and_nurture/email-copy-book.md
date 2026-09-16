@@ -234,6 +234,8 @@ Akshay
 
 ## 2c. Day 27: the coupon (72 hours, genuinely one-time)
 
+BUILT 2026-09-17 (brain `pass-27`, template `pass-27`): the code is minted by `mintPassCoupon()` in `_lib/pass.ts` (23% on the four individual prices, 72h, single use, KV `passcode:<uid>`), the lesson wall and the pricing page show the same code while it is live, and 2d/2e read `{coupon_line}` / `{coupon_last_call}` from it. Live copy is `functions/_data/lifecycle-emails.json`.
+
 - **Subject:** `23% off Pro, ends {coupon_expiry}`
 - **Preheader:** `A one-time code for your last pass days. It will not come back.`
 
@@ -419,6 +421,8 @@ Akshay
 
 ## 3e. Wall follow-up (category: offers, flag: wall-email, send policy: fast)
 
+BUILT 2026-09-17 (brain `wall`, template `wall`, flag `wall-email`): trigger is the intent signal `pro_wall_hit` the player writes for a signed-in free member (meta carries the lesson title), 30 min to 24 h old; ledger key `wall:<slug>` (never twice per lesson), max three lifetime, 14 days apart. The live body also names the price and the refund, and links straight back to the lesson.
+
 Trigger: a signed-in free user hits a Pro lesson wall. Sends 30-90 minutes
 after the signal (the hourly run), quiet hours respected. Unlike 3c this
 names the wall, because the user experienced it (cart-abandonment logic).
@@ -450,6 +454,8 @@ Akshay
 ---
 
 # 4. The flip announcement (category: account, one-time broadcast to all existing users)
+
+BUILT 2026-09-17 (brain `flip`, flag `flip-broadcast` + KV `flip:at`): every account created before `flip:at` gets it once, 150 per hourly run. The live body says "all nine sections" and "the first section of every track stays free", matching the access policy; the clock is claim-to-start.
 
 Sent once, the day metering + the pass go live. This starts the lifecycle
 engine clock for pre-launch accounts.

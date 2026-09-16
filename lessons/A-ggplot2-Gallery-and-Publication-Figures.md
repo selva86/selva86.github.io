@@ -6,7 +6,7 @@ keywords: "ggplot2 publication figures, ggsave, theme_minimal, labs title, axis 
 post_type: "LESSON"
 curriculum_id: "2.4.4"
 webr: true
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "da-ggplot"
 course_title: "Data Visualization with ggplot2"
 course_lesson: "4"

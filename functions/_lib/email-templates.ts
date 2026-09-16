@@ -58,6 +58,15 @@ export interface TemplateData {
   // Quiet-five-days probe (brain.ts)
   pause_url?: string;
   keep_url?: string;
+  // Data Analyst pass coupon (pass-27, and the optional lines on pass-30/31)
+  coupon_code?: string;
+  coupon_expiry?: string;
+  coupon_line?: string;
+  coupon_last_call?: string;
+  // Wall follow-up (3e)
+  lesson_title?: string;
+  track_name?: string;
+  lesson_url?: string;
   // Per-recipient tracking context (brain fills it): the same HMAC signature
   // as the unsubscribe link. When present, the HTML body gets the open pixel
   // and every link routes through /api/email/click so opens/clicks attribute
@@ -211,18 +220,41 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
       next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-23"),
     }),
   },
+  "pass-27": {
+    key: "pass-27", category: "offers", reason: "your Data Analyst pass ends in three days",
+    linkTokens: ["offer_url"], required: ["coupon_code", "offer_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      pass_end_date: d.pass_end_date || "in three days",
+      coupon_code: d.coupon_code || "your personal code",
+      coupon_expiry: d.coupon_expiry || "72 hours from now",
+      offer_url: d.offer_url || utm("/pricing.html", "pass-27"),
+    }),
+  },
   "pass-30": {
     key: "pass-30", category: "offers", reason: "your Data Analyst pass ends today",
     linkTokens: ["next_lesson_url"], required: ["next_lesson_url"],
     fills: (d) => ({
       first_name: firstName(d),
       next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-30"),
+      coupon_line: d.coupon_line || "",
     }),
   },
   "pass-31": {
     key: "pass-31", category: "offers", reason: "your Data Analyst pass just ended",
     linkTokens: [], required: [],
-    fills: (d) => ({ first_name: firstName(d) }),
+    fills: (d) => ({ first_name: firstName(d), coupon_last_call: d.coupon_last_call || "" }),
+  },
+  "wall": {
+    key: "wall", category: "offers", reason: "you opened a Pro lesson on r-statistics.co",
+    linkTokens: ["lesson_url", "offer_url"], required: ["lesson_title", "lesson_url", "offer_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      lesson_title: d.lesson_title || "that lesson",
+      track_name: d.track_name || "same",
+      lesson_url: d.lesson_url || utm("/roadmap/", "wall"),
+      offer_url: d.offer_url || utm("/pricing.html", "wall"),
+    }),
   },
   "cap": {
     key: "cap", category: "progress", reason: "you used all 25 free exercises this month",
