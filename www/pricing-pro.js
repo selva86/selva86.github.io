@@ -20,11 +20,11 @@
     '.pban .acts a,.pban .acts button{color:var(--green);background:none;border:0;padding:0;font:inherit;font-weight:600;cursor:pointer;border-bottom:1px solid transparent}' +
     '.pban .acts a:hover,.pban .acts button:hover{border-bottom-color:var(--green)}' +
     '.billnote{margin-top:16px;font-size:13.5px;color:var(--mut);text-align:center}' +
-    '.lifetime .lcta.done{background:transparent;color:#6fe0a4;border:1px solid #6fe0a4;cursor:default}' +
-    '.lifetime .lnote{display:block;font-size:12px;color:#a9c8b6;max-width:34ch;margin-top:8px}.lifetime .lnote a{color:#6fe0a4;font-weight:600}' +
+    'div.lifetime .lcta.done{background:transparent;color:#6fe0a4;border:1px solid #6fe0a4;cursor:default}' +
+    'div.lifetime .lnote{display:block;font-size:12px;color:#a9c8b6;max-width:34ch;margin-top:8px}div.lifetime .lnote a{color:#6fe0a4;font-weight:600}' +
     '.found{margin:26px 0 0;border:1px solid var(--line);background:#fff;padding:22px 26px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px}' +
     '.found p{margin:0;font-size:14.5px;color:var(--ink);max-width:70ch}.found .fcta2{margin-left:auto;background:var(--green);color:#fff;font-weight:600;padding:10px 16px;font-size:14px}.found .fcta2.dark{background:var(--ink)}' +
-    'body.rs-member .fbanner,body.rs-member .sitenav .snav-btn,body.rs-member .toggle-wrap,body.rs-member .nudge,body.rs-member .aband,body.rs-member .wbar,body.rs-member .final,body.rs-member .tier .picker,body.rs-member #regionalNote{display:none!important}';
+    'body.rs-member .fbanner,body.rs-member .sitenav .snav-btn,body.rs-member .toggle-wrap,body.rs-member .nudge,body.rs-member .aband,body.rs-member .wbar,body.rs-member .final,body.rs-member .tier .picker,body.rs-member .tier .ctaline,body.rs-member #regionalNote{display:none!important}';
 
   function $(s, r) { return (r || document).querySelector(s); }
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
@@ -97,6 +97,7 @@
   function link(text, href) { var a = document.createElement('a'); a.href = href; a.textContent = text; return a; }
   function btn(text, fn) { var b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.addEventListener('click', fn); return b; }
 
+  function foundingDate() { var el = $('[data-founding-date]'); return (el && el.textContent.trim()) || 'soon'; }
   function foundStrip(text, ctaText, ctaHref, dark, onClick) {
     var fin = $('.final'); if (!fin) return;
     var d = document.createElement('div'); d.className = 'found';
@@ -111,7 +112,7 @@
     var plan = me && me.plan; if (!me || !me.user) return;
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     var free = freeTier(), single = tierByPlan('single'), aa = tierByPlan('allaccess'), teams = tierByPlan('teams');
-    var life = $('.lifetime'), lifeCta = life && $('.lcta', life);
+    var life = $('div.lifetime'), lifeCta = life && $('.lcta', life);
     var h1 = $('.hero h1'), dek = $('.hero .dek');
     var kind = (plan && plan.kind) || 'free';
     var renews = fmtDate(plan && plan.renews_at);
@@ -182,7 +183,7 @@
           }).catch(function () { up.removeAttribute('aria-busy'); armed = false; up.textContent = 'Upgrade to All-Access'; });
         }, true);
       }
-      foundStrip('Founding rates close at the first 200 members. Upgrading now keeps you on the founding price for All-Access.', 'Upgrade to All-Access', '#plans', false, function (e) { e.preventDefault(); var t = aa && $('.cta', aa); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
+      foundStrip('Founding rates end ' + foundingDate() + '. Upgrading now keeps you on the founding price for All-Access.', 'Upgrade to All-Access', '#plans', false, function (e) { e.preventDefault(); var t = aa && $('.cta', aa); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
     }
 
     if (kind === 'allaccess') {
@@ -224,7 +225,7 @@
       if (kind === 'lifetime') {
         if (lk) lk.textContent = 'Your plan';
         if (h3) h3.textContent = 'Lifetime Pro. Nothing to renew.';
-        if (p) p.textContent = 'You joined as one of the first 200 founding members. Every track, tool, and certificate, and everything added later, is yours for as long as the site is online. There is nothing to manage here.';
+        if (p) p.textContent = 'You joined as a founding member. Every track, tool, and certificate, and everything added later, is yours for as long as the site is online. There is nothing to manage here.';
         if (amt) amt.style.display = 'none'; if (sm) sm.style.display = 'none';
         if (lifeCta) { var done = document.createElement('span'); done.className = 'lcta done'; done.textContent = 'This is your plan'; lifeCta.parentNode.replaceChild(done, lifeCta);
           var ln = document.createElement('span'); ln.className = 'lnote'; ln.innerHTML = 'Need an invoice or want to change your email? <a href="/account.html">Account</a>'; done.insertAdjacentElement('afterend', ln); }
