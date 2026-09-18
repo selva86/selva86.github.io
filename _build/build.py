@@ -1493,13 +1493,22 @@ def make_exercise_hub_head_block(asset_hrefs):
     # self-hosted AND preloaded by template.html, so nothing to add here.
     return (
         f'    <link rel="stylesheet" href="{css}" media="print" onload="this.media=\'all\'">\n'
-        f'    <noscript><link rel="stylesheet" href="{css}"></noscript>'
+        f'    <noscript><link rel="stylesheet" href="{css}"></noscript>\n'
+        # practice-studio.css is inert without body.rs-studio, so on the classic
+        # page it costs one non-render-blocking fetch and nothing else.
+        f'    <link rel="stylesheet" href="/www/practice-studio.css?v=1" media="print" onload="this.media=\'all\'">'
     )
 
 
 def make_exercise_hub_body_block(asset_hrefs):
     js = asset_hrefs.get('exercise-hub.js', 'www/exercise-hub.js')
-    return f'    <script src="{js}"></script>'
+    # practice-studio.js must load AFTER exercise-hub.js: it moves the cards
+    # that script has already bound, which is what keeps grading intact. It
+    # returns immediately unless ?studio=1 is present.
+    return (
+        f'    <script src="{js}"></script>\n'
+        f'    <script defer src="/www/practice-studio.js?v=1"></script>'
+    )
 
 
 def make_lesson_head_block(asset_hrefs):

@@ -185,6 +185,15 @@
     var hub = hubSlugFromPath();
     if (!hub || !card || !card.id) return;
     var hints = (typeof card.hintsUsed === 'number') ? card.hintsUsed : 0;
+    // The Practice Studio runs a challenge clock. When it is mounted it
+    // exposes the elapsed time, which the server records on the hub badge.
+    var payload = { passed: true, hints_used: hints };
+    try {
+      if (window.rsStudio && typeof window.rsStudio.elapsedMs === 'function') {
+        var ms = window.rsStudio.elapsedMs();
+        if (typeof ms === 'number' && ms > 0) payload.elapsed_ms = Math.round(ms);
+      }
+    } catch (e) { /* the clock must never block a solve */ }
     try {
       fetch('/api/exercise/' + encodeURIComponent(hub) +
             '/' + encodeURIComponent(card.id) + '/attempt', {
@@ -193,7 +202,7 @@
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + authToken
         },
-        body: JSON.stringify({ passed: true, hints_used: hints }),
+        body: JSON.stringify(payload),
         keepalive: true
       })
       .then(function (r) {
@@ -205,6 +214,13 @@
       })
       .then(function (result) {
         if (result && result.meter) meterApply(result.meter, card);
+        // Full response, for anything that needs more than xp and streak.
+        // The studio listens for this to catch hub_badge on the last solve.
+        if (result) {
+          document.dispatchEvent(new CustomEvent('exercise-attempt-result', {
+            detail: { exercise_id: card.id, result: result }
+          }));
+        }
         if (result && typeof result.total_xp === 'number') {
           // Avatar dropdown listens for this and refreshes its XP / streak
           // pills without an extra round-trip to /api/me/stats.
