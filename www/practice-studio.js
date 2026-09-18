@@ -154,14 +154,13 @@
     ui.panel = panel;
 
     ui.stage = el('div', 'rs-stage');
-    ui.setup = el('div', 'rs-setup');
     ui.hold = el('div', 'rs-hold');
     ui.paused = el('div', 'rs-paused',
       '<div class="big"></div><h3>Paused</h3>' +
       '<p>The clock is stopped and the problem is put away, so paused time can never buy thinking time. Your code is exactly where you left it.</p>' +
       '<button class="rs-resume" type="button">Resume</button>');
     ui.pausedClock = qs('.big', ui.paused);
-    ui.stage.appendChild(ui.setup); ui.stage.appendChild(ui.hold);
+    ui.stage.appendChild(ui.hold);
     body.appendChild(spine); body.appendChild(panel); body.appendChild(ui.stage); body.appendChild(ui.paused);
     ui.body = body;
 
@@ -220,11 +219,62 @@
      --------------------------------------------------------------- */
   function adopt() {
     var content = qs('main#content') || qs('#content');
-    // the shared setup block ("Run this once before any exercise")
-    var setup = qs(':scope > .webr-container', content);
-    if (setup) ui.setup.appendChild(setup);
-    else ui.setup.classList.add('is-hidden');
-    S.cards.forEach(function (c) { ui.hold.appendChild(c.node); });
+    // the shared setup block ("Run this once before any exercise"). It is one
+    // node for the whole hub, so it rides along to whichever card is showing.
+    ui.setupNode = qs(':scope > .webr-container', content);
+    S.cards.forEach(function (c) { ui.hold.appendChild(c.node); splitCard(c.node); });
+  }
+
+  /* Split one card into two panes: the problem on the left, the work on the
+     right. Done by moving nodes, never by re-creating them, so every listener
+     exercise-hub.js attached survives. Runs once per card.
+
+     exercise-hub.js has already restructured the card into:
+       h3.exercise-title
+       .xh-ex-body
+         .webr-container [Your turn]      <- the answer editor, hoisted
+         .xh-ex-inner
+           .xh-zone-problem   task + expected result
+           .xh-zone-work      [Setup data] + check row + verdict
+           .xh-zone-help      hints + solution
+           .xh-ex-foot        its own next button */
+  function splitCard(card) {
+    var body = qs('.xh-ex-body', card);
+    if (!body || body.getAttribute('data-rs-split')) return;
+    var inner = qs('.xh-ex-inner', body);
+    var editor = body.querySelector(':scope > .webr-container');
+    var title = card.querySelector(':scope > .exercise-title');
+    var problem = qs('.xh-zone-problem', card);
+    var help = qs('.xh-zone-help', card);
+    var work = qs('.xh-zone-work', card);
+
+    var left = el('div', 'rs-pane rs-pane-problem');
+    var right = el('div', 'rs-pane rs-pane-work');
+
+    if (title) left.appendChild(title);
+    if (problem) left.appendChild(problem);
+    if (help) left.appendChild(help);
+
+    if (work) {
+      // the answer editor belongs above the Check button, under any setup code
+      var checkRow = qs('.xh-check-row', work);
+      if (editor && checkRow) work.insertBefore(editor, checkRow);
+      else if (editor) work.appendChild(editor);
+      right.appendChild(work);
+    } else if (editor) {
+      right.appendChild(editor);
+    }
+
+    // Anything left in the old wrapper (the card's own next button) follows the
+    // problem side, then the wrapper goes. Leaving it behind would make it a
+    // third grid item and push the two panes out of their columns.
+    if (inner) {
+      while (inner.firstChild) left.appendChild(inner.firstChild);
+      inner.remove();
+    }
+    body.appendChild(left);
+    body.appendChild(right);
+    body.setAttribute('data-rs-split', '1');
   }
 
   /* ---------------------------------------------------------------
@@ -308,8 +358,15 @@
     if (i < 0 || i >= S.cards.length) return;
     S.cards.forEach(function (c) { c.node.classList.remove('rs-current'); });
     S.cur = i;
-    S.cards[i].node.classList.add('rs-current');
-    ui.stage.scrollTop = 0;
+    var node = S.cards[i].node;
+    node.classList.add('rs-current');
+    splitCard(node);
+    // the hub's shared setup code follows the visible card into its work pane
+    var right = qs('.rs-pane-work', node);
+    if (right && ui.setupNode && ui.setupNode.parentElement !== right) {
+      right.insertBefore(ui.setupNode, right.firstChild);
+    }
+    qsa('.rs-pane', node).forEach(function (p) { p.scrollTop = 0; });
     renderBar(); renderPips(); renderList();
     if (!S.pinned) closePanel();
   }
@@ -486,9 +543,23 @@
   /* ---------------------------------------------------------------
      Boot, after exercise-hub.js has bound the cards
      --------------------------------------------------------------- */
+  /* exercise-hub.js restructures each card into .xh-ex-body / .xh-zone-* some
+     time after DOMContentLoaded, and the two-pane split needs those zones to
+     exist. Wait for the first card to be rebuilt rather than guess a delay. */
+  function whenCardsReady(cb, tries) {
+    tries = tries || 0;
+    if (qs('.xh-ex-body', S.cards[0].node) || tries > 50) return cb();
+    setTimeout(function () { whenCardsReady(cb, tries + 1); }, 100);
+  }
+
   function start() {
     if (!readPage()) return;
+    whenCardsReady(mount);
+  }
+
+  function mount() {
     document.body.classList.add('rs-studio');
+    clearGuard();
     build();
     adopt();
     wire();
@@ -501,10 +572,29 @@
     });
   }
 
+  /* The studio can only mount once exercise-hub.js has rebuilt the cards,
+     which is after first paint. Without a guard the classic page shows for a
+     beat and then swaps, which reads as a glitch. Hide the page body the
+     moment this script parses and reveal it as the studio. The rule is
+     injected rather than left to practice-studio.css, because that stylesheet
+     loads non-render-blocking and would arrive too late to help. */
+  function bootGuard() {
+    var st = document.createElement('style');
+    st.id = 'rs-boot-guard';
+    st.textContent = 'html.rs-booting .container > .row,html.rs-booting .rsft,html.rs-booting footer{display:none!important}' +
+                     'html.rs-booting{background:#fff}';
+    (document.head || document.documentElement).appendChild(st);
+    document.documentElement.classList.add('rs-booting');
+    // never strand the page if anything below throws
+    setTimeout(clearGuard, 8000);
+  }
+  function clearGuard() { document.documentElement.classList.remove('rs-booting'); }
+
   function boot() {
     var p = new URLSearchParams(location.search);
     if (p.get(PARAM) !== '1') return;
     if (!qs('section.exercise')) return;
+    bootGuard();
     // exercise-hub.js binds on DOMContentLoaded; window load is safely after.
     if (document.readyState === 'complete') setTimeout(start, 0);
     else window.addEventListener('load', function () { setTimeout(start, 0); });
