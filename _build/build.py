@@ -1496,7 +1496,7 @@ def make_exercise_hub_head_block(asset_hrefs):
         f'    <noscript><link rel="stylesheet" href="{css}"></noscript>\n'
         # practice-studio.css is inert without body.rs-studio, so on the classic
         # page it costs one non-render-blocking fetch and nothing else.
-        f'    <link rel="stylesheet" href="/www/practice-studio.css?v=1" media="print" onload="this.media=\'all\'">'
+        f'    <link rel="stylesheet" href="/www/practice-studio.css?v=2" media="print" onload="this.media=\'all\'">'
     )
 
 
