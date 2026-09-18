@@ -5,11 +5,13 @@
 // _lib/db.ts recordAttempt. Streak is touched only on passing attempts.
 //
 // Body shape:
-//   { passed: bool, hints_used?: int }
+//   { passed: bool, hints_used?: int, elapsed_ms?: int }
+//     elapsed_ms is the Practice Studio challenge clock, paused time already
+//     removed. It is only read when this attempt completes the hub.
 // Response:
 //   { xp_awarded_now, total_xp, current_streak_days, longest_streak_days,
 //     first_pass, streak_freezes, freeze_used_today,
-//     nudge?, new_badges? }        <- pass-2 extras, additive + fail-safe:
+//     nudge?, new_badges?, hub_badge? }  <- extras, additive + fail-safe:
 // grading fields are computed exactly as before; every extra sits behind a
 // try/catch (and the daily bonus behind flag:daily-set) so a failure in the
 // new code can never affect the graded result.
@@ -27,6 +29,7 @@ import { checkDailyBonus } from "../../../../_lib/daily";
 import {
   BADGE_DEFS, awardBadges, type BadgeCtx,
 } from "../../../../_lib/badges";
+import { hubProgress, mintHubBadge, hubExerciseIds } from "../../../../_lib/badges-hub";
 import { computeTier, parseProfileJson } from "../../../../_lib/profile";
 import proLessonsJson from "../../../../_data/pro-lessons.json";
 
@@ -110,7 +113,7 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
     }
   }
 
-  let body: { passed?: unknown; hints_used?: unknown };
+  let body: { passed?: unknown; hints_used?: unknown; elapsed_ms?: unknown };
   try {
     body = await context.request.json();
   } catch {
@@ -124,6 +127,13 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
       ? Math.max(0, Math.min(MAX_HINTS, Math.round(body.hints_used)))
       : 0;
 
+  // Clock from the studio. Clamped to a day so a stale tab cannot write a
+  // nonsense record onto a public badge.
+  const elapsedMs =
+    typeof body.elapsed_ms === "number" && Number.isFinite(body.elapsed_ms)
+      ? Math.max(0, Math.min(86400000, Math.round(body.elapsed_ms)))
+      : 0;
+
   const xpIfFirstPass = xpForDifficulty(difficulty);
   const result = await recordAttempt(
     context.env.DB, u.id, hubSlug, exerciseId, body.passed, hintsUsed, xpIfFirstPass,
@@ -132,9 +142,36 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
   // ---- pass-2 extras: everything below is additive and fail-safe ----
   let nudge: string | null = null;
   let newBadges: Array<{ id: string; name: string }> = [];
+  let hubBadge: Record<string, unknown> | null = null;
   if (body.passed) {
     try {
       const DB = context.env.DB;
+
+      // Hub badge: this attempt may have been the last one outstanding.
+      // Cheap to ask (one COUNT) and idempotent to mint, so no extra state.
+      if (!isLessonHub(hubSlug)) {
+        const prog = await hubProgress(DB, u.id, hubSlug);
+        if (prog.complete) {
+          const hintRow = await DB.prepare(
+            "SELECT COALESCE(SUM(hints_used), 0) AS h FROM exercise_attempts WHERE user_id = ?1 AND hub_slug = ?2",
+          ).bind(u.id, hubSlug).first<{ h: number }>().catch(() => ({ h: 0 } as { h: number }));
+          const xpTotal = hubExerciseIds(hubSlug)
+            .reduce((sum, id) => sum + xpForDifficulty(lookupDifficulty(hubSlug, id)), 0);
+          const minted = await mintHubBadge(DB, u.id, hubSlug, {
+            elapsed_ms: elapsedMs || undefined,
+            hints: Number(hintRow?.h ?? 0),
+            xp: xpTotal,
+            solved: prog.total,
+          });
+          if (minted) {
+            hubBadge = {
+              badge: minted.badge, title: minted.title, public_id: minted.public_id,
+              url: `/badge/${minted.public_id}`, earned_at: minted.earned_at,
+              newly_minted: minted.newly_minted, record: minted.record,
+            };
+          }
+        }
+      }
       const solvedRow = await DB.prepare(
         "SELECT COUNT(DISTINCT hub_slug || '|' || exercise_id) AS n FROM exercise_attempts " +
         "WHERE user_id = ?1 AND passed = 1"
@@ -187,6 +224,7 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
     ...result,
     ...(nudge ? { nudge } : {}),
     ...(newBadges.length ? { new_badges: newBadges } : {}),
+    ...(hubBadge ? { hub_badge: hubBadge } : {}),
     ...(meterAfter ? { meter: meterAfter } : {}),
   });
 };
