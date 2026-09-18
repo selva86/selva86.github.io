@@ -44,6 +44,7 @@
   }
 
   var S = {
+    xp: 0,
     cards: [],        // { node, id, num, title, sectionIndex }
     sections: [],     // { title, cards: [] }
     cur: 0,
@@ -94,10 +95,11 @@
   }
 
   function isSolved(card) {
-    // exercise-hub.js marks a solved card; read its state rather than keep our own.
-    return card.node.classList.contains('xh-solved') ||
-           !!qs('.xh-check-status.is-pass', card.node) ||
-           card.node.getAttribute('data-solved') === '1';
+    // exercise-hub.js marks a solved card with is-solved, both on a fresh pass
+    // and when it hydrates saved progress. Read its state rather than keep our
+    // own, so the spine can never disagree with the card.
+    return card.node.classList.contains('is-solved') ||
+           !!qs('.xh-check-status.is-pass', card.node);
   }
   function solvedCount() {
     var n = 0;
@@ -168,12 +170,14 @@
     var status = el('div', 'rs-status',
       '<span class="cell"><span class="rs-sdot is-idle"></span><span class="rs-state">Not started</span></span>' +
       '<span class="cell"><b class="rs-solved">0</b> of <span class="rs-total">0</span> solved</span>' +
+      '<span class="cell"><b class="rs-xpearned">0</b> XP earned</span>' +
       '<span class="cell rs-timecell" style="display:none"><b class="rs-elapsed">0:00</b> elapsed</span>' +
       '<span class="cell sep rs-metercell"></span>' +
       '<span class="cell">R 4.6.0 ready</span>');
     ui.status = status;
     ui.sdot = qs('.rs-sdot', status); ui.state = qs('.rs-state', status);
     ui.solved = qs('.rs-solved', status); ui.total = qs('.rs-total', status);
+    ui.xpearned = qs('.rs-xpearned', status);
     ui.timecell = qs('.rs-timecell', status); ui.elapsed = qs('.rs-elapsed', status);
     ui.metercell = qs('.rs-metercell', status);
 
@@ -221,53 +225,262 @@
     var content = qs('main#content') || qs('#content');
     // the shared setup block ("Run this once before any exercise"). It is one
     // node for the whole hub, so it rides along to whichever card is showing.
+    /* The hub's shared prelude ("Run this once before any exercise") is parked
+       in the shell, deliberately outside every card. Inside one it would be
+       mistaken for that card's answer block and graded in its place. */
     ui.setupNode = qs(':scope > .webr-container', content);
+    if (ui.setupNode) {
+      ui.prelude = el('div', 'rs-prelude');
+      ui.prelude.appendChild(ui.setupNode);
+      ui.shell.appendChild(ui.prelude);
+    }
     S.cards.forEach(function (c) { ui.hold.appendChild(c.node); splitCard(c.node); });
   }
 
-  /* Split one card into two panes: the problem on the left, the work on the
-     right. Done by moving nodes, never by re-creating them, so every listener
-     exercise-hub.js attached survives. Runs once per card.
+  var XPBY = { beginner: 10, intermediate: 25, advanced: 50 };
 
-     exercise-hub.js has already restructured the card into:
-       h3.exercise-title
+  /* Run one code block and resolve when it has finished.
+
+     The classic page leaves setup to the reader: the blocks are on the page and
+     running them is part of the ritual. The studio folds them away, so it owes
+     the reader the run as well. Without this the first answer fails with
+     "object not found", which reads as the exercise being broken.
+
+     webr-init marks the output is-loading while a block runs, so wait for that
+     to appear and clear rather than guessing at a delay. */
+  function runBlock(cont) {
+    return new Promise(function (resolve) {
+      var btn = qs('.webr-run-btn', cont), out = qs('.webr-output', cont);
+      if (!btn || !out || cont.getAttribute('data-rs-ran')) return resolve();
+      cont.setAttribute('data-rs-ran', '1');
+      btn.click();
+      var n = 0;
+      var t = setInterval(function () {
+        n++;
+        var cls = out.className || '';
+        var loading = cls.indexOf('is-loading') > -1;
+        if ((n > 4 && !loading) || n > 300) {
+          clearInterval(t);
+          // a block that errored has not really run, so let the next attempt
+          // try it again rather than leaving the session half set up
+          if (cls.indexOf('has-error') > -1) cont.removeAttribute('data-rs-ran');
+          resolve();
+        }
+      }, 200);
+    });
+  }
+
+  /* Prepare the R session for the WHOLE hub, in document order, once each.
+
+     The studio shows one problem at a time and lets the reader jump straight to
+     any of them. A problem can need a package or a data frame set up by a block
+     that belongs to an earlier problem, which on the classic page the reader
+     would have scrolled past and run. Running every setup block on accept, in
+     the order they appear, is exactly what a reader working front to back does,
+     so nobody can land on a problem whose session is not ready.
+
+     The pane is locked while this runs: a Check fired mid-preparation fails on
+     a missing package and reads as the exercise being broken. */
+  function prepare(node) {
+    var blocks = [];
+    if (ui.setupNode && !ui.setupNode.getAttribute('data-rs-ran')) blocks.push(ui.setupNode);
+    qsa('.rs-hold .rs-setup-toggle .webr-container').forEach(function (b) {
+      if (b !== ui.setupNode && !b.getAttribute('data-rs-ran')) blocks.push(b);
+    });
+    if (!blocks.length) return Promise.resolve();
+    if (S.preparing) return S.preparing;
+
+    var panes = qsa('.rs-pane-work');
+    panes.forEach(function (p) { p.classList.add('rs-preparing'); });
+    var heads = qsa('.rs-console-head');
+    heads.forEach(function (h) { h.textContent = 'Preparing your session'; h.classList.add('is-busy'); });
+
+    S.preparing = blocks.reduce(function (p, b) {
+      return p.then(function () { return runBlock(b); });
+    }, Promise.resolve()).then(function () {
+      panes.forEach(function (p) { p.classList.remove('rs-preparing'); });
+      heads.forEach(function (h) { h.textContent = 'Console'; h.classList.remove('is-busy'); });
+      S.preparing = null;
+    });
+    return S.preparing;
+  }
+
+
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+    });
+  }
+
+  /* One button in the action row. Hint and Solution drive the real controls,
+     which stay in the problem pane because that is where the reading happens;
+     Run and Reset forward to the editor's own buttons. Nothing is
+     re-implemented here, so grading and hint accounting are untouched. */
+  function proxyBtn(kind, label, card, target) {
+    var b = el('button', 'rs-btn');
+    b.type = 'button';
+    b.setAttribute('data-rs', kind);
+    b.textContent = label;
+    b.addEventListener('click', function () {
+      if (kind === 'hint') {
+        var open = qsa('.xh-hint-link', card).filter(function (h) { return !h.disabled; });
+        if (!open[0]) return;
+        open[0].click();
+        scrollProblem(card, '.xh-hints');
+        // hint 2 starts disabled and exercise-hub enables it only once hint 1 is
+        // out, so the remaining count has to be read after the click, not before
+        setTimeout(function () {
+          b.disabled = !qsa('.xh-hint-link', card).some(function (h) { return !h.disabled; });
+        }, 0);
+        return;
+      }
+      if (kind === 'solution') {
+        var d = qs('.exercise-solution', card);
+        if (!d) return;
+        // a toggle, because the studio hides the disclosure's own summary and
+        // this would otherwise be the only way in and no way back out
+        d.open = !d.open;
+        b.textContent = d.open ? 'Hide solution' : 'Solution';
+        if (d.open) scrollProblem(card, '.exercise-solution');
+        return;
+      }
+      if (target) target.click();
+    });
+    return b;
+  }
+  function scrollProblem(card, sel) {
+    var pane = qs('.rs-pane-problem', card), t = qs(sel, card);
+    if (pane && t) pane.scrollTop = Math.max(0, t.offsetTop - 90);
+  }
+
+  /* Rebuild one card as two panes.
+
+       problem  our own title and meta line, the task, the expected result,
+                and the hints and solution, which are read, not operated
+       work     setup code folded away, one editor, one action row, one console
+
+     Every element is MOVED, never re-created, so the listeners exercise-hub.js
+     bound to the editor, the Check button, the hint links and the solution
+     disclosure all survive. Runs once per card.
+
+     exercise-hub.js leaves each card as:
+       h3.exercise-title > button.xh-ex-head   (number, name, dots, timer)
        .xh-ex-body
-         .webr-container [Your turn]      <- the answer editor, hoisted
+         .webr-container [Your turn]
          .xh-ex-inner
-           .xh-zone-problem   task + expected result
-           .xh-zone-work      [Setup data] + check row + verdict
-           .xh-zone-help      hints + solution
-           .xh-ex-foot        its own next button */
+           .xh-zone-problem  task + expected result
+           .xh-zone-work     [Setup data] + check row + verdict
+           .xh-zone-help     hints + solution
+           .xh-ex-foot       its own next button */
   function splitCard(card) {
     var body = qs('.xh-ex-body', card);
     if (!body || body.getAttribute('data-rs-split')) return;
     var inner = qs('.xh-ex-inner', body);
-    var editor = body.querySelector(':scope > .webr-container');
-    var title = card.querySelector(':scope > .exercise-title');
+    var head = card.querySelector(':scope > .exercise-title');
     var problem = qs('.xh-zone-problem', card);
     var help = qs('.xh-zone-help', card);
     var work = qs('.xh-zone-work', card);
 
+    var answer = null, setups = [];
+    qsa('.webr-container', card).forEach(function (c) {
+      var t = c.getAttribute('data-block-title') || '';
+      if (t === 'Your turn') answer = c;
+      else if (/setup|run this once/i.test(t)) setups.push(c);
+    });
+
     var left = el('div', 'rs-pane rs-pane-problem');
     var right = el('div', 'rs-pane rs-pane-work');
 
-    if (title) left.appendChild(title);
+    // ---------- problem pane: our own heading, then the reading matter
+    var idm = (card.getAttribute('data-exercise-id') || '').match(/-ex-(\d+)-(\d+)$/);
+    var diff = (card.getAttribute('data-difficulty') || '').toLowerCase();
+    var bits = [];
+    if (idm) bits.push('Problem ' + idm[1] + '.' + idm[2]);
+    if (diff) bits.push('<b>' + esc(diff) + '</b>');
+    if (XPBY[diff]) bits.push('worth <b>' + XPBY[diff] + ' XP</b>');
+    var nameNode = head && qs('.xh-ex-name', head);
+    var titleText = (nameNode ? nameNode.textContent : (head ? head.textContent : ''))
+      .replace(/^\s*Exercise\s+[\d.]+\s*:?\s*/i, '').trim();
+
+    left.appendChild(el('h2', 'rs-title', esc(titleText)));
+    left.appendChild(el('div', 'rs-meta', bits.join(' &nbsp;&middot;&nbsp; ')));
+    // the original heading stays in the DOM but out of sight: exercise-hub.js
+    // writes its dots and timer, and removing it would break that
+    if (head) { head.classList.add('rs-offstage'); left.appendChild(head); }
     if (problem) left.appendChild(problem);
     if (help) left.appendChild(help);
 
-    if (work) {
-      // the answer editor belongs above the Check button, under any setup code
-      var checkRow = qs('.xh-check-row', work);
-      if (editor && checkRow) work.insertBefore(editor, checkRow);
-      else if (editor) work.appendChild(editor);
-      right.appendChild(work);
-    } else if (editor) {
-      right.appendChild(editor);
+    // ---------- work pane: setup fold, editor, actions, console
+    /* The answer container goes in FIRST, before the setup fold.
+
+       exercise-hub decides which block to grade by taking the first
+       .webr-container in the card that is not inside a <details>, and it
+       re-resolves that after the studio has rearranged things. Put the setup
+       fold first and the setup block gets graded in place of the answer: every
+       Check then compares the setup block's output and can never pass. Keeping
+       the answer first in the DOM matches the classic page's order and settles
+       it. The fold is lifted back above the editor with CSS order, so the
+       reading order on screen is unchanged. */
+    if (answer) right.appendChild(answer);
+    if (setups.length) {
+      var det = el('details', 'rs-setup-toggle');
+      det.appendChild(el('summary', '', 'Setup code'));
+      setups.forEach(function (c) { det.appendChild(c); });
+      right.appendChild(det);
     }
 
-    // Anything left in the old wrapper (the card's own next button) follows the
-    // problem side, then the wrapper goes. Leaving it behind would make it a
-    // third grid item and push the two panes out of their columns.
+    var actions = el('div', 'rs-actions');
+    var checkBtn = qs('.xh-check-btn', card);
+    var checkStatus = qs('.xh-check-status', card);
+    if (checkBtn) actions.appendChild(checkBtn);
+    actions.appendChild(proxyBtn('run', 'Run', card, answer && qs('.webr-run-btn', answer)));
+    actions.appendChild(proxyBtn('hint', 'Hint', card));
+    actions.appendChild(proxyBtn('solution', 'Solution', card));
+    actions.appendChild(proxyBtn('reset', 'Reset', card, answer && qs('.webr-reset-btn', answer)));
+    if (checkStatus) actions.appendChild(checkStatus);
+    if (XPBY[diff]) actions.appendChild(el('span', 'rs-xp', '+' + XPBY[diff] + ' XP'));
+
+    /* ---------- the console.
+
+       The output pane must NOT leave the answer container. Both runners find
+       it the same way:
+         webr-init.min.js   container.querySelector('.webr-output')
+         exercise-hub.js    card.yourTurn.querySelector('.webr-output')
+       Move it and Run throws on a null output, and grading reads nothing. So
+       the action row and the console label move INTO the container, directly
+       above the output, and the output itself is only restyled. The editor
+       ends up on top, the controls under it, the console at the bottom. */
+    var outPre = answer && qs('.webr-output', answer);
+    if (outPre) {
+      // the output sits inside .webr-code-block, not directly under the
+      // container, so insert against its real parent
+      outPre.classList.add('rs-console');
+      var host = outPre.parentNode;
+      host.insertBefore(actions, outPre);
+      host.insertBefore(el('div', 'rs-console-head', 'Console'), outPre);
+    } else if (answer) {
+      answer.appendChild(actions);
+    } else {
+      right.appendChild(actions);
+    }
+    var verdict = qs('.xh-verdict', card);
+    if (verdict) (answer || right).appendChild(verdict);
+
+    // Until the challenge is accepted the work pane is covered and inert, so a
+    // recorded time is always a real time. The cover repeats the Accept button
+    // rather than pointing at the bar: the answer to "why can't I type" should
+    // be under the cursor, not somewhere else on screen.
+    var gate = el('div', 'rs-gate',
+      '<p>Start the challenge to open the editor.</p>' +
+      '<p class="sub">The clock counts up from zero. Pause it whenever you need to, and it stops on its own after five idle minutes.</p>');
+    var gbtn = el('button', 'rs-gate-btn', 'Accept the challenge');
+    gbtn.type = 'button';
+    gbtn.addEventListener('click', function () { accept(); });
+    gate.appendChild(gbtn);
+    right.appendChild(gate);
+
+    // ---------- leftovers, then place the panes
+    if (work && !work.children.length && work.parentElement) work.remove();
     if (inner) {
       while (inner.firstChild) left.appendChild(inner.firstChild);
       inner.remove();
@@ -277,9 +490,6 @@
     body.setAttribute('data-rs-split', '1');
   }
 
-  /* ---------------------------------------------------------------
-     Render
-     --------------------------------------------------------------- */
   function renderPips() {
     ui.pips.innerHTML = '';
     S.sections.forEach(function (sec, si) {
@@ -332,15 +542,25 @@
   function renderStatus() {
     ui.solved.textContent = solvedCount();
     ui.total.textContent = S.cards.length;
+    ui.xpearned.textContent = S.xp || 0;
     var m = S.meter;
-    // Pro members and signed-out visitors have no allowance to show; an empty
-    // cell would still draw its divider, so take it out of the bar entirely.
-    if (!m || !m.metered) { ui.metercell.innerHTML = ''; ui.metercell.style.display = 'none'; return; }
     ui.metercell.style.display = '';
+    // Signed out there is no allowance yet, and Pro has none to spend. The cell
+    // still has to say something: a blank cell with a divider reads as broken.
+    if (!m) {
+      ui.metercell.className = 'cell sep rs-metercell';
+      ui.metercell.innerHTML = '<span><a class="rs-signin" href="/signin.html">Sign in</a> to save progress and earn the badge</span>';
+      return;
+    }
+    if (!m.metered) {
+      ui.metercell.className = 'cell sep rs-metercell';
+      ui.metercell.innerHTML = '<span>Unlimited checks</span>';
+      return;
+    }
     var left = Math.max(0, (m.limit || 25) - (m.used || 0));
     var bars = '';
     for (var i = 0; i < (m.limit || 25); i++) bars += '<i class="' + (i < left ? '' : 'off') + '"></i>';
-    var cls = 'cell sep', txt;
+    var cls = 'cell sep rs-metercell', txt;
     if (left === 0) {
       cls += ' is-out';
       txt = '<b>No checks left</b>&nbsp;this month&nbsp;&middot;<span class="rs-go">Upgrade, $14 a month</span>';
@@ -354,6 +574,8 @@
     ui.metercell.innerHTML = '<span class="rs-meter">' + bars + '</span><span>' + txt + '</span>';
   }
 
+  function repaint() { renderPips(); renderList(); renderBar(); renderStatus(); }
+
   function show(i) {
     if (i < 0 || i >= S.cards.length) return;
     S.cards.forEach(function (c) { c.node.classList.remove('rs-current'); });
@@ -362,11 +584,8 @@
     node.classList.add('rs-current');
     splitCard(node);
     // the hub's shared setup code follows the visible card into its work pane
-    var right = qs('.rs-pane-work', node);
-    if (right && ui.setupNode && ui.setupNode.parentElement !== right) {
-      right.insertBefore(ui.setupNode, right.firstChild);
-    }
     qsa('.rs-pane', node).forEach(function (p) { p.scrollTop = 0; });
+    if (S.accepted) prepare(node);
     renderBar(); renderPips(); renderList();
     if (!S.pinned) closePanel();
   }
@@ -388,6 +607,7 @@
     ui.state.textContent = 'Challenge running';
     ui.timecell.style.display = '';
     startTick(); idleReset();
+    prepare(S.cards[S.cur] && S.cards[S.cur].node);
   }
   function startTick() {
     S.tick = setInterval(function () {
@@ -512,12 +732,26 @@
     document.addEventListener('exercise-attempt-result', function (ev) {
       var r = (ev.detail && ev.detail.result) || {};
       if (r.meter) { S.meter = r.meter; }
-      renderPips(); renderList(); renderBar(); renderStatus();
+      if (typeof r.xp_awarded_now === 'number') S.xp += r.xp_awarded_now;
+      repaint();
       if (r.hub_badge && r.hub_badge.newly_minted) setTimeout(function () { celebrate(r.hub_badge); }, 650);
     });
     // exercise-hub.js repaints cards on hydrate; keep our chrome in step
-    document.addEventListener('exercise-progress-changed', function () {
-      renderPips(); renderList(); renderBar(); renderStatus();
+    document.addEventListener('exercise-progress-changed', repaint);
+
+    /* Belt and braces. A card solved on an earlier visit passes its check with
+       no event at all: nothing is posted, because nothing is newly earned.
+       Watching the cards themselves keeps the spine and the counters true to
+       the page whatever exercise-hub happens to announce. */
+    var pending = null;
+    var obs = new MutationObserver(function () {
+      clearTimeout(pending);
+      pending = setTimeout(repaint, 60);
+    });
+    S.cards.forEach(function (c) {
+      obs.observe(c.node, { attributes: true, attributeFilter: ['class'] });
+      var st = qs('.xh-check-status', c.node);
+      if (st) obs.observe(st, { attributes: true, attributeFilter: ['class'] });
     });
   }
 

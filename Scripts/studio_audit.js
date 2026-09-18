@@ -1,0 +1,189 @@
+/* Practice Studio audit: the contract the studio layer has to satisfy on any
+ * exercise hub, written as assertions against the live page instead of prose.
+ *
+ * HOW TO RUN
+ *   Open any exercise hub with ?studio=1, paste this whole file into the
+ *   browser console, and read the summary. It returns
+ *   { pass, fail, failures } and prints the full list.
+ *
+ * WHY IT EXISTS
+ *   The studio is a presentation layer: it moves the nodes exercise-hub.js has
+ *   already built and bound. That makes it cheap to apply to every hub and easy
+ *   to break in ways that still look right. This file is the "still looks right"
+ *   detector. Run it after any change to practice-studio.js / .css, and after
+ *   any change to exercise-hub.js that touches card structure.
+ *
+ * WHAT IT DOES NOT COVER
+ *   Behaviour. A page can pass every assertion here and still fail to run code,
+ *   grade an answer, or mint a badge. Section 10 lists the manual pass that
+ *   catches those; do it once per change on one hub.
+ */
+(function () {
+  var out = [], pass = 0, fail = 0;
+  function ck(group, name, ok, detail) {
+    ok ? pass++ : fail++;
+    out.push((ok ? 'PASS ' : 'FAIL ') + group + ' | ' + name +
+             (detail != null && !ok ? '  :: ' + String(detail).slice(0, 90) : ''));
+  }
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
+  var cs = function (n, p) { return n ? getComputedStyle(n)[p] : null; };
+  var px = function (n, p) { return n ? parseFloat(getComputedStyle(n)[p]) : 0; };
+  var vis = function (n) { return !!(n && n.getBoundingClientRect().width > 0 && cs(n, 'visibility') !== 'hidden'); };
+  var flat = function (n) { return ((n && n.innerText) || '').replace(/\s+/g, ' ').trim(); };
+
+  var card = $('section.exercise.rs-current');
+  var L = card && $('.rs-pane-problem', card);
+  var R = card && $('.rs-pane-work', card);
+  var ed = R && $('.webr-container[data-block-title="Your turn"] .webr-editor', R);
+
+  /* -------- 1. shell -------- */
+  ck('shell', 'studio mounted', document.body.classList.contains('rs-studio'));
+  ck('shell', 'site navbar still visible', vis($('.sitenav')));
+  ck('shell', 'one studio bar under the navbar', vis($('.rs-bar')));
+  ck('shell', 'classic page body hidden', cs($('.container > .row'), 'display') === 'none');
+  ck('shell', 'page does not scroll behind the shell',
+     Math.abs(document.documentElement.scrollHeight - window.innerHeight) < 4,
+     document.documentElement.scrollHeight + ' vs ' + window.innerHeight);
+  ck('shell', 'no uppercase label anywhere in the shell',
+     $$('.rs-shell *').filter(function (n) {
+       return cs(n, 'textTransform') === 'uppercase' && n.textContent.trim();
+     }).length === 0);
+
+  /* -------- 2. studio bar -------- */
+  ck('bar', 'hub name shown', /\S/.test(($('.rs-hub') || {}).textContent || ''));
+  ck('bar', 'section name beside it', /·/.test(($('.rs-hub') || {}).textContent || ''));
+  ck('bar', 'progress dots for the section', $$('.rs-prog i').length > 0);
+  ck('bar', 'previous and next arrows', $$('.rs-arrow').length === 2);
+  ck('bar', 'accept button or a live clock', !!($('.rs-accept') || $('.rs-clock')));
+  ck('bar', 'exit link back to the classic page', !!$('.rs-exit'));
+  ck('bar', 'bar does not overlap the panes',
+     !L || $('.rs-bar').getBoundingClientRect().bottom <= L.getBoundingClientRect().top + 1);
+
+  /* -------- 3. spine and hover list -------- */
+  ck('spine', 'spine visible', vis($('.rs-spine')));
+  ck('spine', 'one square per problem', $$('.rs-pip').length === $$('.rs-hold > section.exercise').length);
+  ck('spine', 'squares, not circles', px($('.rs-pip'), 'borderTopLeftRadius') <= 6);
+  ck('spine', 'solved count shown', /\d+\/\d+/.test(($('.rs-count') || {}).textContent || ''));
+  ck('spine', 'section dividers between groups', $$('.rs-pipsec').length > 0);
+  ck('spine', 'hover panel has a row per problem',
+     $$('.rs-plist .rs-prow').length === $$('.rs-pip').length);
+  ck('spine', 'no box drawn around the panel numbers', !$('.rs-prow .mk'));
+  ck('spine', 'pin control present', !!$('.rs-pin'));
+
+  /* -------- 4. the two panes -------- */
+  ck('panes', 'problem pane exists', !!L);
+  ck('panes', 'work pane exists', !!R);
+  ck('panes', 'problem pane is left of the work pane',
+     !!(L && R) && L.getBoundingClientRect().left < R.getBoundingClientRect().left);
+  ck('panes', 'panes scroll independently of the stage',
+     cs($('.rs-stage'), 'overflow') === 'hidden' && cs(L, 'overflowY') !== 'visible');
+  ck('panes', 'every card is split, not only the visible one',
+     $$('.rs-pane-work').length === $$('.rs-hold > section.exercise').length);
+
+  /* -------- 5. problem pane -------- */
+  ck('problem', 'title present', !!(L && $('.rs-title', L)));
+  ck('problem', 'title uses the display face', /Inter Tight/.test(cs(L && $('.rs-title', L), 'fontFamily') || ''));
+  ck('problem', 'title at least 22px', px(L && $('.rs-title', L), 'fontSize') >= 22,
+     px(L && $('.rs-title', L), 'fontSize'));
+  ck('problem', 'meta line carries the XP value',
+     !!(L && $('.rs-meta', L)) && /XP/.test((L && $('.rs-meta', L) || {}).textContent || ''));
+  ck('problem', 'no leftover card header chrome',
+     !(L && $('.xh-ex-head', L) && vis($('.xh-ex-head', L))));
+  ck('problem', 'task text present', !!(L && $('.exercise-task', L)));
+  ck('problem', 'expected result block present', !!(L && $('.exercise-expected pre', L)));
+  ck('problem', 'expected result at least 13px',
+     px(L && $('.exercise-expected pre', L), 'fontSize') >= 13,
+     px(L && $('.exercise-expected pre', L), 'fontSize'));
+  ck('problem', 'hints live in the problem pane', !!(L && $('.xh-hints', L)));
+  ck('problem', 'solution lives in the problem pane', !!(L && $('.exercise-solution', L)));
+  ck('problem', 'the answer editor is not in the problem pane',
+     !(L && $('.webr-container[data-block-title="Your turn"]', L)));
+
+  /* -------- 6. work pane: one editor, one console -------- */
+  var eds = R ? $$('.webr-container', R).filter(vis) : [];
+  ck('work', 'exactly one visible code block', eds.length === 1,
+     eds.map(function (e) { return e.getAttribute('data-block-title'); }).join(','));
+  ck('work', 'the visible block is the answer block',
+     eds.length === 1 && eds[0].getAttribute('data-block-title') === 'Your turn');
+  ck('work', 'setup code is folded away, not a second block', !!(R && $('.rs-setup-toggle', R)));
+  ck('work', 'the setup fold starts closed',
+     !$('.rs-setup-toggle', R || document) || !$('.rs-setup-toggle', R).open);
+  ck('work', 'console present', !!(R && $('pre.webr-output.rs-console', R)));
+  ck('work', 'console sits below the editor',
+     !!(R && ed && $('pre.webr-output.rs-console', R).getBoundingClientRect().top >= ed.getBoundingClientRect().bottom - 2));
+  ck('work', 'the editor is height-bounded so the console stays on screen',
+     !!(R && ed && ed.getBoundingClientRect().bottom < R.getBoundingClientRect().bottom));
+  ck('work', 'the console fits inside the pane',
+     !!(R && $('pre.webr-output.rs-console', R) &&
+        $('pre.webr-output.rs-console', R).getBoundingClientRect().bottom <= R.getBoundingClientRect().bottom + 1));
+
+  /* The output element must never leave its container: webr-init.js and
+     exercise-hub.js both find it with container.querySelector('.webr-output'),
+     so moving it breaks running and grading at once. */
+  ck('work', 'the output pane is still inside the answer container',
+     !!(R && $('.webr-container[data-block-title="Your turn"] .webr-output', R)));
+
+  /* The answer container must come before the setup fold in DOM order.
+     exercise-hub picks the block it grades by scanning for the first
+     .webr-container not inside a <details>; put setup first and the setup block
+     gets graded instead of the answer. */
+  ck('work', 'the answer container precedes the setup fold in the DOM',
+     (function () {
+       if (!R) return false;
+       var kids = [].slice.call(R.children);
+       var a = kids.indexOf($('.webr-container[data-block-title="Your turn"]', R));
+       var f = kids.indexOf($('.rs-setup-toggle', R));
+       return a > -1 && (f === -1 || a < f);
+     })());
+
+  /* -------- 7. action row -------- */
+  var row = R && $('.rs-actions', R);
+  ck('actions', 'action row present', !!row);
+  ck('actions', 'action row below the editor',
+     !!(row && ed && row.getBoundingClientRect().top >= ed.getBoundingClientRect().bottom - 2));
+  ck('actions', 'action row above the console',
+     !!(row && R && row.getBoundingClientRect().top <= $('pre.webr-output.rs-console', R).getBoundingClientRect().top));
+  ck('actions', 'Check in the row', !!(row && $('.xh-check-btn', row)));
+  ck('actions', 'Run in the row', !!(row && $('[data-rs="run"]', row)));
+  ck('actions', 'Hint in the row', !!(row && $('[data-rs="hint"]', row)));
+  ck('actions', 'Solution in the row', !!(row && $('[data-rs="solution"]', row)));
+  ck('actions', 'Reset in the row', !!(row && $('[data-rs="reset"]', row)));
+  ck('actions', 'XP value shown in the row', !!(row && $('.rs-xp', row)));
+  ck('actions', 'hint and solution controls are not duplicated in the problem pane',
+     !(L && (vis($('.xh-hintbar', L)) || vis($('.exercise-solution > summary', L)))));
+
+  /* -------- 8. status bar -------- */
+  var st = $('.rs-status');
+  ck('status', 'status bar present', vis(st));
+  ck('status', 'challenge state cell', /Not started|running|Paused/i.test(flat(st)));
+  ck('status', 'solved count cell', /of \d+ solved/.test(flat(st)));
+  ck('status', 'XP cell', /XP/.test(flat(st)));
+  ck('status', 'allowance cell is never empty',
+     !!(st && $('.rs-metercell', st) && ($('.rs-metercell', st).innerText || '').trim().length > 0));
+  ck('status', 'allowance cell says something meaningful',
+     /checks left|Unlimited|Sign in/.test(flat(st)));
+  ck('status', 'R runtime cell', /R \d/.test(flat(st)));
+
+  /* -------- 9. the challenge gate -------- */
+  var gate = R && $('.rs-gate', R);
+  var accepted = document.body.classList.contains('rs-accepted');
+  ck('gate', 'gate covers the work pane until the challenge is accepted',
+     accepted ? !vis(gate) : vis(gate));
+  ck('gate', 'gate explains itself and repeats the accept button',
+     !!(gate && $('.rs-gate-btn', gate) && /clock/i.test(gate.innerText)));
+
+  /* -------- 10. the manual pass this file cannot do -------- */
+  var manual = [
+    'Accept the challenge; the setup runs itself and the panes unlock.',
+    'Type a wrong answer, press Check: the verdict reads mismatch.',
+    'Paste the solution, press Check: the verdict reads correct and the spine square fills.',
+    'Solve the last unsolved problem: the badge modal appears and its link opens a real badge page.',
+    'Confirm the attempt request carries elapsed_ms and the status bar XP moves.'
+  ];
+
+  console.log(out.join('\n'));
+  console.log('\n' + pass + ' passed, ' + fail + ' failed');
+  console.log('\nStill to check by hand:\n  - ' + manual.join('\n  - '));
+  return { pass: pass, fail: fail, failures: out.filter(function (l) { return l.indexOf('FAIL') === 0; }) };
+})();

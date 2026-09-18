@@ -226,6 +226,7 @@ def minify_assets(force=False):
         os.path.join(REPO_ROOT, 'www', 'webr-init.js'),
         os.path.join(REPO_ROOT, 'www', 'engagement.js'),
         os.path.join(REPO_ROOT, 'www', 'exercise-hub.js'),
+        os.path.join(REPO_ROOT, 'www', 'practice-studio.js'),
         os.path.join(REPO_ROOT, 'www', 'exercise-api.js'),
         os.path.join(REPO_ROOT, 'www', 'lesson-mode.js'),
         os.path.join(REPO_ROOT, 'www', 'lesson-widgets.bundle.js'),
@@ -235,6 +236,7 @@ def minify_assets(force=False):
         os.path.join(REPO_ROOT, 'www', 'webr.css'),
         os.path.join(REPO_ROOT, 'www', 'engagement.css'),
         os.path.join(REPO_ROOT, 'www', 'exercise-hub.css'),
+        os.path.join(REPO_ROOT, 'www', 'practice-studio.css'),
         os.path.join(REPO_ROOT, 'www', 'highlight.css'),
         os.path.join(REPO_ROOT, 'www', 'lesson-mode.css'),
     ]
@@ -312,6 +314,8 @@ def compute_asset_hrefs(final_paths):
         'engagement.js': final_paths.get('engagement.js', os.path.join(REPO_ROOT, 'www', 'engagement.js')),
         'exercise-hub.css': final_paths.get('exercise-hub.css', os.path.join(REPO_ROOT, 'www', 'exercise-hub.css')),
         'exercise-hub.js': final_paths.get('exercise-hub.js', os.path.join(REPO_ROOT, 'www', 'exercise-hub.js')),
+        'practice-studio.css': final_paths.get('practice-studio.css', os.path.join(REPO_ROOT, 'www', 'practice-studio.css')),
+        'practice-studio.js': final_paths.get('practice-studio.js', os.path.join(REPO_ROOT, 'www', 'practice-studio.js')),
         'highlight.css': final_paths.get('highlight.css', os.path.join(REPO_ROOT, 'www', 'highlight.css')),
         'bootstrap.min.css': os.path.join(REPO_ROOT, 'www', 'bootstrap.min.css'),
         'lesson-mode.css': final_paths.get('lesson-mode.css', os.path.join(REPO_ROOT, 'www', 'lesson-mode.css')),
@@ -1489,6 +1493,7 @@ def make_engagement_body_block(asset_hrefs):
 
 def make_exercise_hub_head_block(asset_hrefs):
     css = asset_hrefs.get('exercise-hub.css', 'www/exercise-hub.css')
+    studio_css = asset_hrefs.get('practice-studio.css', 'www/practice-studio.css')
     # The exercise title (.xh-ex-name) uses IBM Plex Serif 700 - already
     # self-hosted AND preloaded by template.html, so nothing to add here.
     return (
@@ -1496,18 +1501,19 @@ def make_exercise_hub_head_block(asset_hrefs):
         f'    <noscript><link rel="stylesheet" href="{css}"></noscript>\n'
         # practice-studio.css is inert without body.rs-studio, so on the classic
         # page it costs one non-render-blocking fetch and nothing else.
-        f'    <link rel="stylesheet" href="/www/practice-studio.css?v=9" media="print" onload="this.media=\'all\'">'
+        f'    <link rel="stylesheet" href="{studio_css}" media="print" onload="this.media=\'all\'">'
     )
 
 
 def make_exercise_hub_body_block(asset_hrefs):
     js = asset_hrefs.get('exercise-hub.js', 'www/exercise-hub.js')
+    studio_js = asset_hrefs.get('practice-studio.js', 'www/practice-studio.js')
     # practice-studio.js must load AFTER exercise-hub.js: it moves the cards
     # that script has already bound, which is what keeps grading intact. It
     # returns immediately unless ?studio=1 is present.
     return (
         f'    <script src="{js}"></script>\n'
-        f'    <script defer src="/www/practice-studio.js?v=9"></script>'
+        f'    <script defer src="{studio_js}"></script>'
     )
 
 
