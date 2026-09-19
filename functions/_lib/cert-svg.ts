@@ -22,6 +22,9 @@ function microtypeRing(id: string): string {
   return `
     <defs>
       <path id="${id}-ring-path" d="M 100,100 m -82,0 a 82,82 0 1,1 164,0 a 82,82 0 1,1 -164,0" />
+      <!-- Baseline at r=82. At font-size 9 the caps reach about r=88.6, so
+           nothing else may be drawn between r=82 and r=90 or it will cut
+           through the lettering. The accent ring sits at r=93 for that reason. -->
     </defs>
     <text class="bg-microtype" font-size="9" letter-spacing="2.4">
       <textPath href="#${id}-ring-path" startOffset="0">
@@ -39,13 +42,13 @@ function badgeRFundamentals(t: Track): string {
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeXml(t.name)} seal">
       <style>
         .bg-bg{fill:${t.color_primary}}
-        .bg-ring{fill:none;stroke:${t.color_accent};stroke-width:2}
+        .bg-ring{fill:none;stroke:${t.color_accent};stroke-width:1.5}
         .bg-disc{fill:#fff}
         .bg-icon{fill:${t.color_primary};font-family:'IBM Plex Serif',Georgia,serif;font-weight:700;font-size:72px;font-style:italic;letter-spacing:-2px}
         .bg-microtype{fill:#fff;font-family:'IBM Plex Mono',monospace;letter-spacing:2.4px}
       </style>
       <circle cx="100" cy="100" r="98" class="bg-bg" />
-      <circle cx="100" cy="100" r="88" class="bg-ring" />
+      <circle cx="100" cy="100" r="93" class="bg-ring" />
       ${microtypeRing(id)}
       <circle cx="100" cy="100" r="64" class="bg-disc" />
       <circle cx="100" cy="100" r="64" fill="none" stroke="${t.color_accent}" stroke-width="1" />
@@ -167,13 +170,13 @@ function badgeMachineLearning(t: Track): string {
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeXml(t.name)} seal">
       <style>
         .bg-bg{fill:${t.color_primary}}
-        .bg-ring{fill:none;stroke:${t.color_accent};stroke-width:2}
+        .bg-ring{fill:none;stroke:${t.color_accent};stroke-width:1.5}
         .bg-disc{fill:#fff}
         .bg-icon{fill:${t.color_primary};font-family:'IBM Plex Serif',Georgia,serif;font-weight:700;font-size:64px;letter-spacing:-2px}
         .bg-microtype{fill:#fff;font-family:'IBM Plex Mono',monospace;letter-spacing:2.4px}
       </style>
       <circle cx="100" cy="100" r="98" class="bg-bg" />
-      <circle cx="100" cy="100" r="88" class="bg-ring" />
+      <circle cx="100" cy="100" r="93" class="bg-ring" />
       ${microtypeRing(id)}
       <circle cx="100" cy="100" r="60" class="bg-disc" />
       <g opacity="0.55">
@@ -201,18 +204,10 @@ export function renderBadgeSvg(track: Track): string {
   }
 }
 
-// Selva's signature — rendered in 'Sacramento' web font (loaded by the
-// verify page via Google Fonts). Placeholder until a real signature image
-// is supplied; the styling reads as "signed by a person" not "stamped by a
-// machine". Swap by replacing this function body with an inline SVG path of
-// the actual signature when available.
-export function renderSignatureSvg(): string {
-  return `
-    <svg viewBox="0 0 260 60" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Selva Prabhakaran signature">
-      <style>
-        .sig-text{fill:#1c2c4f;font-family:'Sacramento',cursive;font-size:36px}
-      </style>
-      <text x="130" y="40" text-anchor="middle" class="sig-text">Selva Prabhakaran</text>
-      <line x1="40" y1="50" x2="220" y2="50" stroke="#1c2c4f" stroke-width="0.5" opacity="0.4" />
-    </svg>`;
-}
+// The certificate carries no signature.
+//
+// There used to be one here: the owner's name set in a cursive web font over a
+// ruled line, captioned "Signed". No one ever signed a certificate, and a drawn
+// signature asserts that someone did. The credential is proved by its record at
+// /cert/<public_id>, which is what the sheet points at now.
+

@@ -14,7 +14,7 @@
 import type { Env, RequestData } from "../_middleware";
 import { getCertificateByPublicId } from "../_lib/db";
 import { getTrack, getIssuer, isValidPublicId, type Track } from "../_lib/tracks";
-import { renderBadgeSvg, renderSignatureSvg } from "../_lib/cert-svg";
+import { renderBadgeSvg } from "../_lib/cert-svg";
 
 function escapeHtml(s: string): string {
   return String(s).replace(/[&<>"']/g, c =>
@@ -115,7 +115,6 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
     `&url=${encodeURIComponent(verifyUrl)}`;
 
   const badgeSvg = renderBadgeSvg(track);
-  const signatureSvg = renderSignatureSvg();
 
   const skillChips = skills.map(s => {
     const level = s.level ? ` &middot; <span class="chip-level">${escapeHtml(s.level)}</span>` : "";
@@ -151,7 +150,7 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&family=Sacramento&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{
@@ -230,11 +229,11 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
     border:1px solid var(--border)}
   .skill-chip .chip-level{color:var(--mute);font-weight:400;margin-left:4px}
 
-  .sig-row{display:flex;justify-content:center;align-items:flex-end;margin:24px auto 6px;
-    max-width:280px}
-  .sig-row svg{width:260px;height:60px}
-  .sig-caption{text-align:center;font-size:12px;color:var(--faint);
-    font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;margin-bottom:4px}
+  /* No signature. The sheet points at its own record instead. */
+  .verify-line{text-align:center;font-size:12.5px;line-height:1.7;color:var(--faint);
+    margin:26px auto 2px;max-width:420px}
+  .verify-line span{display:block;font-family:'IBM Plex Mono',monospace;
+    font-size:13px;color:var(--ink);margin-top:2px}
 
   /* Actions below the sheet — hidden on print. */
   .actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:36px 0}
@@ -328,8 +327,8 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
 
     ${skillChips ? `<div class="skills-row" aria-label="Skills demonstrated">${skillChips}</div>` : ""}
 
-    <div class="sig-caption">Signed</div>
-    <div class="sig-row">${signatureSvg}</div>
+    <p class="verify-line">Verify this certificate at
+      <span>r-statistics.co/cert/${escapeHtml(cert.public_id || "")}</span></p>
   </section>
 
   <div class="actions">
