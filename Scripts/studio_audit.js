@@ -269,6 +269,15 @@
   ck('status', 'the monthly allowance names its limit',
      /\d+ of \d+ checks left this month|\d+ free checks a month|Unlimited checks/.test(flat(st)),
      flat($('.rs-metercell')));
+  /* Upgrade is offered to anyone on the allowance, not held back until it is
+     nearly gone; and never to somebody who is already paying. */
+  ck('status', 'anyone on the allowance is offered the upgrade',
+     (function () {
+       var c = $('.rs-metercell');
+       if (!c) return false;
+       var metered = /checks left this month/.test(c.innerText || '');
+       return metered ? !!$('.rs-go', c) : !$('.rs-go', c);
+     })(), flat($('.rs-metercell')));
   ck('status', 'allowance cell is never empty',
      !!(st && $('.rs-metercell', st) && ($('.rs-metercell', st).innerText || '').trim().length > 0));
   ck('status', 'allowance cell says something meaningful',

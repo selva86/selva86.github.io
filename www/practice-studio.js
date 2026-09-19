@@ -627,17 +627,19 @@
     var left = Math.max(0, limit - (m.used || 0));
     var bars = '';
     for (var i = 0; i < limit; i++) bars += '<i class="' + (i < left ? '' : 'off') + '"></i>';
+    /* Upgrade is offered to anyone on the allowance, not held back until it
+       is nearly gone. Somebody who has just seen the thing work is a better
+       moment to ask than somebody who has run out. The escalation is carried
+       by the count and the colour; only the last state quotes a price, where
+       it stops being an invitation and starts being the way back in. */
     var cls = 'cell sep rs-metercell', txt;
+    var count = '<b>' + left + '</b>&nbsp;of ' + limit + ' checks left this month';
     if (left === 0) {
       cls += ' is-out';
-      txt = '<b>0</b>&nbsp;of ' + limit + ' checks left this month' +
-            '&nbsp;&middot;<span class="rs-go">Upgrade, $14 a month</span>';
-    } else if (left <= 5) {
-      cls += ' is-warn';
-      txt = '<b>' + left + '</b>&nbsp;of ' + limit + ' checks left this month' +
-            '&nbsp;&middot;<span class="rs-go">Upgrade</span>';
+      txt = count + '&nbsp;&middot;<span class="rs-go">Upgrade, $14 a month</span>';
     } else {
-      txt = '<b>' + left + '</b>&nbsp;of ' + limit + ' checks left this month';
+      if (left <= 5) cls += ' is-warn';
+      txt = count + '&nbsp;&middot;<span class="rs-go">Upgrade</span>';
     }
     ui.metercell.className = cls;
     ui.metercell.innerHTML = '<span class="rs-meter">' + bars + '</span><span>' + txt + '</span>';
