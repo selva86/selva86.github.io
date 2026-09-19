@@ -34,6 +34,13 @@ body.rs-studio .engagement-progress,
 body.rs-studio .rsft,
 body.rs-studio footer,
 body.rs-studio .signin-nudge,
+/* the sitewide sign-in sheet is .rs-nudge, not .signin-nudge, so it was never
+   actually hidden here: it lands over the editor, and on a phone it covers the
+   whole work pane. The status bar carries the same invitation in a place that
+   does not block the work. */
+body.rs-studio .rs-nudge,
+/* a reading-progress bar for a page the studio has replaced */
+body.rs-studio .lv2-progress,
 body.rs-studio #mobile-sidebar { display: none !important; }
 
 /* Everything the studio needs has been moved into the shell, so the original
@@ -172,6 +179,14 @@ body.rs-studio.rs-pinned .rs-panel { position: static; width: auto; box-shadow: 
   display: flex; flex-direction: column; height: 100%; margin: 0; padding: 0;
   border: 0; background: none; box-shadow: none;
 }
+/* exercise-hub collapses a card body with `.xh-card:not(.is-open) .xh-ex-body
+   { height: 0 }`, and the studio opens cards by showing them rather than by
+   setting is-open. On the wide layout flex:1 happened to override that; in a
+   plain block layout it does not, and the card renders as nothing at all. Say
+   it outright, at a specificity that wins, and drop the open/close transition
+   which has no meaning when one card is always open. */
+.rs-hold > section.exercise.rs-current .xh-ex-body { height: auto; overflow: visible; }
+.rs-hold .xh-card.xh-anim .xh-ex-body { transition: none; }
 .rs-hold .xh-ex-body {
   flex: 1; min-height: 0; display: grid;
   grid-template-columns: minmax(0,1fr) minmax(0,1fr);
@@ -308,6 +323,14 @@ body.rs-studio.rs-is-paused .rs-paused { display: flex; }
 .rs-pane-problem .exercise-solution[open] { margin-top: 14px; }
 
 /* ======================= work pane ======================= */
+/* engagement.css gives every <details> `content-visibility: auto` with a
+   `contain-intrinsic-size` of 400px, so a closed disclosure reserves 400px of
+   phantom height. On a scrolling article that is a rendering win and costs
+   nothing; inside the studio's fixed-height work pane it pushed the editor and
+   the console clean off the bottom. These two disclosures size to their real
+   content. */
+.rs-setup-toggle,
+.rs-hold .exercise-solution { content-visibility: visible; contain-intrinsic-size: auto none; }
 .rs-setup-toggle { border: 1px solid var(--st-line); background: #fff; }
 .rs-setup-toggle > summary {
   cursor: pointer; padding: 9px 14px; font: 600 13px Inter, sans-serif;
@@ -360,6 +383,9 @@ body.rs-studio.rs-is-paused .rs-paused { display: flex; }
   flex: 1 1 auto; min-height: 90px; max-height: 50%; overflow: auto;
 }
 .rs-console-head { flex: none; font: 600 12px Inter, sans-serif; color: var(--st-mut); padding: 12px 0 6px; }
+/* webr stamps an uppercase OUTPUT label on every output pane. The studio rules
+   out uppercase labels, and the console already has a heading of its own. */
+body.rs-studio .webr-output::before { content: none !important; }
 pre.webr-output.rs-console {
   flex: 1 1 auto; margin: 0 !important; padding: 12px 14px !important;
   min-height: 90px;
@@ -410,8 +436,120 @@ pre.webr-output.rs-console {
 
 /* the hub's shared prelude lives here, out of every card and off screen. It
    still runs: display:none does not stop the editor's run button working. */
+/* where the shared prelude waits before the first card is shown */
 .rs-prelude { display: none; }
+.rs-setup-done { color: var(--st-green); font-weight: 600; }
+.rs-setup-toggle > summary:hover .rs-setup-done { color: var(--st-green-hover); }
 
 /* the setup fold sits above the editor on screen while staying after the
    answer block in the DOM, which is what keeps grading pointed at the answer */
 .rs-pane-work > .rs-setup-toggle { order: -1; }
+
+
+/* ==================================================================
+   Narrow screens: phones, and a Fold on its inner display.
+
+   The wide layout is a fixed, viewport-height overlay with two panes side
+   by side. None of that survives a narrow screen: the work pane ends up
+   below the fold of a container that cannot scroll, so the editor is
+   simply unreachable. Below 1040px the studio stops being an overlay and
+   becomes an ordinary scrolling page, problem first and work under it.
+   ================================================================== */
+@media (max-width: 1040px) {
+  /* clip, not hidden: overflow-x:hidden kills position:sticky, which the bar
+     and the status bar both rely on here */
+  body.rs-studio { overflow: visible; overflow-x: clip; }
+
+  /* the shell joins the document flow; the studio bar takes over as the
+     sticky header, so the site navbar scrolls away with the page */
+  body.rs-studio .sitenav { position: static; }
+  .rs-shell { position: static; height: auto; min-height: 0; z-index: auto; }
+
+  .rs-bar {
+    position: sticky; top: 0; z-index: 30;
+    height: auto; min-height: 50px; padding: 8px 12px;
+    grid-template-columns: minmax(0,1fr) auto; gap: 8px 10px;
+  }
+  .rs-prog { display: none; }                 /* the pip strip below says this better */
+  .rs-hub { font-size: 13.5px; }
+  .rs-hub span { display: none; }             /* hub name only; the section name repeats below */
+  .rs-right { gap: 8px; }
+  .rs-exit { display: none; }                 /* the browser's own back does this */
+  .rs-accept { white-space: nowrap; }
+
+  /* the spine turns from a left rail into a strip you can swipe */
+  .rs-body { display: block; min-height: 0; }
+  .rs-spine {
+    flex-direction: row; align-items: center; gap: 6px;
+    border-right: 0; border-bottom: 1px solid var(--st-line);
+    overflow-x: auto; overflow-y: hidden; padding: 7px 12px;
+    scrollbar-width: none;
+  }
+  .rs-spine::-webkit-scrollbar { display: none; }
+  .rs-spinetop { display: none; }
+  .rs-count { padding: 0 6px 0 0; font-size: 11px; flex: none; }
+  .rs-pips { flex-direction: row; align-items: center; overflow: visible; padding: 0; gap: 6px; }
+  .rs-pipsec { width: 1px; height: 14px; margin: 0 3px; }
+  .rs-pip { width: 28px; height: 28px; font-size: 10px; }   /* a real tap target */
+  /* a hover panel has no meaning on a touch screen, and the strip already
+     lists every problem */
+  .rs-panel { display: none !important; }
+  body.rs-studio.rs-pinned .rs-body { display: block; }
+
+  /* the stage and the card stop being height-constrained, so everything
+     inside can take the room it needs and the page scrolls normally */
+  .rs-stage { overflow: visible; }
+  .rs-hold { height: auto; }
+  .rs-hold > section.exercise.rs-current { height: auto; display: block; }
+  .rs-hold .xh-ex-body { display: block; }
+  .rs-pane { overflow: visible; }
+  .rs-pane-problem { padding: 22px 16px 4px; }
+  .rs-pane-work {
+    border-left: 0; border-top: 1px solid var(--st-line);
+    padding: 14px 16px 30px; gap: 0;
+  }
+  .rs-studio .rs-title { font-size: 22px; }
+
+  /* undo the flex-height chain that keeps the console on screen on a wide
+     screen; here the page scrolls instead */
+  .rs-pane-work > .webr-container { flex: none; display: block; }
+  .rs-pane-work > .webr-container > .webr-code-block {
+    flex: none; display: block; overflow: visible; min-height: 0;
+  }
+  .rs-pane-work .webr-code-block > .webr-editor {
+    flex: none; max-height: none; min-height: 150px; overflow: auto;
+  }
+  pre.webr-output.rs-console { flex: none; min-height: 90px; max-height: 320px; }
+  .rs-pane-work > .rs-console, .rs-console { flex: none; }
+
+  /* the action row is the main control surface, so give it real targets */
+  .rs-actions { padding: 14px 0 10px; gap: 7px; }
+  .rs-actions .rs-btn, .rs-actions .xh-check-btn { padding: 11px 14px !important; }
+  .rs-xp { margin-left: 0; }
+
+  /* the status bar carries the allowance and the upgrade link, so it stays
+     in reach at the bottom of the screen rather than at the end of the page */
+  .rs-status {
+    position: sticky; bottom: 0; z-index: 30;
+    border-top: 1px solid var(--st-line); box-shadow: 0 -6px 18px -16px rgba(15,26,43,.5);
+  }
+  .rs-status .cell { padding: 0 10px; }
+
+  .rs-gate { padding: 22px 16px; }
+  .rs-gate p { font-size: 14.5px; }
+  .rs-gate p.sub { font-size: 13px; }
+}
+
+/* very narrow: a phone, or the Fold closed */
+@media (max-width: 560px) {
+  /* there is no room for the hub name beside the controls, and it collides
+     with them. The problem title sits right below and says where you are. */
+  .rs-bar { grid-template-columns: 1fr; justify-items: end; }
+  .rs-hub { display: none; }
+  .rs-accept { font-size: 13px; padding: 8px 12px; }
+  .rs-pane-problem, .rs-pane-work { padding-left: 13px; padding-right: 13px; }
+  .rs-studio .rs-title { font-size: 20px; }
+  .rs-pane-problem .exercise-expected pre { font-size: 12.5px !important; }
+  .rs-actions .rs-btn, .rs-actions .xh-check-btn { flex: 1 1 auto; justify-content: center; }
+  .rs-status { font-size: 11.5px; }
+}

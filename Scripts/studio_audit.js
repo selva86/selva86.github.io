@@ -49,6 +49,11 @@
      $$('.rs-shell *').filter(function (n) {
        return cs(n, 'textTransform') === 'uppercase' && n.textContent.trim();
      }).length === 0);
+  /* webr stamps an uppercase OUTPUT label on the output pane through ::before */
+  ck('shell', 'no OUTPUT eyebrow on the console',
+     cs($('pre.webr-output.rs-console'), 'content') !== '"OUTPUT"');
+  /* the sitewide sign-in sheet is .rs-nudge and lands over the editor */
+  ck('shell', 'the sign-in sheet stays out of the studio', !vis($('.rs-nudge')));
 
   /* -------- 2. studio bar -------- */
   ck('bar', 'hub name shown', /\S/.test(($('.rs-hub') || {}).textContent || ''));
@@ -109,6 +114,15 @@
   ck('work', 'setup code is folded away, not a second block', !!(R && $('.rs-setup-toggle', R)));
   ck('work', 'the setup fold starts closed',
      !$('.rs-setup-toggle', R || document) || !$('.rs-setup-toggle', R).open);
+  /* The hub's shared prelude carries the library calls. Hide it and the fold
+     shows setup that cannot run on its own, which reads as a broken exercise. */
+  ck('work', 'the shared prelude is in the fold, where it can be read',
+     !!(R && $('.rs-setup-toggle .webr-container[data-block-title="Run this once before any exercise"]', R)));
+  /* engagement.css gives every <details> contain-intrinsic-size: auto 400px,
+     which reserves 400px of nothing and pushes the editor off the pane. */
+  ck('work', 'the closed fold reserves no phantom height',
+     !!(R && $('.rs-setup-toggle', R) && $('.rs-setup-toggle', R).getBoundingClientRect().height < 60),
+     R && $('.rs-setup-toggle', R) && Math.round($('.rs-setup-toggle', R).getBoundingClientRect().height));
   ck('work', 'console present', !!(R && $('pre.webr-output.rs-console', R)));
   ck('work', 'console sits below the editor',
      !!(R && ed && $('pre.webr-output.rs-console', R).getBoundingClientRect().top >= ed.getBoundingClientRect().bottom - 2));
@@ -173,7 +187,35 @@
   ck('gate', 'gate explains itself and repeats the accept button',
      !!(gate && $('.rs-gate-btn', gate) && /clock/i.test(gate.innerText)));
 
-  /* -------- 10. the manual pass this file cannot do -------- */
+  /* -------- 10. narrow screens --------
+     Below 1040px the studio stops being a fixed overlay and becomes an
+     ordinary scrolling page, because a fixed two-pane layout puts the editor
+     somewhere a phone cannot reach. These run only at that width. */
+  if (window.innerWidth <= 1040) {
+    ck('narrow', 'the shell is in the page flow, not a fixed overlay',
+       cs($('.rs-shell'), 'position') !== 'fixed');
+    ck('narrow', 'the studio bar stays reachable while scrolling',
+       cs($('.rs-bar'), 'position') === 'sticky');
+    ck('narrow', 'the status bar stays reachable while scrolling',
+       cs($('.rs-status'), 'position') === 'sticky');
+    ck('narrow', 'the problem sits above the work pane, not beside it',
+       !!(L && R) && R.getBoundingClientRect().top >= L.getBoundingClientRect().bottom - 1);
+    ck('narrow', 'the editor is on the page and has real height',
+       !!(ed && ed.getBoundingClientRect().height > 80),
+       ed && Math.round(ed.getBoundingClientRect().height));
+    ck('narrow', 'the console is on the page',
+       !!(R && $('pre.webr-output.rs-console', R) &&
+          $('pre.webr-output.rs-console', R).getBoundingClientRect().height > 40));
+    ck('narrow', 'the spine is a strip, not a rail',
+       cs($('.rs-spine'), 'flexDirection') === 'row');
+    ck('narrow', 'the hover panel is out of the way on a touch screen',
+       cs($('.rs-panel'), 'display') === 'none');
+    ck('narrow', 'the page does not scroll sideways',
+       document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+       document.documentElement.scrollWidth + ' vs ' + document.documentElement.clientWidth);
+  }
+
+  /* -------- 11. the manual pass this file cannot do -------- */
   var manual = [
     'Accept the challenge; the setup runs itself and the panes unlock.',
     'Type a wrong answer, press Check: the verdict reads mismatch.',

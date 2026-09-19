@@ -211,7 +211,13 @@
   }
 
   /* The shell sits under the site navbar, whose height can change on resize. */
+  var NARROW = 1040;
+
+  /* On a wide screen the shell is a fixed overlay pinned under the site
+     navbar. On a narrow one it is an ordinary block and the page scrolls, so
+     the inline offset has to come off or it fights the stylesheet. */
   function fit() {
+    if (window.innerWidth <= NARROW) { ui.shell.style.top = ''; return; }
     var nav = qs('.sitenav');
     var top = nav ? Math.max(0, nav.getBoundingClientRect().bottom) : 0;
     ui.shell.style.top = top + 'px';
@@ -225,14 +231,17 @@
     var content = qs('main#content') || qs('#content');
     // the shared setup block ("Run this once before any exercise"). It is one
     // node for the whole hub, so it rides along to whichever card is showing.
-    /* The hub's shared prelude ("Run this once before any exercise") is parked
-       in the shell, deliberately outside every card. Inside one it would be
-       mistaken for that card's answer block and graded in its place. */
+    /* The hub's shared prelude ("Run this once before any exercise") loads the
+       libraries every exercise needs. It is one node for the whole hub, so it
+       rides along to whichever card is on screen and sits first in that card's
+       setup fold, where a reader can actually see what was run. It is safe
+       inside a card now that exercise-hub picks the block it grades by label,
+       and the fold is a <details>, which the grading scan skips anyway. */
     ui.setupNode = qs(':scope > .webr-container', content);
     if (ui.setupNode) {
       ui.prelude = el('div', 'rs-prelude');
       ui.prelude.appendChild(ui.setupNode);
-      ui.shell.appendChild(ui.prelude);
+      ui.shell.appendChild(ui.prelude);   // parked until the first show()
     }
     S.cards.forEach(function (c) { ui.hold.appendChild(c.node); splitCard(c.node); });
   }
@@ -301,6 +310,7 @@
       panes.forEach(function (p) { p.classList.remove('rs-preparing'); });
       heads.forEach(function (h) { h.textContent = 'Console'; h.classList.remove('is-busy'); });
       S.preparing = null;
+      markSetupState();
     });
     return S.preparing;
   }
@@ -422,12 +432,12 @@
        it. The fold is lifted back above the editor with CSS order, so the
        reading order on screen is unchanged. */
     if (answer) right.appendChild(answer);
-    if (setups.length) {
-      var det = el('details', 'rs-setup-toggle');
-      det.appendChild(el('summary', '', 'Setup code'));
-      setups.forEach(function (c) { det.appendChild(c); });
-      right.appendChild(det);
-    }
+    /* Always built, even when the card brings no setup of its own: the hub's
+       shared prelude moves in here when the card is shown. */
+    var det = el('details', 'rs-setup-toggle');
+    det.appendChild(el('summary', '', '<span class="rs-setup-label">Setup code</span>'));
+    setups.forEach(function (c) { det.appendChild(c); });
+    right.appendChild(det);
 
     var actions = el('div', 'rs-actions');
     var checkBtn = qs('.xh-check-btn', card);
@@ -574,6 +584,18 @@
     ui.metercell.innerHTML = '<span class="rs-meter">' + bars + '</span><span>' + txt + '</span>';
   }
 
+  /* The fold is closed by default, so its summary is the only place to say
+     whether the session is ready. Silence there is what makes a reader open it,
+     find library calls, and wonder if they were supposed to run them. */
+  function markSetupState() {
+    var ready = !!(ui.setupNode && ui.setupNode.getAttribute('data-rs-ran'));
+    qsa('.rs-setup-label').forEach(function (n) {
+      n.innerHTML = ready
+        ? 'Setup code <span class="rs-setup-done">already run for you</span>'
+        : 'Setup code';
+    });
+  }
+
   function repaint() { renderPips(); renderList(); renderBar(); renderStatus(); }
 
   function show(i) {
@@ -584,6 +606,13 @@
     node.classList.add('rs-current');
     splitCard(node);
     // the hub's shared setup code follows the visible card into its work pane
+    var fold = qs('.rs-setup-toggle', node);
+    if (fold && ui.setupNode && ui.setupNode.parentElement !== fold) {
+      // straight after the <summary>: the prelude loads the libraries that the
+      // card's own setup then uses, so it has to read and run first
+      fold.insertBefore(ui.setupNode, fold.children[1] || null);
+    }
+    markSetupState();
     qsa('.rs-pane', node).forEach(function (p) { p.scrollTop = 0; });
     if (S.accepted) prepare(node);
     renderBar(); renderPips(); renderList();
