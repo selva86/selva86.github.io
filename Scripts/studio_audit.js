@@ -104,6 +104,13 @@
   ck('problem', 'solution lives in the problem pane', !!(L && $('.exercise-solution', L)));
   ck('problem', 'the answer editor is not in the problem pane',
      !(L && $('.webr-container[data-block-title="Your turn"]', L)));
+  ck('problem', 'the expected result runs the full width of the pane',
+     (function () {
+       var p = L && $('.exercise-expected pre', L);
+       if (!p || !L) return false;
+       var pad = parseFloat(cs(L, 'paddingLeft')) + parseFloat(cs(L, 'paddingRight'));
+       return p.getBoundingClientRect().width >= L.getBoundingClientRect().width - pad - 2;
+     })());
 
   /* -------- 6. work pane: one editor, one console -------- */
   var eds = R ? $$('.webr-container', R).filter(vis) : [];
@@ -111,18 +118,23 @@
      eds.map(function (e) { return e.getAttribute('data-block-title'); }).join(','));
   ck('work', 'the visible block is the answer block',
      eds.length === 1 && eds[0].getAttribute('data-block-title') === 'Your turn');
-  ck('work', 'setup code is folded away, not a second block', !!(R && $('.rs-setup-toggle', R)));
-  ck('work', 'the setup fold starts closed',
-     !$('.rs-setup-toggle', R || document) || !$('.rs-setup-toggle', R).open);
-  /* The hub's shared prelude carries the library calls. Hide it and the fold
-     shows setup that cannot run on its own, which reads as a broken exercise. */
-  ck('work', 'the shared prelude is in the fold, where it can be read',
-     !!(R && $('.rs-setup-toggle .webr-container[data-block-title="Run this once before any exercise"]', R)));
-  /* engagement.css gives every <details> contain-intrinsic-size: auto 400px,
-     which reserves 400px of nothing and pushes the editor off the pane. */
-  ck('work', 'the closed fold reserves no phantom height',
-     !!(R && $('.rs-setup-toggle', R) && $('.rs-setup-toggle', R).getBoundingClientRect().height < 60),
-     R && $('.rs-setup-toggle', R) && Math.round($('.rs-setup-toggle', R).getBoundingClientRect().height));
+  /* Setup is part of the code in the editor, not a block of its own. One Run
+     does everything in order, so nothing has to be run first and there is no
+     second block to hunt for. */
+  ck('work', 'no separate setup block is left in the pane', !(R && $('.rs-setup-toggle', R)));
+  ck('work', 'the setup blocks are parked outside every card',
+     !$('.rs-hold .webr-container[data-block-title="Run this once before any exercise"]'));
+  ck('work', 'the editor carries the setup above the answer',
+     (function () {
+       if (!$('.rs-park .webr-container')) return true;   // a hub with no setup
+       var t = ed ? (ed.textContent || '') : '';
+       var a = t.indexOf('# Setup, written for you');
+       var b = t.indexOf('# Your answer.');
+       return a > -1 && b > a;
+     })());
+  ck('work', 'square edges on the code block',
+     px(R && $('.webr-container', R), 'borderTopLeftRadius') === 0,
+     px(R && $('.webr-container', R), 'borderTopLeftRadius'));
   ck('work', 'console present', !!(R && $('pre.webr-output.rs-console', R)));
   ck('work', 'console sits below the editor',
      !!(R && ed && $('pre.webr-output.rs-console', R).getBoundingClientRect().top >= ed.getBoundingClientRect().bottom - 2));
@@ -138,18 +150,13 @@
   ck('work', 'the output pane is still inside the answer container',
      !!(R && $('.webr-container[data-block-title="Your turn"] .webr-output', R)));
 
-  /* The answer container must come before the setup fold in DOM order.
-     exercise-hub picks the block it grades by scanning for the first
-     .webr-container not inside a <details>; put setup first and the setup block
-     gets graded instead of the answer. */
-  ck('work', 'the answer container precedes the setup fold in the DOM',
-     (function () {
-       if (!R) return false;
-       var kids = [].slice.call(R.children);
-       var a = kids.indexOf($('.webr-container[data-block-title="Your turn"]', R));
-       var f = kids.indexOf($('.rs-setup-toggle', R));
-       return a > -1 && (f === -1 || a < f);
-     })());
+  /* exercise-hub picks the block it grades by scanning the card for the first
+     .webr-container not inside a <details>. With the setup parked outside the
+     cards there is exactly one candidate, so it cannot pick the wrong one. */
+  ck('work', 'the answer block is the only gradable block in the card',
+     !!card && $$('.webr-container', card).filter(function (c) {
+       return !c.closest('details');
+     }).length === 1);
 
   /* -------- 7. action row -------- */
   var row = R && $('.rs-actions', R);

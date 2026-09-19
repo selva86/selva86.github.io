@@ -232,94 +232,86 @@
     // the shared setup block ("Run this once before any exercise"). It is one
     // node for the whole hub, so it rides along to whichever card is showing.
     /* The hub's shared prelude ("Run this once before any exercise") loads the
-       libraries every exercise needs. It is one node for the whole hub, so it
-       rides along to whichever card is on screen and sits first in that card's
-       setup fold, where a reader can actually see what was run. It is safe
-       inside a card now that exercise-hub picks the block it grades by label,
-       and the fold is a <details>, which the grading scan skips anyway. */
+       libraries every exercise needs. Its code is copied into the top of every
+       answer editor, so the block itself has no job left on screen: park it. */
+    ui.park = el('div', 'rs-park');
+    ui.shell.appendChild(ui.park);
     ui.setupNode = qs(':scope > .webr-container', content);
     if (ui.setupNode) {
-      ui.prelude = el('div', 'rs-prelude');
-      ui.prelude.appendChild(ui.setupNode);
-      ui.shell.appendChild(ui.prelude);   // parked until the first show()
+      S.preludeHtml = editorHtml(ui.setupNode);
+      ui.park.appendChild(ui.setupNode);
     }
     S.cards.forEach(function (c) { ui.hold.appendChild(c.node); splitCard(c.node); });
   }
 
   var XPBY = { beginner: 10, intermediate: 25, advanced: 50 };
 
-  /* Run one code block and resolve when it has finished.
+  /* ---------------------------------------------------------------
+     Setup code lives in the editor
 
-     The classic page leaves setup to the reader: the blocks are on the page and
-     running them is part of the ritual. The studio folds them away, so it owes
-     the reader the run as well. Without this the first answer fails with
-     "object not found", which reads as the exercise being broken.
+     A hub's setup arrives as its own code blocks: one shared prelude that
+     loads the libraries, and often a per-exercise block that builds the data.
+     Keeping them as separate blocks the reader has to run first is where this
+     kept going wrong. Run them for the reader and the work happens behind a
+     lock with no visible progress, on a cold start for well over a minute.
+     Leave them to the reader and the first answer fails with "object not
+     found", because the block that defines it is folded away somewhere else.
 
-     webr-init marks the output is-loading while a block runs, so wait for that
-     to appear and clear rather than guessing at a delay. */
-  function runBlock(cont) {
-    return new Promise(function (resolve) {
-      var btn = qs('.webr-run-btn', cont), out = qs('.webr-output', cont);
-      if (!btn || !out || cont.getAttribute('data-rs-ran')) return resolve();
-      cont.setAttribute('data-rs-ran', '1');
-      btn.click();
-      var n = 0;
-      var t = setInterval(function () {
-        n++;
-        var cls = out.className || '';
-        var loading = cls.indexOf('is-loading') > -1;
-        if ((n > 4 && !loading) || n > 300) {
-          clearInterval(t);
-          // a block that errored has not really run, so let the next attempt
-          // try it again rather than leaving the session half set up
-          if (cls.indexOf('has-error') > -1) cont.removeAttribute('data-rs-ran');
-          resolve();
-        }
-      }, 200);
-    });
-  }
+     So the setup is simply part of the code in the editor, above the answer.
+     One Run does everything, in order, with the package installer reporting on
+     the button the reader actually pressed. Nothing is hidden and nothing has
+     to happen first.
 
-  /* Prepare the R session for the WHOLE hub, in document order, once each.
-
-     The studio shows one problem at a time and lets the reader jump straight to
-     any of them. A problem can need a package or a data frame set up by a block
-     that belongs to an earlier problem, which on the classic page the reader
-     would have scrolled past and run. Running every setup block on accept, in
-     the order they appear, is exactly what a reader working front to back does,
-     so nobody can land on a problem whose session is not ready.
-
-     The pane is locked while this runs: a Check fired mid-preparation fails on
-     a missing package and reads as the exercise being broken. */
-  function prepare(node) {
-    var blocks = [];
-    if (ui.setupNode && !ui.setupNode.getAttribute('data-rs-ran')) blocks.push(ui.setupNode);
-    qsa('.rs-hold .rs-setup-toggle .webr-container').forEach(function (b) {
-      if (b !== ui.setupNode && !b.getAttribute('data-rs-ran')) blocks.push(b);
-    });
-    if (!blocks.length) return Promise.resolve();
-    if (S.preparing) return S.preparing;
-
-    var panes = qsa('.rs-pane-work');
-    panes.forEach(function (p) { p.classList.add('rs-preparing'); });
-    var heads = qsa('.rs-console-head');
-    heads.forEach(function (h) { h.textContent = 'Preparing your session'; h.classList.add('is-busy'); });
-
-    S.preparing = blocks.reduce(function (p, b) {
-      return p.then(function () { return runBlock(b); });
-    }, Promise.resolve()).then(function () {
-      panes.forEach(function (p) { p.classList.remove('rs-preparing'); });
-      heads.forEach(function (h) { h.textContent = 'Console'; h.classList.remove('is-busy'); });
-      S.preparing = null;
-      markSetupState();
-    });
-    return S.preparing;
-  }
-
+     Grading is unaffected: the runner prints the value of the last expression,
+     which is still the reader's answer. The lines are carried over as markup,
+     not text, so they keep their syntax colouring.
+     --------------------------------------------------------------- */
 
   function esc(t) {
     return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
     });
+  }
+
+  function editorHtml(container) {
+    var ed = container && qs('.webr-editor', container);
+    return ed ? ed.innerHTML.replace(/\s+$/, '') : '';
+  }
+
+  function commentLine(text) {
+    return '<span class="cl"><span class="c1">' + esc(text) + '</span></span>';
+  }
+
+  /* The combined source for one card: the shared prelude, this card's own
+     setup, then the starter the exercise ships with. */
+  function editorSource(card, answer, setups) {
+    var before = [];
+    if (S.preludeHtml) before.push(S.preludeHtml);
+    setups.forEach(function (c) {
+      var h = editorHtml(c);
+      if (h) before.push(h);
+    });
+    var starter = editorHtml(answer);
+    if (!before.length) return starter;
+    return [
+      commentLine('# Setup, written for you. Runs with your answer.'),
+      before.join('\n' + commentLine('') + '\n'),
+      commentLine(''),
+      commentLine('# Your answer.'),
+      starter
+    ].join('\n');
+  }
+
+  /* The setup sits above the answer, so on a tall block the reader's own line
+     can start out below the fold of the editor. Bring it into view. */
+  function showAnswerArea(node) {
+    var ed = qs('.rs-pane-work .webr-editor', node);
+    if (!ed || !S.preludeHtml) return;
+    var marker = null;
+    qsa('.cl', ed).forEach(function (n) {
+      if (/# Your answer\./.test(n.textContent || '')) marker = n;
+    });
+    if (marker) ed.scrollTop = Math.max(0, marker.offsetTop - ed.offsetTop - 34);
   }
 
   /* One button in the action row. Hint and Solution drive the real controls,
@@ -421,23 +413,18 @@
     if (help) left.appendChild(help);
 
     // ---------- work pane: setup fold, editor, actions, console
-    /* The answer container goes in FIRST, before the setup fold.
-
-       exercise-hub decides which block to grade by taking the first
-       .webr-container in the card that is not inside a <details>, and it
-       re-resolves that after the studio has rearranged things. Put the setup
-       fold first and the setup block gets graded in place of the answer: every
-       Check then compares the setup block's output and can never pass. Keeping
-       the answer first in the DOM matches the classic page's order and settles
-       it. The fold is lifted back above the editor with CSS order, so the
-       reading order on screen is unchanged. */
+    /* With the setup parked, the answer block is the only .webr-container left
+       in the card outside the solution, so exercise-hub can only resolve it as
+       the block to grade. That used to depend on DOM order. */
     if (answer) right.appendChild(answer);
-    /* Always built, even when the card brings no setup of its own: the hub's
-       shared prelude moves in here when the card is shown. */
-    var det = el('details', 'rs-setup-toggle');
-    det.appendChild(el('summary', '', '<span class="rs-setup-label">Setup code</span>'));
-    setups.forEach(function (c) { det.appendChild(c); });
-    right.appendChild(det);
+    /* The setup blocks have no job on screen any more: their code is already
+       at the top of the editor. Park the nodes rather than delete them, so
+       anything holding a reference to one still finds it. */
+    if (answer) {
+      var edNode = qs('.webr-editor', answer);
+      if (edNode) edNode.innerHTML = editorSource(card, answer, setups);
+    }
+    setups.forEach(function (c) { if (ui.park) ui.park.appendChild(c); });
 
     var actions = el('div', 'rs-actions');
     var checkBtn = qs('.xh-check-btn', card);
@@ -584,18 +571,6 @@
     ui.metercell.innerHTML = '<span class="rs-meter">' + bars + '</span><span>' + txt + '</span>';
   }
 
-  /* The fold is closed by default, so its summary is the only place to say
-     whether the session is ready. Silence there is what makes a reader open it,
-     find library calls, and wonder if they were supposed to run them. */
-  function markSetupState() {
-    var ready = !!(ui.setupNode && ui.setupNode.getAttribute('data-rs-ran'));
-    qsa('.rs-setup-label').forEach(function (n) {
-      n.innerHTML = ready
-        ? 'Setup code <span class="rs-setup-done">already run for you</span>'
-        : 'Setup code';
-    });
-  }
-
   function repaint() { renderPips(); renderList(); renderBar(); renderStatus(); }
 
   function show(i) {
@@ -605,16 +580,8 @@
     var node = S.cards[i].node;
     node.classList.add('rs-current');
     splitCard(node);
-    // the hub's shared setup code follows the visible card into its work pane
-    var fold = qs('.rs-setup-toggle', node);
-    if (fold && ui.setupNode && ui.setupNode.parentElement !== fold) {
-      // straight after the <summary>: the prelude loads the libraries that the
-      // card's own setup then uses, so it has to read and run first
-      fold.insertBefore(ui.setupNode, fold.children[1] || null);
-    }
-    markSetupState();
     qsa('.rs-pane', node).forEach(function (p) { p.scrollTop = 0; });
-    if (S.accepted) prepare(node);
+    showAnswerArea(node);
     renderBar(); renderPips(); renderList();
     if (!S.pinned) closePanel();
   }
@@ -636,7 +603,6 @@
     ui.state.textContent = 'Challenge running';
     ui.timecell.style.display = '';
     startTick(); idleReset();
-    prepare(S.cards[S.cur] && S.cards[S.cur].node);
   }
   function startTick() {
     S.tick = setInterval(function () {
