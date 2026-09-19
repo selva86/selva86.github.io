@@ -13,8 +13,9 @@ import {
   monthlyDeltas, captureAndDeltaRank, loadBoardRows, renderBoardHtml, xpPercentiles,
   renderXpChartSvg,
 } from "../_lib/profile";
+import { hubExerciseIds } from "../_lib/badges-hub";
 import {
-  BADGE_DEFS, certBadges, awardBadges, loadUserBadges, badgeRarity, badgeArt,
+  BADGE_DEFS, certBadges, awardBadges, loadUserBadges, badgeRarity, badgeArt, loadBadgeExtras,
   type BadgeCtx,
 } from "../_lib/badges";
 import { isProActive, type User } from "../_lib/db";
@@ -722,6 +723,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
     tierIndex: tier.index,
     activeDays: stats.heatmap.filter((h) => h.n > 0).length,
     profileReady: !!(extras.bio && (extras.website || extras.resume || extras.github || u.github_login || (extras.projects || []).length)),
+    ...(await loadBadgeExtras(DB, u.id, (slug) => hubExerciseIds(slug).length)),
   };
   const quizBest = await DB.prepare(
     "SELECT COALESCE(MAX(score),0) AS s FROM quiz_attempts WHERE user_id = ?1 AND passed = 1"

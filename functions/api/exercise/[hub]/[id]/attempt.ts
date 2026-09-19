@@ -27,7 +27,7 @@ import {
 import { meterMonth, hubAccess, METER_LIMIT } from "../../../../_lib/meter";
 import { checkDailyBonus } from "../../../../_lib/daily";
 import {
-  BADGE_DEFS, awardBadges, type BadgeCtx,
+  BADGE_DEFS, awardBadges, loadBadgeExtras, LADDER_MARKS, type BadgeCtx,
 } from "../../../../_lib/badges";
 import { hubProgress, mintHubBadge, hubExerciseIds } from "../../../../_lib/badges-hub";
 import { computeTier, parseProfileJson } from "../../../../_lib/profile";
@@ -42,19 +42,31 @@ const PRO_HUBS = proLessonsJson as Record<string, string>;
 
 const MAX_HINTS = 10;
 
-const SOLVE_BOUNDARIES = new Set([1, 100, 200, 300]);
-const STREAK_BOUNDARIES = new Set([7, 30, 100]);
+// Derived from the ladder itself. These used to be literals, so every rung
+// added after them was defined, tested, rendered, and never actually awarded
+// on a solve: the sweep simply never ran at that count.
+const SOLVE_BOUNDARIES = new Set(LADDER_MARKS.solves);
+const STREAK_BOUNDARIES = new Set(LADDER_MARKS.streak);
 
-// Nearest-milestone line for the success toast. Pure function of two counters.
+// Nearest-milestone line for the success toast. Names the badge rather than
+// repeating the number: "15 solves to Quarter Century" is a thing to want,
+// "15 solves to the 25-solves badge" is the number twice.
+const BADGE_NAME = new Map(BADGE_DEFS.map((d) => [d.id, d.name]));
+const named = (id: string, fallback: string) => BADGE_NAME.get(id) || fallback;
+
 function milestoneNudge(solved: number, streak: number): string | null {
   const nextOf = (v: number, marks: number[]) => marks.find((m) => m > v) ?? null;
-  const ns = nextOf(solved, [5, 10, 25, 50, 100, 200, 300]);
+  const ns = nextOf(solved, LADDER_MARKS.solves);
   if (ns) {
-    return `${ns - solved} solve${ns - solved === 1 ? "" : "s"} to the ${ns}-solves badge`;
+    const n = ns - solved;
+    // the first mark is first-solve, which is not called solves-1
+    const id = ns === 1 ? "first-solve" : "solves-" + ns;
+    return `${n} solve${n === 1 ? "" : "s"} to ${named(id, ns + " solves")}`;
   }
-  const nk = nextOf(streak, [7, 30, 100]);
-  if (nk && nk - streak <= 3) {
-    return `${nk - streak} day${nk - streak === 1 ? "" : "s"} to the ${nk}-day streak badge`;
+  const nk = nextOf(streak, LADDER_MARKS.streak);
+  if (nk) {
+    const d = nk - streak;
+    return `${d} day${d === 1 ? "" : "s"} to ${named("streak-" + nk, nk + "-day streak")}`;
   }
   return null;
 }
@@ -205,6 +217,7 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
           tierIndex: tier.index,
           activeDays: Math.max(1, streak),
           profileReady: !!(extras.bio && (extras.website || extras.resume || extras.github)),
+          ...(await loadBadgeExtras(DB, u.id, (slug) => hubExerciseIds(slug).length)),
         };
         const fresh = await awardBadges(DB, u.id, ctx);
         const names = new Map(BADGE_DEFS.map((d) => [d.id, d.name]));

@@ -18,6 +18,13 @@ export interface BadgeCtx {
   tierIndex: number;          // 0..5 from computeTier
   activeDays: number;         // any-activity days, all loaded history
   profileReady: boolean;      // bio + at least one link set
+  // Dimensions beyond volume and consistency. Optional so older call sites
+  // still compile; a missing field simply leaves its badges unearned rather
+  // than awarding them on a zero.
+  hubsDone?: number;          // hubs where every graded exercise is solved
+  hubsTouched?: number;       // distinct hubs with at least one solve
+  advanced?: number;          // solves worth 50 XP, which is what advanced pays
+  unaided?: number;           // solves with no hint opened
 }
 
 export interface BadgeDef {
@@ -29,6 +36,20 @@ export interface BadgeDef {
   glyph: string;              // short text drawn in the art
   test: (c: BadgeCtx) => { earned: boolean; progress: number; note: string };
 }
+
+
+/* Every numeric rung, in one place. The attempt handler gates its badge sweep
+   on these, so adding a rung above is enough to make it fire; before this the
+   trigger was a separate literal and the two drifted the moment anyone added
+   a mark. */
+export const LADDER_MARKS = {
+  solves: [1, 5, 10, 25, 50, 100, 200, 300, 500, 1000],
+  streak: [3, 7, 14, 30, 60, 100, 200, 365],
+  hubsDone: [1, 3, 5, 10, 25, 50],
+  hubsTouched: [5, 10, 25, 50],
+  advanced: [10, 25, 50, 100],
+  unaided: [10, 50, 100, 250],
+};
 
 const EARLY_MEMBER_CUTOFF = 1782585600; // 2026-06-28: the first year of accounts
 
@@ -99,6 +120,131 @@ export const BADGE_DEFS: BadgeDef[] = [
     test: (c) => ({ earned: c.solved >= 300, progress: Math.min(1, c.solved / 300), note: `${c.solved} of 300` }),
   },
   {
+    id: "solves-500", name: "Five Hundred", blurb: "five hundred graded wins",
+    shape: "shield", color: "#a16207", glyph: "500",
+    test: (c) => { const v = c.solved ?? 0; return { earned: v >= 500, progress: Math.min(1, v / 500), note: `${v} of 500 solves` }; },
+  },
+  {
+    id: "solves-1000", name: "Four Figures", blurb: "a thousand problems, answered",
+    shape: "shield", color: "#a16207", glyph: "1K",
+    test: (c) => { const v = c.solved ?? 0; return { earned: v >= 1000, progress: Math.min(1, v / 1000), note: `${v} of 1000 solves` }; },
+  },
+  {
+    id: "streak-3", name: "Three Straight", blurb: "three days is where a habit starts",
+    shape: "hex", color: "#0f7a52", glyph: "3",
+    test: (c) => { const v = c.streakBest ?? 0; return { earned: v >= 3, progress: Math.min(1, v / 3), note: `${v} of 3 days` }; },
+  },
+  {
+    id: "streak-14", name: "Fortnight", blurb: "two weeks without a gap",
+    shape: "hex", color: "#0f7a52", glyph: "14",
+    test: (c) => { const v = c.streakBest ?? 0; return { earned: v >= 14, progress: Math.min(1, v / 14), note: `${v} of 14 days` }; },
+  },
+  {
+    id: "streak-60", name: "Sixty Straight", blurb: "two months, every day",
+    shape: "shield", color: "#0f7a52", glyph: "60",
+    test: (c) => { const v = c.streakBest ?? 0; return { earned: v >= 60, progress: Math.min(1, v / 60), note: `${v} of 60 days` }; },
+  },
+  {
+    id: "streak-200", name: "Two Hundred Straight", blurb: "two hundred days in a row",
+    shape: "shield", color: "#0f7a52", glyph: "200",
+    test: (c) => { const v = c.streakBest ?? 0; return { earned: v >= 200, progress: Math.min(1, v / 200), note: `${v} of 200 days` }; },
+  },
+  {
+    id: "streak-365", name: "A Full Year", blurb: "three hundred and sixty five days",
+    shape: "shield", color: "#0f7a52", glyph: "365",
+    test: (c) => { const v = c.streakBest ?? 0; return { earned: v >= 365, progress: Math.min(1, v / 365), note: `${v} of 365 days` }; },
+  },
+  {
+    id: "hubs-1", name: "Clean Sweep", blurb: "every problem in one hub",
+    shape: "kite", color: "#2056d2", glyph: "1",
+    test: (c) => { const v = c.hubsDone ?? 0; return { earned: v >= 1, progress: Math.min(1, v / 1), note: `${v} of 1 hubs` }; },
+  },
+  {
+    id: "hubs-3", name: "Hat-Trick", blurb: "three hubs finished",
+    shape: "kite", color: "#2056d2", glyph: "3",
+    test: (c) => { const v = c.hubsDone ?? 0; return { earned: v >= 3, progress: Math.min(1, v / 3), note: `${v} of 3 hubs` }; },
+  },
+  {
+    id: "hubs-5", name: "Five-For", blurb: "five hubs finished",
+    shape: "hex", color: "#2056d2", glyph: "5",
+    test: (c) => { const v = c.hubsDone ?? 0; return { earned: v >= 5, progress: Math.min(1, v / 5), note: `${v} of 5 hubs` }; },
+  },
+  {
+    id: "hubs-10", name: "Ten-For", blurb: "ten hubs finished",
+    shape: "hex", color: "#2056d2", glyph: "10",
+    test: (c) => { const v = c.hubsDone ?? 0; return { earned: v >= 10, progress: Math.min(1, v / 10), note: `${v} of 10 hubs` }; },
+  },
+  {
+    id: "hubs-25", name: "Twenty-Five Up", blurb: "twenty five hubs finished",
+    shape: "shield", color: "#2056d2", glyph: "25",
+    test: (c) => { const v = c.hubsDone ?? 0; return { earned: v >= 25, progress: Math.min(1, v / 25), note: `${v} of 25 hubs` }; },
+  },
+  {
+    id: "hubs-50", name: "Fifty Hubs", blurb: "fifty hubs finished",
+    shape: "shield", color: "#2056d2", glyph: "50",
+    test: (c) => { const v = c.hubsDone ?? 0; return { earned: v >= 50, progress: Math.min(1, v / 50), note: `${v} of 50 hubs` }; },
+  },
+  {
+    id: "wide-5", name: "Five Doors", blurb: "solves in five different hubs",
+    shape: "square", color: "#2056d2", glyph: "5",
+    test: (c) => { const v = c.hubsTouched ?? 0; return { earned: v >= 5, progress: Math.min(1, v / 5), note: `${v} of 5 hubs` }; },
+  },
+  {
+    id: "wide-10", name: "Ten Doors", blurb: "solves in ten different hubs",
+    shape: "square", color: "#2056d2", glyph: "10",
+    test: (c) => { const v = c.hubsTouched ?? 0; return { earned: v >= 10, progress: Math.min(1, v / 10), note: `${v} of 10 hubs` }; },
+  },
+  {
+    id: "wide-25", name: "All-Rounder", blurb: "solves in twenty five different hubs",
+    shape: "square", color: "#2056d2", glyph: "25",
+    test: (c) => { const v = c.hubsTouched ?? 0; return { earned: v >= 25, progress: Math.min(1, v / 25), note: `${v} of 25 hubs` }; },
+  },
+  {
+    id: "wide-50", name: "Fifty Doors", blurb: "solves in fifty different hubs",
+    shape: "square", color: "#2056d2", glyph: "50",
+    test: (c) => { const v = c.hubsTouched ?? 0; return { earned: v >= 50, progress: Math.min(1, v / 50), note: `${v} of 50 hubs` }; },
+  },
+  {
+    id: "hard-10", name: "Deep End", blurb: "ten advanced problems",
+    shape: "kite", color: "#7c3aed", glyph: "10",
+    test: (c) => { const v = c.advanced ?? 0; return { earned: v >= 10, progress: Math.min(1, v / 10), note: `${v} of 10 hard` }; },
+  },
+  {
+    id: "hard-25", name: "Tough Crowd", blurb: "twenty five advanced problems",
+    shape: "hex", color: "#7c3aed", glyph: "25",
+    test: (c) => { const v = c.advanced ?? 0; return { earned: v >= 25, progress: Math.min(1, v / 25), note: `${v} of 25 hard` }; },
+  },
+  {
+    id: "hard-50", name: "Heavy Roller", blurb: "fifty advanced problems",
+    shape: "hex", color: "#7c3aed", glyph: "50",
+    test: (c) => { const v = c.advanced ?? 0; return { earned: v >= 50, progress: Math.min(1, v / 50), note: `${v} of 50 hard` }; },
+  },
+  {
+    id: "hard-100", name: "Hundred Hard Ones", blurb: "one hundred advanced problems",
+    shape: "shield", color: "#7c3aed", glyph: "100",
+    test: (c) => { const v = c.advanced ?? 0; return { earned: v >= 100, progress: Math.min(1, v / 100), note: `${v} of 100 hard` }; },
+  },
+  {
+    id: "solo-10", name: "No Help Needed", blurb: "ten solved without opening a hint",
+    shape: "square", color: "#7c3aed", glyph: "10",
+    test: (c) => { const v = c.unaided ?? 0; return { earned: v >= 10, progress: Math.min(1, v / 10), note: `${v} of 10 unaided` }; },
+  },
+  {
+    id: "solo-50", name: "Unaided Fifty", blurb: "fifty solved without a hint",
+    shape: "square", color: "#7c3aed", glyph: "50",
+    test: (c) => { const v = c.unaided ?? 0; return { earned: v >= 50, progress: Math.min(1, v / 50), note: `${v} of 50 unaided` }; },
+  },
+  {
+    id: "solo-100", name: "Unaided Hundred", blurb: "one hundred solved without a hint",
+    shape: "square", color: "#7c3aed", glyph: "100",
+    test: (c) => { const v = c.unaided ?? 0; return { earned: v >= 100, progress: Math.min(1, v / 100), note: `${v} of 100 unaided` }; },
+  },
+  {
+    id: "solo-250", name: "Unaided Two-Fifty", blurb: "two hundred and fifty, all unaided",
+    shape: "shield", color: "#7c3aed", glyph: "250",
+    test: (c) => { const v = c.unaided ?? 0; return { earned: v >= 250, progress: Math.min(1, v / 250), note: `${v} of 250 unaided` }; },
+  },
+  {
     id: "quiz-perfect", name: "No Residuals", blurb: "a flawless assessment, nothing left over",
     shape: "hex", color: "#7c3aed", glyph: "OK",
     test: (c) => ({ earned: c.quizBestScore >= 100, progress: Math.min(1, c.quizBestScore / 100), note: `best score: ${c.quizBestScore}%` }),
@@ -160,6 +306,49 @@ export async function awardBadges(DB: D1Database, userId: string, ctx: BadgeCtx)
     return fresh;
   } catch {
     return [];
+  }
+}
+
+
+/* Breadth, depth, difficulty and unaided solves, in three queries.
+ *
+ * hubsDone needs the per-hub totals, which live in the exercise manifest, so
+ * it counts solves per hub and compares each against that hub's real size.
+ * Everything else is a single aggregate. Failure returns zeroes, which leaves
+ * the affected badges unearned rather than awarding them by accident.
+ */
+export async function loadBadgeExtras(
+  DB: D1Database,
+  userId: string,
+  hubSize: (slug: string) => number,
+): Promise<{ hubsDone: number; hubsTouched: number; advanced: number; unaided: number }> {
+  const zero = { hubsDone: 0, hubsTouched: 0, advanced: 0, unaided: 0 };
+  try {
+    const [perHub, agg] = await Promise.all([
+      DB.prepare(
+        "SELECT hub_slug, COUNT(*) AS n FROM exercise_attempts WHERE user_id = ?1 GROUP BY hub_slug",
+      ).bind(userId).all<{ hub_slug: string; n: number }>(),
+      DB.prepare(
+        `SELECT
+           SUM(CASE WHEN xp_awarded >= 50 THEN 1 ELSE 0 END) AS adv,
+           SUM(CASE WHEN COALESCE(hints_used, 0) = 0 THEN 1 ELSE 0 END) AS solo
+         FROM exercise_attempts WHERE user_id = ?1`,
+      ).bind(userId).first<{ adv: number; solo: number }>(),
+    ]);
+    const rows = perHub.results ?? [];
+    let done = 0;
+    for (const r of rows) {
+      const size = hubSize(r.hub_slug);
+      if (size > 0 && Number(r.n) >= size) done++;
+    }
+    return {
+      hubsDone: done,
+      hubsTouched: rows.length,
+      advanced: Number(agg?.adv ?? 0),
+      unaided: Number(agg?.solo ?? 0),
+    };
+  } catch {
+    return zero;
   }
 }
 

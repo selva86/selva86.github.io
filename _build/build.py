@@ -1509,7 +1509,13 @@ def make_engagement_body_block(asset_hrefs):
 # 8 percent of hub traffic: enough to measure, small enough to be wrong about.
 #
 # To widen it, add slugs. To ship to everything, set STUDIO_ALL_HUBS = True.
-STUDIO_ALL_HUBS = False
+# Owner decision 2026-09-20: the studio is the exercise page now, on every hub.
+# The twelve-hub pilot did its job as a staged rollout; the Search Console
+# baseline taken on 2026-09-19 is in Plans/studio-pilot-seo-measurement.md, and
+# with the studio everywhere there is no control group left, so that baseline is
+# now a before-and-after against the fleet rather than a comparison between two
+# halves of it.
+STUDIO_ALL_HUBS = True
 STUDIO_PILOT_HUBS = {
     'dplyr-Exercises-in-R.html',
     'ggplot2-Exercises-in-R.html',

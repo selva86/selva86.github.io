@@ -13,7 +13,7 @@
 
 import type { Env, RequestData } from "../_middleware";
 import { getCertificateByPublicId } from "../_lib/db";
-import { getTrack, getIssuer, isValidPublicId, type Track } from "../_lib/tracks";
+import { getTrack, getIssuer, isValidPublicId } from "../_lib/tracks";
 import { renderBadgeSvg } from "../_lib/cert-svg";
 
 function escapeHtml(s: string): string {
