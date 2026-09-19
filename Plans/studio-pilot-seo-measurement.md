@@ -44,6 +44,57 @@ falls 8 percent and the control holds flat, that is the studio.
 Take the baseline export **before Google recrawls**, so there is a before to
 compare to.
 
+
+## Baseline, taken 2026-09-19 before Google recrawled
+
+Search Console, property `sc-domain:r-statistics.co`, Performance > Search
+results, last 28 days, Search type Web, Page filter set to Custom (regex).
+GSC's own caveat applies: "chart totals and table results might be partial when
+filters are applied".
+
+| group | clicks | impressions | CTR | avg position |
+|---|---|---|---|---|
+| **pilot** (the 12 below) | **94** | **3,590** | **2.6%** | **16.0** |
+| all `-Exercises-in-R.html` pages (182) | 315 | 25,000 | 1.3% | 19.6 |
+| **control** (the other 170, by subtraction) | **221** | **~21,410** | **~1.0%** | not derivable |
+
+Read this before reading any later movement: the pilot pages already rank better
+than the rest of the exercise fleet, position 16.0 against 19.6 with double the
+CTR. They are not a random sample of it, and pages that rank better have further
+to fall.
+
+Per page, pilot, same 28 days:
+
+| page | clicks | impressions |
+|---|---|---|
+| Data-Cleaning | 18 | 613 |
+| EDA | 16 | 255 |
+| Data-Wrangling | 14 | 500 |
+| Time-Series | 13 | 308 |
+| dplyr | 9 | 257 |
+| Linear-Regression | 6 | 330 |
+| Correlation | 6 | 221 |
+| Hypothesis-Testing | 5 | 262 |
+| Machine-Learning | 4 | 361 |
+| ggplot2 | 2 | 316 |
+| tidyr + Apply-Family | 1 between them | ~167 between them |
+
+The ten rows above account for 93 of the 94 clicks and 3,423 of the 3,590
+impressions; the two tail pages hold the remainder.
+
+To reproduce exactly, paste this into the Page filter's Custom (regex) box:
+
+```
+^https://r-statistics\.co/(dplyr|ggplot2|tidyr|Data-Cleaning|Data-Wrangling|EDA|Linear-Regression|Hypothesis-Testing|Machine-Learning|Time-Series|Correlation|Apply-Family)-Exercises-in-R\.html$
+```
+
+For the cohort, set Page contains `-Exercises-in-R.html`. Search Console has no
+negated regex, so the control row is the cohort minus the pilot: clicks and
+impressions subtract exactly, CTR is recomputed from them, and average position
+does not subtract so it is left blank rather than guessed.
+
+Re-run both on **2026-10-17** and compare each group against itself.
+
 ## Pilot (studio on) - 12 URLs
 
 ```
