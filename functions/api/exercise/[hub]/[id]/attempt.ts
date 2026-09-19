@@ -48,8 +48,8 @@ const STREAK_BOUNDARIES = new Set([7, 30, 100]);
 // Nearest-milestone line for the success toast. Pure function of two counters.
 function milestoneNudge(solved: number, streak: number): string | null {
   const nextOf = (v: number, marks: number[]) => marks.find((m) => m > v) ?? null;
-  const ns = nextOf(solved, [100, 200, 300]);
-  if (ns && ns - solved <= 25) {
+  const ns = nextOf(solved, [5, 10, 25, 50, 100, 200, 300]);
+  if (ns) {
     return `${ns - solved} solve${ns - solved === 1 ? "" : "s"} to the ${ns}-solves badge`;
   }
   const nk = nextOf(streak, [7, 30, 100]);

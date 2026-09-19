@@ -1575,7 +1575,40 @@ def make_exercise_hub_head_block(asset_hrefs, studio=False):
     )
 
 
-def make_exercise_hub_body_block(asset_hrefs, studio=False):
+_TRACKS_CACHE = None
+
+
+def hub_track_facts(slug):
+    """Which certification track this hub feeds, and how much of it this hub is.
+
+    Returns None for a hub no track claims. The numbers come straight from
+    functions/_data/tracks.json, the same file the server uses to decide
+    eligibility, so the panel cannot drift from what actually mints.
+    """
+    global _TRACKS_CACHE
+    if _TRACKS_CACHE is None:
+        try:
+            with open(os.path.join(REPO_ROOT, 'functions', '_data', 'tracks.json'),
+                      encoding='utf-8') as f:
+                _TRACKS_CACHE = json.load(f).get('tracks') or []
+        except Exception:
+            _TRACKS_CACHE = []
+    stem = slug[:-5] if slug.endswith('.html') else slug
+    for t in _TRACKS_CACHE:
+        for h in (t.get('hubs') or []):
+            if h.get('slug') == stem:
+                return {
+                    'id': t.get('id'),
+                    'name': t.get('name'),
+                    'hubShare': h.get('total'),
+                    'trackTotal': t.get('total_exercises'),
+                    'hubCount': len(t.get('hubs') or []),
+                    'threshold': t.get('threshold'),
+                }
+    return None
+
+
+def make_exercise_hub_body_block(asset_hrefs, studio=False, slug=''):
     js = asset_hrefs.get('exercise-hub.js', 'www/exercise-hub.js')
     studio_js = asset_hrefs.get('practice-studio.js', 'www/practice-studio.js')
     # practice-studio.js must load AFTER exercise-hub.js: it moves the cards
@@ -1587,7 +1620,12 @@ def make_exercise_hub_body_block(asset_hrefs, studio=False):
         # Shipping the studio script to a control hub would have made the
         # control group worthless, even though the layer stays dormant.
         return classic
-    return classic + f'\n    <script defer src="{studio_js}"></script>'
+    facts = hub_track_facts(slug)
+    data = ''
+    if facts:
+        data = ('\n    <script type="application/json" id="rs-track">'
+                + json.dumps(facts, separators=(',', ':')) + '</script>')
+    return classic + data + f'\n    <script defer src="{studio_js}"></script>' 
 
 
 def make_lesson_head_block(asset_hrefs):
@@ -2130,7 +2168,7 @@ def build_post(
     page_html = page_html.replace('{{EXERCISE_HUB_HEAD}}',
                                   make_exercise_hub_head_block(_hrefs, hub_gets_studio(slug)) if _is_ex else '')
     page_html = page_html.replace('{{EXERCISE_HUB_BODY}}',
-                                  make_exercise_hub_body_block(_hrefs, hub_gets_studio(slug)) if _is_ex else '')
+                                  make_exercise_hub_body_block(_hrefs, hub_gets_studio(slug), slug) if _is_ex else '')
     # Interactive lesson player. Reuses the exercise grading backend; the
     # body.lesson-mode class hides masthead/sidebar; data-lesson-access gates Pro.
     page_html = page_html.replace('{{LESSON_HEAD}}', make_lesson_head_block(_hrefs) if _is_lesson else '')

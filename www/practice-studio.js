@@ -170,7 +170,9 @@
     ui.plist = el('div', 'rs-plist');
     var track = el('div', 'rs-ptrack', '<i></i>');
     ui.pbar = qs('i', track);
+    ui.dest = el('div', 'rs-dest-wrap');
     panel.appendChild(phead); panel.appendChild(track); panel.appendChild(ui.plist);
+    panel.appendChild(ui.dest);
     ui.panel = panel;
 
     ui.stage = el('div', 'rs-stage');
@@ -191,11 +193,13 @@
       '<span class="cell"><b class="rs-xpearned">0</b> XP earned</span>' +
       '<span class="cell rs-timecell" style="display:none"><b class="rs-elapsed">0:00</b> elapsed</span>' +
       '<span class="cell sep rs-metercell"></span>' +
+      '<span class="cell rs-nudgecell" style="display:none"></span>' +
       '<span class="cell">R 4.6.0 ready</span>');
     ui.status = status;
     ui.sdot = qs('.rs-sdot', status); ui.state = qs('.rs-state', status);
     ui.solved = qs('.rs-solved', status); ui.total = qs('.rs-total', status);
     ui.xpearned = qs('.rs-xpearned', status);
+    ui.nudgecell = qs('.rs-nudgecell', status);
     ui.timecell = qs('.rs-timecell', status); ui.elapsed = qs('.rs-elapsed', status);
     ui.metercell = qs('.rs-metercell', status);
 
@@ -558,9 +562,11 @@
     S.sections.forEach(function (sec, si) {
       var done = 0;
       sec.cards.forEach(function (c) { if (isSolved(c)) done++; });
-      h += '<div class="rs-psec"><span class="t">' +
+      var cleared = sec.cards.length > 0 && done === sec.cards.length;
+      h += '<div class="rs-psec' + (cleared ? ' is-done' : '') + '"><span class="t">' +
            esc(sec.title || ('Section ' + (si + 1))) + '</span>' +
-           '<span class="c">' + done + '/' + sec.cards.length + '</span></div>';
+           '<span class="c">' + (cleared ? 'cleared' : done + '/' + sec.cards.length) +
+           '</span></div>';
       sec.cards.forEach(function (c) {
         var i = S.cards.indexOf(c);
         h += '<button type="button" class="rs-prow' +
@@ -575,9 +581,61 @@
       });
     });
     ui.plist.innerHTML = h;
+    renderDest();
     var n = solvedCount();
     ui.pcount.innerHTML = '<b>' + n + '</b> of ' + S.cards.length + ' solved';
     if (ui.pbar) ui.pbar.style.width = (S.cards.length ? (n / S.cards.length * 100) : 0) + '%';
+  }
+
+
+  /* What this hub leads to, pinned under the list.
+   *
+   * Two rows, and neither one borrows the other's meaning. Solving every
+   * exercise here earns the hub badge, which is a real public credential at
+   * /badge/<id>. It does not earn a certificate: a certificate needs 80 per
+   * cent of a whole track, and a track is ten to twelve hubs. So the second
+   * row names the track and states the distance rather than implying the hub
+   * closes it. */
+  function trackFacts() {
+    if (S._track !== undefined) return S._track;
+    S._track = null;
+    try {
+      var tag = document.getElementById('rs-track');
+      if (tag) S._track = JSON.parse(tag.textContent);
+    } catch (e) { /* a hub no track claims, or bad JSON: the row just hides */ }
+    return S._track;
+  }
+
+  function renderDest() {
+    if (!ui.dest) return;
+    var total = S.cards.length, done = solvedCount();
+    var t = trackFacts();
+    var h = '';
+
+    h += '<a class="rs-dest' + (done === total && total > 0 ? ' is-done' : '') +
+         '" id="rs-dest-badge"' + (S.badgeUrl ? ' href="' + esc(S.badgeUrl) + '"' : '') + '>' +
+         '<span class="k">Badge</span>' +
+         '<span class="b">' + esc(hubName()) + '</span>' +
+         '<span class="s">' + (done === total && total > 0
+            ? 'earned, public link'
+            : 'all ' + total + ' solved') + '</span>' +
+         '<span class="n">' + done + ' / ' + total + '</span></a>';
+
+    if (t && t.name) {
+      var pct = t.trackTotal ? Math.round(t.hubShare / t.trackTotal * 100) : 0;
+      h += '<a class="rs-dest" href="/certifications.html#tracks">' +
+           '<span class="k">Certificate</span>' +
+           '<span class="b">' + esc(t.name) + '</span>' +
+           '<span class="s">this hub is ' + t.hubShare + ' of ' + t.trackTotal +
+           ', 1 of ' + t.hubCount + ' that count</span>' +
+           '<span class="n">' + pct + '%</span></a>';
+    }
+    ui.dest.innerHTML = h;
+  }
+
+  function hubName() {
+    var t = document.title.split('|')[0].split(':')[0].trim();
+    return t || 'This hub';
   }
 
   function renderBar() {
@@ -604,6 +662,17 @@
     ui.prog.innerHTML = h;
     ui.prev.disabled = S.cur === 0;
     ui.next.disabled = S.cur === S.cards.length - 1;
+  }
+
+  /* The next rung, named. The server sends it on every graded solve as
+     `nudge`; before today nothing read it, so a learner was told what they had
+     earned and never what was next. Empty means there is nothing ahead worth
+     naming, and the cell hides rather than saying so. */
+  function setNudge(text) {
+    S.nudge = text || '';
+    if (!ui.nudgecell) return;
+    ui.nudgecell.style.display = S.nudge ? '' : 'none';
+    ui.nudgecell.textContent = S.nudge;
   }
 
   function renderStatus() {
@@ -756,7 +825,8 @@
     var card = qs('.rs-card', ui.scrim);
     qs('.rs-hex', card).innerHTML = hexSvg(rec.solved || S.cards.length);
     qs('h3', card).textContent = badge.title || 'Hub complete';
-    qs('.sub', card).textContent = 'Every problem in this hub is solved. The badge is in your collection now, with a public link anyone can check.';
+    var nextLine = S.nudge ? ' Next: ' + S.nudge + '.' : '';
+    qs('.sub', card).textContent = 'Every problem in this hub is solved. The badge is in your collection now, with a public link anyone can check.' + nextLine + '';
     qs('.t', card).textContent = rec.elapsed_ms ? hms(rec.elapsed_ms) : (S.accepted ? hms(Date.now() - S.t0) : 'not timed');
     qs('.x', card).textContent = String(rec.solved || S.cards.length);
     qs('.h', card).textContent = rec.hints ? String(rec.hints) : 'none';
@@ -895,6 +965,7 @@
       if (r.meter) { S.meter = r.meter; }
       if (typeof r.xp_awarded_now === 'number') S.xp += r.xp_awarded_now;
       repaint();
+      setNudge(r.nudge);
       if (r.hub_badge && r.hub_badge.newly_minted) setTimeout(function () { celebrate(r.hub_badge); }, 650);
     });
     // exercise-hub.js repaints cards on hydrate; keep our chrome in step

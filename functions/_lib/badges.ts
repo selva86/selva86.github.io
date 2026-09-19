@@ -64,6 +64,26 @@ export const BADGE_DEFS: BadgeDef[] = [
     test: (c) => ({ earned: c.streakBest >= 100, progress: Math.min(1, c.streakBest / 100), note: `best so far: ${c.streakBest}` }),
   },
   {
+    id: "solves-5", name: "5 solves", blurb: "past the first one, and still here",
+    shape: "shield", color: "#2056d2", glyph: "5",
+    test: (c) => ({ earned: c.solved >= 5, progress: Math.min(1, c.solved / 5), note: `${c.solved} of 5` }),
+  },
+  {
+    id: "solves-10", name: "10 solves", blurb: "ten problems answered for real",
+    shape: "shield", color: "#2056d2", glyph: "10",
+    test: (c) => ({ earned: c.solved >= 10, progress: Math.min(1, c.solved / 10), note: `${c.solved} of 10` }),
+  },
+  {
+    id: "solves-25", name: "25 solves", blurb: "a habit rather than a try",
+    shape: "shield", color: "#0f7a52", glyph: "25",
+    test: (c) => ({ earned: c.solved >= 25, progress: Math.min(1, c.solved / 25), note: `${c.solved} of 25` }),
+  },
+  {
+    id: "solves-50", name: "50 solves", blurb: "fifty graded wins",
+    shape: "shield", color: "#0f7a52", glyph: "50",
+    test: (c) => ({ earned: c.solved >= 50, progress: Math.min(1, c.solved / 50), note: `${c.solved} of 50` }),
+  },
+  {
     id: "solves-100", name: "100 solves", blurb: "one hundred graded wins",
     shape: "shield", color: "#0f7a52", glyph: "100",
     test: (c) => ({ earned: c.solved >= 100, progress: Math.min(1, c.solved / 100), note: `${c.solved} of 100` }),
