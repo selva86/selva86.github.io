@@ -1491,7 +1491,46 @@ def make_engagement_body_block(asset_hrefs):
     return f'    <script src="{eng_js}"></script>'
 
 
-def make_exercise_hub_head_block(asset_hrefs):
+# Hubs that get the practice studio. Everything not listed here keeps the
+# classic stacked layout, which makes the rest of the fleet a control group.
+#
+# Why staged: the studio is client-side, so the HTML a crawler fetches is
+# byte-identical either way. What changes is the rendered page, and there the
+# numbers are not small. On dplyr-Exercises-in-R, measured in a browser:
+#
+#   visible headings        60 of 60  ->   2 of 115
+#   visible <h1>            yes       ->   the page's own one is display:none
+#   visible exercise titles 50 of 50  ->   0 of 50 (the panel is closed at rest)
+#
+# Title tag, canonical, URL, links and every word of content are unchanged, so
+# this is a re-weighting rather than a loss. But it is a re-weighting applied to
+# established ranking pages, and an SEO move takes two to three weeks to show,
+# by which point a sitewide change is expensive to read. Twelve hubs is about
+# 8 percent of hub traffic: enough to measure, small enough to be wrong about.
+#
+# To widen it, add slugs. To ship to everything, set STUDIO_ALL_HUBS = True.
+STUDIO_ALL_HUBS = False
+STUDIO_PILOT_HUBS = {
+    'dplyr-Exercises-in-R.html',
+    'ggplot2-Exercises-in-R.html',
+    'tidyr-Exercises-in-R.html',
+    'Data-Cleaning-Exercises-in-R.html',
+    'Data-Wrangling-Exercises-in-R.html',
+    'EDA-Exercises-in-R.html',
+    'Linear-Regression-Exercises-in-R.html',
+    'Hypothesis-Testing-Exercises-in-R.html',
+    'Machine-Learning-Exercises-in-R.html',
+    'Time-Series-Exercises-in-R.html',
+    'Correlation-Exercises-in-R.html',
+    'Apply-Family-Exercises-in-R.html',
+}
+
+
+def hub_gets_studio(slug):
+    return STUDIO_ALL_HUBS or slug in STUDIO_PILOT_HUBS
+
+
+def make_exercise_hub_head_block(asset_hrefs, studio=False):
     css = asset_hrefs.get('exercise-hub.css', 'www/exercise-hub.css')
     studio_css = asset_hrefs.get('practice-studio.css', 'www/practice-studio.css')
     # The exercise title (.xh-ex-name) uses IBM Plex Serif 700 - already
@@ -1519,9 +1558,16 @@ def make_exercise_hub_head_block(asset_hrefs):
         'setTimeout(function(){h.classList.remove("rs-booting");},6000);'
         '})();</script>'
     )
-    return (
+    classic = (
         f'    <link id="xh-css" rel="stylesheet" href="{css}" media="print" onload="this.media=\'all\'">\n'
         f'    <noscript><link rel="stylesheet" href="{css}"></noscript>\n'
+    )
+    if not studio:
+        # A hub off the pilot is the page exactly as it was: no studio sheet, no
+        # boot guard, nothing to undo.
+        return classic
+    return (
+        classic +
         # practice-studio.css is inert without body.rs-studio, so on the classic
         # page it costs one non-render-blocking fetch and nothing else.
         f'    <link id="rs-studio-css" rel="stylesheet" href="{studio_css}" media="print" onload="this.media=\'all\'">\n'
@@ -1529,16 +1575,19 @@ def make_exercise_hub_head_block(asset_hrefs):
     )
 
 
-def make_exercise_hub_body_block(asset_hrefs):
+def make_exercise_hub_body_block(asset_hrefs, studio=False):
     js = asset_hrefs.get('exercise-hub.js', 'www/exercise-hub.js')
     studio_js = asset_hrefs.get('practice-studio.js', 'www/practice-studio.js')
     # practice-studio.js must load AFTER exercise-hub.js: it moves the cards
     # that script has already bound, which is what keeps grading intact. It
     # returns immediately unless ?studio=1 is present.
-    return (
-        f'    <script src="{js}"></script>\n'
-        f'    <script defer src="{studio_js}"></script>'
-    )
+    classic = f'    <script src="{js}"></script>'
+    if not studio:
+        # Off the pilot the page loads exactly what it loaded before.
+        # Shipping the studio script to a control hub would have made the
+        # control group worthless, even though the layer stays dormant.
+        return classic
+    return classic + f'\n    <script defer src="{studio_js}"></script>'
 
 
 def make_lesson_head_block(asset_hrefs):
@@ -2079,9 +2128,9 @@ def build_post(
     page_html = page_html.replace('{{ENGAGEMENT_BODY}}',
                                   make_engagement_body_block(_hrefs) if (webr and not _is_ex and not _is_lesson) else '')
     page_html = page_html.replace('{{EXERCISE_HUB_HEAD}}',
-                                  make_exercise_hub_head_block(_hrefs) if _is_ex else '')
+                                  make_exercise_hub_head_block(_hrefs, hub_gets_studio(slug)) if _is_ex else '')
     page_html = page_html.replace('{{EXERCISE_HUB_BODY}}',
-                                  make_exercise_hub_body_block(_hrefs) if _is_ex else '')
+                                  make_exercise_hub_body_block(_hrefs, hub_gets_studio(slug)) if _is_ex else '')
     # Interactive lesson player. Reuses the exercise grading backend; the
     # body.lesson-mode class hides masthead/sidebar; data-lesson-access gates Pro.
     page_html = page_html.replace('{{LESSON_HEAD}}', make_lesson_head_block(_hrefs) if _is_lesson else '')

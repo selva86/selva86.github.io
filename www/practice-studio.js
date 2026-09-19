@@ -583,8 +583,15 @@
   function renderBar() {
     var c = S.cards[S.cur];
     var sec = S.sections[c.sectionIndex];
-    ui.hub.innerHTML = (document.title.split('|')[0].split(':')[0].trim() || 'Practice') +
-      (sec && sec.title ? ' <span>&middot; ' + sec.title + '</span>' : '');
+    /* The page's own h1 is hidden by the studio, so this one stands in for it
+       and has to carry the same words. Splitting on the colon dropped half the
+       heading ("dplyr Exercises in R" out of "dplyr Exercises in R: 50
+       Real-World Practice Problems"), which threw away the part a search engine
+       had to match. Keep the whole title; the bar ellipsises it if it is long. */
+    var full = document.title.split('|')[0].trim() || 'Practice';
+    ui.hub.title = full;
+    ui.hub.innerHTML = esc(full) +
+      (sec && sec.title ? ' <span>&middot; ' + esc(sec.title) + '</span>' : '');
     // dots across the current section only, so the bar stays calm on big hubs
     var h = '';
     if (sec) {
