@@ -227,6 +227,12 @@
   (function () {
     var sol = L && $('.exercise-solution .webr-container', L);
     if (!sol) { ck('surface', 'solution block present to check', true); return; }
+    /* The solution sits behind a disclosure. Measuring it closed returns
+       nonsense (a zero-width container against a full-width header) and the
+       check fails for a reason that has nothing to do with the layout, so
+       open it, measure, and put it back. */
+    var det = sol.closest('details'), wasOpen = det ? det.open : null;
+    if (det) det.open = true;
     var hd = $('.webr-header', sol);
     var sb = sol.getBoundingClientRect(), hb = hd && hd.getBoundingClientRect();
     ck('surface', 'the solution header touches both block edges',
@@ -234,6 +240,7 @@
        hb ? Math.round(hb.left - sb.left) + ' / ' + Math.round(sb.right - hb.right) : 'no header');
     ck('surface', 'the solution block has square edges',
        px(sol, 'borderTopLeftRadius') === 0, px(sol, 'borderTopLeftRadius'));
+    if (det && wasOpen === false) det.open = false;
   })();
 
   /* One scrollbar, not two: the editor scrolls inside a pane that does not. */
