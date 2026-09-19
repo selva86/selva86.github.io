@@ -5,11 +5,65 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401 } from "../../_lib/errors";
+import { BADGE_DEFS, loadUserBadges, badgeArt } from "../../_lib/badges";
 import miniCoursesJson from "../../_data/mini-courses.json";
 
 interface Mini { window_hours: number; sequence: Array<{ seq: number; kind: string; subject: string; slug?: string | null; course?: string | null }> }
 const MINI = miniCoursesJson as unknown as Mini;
 const WINDOW_SEC = (MINI.window_hours || 72) * 3600;
+
+
+/* The milestone ladder for the dashboard.
+ *
+ * Earned state is read from user_badges, which is the durable record written
+ * by awardBadges on solve and on profile view. The "next" rung is computed
+ * only over the marks that actually move day to day, the solve counts and the
+ * streaks; rungs that depend on profile completeness or quiz scores are
+ * reported when earned but never dangled as a target, because their distance
+ * is not a number a learner can act on.
+ */
+const SOLVE_MARKS: Array<[string, number]> = [
+  ["solves-5", 5], ["solves-10", 10], ["solves-25", 25], ["solves-50", 50],
+  ["solves-100", 100], ["solves-200", 200], ["solves-300", 300],
+];
+const STREAK_MARKS: Array<[string, number]> = [
+  ["streak-7", 7], ["streak-30", 30], ["streak-100", 100],
+];
+
+async function ladderFor(DB: D1Database, userId: string, streakBest: number) {
+  const owned = await loadUserBadges(DB, userId);
+  const solvedRow = await DB.prepare(
+    "SELECT COUNT(*) AS n FROM exercise_attempts WHERE user_id = ?1",
+  ).bind(userId).first<{ n: number }>().catch(() => ({ n: 0 } as { n: number }));
+  const solved = Number(solvedRow?.n ?? 0);
+
+  const byId = new Map(BADGE_DEFS.map((d) => [d.id, d]));
+  const card = (id: string, extra: Record<string, unknown>) => {
+    const d = byId.get(id);
+    if (!d) return null;
+    return { id, name: d.name, blurb: d.blurb, art: badgeArt(d.shape, d.color, d.glyph), ...extra };
+  };
+
+  const earned = [...owned.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, at]) => card(id, { at }))
+    .filter(Boolean);
+
+  // the nearest mark still ahead, solve or streak, whichever is closer in kind
+  let next = null as unknown;
+  const nextSolve = SOLVE_MARKS.find(([id, n]) => !owned.has(id) && solved < n);
+  const nextStreak = STREAK_MARKS.find(([id, n]) => !owned.has(id) && streakBest < n);
+  if (nextSolve) {
+    next = card(nextSolve[0], {
+      have: solved, need: nextSolve[1], left: nextSolve[1] - solved, unit: "solves",
+    });
+  } else if (nextStreak) {
+    next = card(nextStreak[0], {
+      have: streakBest, need: nextStreak[1], left: nextStreak[1] - streakBest, unit: "days",
+    });
+  }
+  return { earned, next, total: BADGE_DEFS.length, solved };
+}
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   const u = context.data.user;
@@ -40,5 +94,11 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   const badges = (await context.env.DB.prepare(
     "SELECT badge, public_id, earned_at FROM badges_earned WHERE user_id = ?1 ORDER BY earned_at DESC",
   ).bind(u.id).all<{ badge: string; public_id: string; earned_at: number }>()).results ?? [];
-  return json({ open, position, badges });
+  const streakBest = Math.max(
+    Number((u as { longest_streak_days?: number }).longest_streak_days || 0),
+    Number((u as { current_streak_days?: number }).current_streak_days || 0),
+  );
+  const milestones = await ladderFor(context.env.DB, u.id, streakBest)
+    .catch(() => null);   // the section disappears, the dashboard does not
+  return json({ open, position, badges, milestones });
 };

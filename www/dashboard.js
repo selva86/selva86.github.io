@@ -336,6 +336,32 @@
     }).join('') : '<div class="empty">No certificates yet. Finish a track to earn your first.</div>';
   }
 
+  /* The milestone ladder. Two stores feed this page: badges_earned, drawn by
+     renderBadges below, and user_badges, drawn here. Before today only the
+     first had a surface on the dashboard, so the rungs a learner actually
+     climbs were visible on their public profile and nowhere else. */
+  function renderMilestones(){
+    var m = (S.shelf && S.shelf.milestones) || null;
+    var sec = $('dh-miles-sec');
+    if (!sec) return;
+    if (!m || (!m.earned.length && !m.next)){ sec.hidden = true; return; }
+    sec.hidden = false;
+
+    $('dh-miles-aside').textContent = m.earned.length + ' of ' + m.total;
+    $('dh-miles').innerHTML = m.earned.slice(0, 12).map(function(b){
+      return '<span class="gem" title="' + esc(b.blurb) + '">' + b.art +
+             '<b>' + esc(b.name) + '</b><small>' + fmtDate(b.at) + '</small></span>';
+    }).join('');
+
+    var nx = $('dh-miles-next');
+    if (!m.next){ nx.hidden = true; return; }
+    nx.hidden = false;
+    nx.innerHTML = '<span class="gem is-next">' + m.next.art + '</span>' +
+      '<span class="nx"><b>Next: ' + esc(m.next.name) + '</b>' +
+      '<small>' + m.next.left + ' more ' + esc(m.next.unit) +
+      ' \u00b7 ' + m.next.have + ' of ' + m.next.need + '</small></span>';
+  }
+
   function renderBadges(){
     var badges = (S.shelf && S.shelf.badges) || [];
     var sec = $('dh-badges-sec');
@@ -461,13 +487,13 @@
   function renderAll(){
     certBy = {}; ((S.certs && S.certs.items) || []).forEach(function(c){ certBy[c.track] = c; });
     renderHello(); renderCmd(); renderDaily(); renderOpen(); renderReading(); renderSaved();
-    renderCred(); renderStages(); renderCatalog(); renderCerts(); renderBadges();
+    renderCred(); renderStages(); renderCatalog(); renderCerts(); renderBadges(); renderMilestones();
     renderAllTime(); renderRecap(); renderUpsell();
   }
 
   fetch('/www/sidebar.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(sb){ if (!sb) return; sb.forEach(function(sec){ (sec.items || []).forEach(function(it){ if (it.href && it.text) sbTitle[String(it.href).replace(/^\//, '')] = it.text; }); }); if (S.me){ renderSaved(); renderCmd(); renderReading(); } }).catch(function(){});
   fetch('/courses.json', { cache:'no-cache' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if (d){ S.courses = d; if (S.me){ renderCmd(); renderReading(); renderCred(); } } }).catch(function(){});
-  fetch('/api/nurture/catalog').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if (d){ S.cat = d; if (S.me){ renderCatalog(); renderBadges(); } } }).catch(function(){});
+  fetch('/api/nurture/catalog').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if (d){ S.cat = d; if (S.me){ renderCatalog(); renderBadges(); renderMilestones(); } } }).catch(function(){});
   document.addEventListener('auth-hydrated', function(){ if (S.me){ renderCatalog(); renderConvToday(); renderUpsell(); } checkOptin(); });
 
   if (isDemo){
@@ -502,7 +528,7 @@
       S.me = r[0]; S.stats = r[1]; S.tracks = r[2]; S.certs = r[3]; S.reading = r[4]; S.saved = r[5];
       renderAll();
       soft('/api/me/daily').then(function(d){ if (d){ S.daily = d; renderHello(); renderCmd(); renderDaily(); } });
-      soft('/api/me/shelf').then(function(d){ if (d){ S.shelf = d; renderOpen(); renderCatalog(); renderBadges(); } });
+      soft('/api/me/shelf').then(function(d){ if (d){ S.shelf = d; renderOpen(); renderCatalog(); renderBadges(); renderMilestones(); } });
       checkOptin();
     }).catch(function(e){
       if (e && e.a401) return toSignin();
