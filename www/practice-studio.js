@@ -307,11 +307,23 @@
   function showAnswerArea(node) {
     var ed = qs('.rs-pane-work .webr-editor', node);
     if (!ed || !S.preludeHtml) return;
+    var lines = qsa('.cl', ed);
     var marker = null;
-    qsa('.cl', ed).forEach(function (n) {
+    lines.forEach(function (n) {
       if (/# Your answer\./.test(n.textContent || '')) marker = n;
     });
-    if (marker) ed.scrollTop = Math.max(0, marker.offsetTop - ed.offsetTop - 34);
+    if (!marker) return;
+    /* Measured from rendered rectangles, not offsetTop: these lines are inline
+       and their offsetParent is not the element we are scrolling, so offsets
+       lie. Anchoring to the marker's own top leaves the view on a line
+       boundary, instead of slicing the top line in half. */
+    var edTop = ed.getBoundingClientRect().top;
+    var pitch = lines.length > 1
+      ? (lines[1].getBoundingClientRect().top - lines[0].getBoundingClientRect().top)
+      : (parseFloat(getComputedStyle(ed).lineHeight) || 20);
+    var pad = parseFloat(getComputedStyle(ed).paddingTop) || 0;
+    var delta = marker.getBoundingClientRect().top - edTop - pad - pitch * 2;
+    ed.scrollTop = Math.max(0, ed.scrollTop + delta);
   }
 
   /* One button in the action row. Hint and Solution drive the real controls,

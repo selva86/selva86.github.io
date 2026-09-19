@@ -158,6 +158,53 @@
        return !c.closest('details');
      }).length === 1);
 
+  /* -------- 6b. code surfaces share one gutter --------
+     The editor, the bar that splits it from the console, and the console all
+     begin on the same vertical line. Four different left edges is what made
+     this look unfinished, with "Console" pressed against the border while the
+     code beside it was inset. */
+  (function () {
+    if (!R) { ck('surface', 'work pane present for gutter checks', false); return; }
+    var cont = $('.webr-container', R);
+    if (!cont) { ck('surface', 'answer container present', false); return; }
+    var base = cont.getBoundingClientRect().left;
+    function gutter(sel) {
+      var n = $(sel, R); return n ? Math.round(n.getBoundingClientRect().left - base) : null;
+    }
+    var chip = gutter('.webr-header-badge');
+    var line = gutter('.webr-editor .cl');
+    var btn  = gutter('.rs-actions .xh-check-btn');
+    ck('surface', 'header mark, line numbers and buttons share one gutter',
+       chip !== null && chip === line && line === btn, chip + ' / ' + line + ' / ' + btn);
+    ck('surface', 'the console label is not pressed against the border',
+       parseFloat(cs($('.rs-console-head', R), 'paddingLeft')) >= 10,
+       cs($('.rs-console-head', R), 'paddingLeft'));
+    ck('surface', 'the console text sits on the same gutter as the label',
+       cs($('.rs-console-head', R), 'paddingLeft') === cs($('pre.webr-output.rs-console', R), 'paddingLeft'));
+    ck('surface', 'the answer container carries no stray padding',
+       parseFloat(cs(cont, 'paddingLeft')) === 0, cs(cont, 'paddingLeft'));
+  })();
+
+  /* The solution block is the same instrument without the controls. main.css
+     pads any <details> child by 16px, which held its header off the block's
+     own edges and is what looked amateurish. */
+  (function () {
+    var sol = L && $('.exercise-solution .webr-container', L);
+    if (!sol) { ck('surface', 'solution block present to check', true); return; }
+    var hd = $('.webr-header', sol);
+    var sb = sol.getBoundingClientRect(), hb = hd && hd.getBoundingClientRect();
+    ck('surface', 'the solution header touches both block edges',
+       !!hb && Math.round(hb.left - sb.left) <= 2 && Math.round(sb.right - hb.right) <= 2,
+       hb ? Math.round(hb.left - sb.left) + ' / ' + Math.round(sb.right - hb.right) : 'no header');
+    ck('surface', 'the solution block has square edges',
+       px(sol, 'borderTopLeftRadius') === 0, px(sol, 'borderTopLeftRadius'));
+  })();
+
+  /* One scrollbar, not two: the editor scrolls inside a pane that does not. */
+  ck('surface', 'the work pane does not scroll alongside the editor',
+     !R || R.scrollHeight <= R.clientHeight + 1,
+     R ? R.scrollHeight + ' > ' + R.clientHeight : '');
+
   /* -------- 7. action row -------- */
   var row = R && $('.rs-actions', R);
   ck('actions', 'action row present', !!row);
