@@ -75,6 +75,33 @@
      $$('.rs-plist .rs-prow').length === $$('.rs-pip').length);
   ck('spine', 'no box drawn around the panel numbers', !$('.rs-prow .mk'));
   ck('spine', 'pin control present', !!$('.rs-pin'));
+  /* The list used to print the whole rebuilt heading: a permalink #, the
+     number twice, the difficulty pill and the caret, all run together. */
+  ck('spine', 'list rows carry a clean name, not the whole heading',
+     (function () {
+       var t = $('.rs-plist');
+       if (!t) return false;
+       return !/#/.test(t.textContent) && !/Exercise\s+\d/.test(t.textContent);
+     })());
+  ck('spine', 'each list row separates number from name',
+     (function () {
+       var r = $('.rs-plist .rs-prow');
+       return !!(r && $('.no', r) && $('.ti', r) && $('.ti', r).textContent.trim());
+     })());
+  ck('spine', 'list rows are reachable from the keyboard',
+     (function () { var r = $('.rs-plist .rs-prow'); return !!r && r.tagName === 'BUTTON'; })());
+  ck('spine', 'the panel shows progress through the hub', !!$('.rs-ptrack i'));
+
+  /* Pinned, the panel stops being absolute; if the grid row is unbounded its
+     full height becomes the row height and the stage grows past the shell,
+     which leaves the problem pane with nothing to scroll. */
+  ck('spine', 'pinning does not stretch the stage past the shell',
+     (function () {
+       var body = $('.rs-body');
+       if (!body) return false;
+       return /minmax\(0px, 1fr\)|minmax\(0, 1fr\)/.test(cs(body, 'gridTemplateRows')) ||
+              $('.rs-stage').getBoundingClientRect().height <= body.getBoundingClientRect().height + 1;
+     })());
 
   /* -------- 4. the two panes -------- */
   ck('panes', 'problem pane exists', !!L);
@@ -232,6 +259,16 @@
   ck('status', 'allowance cell says something meaningful',
      /checks left|Unlimited|Sign in/.test(flat(st)));
   ck('status', 'R runtime cell', /R \d/.test(flat(st)));
+
+  /* -------- 8b. the sign-in gate --------
+     Checking an answer is what earns the XP and the badge, so an anonymous
+     reader is asked for an account at that point rather than after. */
+  ck('signin', 'the sign-in sheet exists', !!$('.rs-signincard'));
+  ck('signin', 'its links carry a way back to this page',
+     (function () {
+       var a = $('.rs-signincard a');
+       return !!a;   // href is filled in when the sheet opens
+     })());
 
   /* -------- 9. the challenge gate -------- */
   var gate = R && $('.rs-gate', R);

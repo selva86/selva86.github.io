@@ -1496,12 +1496,33 @@ def make_exercise_hub_head_block(asset_hrefs):
     studio_css = asset_hrefs.get('practice-studio.css', 'www/practice-studio.css')
     # The exercise title (.xh-ex-name) uses IBM Plex Serif 700 - already
     # self-hosted AND preloaded by template.html, so nothing to add here.
+    # Both sheets load async, which is right for the classic page and wrong
+    # for a studio URL: the classic layout paints first and the reader
+    # watches it get replaced. The inline script runs while the head is
+    # still parsing, before the body exists. It promotes both sheets to
+    # render-blocking and hides the classic layout in the same tick, so a
+    # studio link opens as the studio. It carries its own failsafe: a page
+    # hidden by a guard that never clears is worse than a flash.
+    boot = (
+        '<script>(function(){'
+        'if(!/[?&]studio=1(?:&|$)/.test(location.search))return;'
+        'var d=document,h=d.documentElement;h.className+=" rs-booting";'
+        '["xh-css","rs-studio-css"].forEach(function(i){var l=d.getElementById(i);if(l)l.media="all";});'
+        'var s=d.createElement("style");s.id="rs-boot-guard";s.textContent='
+        '"html.rs-booting .container>.row,html.rs-booting .rsft,html.rs-booting footer,'
+        'html.rs-booting .engagement-progress,html.rs-booting #mobile-sidebar{display:none!important}'
+        'html.rs-booting,html.rs-booting body{background:#fff}";'
+        '(d.head||h).appendChild(s);'
+        'setTimeout(function(){h.classList.remove("rs-booting");},8000);'
+        '})();</script>'
+    )
     return (
-        f'    <link rel="stylesheet" href="{css}" media="print" onload="this.media=\'all\'">\n'
+        f'    <link id="xh-css" rel="stylesheet" href="{css}" media="print" onload="this.media=\'all\'">\n'
         f'    <noscript><link rel="stylesheet" href="{css}"></noscript>\n'
         # practice-studio.css is inert without body.rs-studio, so on the classic
         # page it costs one non-render-blocking fetch and nothing else.
-        f'    <link rel="stylesheet" href="{studio_css}" media="print" onload="this.media=\'all\'">'
+        f'    <link id="rs-studio-css" rel="stylesheet" href="{studio_css}" media="print" onload="this.media=\'all\'">\n'
+        f'    {boot}'
     )
 
 

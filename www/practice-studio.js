@@ -23,6 +23,7 @@
 
   var PARAM = 'studio';
   var STORE_PIN = 'rsc-studio-pin';
+  var STORE_TASTER = 'rsc-studio-taster';
   var OPEN_DELAY = 140, CLOSE_DELAY = 260;
   var IDLE_MS = 5 * 60 * 1000;
 
@@ -85,13 +86,24 @@
         node: n,
         id: id,
         num: m ? (m[1] + '.' + m[2]) : String(S.cards.length + 1),
-        title: (h3 ? h3.textContent : '').replace(/^Exercise\s+[\d.]+:\s*/, '').trim(),
+        title: exerciseName(h3),
+        difficulty: (n.getAttribute('data-difficulty') || '').toLowerCase(),
         sectionIndex: Math.max(0, S.sections.length - 1)
       };
       S.cards.push(card);
       if (section) section.cards.push(card);
     });
     return S.cards.length > 0;
+  }
+
+  /* The clean name of an exercise, whatever state the heading is in. */
+  function exerciseName(h3) {
+    if (!h3) return '';
+    var named = qs('.xh-ex-name', h3);
+    var t = (named ? named.textContent : h3.textContent) || '';
+    return t.replace(/^\s*#\s*/, '')
+            .replace(/^\s*Exercise\s+[\d.]+\s*:?\s*/i, '')
+            .trim();
   }
 
   function isSolved(card) {
@@ -152,7 +164,9 @@
     ui.pin.title = 'Keep this open';
     phead.appendChild(ui.pin);
     ui.plist = el('div', 'rs-plist');
-    panel.appendChild(phead); panel.appendChild(ui.plist);
+    var track = el('div', 'rs-ptrack', '<i></i>');
+    ui.pbar = qs('i', track);
+    panel.appendChild(phead); panel.appendChild(track); panel.appendChild(ui.plist);
     ui.panel = panel;
 
     ui.stage = el('div', 'rs-stage');
@@ -196,6 +210,15 @@
       '<div class="rs-cardrow"><a class="rs-btn p" target="_blank" rel="noopener">View badge</a>' +
       '<button class="rs-btn rs-close" type="button">Keep going</button></div>'));
     document.body.appendChild(ui.scrim);
+
+    ui.signinScrim = el('div', 'rs-scrim');
+    ui.signinScrim.appendChild(el('div', 'rs-card rs-signincard',
+      '<h3></h3><p class="sub"></p>' +
+      '<div class="rs-cardrow"><a class="rs-btn p">Create a free account</a>' +
+      '<a class="rs-btn">I already have one</a></div>' +
+      '<button class="rs-close rs-signinlater" type="button">Not now</button>'));
+    document.body.appendChild(ui.signinScrim);
+    ui.signin = qs('.rs-signincard', ui.signinScrim);
 
     ui.up = el('div', 'rs-scrim');
     ui.up.appendChild(el('div', 'rs-card rs-upcard',
@@ -499,14 +522,23 @@
     body.setAttribute('data-rs-split', '1');
   }
 
+  /* The rail, collapsed. Twenty squares each reading "1.1" at nine pixels was
+     a wall of digits. The section number leads its own group, and each square
+     carries only its position inside that section, which is the number the
+     reader is actually counting. */
   function renderPips() {
     ui.pips.innerHTML = '';
     S.sections.forEach(function (sec, si) {
-      if (si) ui.pips.appendChild(el('span', 'rs-pipsec'));
-      sec.cards.forEach(function (c) {
+      var head = el('span', 'rs-pipsec', String(si + 1));
+      head.title = sec.title || ('Section ' + (si + 1));
+      ui.pips.appendChild(head);
+      sec.cards.forEach(function (c, j) {
         var i = S.cards.indexOf(c);
-        var p = el('span', 'rs-pip' + (isSolved(c) ? ' is-done' : '') + (i === S.cur ? ' is-cur' : ''), c.num);
+        var p = el('button', 'rs-pip' + (isSolved(c) ? ' is-done' : '') + (i === S.cur ? ' is-cur' : ''),
+                   String(j + 1));
+        p.type = 'button';
         p.setAttribute('data-go', String(i));
+        p.setAttribute('aria-label', 'Problem ' + c.num + ', ' + c.title);
         p.title = c.num + '  ' + c.title;
         ui.pips.appendChild(p);
       });
@@ -514,19 +546,34 @@
     ui.count.textContent = solvedCount() + '/' + S.cards.length;
   }
 
+  /* The panel, expanded. Each section says how far through it the reader is,
+     and each row is a real button, so the list can be walked from the keyboard
+     rather than only clicked. */
   function renderList() {
     var h = '';
-    S.sections.forEach(function (sec) {
-      if (sec.title) h += '<div class="rs-psec">' + sec.title + '</div>';
+    S.sections.forEach(function (sec, si) {
+      var done = 0;
+      sec.cards.forEach(function (c) { if (isSolved(c)) done++; });
+      h += '<div class="rs-psec"><span class="t">' +
+           esc(sec.title || ('Section ' + (si + 1))) + '</span>' +
+           '<span class="c">' + done + '/' + sec.cards.length + '</span></div>';
       sec.cards.forEach(function (c) {
         var i = S.cards.indexOf(c);
-        h += '<div class="rs-prow' + (isSolved(c) ? ' is-done' : '') + (i === S.cur ? ' is-cur' : '') + '" data-go="' + i + '">' +
-             '<span class="no">' + c.num + '</span><span class="ti">' + c.title + '</span>' +
-             '<span class="tick">&#10003;</span></div>';
+        h += '<button type="button" class="rs-prow' +
+             (isSolved(c) ? ' is-done' : '') + (i === S.cur ? ' is-cur' : '') +
+             '" data-go="' + i + '">' +
+             '<span class="mark" aria-hidden="true"></span>' +
+             '<span class="no">' + esc(c.num) + '</span>' +
+             '<span class="ti">' + esc(c.title) + '</span>' +
+             (c.difficulty ? '<span class="df is-' + esc(c.difficulty) +
+                             '" title="' + esc(c.difficulty) + '"></span>' : '') +
+             '</button>';
       });
     });
     ui.plist.innerHTML = h;
-    ui.pcount.textContent = solvedCount() + ' of ' + S.cards.length + ' solved';
+    var n = solvedCount();
+    ui.pcount.innerHTML = '<b>' + n + '</b> of ' + S.cards.length + ' solved';
+    if (ui.pbar) ui.pbar.style.width = (S.cards.length ? (n / S.cards.length * 100) : 0) + '%';
   }
 
   function renderBar() {
@@ -700,6 +747,73 @@
   /* ---------------------------------------------------------------
      Wire
      --------------------------------------------------------------- */
+  /* Checking an answer is the moment the work becomes worth keeping, so it is
+     the moment to ask for an account. exercise-hub has its own anonymous gate,
+     but it writes into the classic page: in the studio that lands inside the
+     console, styled for a white background. This asks first, in the studio's
+     own language, and never reaches that path.
+
+     One exercise stays free. That is a live product decision, not an accident:
+     somebody has to feel the thing work before an account is worth making.
+     Flip TASTER to 0 to require an account from the very first check. */
+  var TASTER = 1;
+
+  /* auth-hydrate stamps the body with the reader's state, and that is the
+     authoritative answer: a stale Supabase token can outlive a session, and
+     trusting it would let a signed-out reader through. The token is only a
+     fallback for the moment before hydration has run. */
+  function signedIn() {
+    var c = document.body.classList;
+    if (c.contains('state-anon')) return false;
+    if (c.contains('state-pro') || c.contains('state-free') ||
+        c.contains('state-single') || c.contains('lifetime')) return true;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) {
+          var v = JSON.parse(localStorage.getItem(k));
+          if (v && typeof v.access_token === 'string') return true;
+        }
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function tasterUsed(card) {
+    try {
+      var raw = localStorage.getItem(STORE_TASTER);
+      if (!raw) return null;
+      var t = JSON.parse(raw);
+      return (t && t.id === card.id) ? 'same' : 'other';
+    } catch (e) { return null; }
+  }
+  function tasterKeep(card) {
+    try { localStorage.setItem(STORE_TASTER, JSON.stringify({ id: card.id, at: Date.now() })); } catch (e) {}
+  }
+
+  /* true when the click should be stopped and the sheet shown instead */
+  function gateCheck(card) {
+    if (signedIn()) return false;
+    var used = tasterUsed(card);
+    if (TASTER && used === null) { tasterKeep(card); return false; }
+    if (TASTER && used === 'same') return false;   // retries on the same one
+    openSignIn(used ? 'more' : 'first');
+    return true;
+  }
+
+  function openSignIn(reason) {
+    var next = encodeURIComponent(location.pathname + location.search);
+    var href = '/signin.html?next=' + next;
+    ui.signin.querySelector('h3').textContent = reason === 'more'
+      ? 'Create a free account to keep going'
+      : 'Sign in to check your answer';
+    ui.signin.querySelector('.sub').textContent = reason === 'more'
+      ? 'Your first graded exercise was on the house. An account keeps your XP, your streak and every problem you solve, on any device.'
+      : 'Checking an answer records it against your account, which is what earns the XP and the badge for this hub.';
+    qsa('a', ui.signin).forEach(function (a) { a.href = href; });
+    ui.signinScrim.classList.add('is-open');
+  }
+
   function wire() {
     ui.accept.addEventListener('click', accept);
     ui.prev.addEventListener('click', function () { show(S.cur - 1); });
@@ -736,6 +850,22 @@
     });
 
     // the graded result, from the real attempt endpoint
+    /* Capture phase, so this runs before exercise-hub's own click handler. */
+    ui.body.addEventListener('click', function (ev) {
+      var btn = ev.target.closest && ev.target.closest('.xh-check-btn');
+      if (!btn) return;
+      var node = btn.closest('section.exercise');
+      var card = null;
+      S.cards.forEach(function (c) { if (c.node === node) card = c; });
+      if (card && gateCheck(card)) { ev.preventDefault(); ev.stopPropagation(); }
+    }, true);
+
+    ui.signinScrim.addEventListener('click', function (ev) {
+      if (ev.target === ui.signinScrim || ev.target.classList.contains('rs-signinlater')) {
+        ui.signinScrim.classList.remove('is-open');
+      }
+    });
+
     document.addEventListener('exercise-attempt-result', function (ev) {
       var r = (ev.detail && ev.detail.result) || {};
       if (r.meter) { S.meter = r.meter; }
