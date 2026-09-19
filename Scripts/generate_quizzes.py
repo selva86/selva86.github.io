@@ -1863,7 +1863,8 @@ def generate_one(template, spec):
         f'<meta property="og:url" content="https://r-statistics.co/{spec["slug"]}">')
 
     # Hero / lede / masthead
-    out = swap(out, '"ASSESSMENT IN PROGRESS · dplyr Mastery"', f'"ASSESSMENT IN PROGRESS · {spec["hub_label"]} Mastery"')
+    # The masthead label is built from the two swaps below; there is no
+    # uppercase string to swap any more.
     out = swap(out, '<strong>dplyr Mastery</strong>', f'<strong>{spec["hub_label"]} Mastery</strong>')
     out = swap(out, '<h1 class="q-title">dplyr Mastery Assessment</h1>',
                f'<h1 class="q-title">{spec["hub_label"]} Mastery Assessment</h1>')
@@ -1877,7 +1878,9 @@ def generate_one(template, spec):
 
     # Back / exit / footer links
     out = swap(out, 'href="/dplyr-Exercises-in-R.html"', f'href="/{spec["hub_html"]}"')
-    out = swap(out, 'dplyr exercises</a>', f'{spec["hub_label"].lower()} exercises</a>')
+    # The page used to carry its own footer with a link worded 'dplyr
+    # exercises'. It is gone: the sitewide footer is appended by the build, so
+    # the page was shipping two.
 
     # CONFIG — match the original block exactly
     new_config = (
