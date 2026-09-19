@@ -185,6 +185,15 @@
     var hub = hubSlugFromPath();
     if (!hub || !card || !card.id) return;
     var hints = (typeof card.hintsUsed === 'number') ? card.hintsUsed : 0;
+    // The Practice Studio runs a challenge clock. When it is mounted it
+    // exposes the elapsed time, which the server records on the hub badge.
+    var payload = { passed: true, hints_used: hints };
+    try {
+      if (window.rsStudio && typeof window.rsStudio.elapsedMs === 'function') {
+        var ms = window.rsStudio.elapsedMs();
+        if (typeof ms === 'number' && ms > 0) payload.elapsed_ms = Math.round(ms);
+      }
+    } catch (e) { /* the clock must never block a solve */ }
     try {
       fetch('/api/exercise/' + encodeURIComponent(hub) +
             '/' + encodeURIComponent(card.id) + '/attempt', {
@@ -193,7 +202,7 @@
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + authToken
         },
-        body: JSON.stringify({ passed: true, hints_used: hints }),
+        body: JSON.stringify(payload),
         keepalive: true
       })
       .then(function (r) {
@@ -205,6 +214,13 @@
       })
       .then(function (result) {
         if (result && result.meter) meterApply(result.meter, card);
+        // Full response, for anything that needs more than xp and streak.
+        // The studio listens for this to catch hub_badge on the last solve.
+        if (result) {
+          document.dispatchEvent(new CustomEvent('exercise-attempt-result', {
+            detail: { exercise_id: card.id, result: result }
+          }));
+        }
         if (result && typeof result.total_xp === 'number') {
           // Avatar dropdown listens for this and refreshes its XP / streak
           // pills without an extra round-trip to /api/me/stats.
@@ -1095,12 +1111,30 @@
       }
     }
 
-    // Your-turn block = the first webr-container not inside the solution.
+    /* The learner's block: the one Check runs and grades.
+
+       This used to be "the first .webr-container not inside the solution",
+       which is wrong whenever an exercise carries its own setup block. The
+       authored order is setup first, answer second, so on those exercises the
+       hub bound to the setup block: Check re-ran the setup, compared ITS output
+       with the expected result, and could never pass. On this hub that was 5 of
+       20 exercises, which also put the hub badge out of reach. Go by the label
+       the author gave the block, and fall back to position only if no label
+       identifies it. */
     var yourTurn = null;
     var containers = body.querySelectorAll('.webr-container');
+    var open = [];
     for (var c = 0; c < containers.length; c++) {
-      if (!containers[c].closest('details')) { yourTurn = containers[c]; break; }
+      if (!containers[c].closest('details')) open.push(containers[c]);
     }
+    function blockTitle(el) { return el.getAttribute('data-block-title') || ''; }
+    for (var y = 0; y < open.length && !yourTurn; y++) {
+      if (/^\s*your turn\s*$/i.test(blockTitle(open[y]))) yourTurn = open[y];
+    }
+    for (var z = 0; z < open.length && !yourTurn; z++) {
+      if (!/setup|run this once/i.test(blockTitle(open[z]))) yourTurn = open[z];
+    }
+    if (!yourTurn) yourTurn = open[0] || null;
 
     // Static hubs (webr: false) have no webr-container - the Your-turn block
     // is a plain <pre><code class="language-r">. Find it so the card still has
