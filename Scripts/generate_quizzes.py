@@ -5,7 +5,7 @@ Each new quiz is a copy of dplyr-Exercises-in-R-quiz.html with:
   - 'dplyr Mastery' branding swapped for the hub label
   - cert-title swapped for the credential name
   - Exit / footer hub links swapped
-  - CONFIG (hubSlug, hubLabel, learnersBase, storageKey) swapped
+  - CONFIG (hubSlug, hubLabel, storageKey) swapped
   - BANK array fully replaced with the hub's question bank
 
 Run:  python Scripts/generate_quizzes.py
@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import hashlib
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 TEMPLATE_PATH = os.path.join(REPO_ROOT, 'dplyr-Exercises-in-R-quiz.html')
@@ -1673,13 +1672,11 @@ QUIZZES = [
         'hub_html': 'R-Beginner-Exercises.html',
         'hub_slug': 'r-fundamentals',
         'hub_label': 'R Fundamentals',
-        'cert_title': 'R Fundamentals',
-        'narr': 'Awarded for passing a concept-and-code assessment of R fundamentals: vectors, control flow, functions, and core data structures on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of R fundamentals: vectors, control flow, functions, and the core data structures. Pass once and your certificate is permanent and publicly verifiable. Take it when you feel ready.',
+        'lede': 'A concept-and-code assessment of R fundamentals: vectors, control flow, functions, and the core data structures. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'R fundamentals: vectors, control flow, functions, and core data structures',
         'storage_key': 'rstat_r_fundamentals_quiz_v2',
-        'meta_desc': 'Pass a 10-question R Fundamentals assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable R Fundamentals Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question R Fundamentals assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A R Fundamentals assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': R_FUNDAMENTALS_BANK,
     },
     {
@@ -1687,13 +1684,11 @@ QUIZZES = [
         'hub_html': 'ggplot2-Exercises-in-R.html',
         'hub_slug': 'ggplot2',
         'hub_label': 'ggplot2',
-        'cert_title': 'ggplot2',
-        'narr': 'Awarded for passing a concept-and-code assessment of ggplot2 grammar, geoms, aesthetics, scales, and facets on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of ggplot2: the grammar, geoms, aesthetic mappings, scales, themes, and facets. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of ggplot2: the grammar, geoms, aesthetic mappings, scales, themes, and facets. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'ggplot2 grammar: geoms, aesthetics, scales, themes, and facets',
         'storage_key': 'rstat_ggplot2_quiz_v2',
-        'meta_desc': 'Pass a 10-question ggplot2 assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable ggplot2 Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question ggplot2 assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A ggplot2 assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': GGPLOT2_BANK,
     },
     {
@@ -1701,13 +1696,11 @@ QUIZZES = [
         'hub_html': 'Hypothesis-Testing-Exercises-in-R.html',
         'hub_slug': 'hypothesis-testing',
         'hub_label': 'Hypothesis Testing',
-        'cert_title': 'Hypothesis Testing',
-        'narr': 'Awarded for passing a concept-and-code assessment of statistical inference: t-tests, chi-square, paired tests, p-values, power, and multiple-testing corrections on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of statistical inference: t-tests, chi-square, paired tests, p-values, power, and multiple-testing corrections. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of statistical inference: t-tests, chi-square, paired tests, p-values, power, and multiple-testing corrections. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'statistical inference: t-tests, chi-square, p-values, power, and corrections',
         'storage_key': 'rstat_hypothesis_testing_quiz_v2',
-        'meta_desc': 'Pass a 10-question Hypothesis Testing assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable Hypothesis Testing Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question Hypothesis Testing assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A Hypothesis Testing assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': HYPOTHESIS_BANK,
     },
     {
@@ -1715,13 +1708,11 @@ QUIZZES = [
         'hub_html': 'Linear-Regression-Exercises-in-R.html',
         'hub_slug': 'linear-regression',
         'hub_label': 'Linear Regression',
-        'cert_title': 'Linear Regression',
-        'narr': 'Awarded for passing a concept-and-code assessment of linear regression: fitting, interpretation, diagnostics, multicollinearity, and the path to logistic regression on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of linear regression: fitting with lm(), interpretation, diagnostics, multicollinearity, and how it generalizes to logistic regression. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of linear regression: fitting with lm(), interpretation, diagnostics, multicollinearity, and how it generalizes to logistic regression. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'linear regression: fitting, interpretation, diagnostics, multicollinearity, and glm',
         'storage_key': 'rstat_linear_regression_quiz_v2',
-        'meta_desc': 'Pass a 10-question Linear Regression assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable Linear Regression Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question Linear Regression assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A Linear Regression assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': REGRESSION_BANK,
     },
     {
@@ -1729,13 +1720,11 @@ QUIZZES = [
         'hub_html': 'Machine-Learning-Exercises-in-R.html',
         'hub_slug': 'machine-learning',
         'hub_label': 'Machine Learning',
-        'cert_title': 'Machine Learning',
-        'narr': 'Awarded for passing a concept-and-code assessment of machine learning workflow, validation, classification metrics, regularization, and core algorithms (random forest, k-means, logistic) on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of machine learning: train/test workflow, cross-validation, classifier metrics, regularization, and core algorithms (random forest, k-means, logistic regression). Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of machine learning: train/test workflow, cross-validation, classifier metrics, regularization, and core algorithms (random forest, k-means, logistic regression). Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'machine learning: train/test workflow, CV, metrics, regularization, and algorithms',
         'storage_key': 'rstat_machine_learning_quiz_v2',
-        'meta_desc': 'Pass a 10-question Machine Learning assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable Machine Learning Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question Machine Learning assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A Machine Learning assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': ML_BANK,
     },
     {
@@ -1743,13 +1732,11 @@ QUIZZES = [
         'hub_html': 'tidyr-Exercises-in-R.html',
         'hub_slug': 'tidyr',
         'hub_label': 'tidyr',
-        'cert_title': 'tidyr',
-        'narr': 'Awarded for passing a concept-and-code assessment of tidyr: pivoting, separating, nesting, completing, and the tidy-data principle on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of tidyr: pivot_longer / pivot_wider, separate / unite, nest / unnest, drop_na, complete, and the tidy-data principle. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of tidyr: pivot_longer / pivot_wider, separate / unite, nest / unnest, drop_na, complete, and the tidy-data principle. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'tidyr: pivoting, separating, nesting, completing, and tidy data',
         'storage_key': 'rstat_tidyr_quiz_v2',
-        'meta_desc': 'Pass a 10-question tidyr assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable tidyr Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question tidyr assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A tidyr assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': TIDYR_BANK,
     },
     {
@@ -1757,13 +1744,11 @@ QUIZZES = [
         'hub_html': 'Time-Series-Exercises-in-R.html',
         'hub_slug': 'time-series',
         'hub_label': 'Time Series',
-        'cert_title': 'Time Series',
-        'narr': 'Awarded for passing a concept-and-code assessment of time series: ts objects, autocorrelation, stationarity, ARIMA, ETS, decomposition, and forecasting on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of time series: ts objects, autocorrelation, stationarity testing, differencing, ARIMA and ETS models, decomposition, and forecasting. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of time series: ts objects, autocorrelation, stationarity testing, differencing, ARIMA and ETS models, decomposition, and forecasting. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'time series: ts objects, ARIMA, ETS, stationarity, and forecasting',
         'storage_key': 'rstat_time_series_quiz_v2',
-        'meta_desc': 'Pass a 10-question Time Series assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable Time Series Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question Time Series assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A Time Series assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': TIME_SERIES_BANK,
     },
     {
@@ -1771,13 +1756,11 @@ QUIZZES = [
         'hub_html': 'Shiny-Exercises-in-R.html',
         'hub_slug': 'shiny',
         'hub_label': 'Shiny',
-        'cert_title': 'Shiny',
-        'narr': 'Awarded for passing a concept-and-code assessment of Shiny: UI/server architecture, reactive expressions, observers, modules, and session handling on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of Shiny: UI + server architecture, reactivity, render functions, observeEvent, reactiveVal, modules, and session handling. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of Shiny: UI + server architecture, reactivity, render functions, observeEvent, reactiveVal, modules, and session handling. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'Shiny: UI, server, reactivity, modules, and session handling',
         'storage_key': 'rstat_shiny_quiz_v2',
-        'meta_desc': 'Pass a 10-question Shiny assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable Shiny Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question Shiny assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A Shiny assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': SHINY_BANK,
     },
     {
@@ -1785,13 +1768,11 @@ QUIZZES = [
         'hub_html': 'R-Interview-Questions.html',
         'hub_slug': 'r-interview',
         'hub_label': 'R Interview Readiness',
-        'cert_title': 'R Interview Readiness',
-        'narr': 'Awarded for passing a concept-and-code assessment covering R fundamentals, scoping, closures, vectorization, S3, NSE, and common interview-style algorithmic problems on r-statistics.co.',
-        'lede': 'A concept-and-code assessment covering R fundamentals, scoping, closures, vectorization, S3, NSE, and common interview-style problems. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment covering R fundamentals, scoping, closures, vectorization, S3, NSE, and common interview-style problems. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'R interview prep: fundamentals, scoping, closures, NSE, and algorithms',
         'storage_key': 'rstat_r_interview_quiz_v2',
-        'meta_desc': 'Pass a 10-question R Interview Readiness assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable R Interview Readiness Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question R Interview Readiness assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A R Interview Readiness assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': INTERVIEW_BANK,
     },
     {
@@ -1799,13 +1780,11 @@ QUIZZES = [
         'hub_html': 'R-Functional-Programming-Exercises.html',
         'hub_slug': 'r-functional-programming',
         'hub_label': 'Functional Programming',
-        'cert_title': 'Functional Programming',
-        'narr': 'Awarded for passing a concept-and-code assessment of functional programming in R: higher-order functions, purrr map/reduce/filter, closures, currying, memoization, and pure-function discipline on r-statistics.co.',
-        'lede': 'A concept-and-code assessment of functional programming in R: higher-order functions, the purrr map/reduce/filter family, closures, currying, memoization, and pure-function discipline. Pass once and your certificate is permanent and publicly verifiable.',
+        'lede': 'A concept-and-code assessment of functional programming in R: higher-order functions, the purrr map/reduce/filter family, closures, currying, memoization, and pure-function discipline. Take it when you feel ready, and retake it as often as you like.',
         'topic_summary': 'functional programming: map/reduce/filter, closures, currying, and purrr',
         'storage_key': 'rstat_r_fp_quiz_v2',
-        'meta_desc': 'Pass a 10-question Functional Programming assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
-        'og_desc': 'Earn a verifiable Functional Programming Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
+        'meta_desc': 'Pass a 10-question Functional Programming assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
+        'og_desc': 'A Functional Programming assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.',
         'bank': FP_BANK,
     },
 ]
@@ -1814,30 +1793,6 @@ QUIZZES = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def _issuance_baseline(hub_slug):
-    """Match build.py's _issuance_baseline so quiz intro == hub banner."""
-    TIER_1 = {'dplyr', 'ggplot2', 'tidyr', 'lubridate', 'stringr', 'purrr',
-              'tidyverse', 'data.table'}
-    TIER_2 = {'eda', 'data-cleaning', 'data-wrangling', 'data-visualization',
-              'linear-regression', 'logistic-regression', 'random-forest',
-              'time-series', 'hypothesis-testing', 'machine-learning',
-              'correlation', 'anova', 'xgboost', 'clustering', 'pca',
-              'cross-validation', 'r-beginner', 'r-interview', 'tidymodels',
-              'a-b-testing', 'ab-testing', 'shiny', 'r-for-data-science',
-              'apply-family', 'r-markdown', 'r-for-finance', 'r-for-healthcare',
-              'r-for-marketing-analytics', 'arima', 't-test', 'chi-square-test',
-              'probability-distributions', 'sampling-methods', 'regex',
-              'dbplyr-sql', 'readr', 'broom', 'forcats', 'plotly', 'leaflet',
-              'gt-tables', 'web-scraping', 'api-calls'}
-    key = (hub_slug or '').lower()
-    h = int(hashlib.md5(key.encode('utf-8')).hexdigest()[:6], 16)
-    if key in TIER_1:
-        return 700 + (h % 800)
-    if key in TIER_2:
-        return 180 + (h % 380)
-    return 50 + (h % 160)
-
-
 def render_bank_to_js(bank):
     """Render a Python list of question dicts to the JS BANK array literal."""
     def render_q(q):
@@ -1868,53 +1823,61 @@ def render_bank_to_js(bank):
 # ---------------------------------------------------------------------------
 # Generator
 # ---------------------------------------------------------------------------
+def swap(text, old, new):
+    """str.replace that refuses to no-op.
+
+    Every page here is the dplyr page with strings swapped out. A silent miss
+    does not raise, it ships: the page builds fine and carries dplyr's copy
+    under another topic's name. That is how the certificate wording survived
+    earlier edits, so a miss is now a build failure.
+    """
+    if old not in text:
+        raise AssertionError('generate_quizzes: template no longer contains %r' % (old[:90],))
+    return text.replace(old, new)
+
+
 def generate_one(template, spec):
     out = template
 
     # Title and meta
-    out = out.replace(
-        '<title>dplyr Mastery Assessment: Earn the Certificate | r-statistics.co</title>',
-        f'<title>{spec["hub_label"]} Mastery Assessment: Earn the Certificate | r-statistics.co</title>')
-    out = out.replace(
-        'Pass a 10-question dplyr assessment (concept MCQs + live R code-writing) to earn a verifiable r-statistics.co Mastery Certificate. Honor-coded, LinkedIn-shareable.',
+    out = swap(out,
+        '<title>dplyr Mastery Assessment | r-statistics.co</title>',
+        f'<title>{spec["hub_label"]} Mastery Assessment | r-statistics.co</title>')
+    out = swap(out,
+        'Pass a 10-question dplyr assessment (concept MCQs + live R code-writing), graded against hidden tests. Honor-coded, unlimited retakes.',
         spec['meta_desc'])
-    out = out.replace(
-        'dplyr quiz, dplyr certificate, R certification, dplyr practice, dplyr assessment, r-statistics quiz',
-        f'{spec["hub_label"]} quiz, {spec["hub_label"]} certificate, R certification, {spec["hub_label"]} practice, {spec["hub_label"]} assessment, r-statistics quiz')
-    out = out.replace(
+    out = swap(out,
+        'dplyr quiz, dplyr practice, dplyr assessment, r-statistics quiz',
+        f'{spec["hub_label"]} quiz, {spec["hub_label"]} practice, {spec["hub_label"]} assessment, r-statistics quiz')
+    out = swap(out,
         'href="https://r-statistics.co/dplyr-Exercises-in-R-quiz.html"',
         f'href="https://r-statistics.co/{spec["slug"]}"')
-    out = out.replace(
+    out = swap(out,
         '<meta property="og:title" content="dplyr Mastery Assessment | r-statistics.co">',
         f'<meta property="og:title" content="{spec["hub_label"]} Mastery Assessment | r-statistics.co">')
-    out = out.replace(
-        '<meta property="og:description" content="Earn a verifiable dplyr Mastery Certificate. 7 concept MCQs + 3 live R coding questions. ~12 minutes.">',
+    out = swap(out,
+        '<meta property="og:description" content="A dplyr assessment. 7 concept MCQs + 3 live R coding questions. ~12 minutes.">',
         f'<meta property="og:description" content="{spec["og_desc"]}">')
-    out = out.replace(
+    out = swap(out,
         '<meta property="og:url" content="https://r-statistics.co/dplyr-Exercises-in-R-quiz.html">',
         f'<meta property="og:url" content="https://r-statistics.co/{spec["slug"]}">')
 
     # Hero / lede / masthead
-    out = out.replace('"ASSESSMENT IN PROGRESS · dplyr Mastery"', f'"ASSESSMENT IN PROGRESS · {spec["hub_label"]} Mastery"')
-    out = out.replace('<strong>dplyr Mastery</strong>', f'<strong>{spec["hub_label"]} Mastery</strong>')
-    out = out.replace('<h1 class="q-title">dplyr Mastery Assessment</h1>',
-                      f'<h1 class="q-title">{spec["hub_label"]} Mastery Assessment</h1>')
-    out = out.replace(
-        'A concept-and-code assessment of dplyr verbs, joins, and grouped\n      operations. Pass once and your certificate is permanent and publicly\n      verifiable. Take it when you feel ready.',
+    out = swap(out, '"ASSESSMENT IN PROGRESS · dplyr Mastery"', f'"ASSESSMENT IN PROGRESS · {spec["hub_label"]} Mastery"')
+    out = swap(out, '<strong>dplyr Mastery</strong>', f'<strong>{spec["hub_label"]} Mastery</strong>')
+    out = swap(out, '<h1 class="q-title">dplyr Mastery Assessment</h1>',
+               f'<h1 class="q-title">{spec["hub_label"]} Mastery Assessment</h1>')
+    out = swap(out,
+        'A concept-and-code assessment of dplyr verbs, joins, and grouped\n      operations. Take it when you feel ready, and retake it as often as you like.',
         spec['lede'])
 
-    # Pass screen title + cert title + cert narrative
-    out = out.replace('You earned the dplyr Mastery Certificate',
-                      f'You earned the {spec["hub_label"]} Mastery Certificate')
-    out = out.replace('<p class="cert-title">dplyr</p>',
-                      f'<p class="cert-title">{spec["cert_title"]}</p>')
-    out = out.replace(
-        'Awarded for passing a concept-and-code assessment of dplyr verbs,\n          joins, and grouped operations on r-statistics.co.',
-        spec['narr'])
+    # The pass screen used to print a diploma card carrying the name the visitor
+    # typed on the intro screen. It was removed on 2026-09-19 along with the
+    # verification link, so there is no cert title or narrative to swap here.
 
     # Back / exit / footer links
-    out = out.replace('href="/dplyr-Exercises-in-R.html"', f'href="/{spec["hub_html"]}"')
-    out = out.replace('dplyr exercises</a>', f'{spec["hub_label"].lower()} exercises</a>')
+    out = swap(out, 'href="/dplyr-Exercises-in-R.html"', f'href="/{spec["hub_html"]}"')
+    out = swap(out, 'dplyr exercises</a>', f'{spec["hub_label"].lower()} exercises</a>')
 
     # CONFIG — match the original block exactly
     new_config = (
@@ -1923,8 +1886,6 @@ def generate_one(template, spec):
         f"    hubLabel: {json.dumps(spec['hub_label'])},\n"
         "    passXP: 13,\n"
         f"    storageKey: {json.dumps(spec['storage_key'])},\n"
-        f"    learnersBase: {_issuance_baseline(spec['hub_slug'])},\n"
-        f"    learnersSeed: {json.dumps(spec['hub_slug'] + '-q1')},\n"
         "    sampling: {\n"
         "      // count of each (type, diff) tuple to pull\n"
         "      'mcq_1': 3, 'mcq_2': 3, 'mcq_3': 1,\n"
@@ -1958,10 +1919,10 @@ def main():
     for spec in QUIZZES:
         rendered = generate_one(template, spec)
         out_path = os.path.join(REPO_ROOT, spec['slug'])
-        with open(out_path, 'w', encoding='utf-8') as f:
+        # newline='' keeps LF on Windows; the repo is LF throughout
+        with open(out_path, 'w', encoding='utf-8', newline='') as f:
             f.write(rendered)
-        print(f'  Generated {spec["slug"]} ({len(spec["bank"])} questions, '
-              f'baseline {_issuance_baseline(spec["hub_slug"])})')
+        print(f'  Generated {spec["slug"]} ({len(spec["bank"])} questions)')
 
 
 if __name__ == '__main__':

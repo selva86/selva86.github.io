@@ -131,6 +131,49 @@
     }
   }
 
+  /* Claim.
+   *
+   * The button used to set href="#" and a data-track-claim attribute that
+   * nothing in the codebase listened for, so an eligible learner clicked it and
+   * nothing happened. It calls the mint endpoint now and sends them to the
+   * credential it returns, which is the only page that can verify one. */
+  function claim(cta, trackId) {
+    var token = readAccessToken();
+    if (!token) { window.location.href = '/signin.html?next=' + encodeURIComponent(location.pathname); return; }
+    if (cta.getAttribute('data-busy')) return;
+    cta.setAttribute('data-busy', '1');
+    var label = cta.innerHTML;
+    cta.innerHTML = 'Issuing…';
+    fetch('/api/cert/mint', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify({ track_id: trackId })   // the endpoint's contract
+    }).then(function (resp) {
+      return resp.json().then(function (body) { return { ok: resp.ok, body: body }; });
+    }).then(function (r) {
+      if (r.ok && r.body && r.body.verify_url) { window.location.href = r.body.verify_url; return; }
+      cta.removeAttribute('data-busy');
+      cta.innerHTML = label;
+      var msg = (r.body && (r.body.message || r.body.error)) || 'That did not go through. Please try again.';
+      var note = cta.parentNode.querySelector('.tcta-err');
+      if (!note) {
+        note = document.createElement('p');
+        note.className = 'tcta-err';
+        note.style.cssText = 'margin:8px 0 0;font-size:13px;color:#a12a2a';
+        cta.parentNode.insertBefore(note, cta.nextSibling);
+      }
+      note.textContent = msg;
+    }).catch(function () {
+      cta.removeAttribute('data-busy');
+      cta.innerHTML = label;
+    });
+  }
+
   function fetchJson(url, token) {
     return fetch(url, {
       headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
@@ -164,6 +207,12 @@
   // ===== boot =====
   function init() {
     try { personalize(); } catch (_) { /* never throw */ }
+    document.addEventListener('click', function (ev) {
+      var cta = ev.target.closest && ev.target.closest('[data-track-claim]');
+      if (!cta) return;
+      ev.preventDefault();
+      claim(cta, cta.getAttribute('data-track-claim'));
+    });
   }
 
   if (document.readyState === 'loading') {

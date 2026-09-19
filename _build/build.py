@@ -2265,7 +2265,7 @@ def make_cert_ribbon(hub_short, quiz_url):
         '<span class="cert-strip-text">'
         f'<strong>{hub_short} Mastery</strong> '
         '<span class="cert-strip-sep">&middot;</span> '
-        'Verifiable certificate issued after a concept-and-code assessment'
+        'Certificate issued after a concept-and-code assessment'
         '</span>'
         f'<a href="{quiz_url}" class="cert-strip-cta">'
         'Begin assessment<span class="cert-strip-arrow">&rarr;</span>'
@@ -2275,10 +2275,24 @@ def make_cert_ribbon(hub_short, quiz_url):
 
 def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0,
                     quiz_available=True):
-    # The diploma hero card. Leads with the artifact ("THIS DOCUMENT CERTIFIES")
-    # rather than the marketing pitch. Watermark + typography-lockup CTA.
-    # data-hub-slug + the tiny inline script swap in a "you earned this" state
-    # for returning visitors who passed the quiz in this browser.
+    # The hero card for the hub's assessment.
+    #
+    # Three things were removed here on 2026-09-19, all of them claims the site
+    # could not stand behind:
+    #
+    #   the VERIFIED watermark and the "Verifiable credential, Public URL" line,
+    #   because the quiz certificate was assembled in the browser and never
+    #   recorded, so nothing could be verified against anything;
+    #
+    #   the line promising a public URL that "proves the holder passed", for the
+    #   same reason;
+    #
+    #   the learner count, which was an authored baseline plus a per-browser
+    #   counter, rendered as though it were a number of real people. Zero
+    #   certificates have ever been issued.
+    #
+    # `issuance_base` is kept in the signature so the callers do not have to
+    # change, and is deliberately ignored.
     topics = topics or []
     chips_html = ''
     if topics:
@@ -2298,29 +2312,23 @@ def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0,
             '<span class="cert-hero-cta cert-hero-cta-soon" aria-disabled="true">'
             'Assessment coming soon</span>'
         )
-    count_html = ''
-    if issuance_base:
-        count_html = (
-            '<p class="cert-hero-count" '
-            f'data-issuance-base="{issuance_base}" data-hub-slug="{hub_slug}">'
-            f'<strong>{issuance_base:,}</strong> learners have earned this certificate'
-            '</p>'
-        )
+    count_html = ''   # see the note above: the old count was not a real number
     return (
         f'<div class="cert-hero" role="complementary" data-hub-slug="{hub_slug}" data-hub-short="{hub_short}">'
-        '<div class="cert-hero-watermark" aria-hidden="true">VERIFIED</div>'
         '<div class="cert-hero-content">'
-        '<p class="cert-hero-issuer">r-statistics.co &middot; Verifiable credential &middot; Public URL</p>'
-        '<p class="cert-hero-eyebrow">This document certifies mastery of</p>'
+        '<p class="cert-hero-issuer">r-statistics.co</p>'
+        # The eyebrow used to read 'This document certifies mastery of'. The hero
+        # is an invitation to sit an assessment, not a certificate, and it never
+        # certified anything, so the line is gone rather than reworded.
         f'<div class="cert-hero-seal">{_CERT_SEAL_SVG}</div>'
         f'<h3 class="cert-hero-title">{hub_short} Mastery</h3>'
         f'{chips_html}'
-        '<p class="cert-hero-trust">Every certificate has a public verification URL that proves the holder passed the assessment. Anyone with the link can confirm the recipient and date.</p>'
+        '<p class="cert-hero-trust">A concept-and-code assessment. Track certificates are issued to your account and verify at their own address.</p>'
         '<p class="cert-hero-meta">'
         '10 questions <span class="cert-hero-meta-sep">&middot;</span> '
         'concept + code <span class="cert-hero-meta-sep">&middot;</span> '
         '~12 minutes <span class="cert-hero-meta-sep">&middot;</span> '
-        'pass once'
+        'unlimited retakes'
         '</p>'
         '<div class="cert-hero-cta-row">'
         '<span class="cert-hero-rule"></span>'
@@ -2330,45 +2338,10 @@ def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0,
         f'{count_html}'
         '</div>'
         '</div>'
-        # Inline script: (a) read the local issuance bump and update the count;
-        # (b) if this browser has a saved cert for this hub, swap the CTA for
-        # an "earned" state. Both are best-effort and silently no-op if local-
-        # Storage is unavailable.
-        '<script>(function(){'
-        'try{'
-        f'var slug="{hub_slug}";'
-        'var card=document.querySelector(".cert-hero[data-hub-slug=\\""+slug+"\\"]");'
-        'if(!card)return;'
-        # Bump the displayed count from the per-hub local counter.
-        'var countEl=card.querySelector(".cert-hero-count");'
-        'if(countEl){'
-        'var base=parseInt(countEl.getAttribute("data-issuance-base")||"0",10)||0;'
-        'var bump=parseInt(localStorage.getItem("rstat_issued_"+slug)||"0",10)||0;'
-        'if(bump>0){countEl.querySelector("strong").textContent=(base+bump).toLocaleString();}'
-        '}'
-        # If we have a saved certificate for this hub, swap the CTA block.
-        'var raw=localStorage.getItem("rstat_certs_v1");if(!raw)return;'
-        'var data=JSON.parse(raw);var rec=data&&data[slug];if(!rec||!rec.verifyURL)return;'
-        'var d=new Date(rec.date||Date.now());'
-        'var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];'
-        'var dateText=months[d.getMonth()]+" "+d.getDate()+", "+d.getFullYear();'
-        'var content=card.querySelector(".cert-hero-content");if(!content)return;'
-        'var countLine=content.querySelector(".cert-hero-count");'
-        'var countHTML=countLine?countLine.outerHTML:"";'
-        'content.innerHTML='
-        '\'<p class="cert-hero-issuer">r-statistics.co &middot; Verifiable credential</p>\''
-        '+\'<div class="cert-earned-flag">Certificate earned</div>\''
-        f'+\'<div class="cert-hero-seal">{_CERT_SEAL_SVG}</div>\''
-        f'+\'<h3 class="cert-hero-title">{hub_short} Mastery</h3>\''
-        '+\'<p class="cert-earned-name">\'+(rec.name||"")+\'</p>\''
-        '+\'<p class="cert-earned-meta">Issued \'+dateText+\' &middot; ID \'+(rec.id||"")+\'</p>\''
-        '+\'<div class="cert-hero-cta-row">\''
-        '+\'<span class="cert-hero-rule"></span>\''
-        '+\'<a href="\'+rec.verifyURL+\'" class="cert-hero-cta" target="_blank" rel="noopener">View certificate<span class="cert-hero-cta-arrow">&rarr;</span></a>\''
-        '+\'<span class="cert-hero-rule"></span>\''
-        '+\'</div>\'+countHTML;'
-        '}catch(e){}'
-        '})();</script>'
+        # No inline script any more. It used to raise the displayed learner
+        # count from a per-browser counter, and swap in an "earned" panel that
+        # linked to the retired verification page and printed the fabricated
+        # certificate id. Both were local state dressed up as a credential.
     )
 
 
