@@ -232,7 +232,7 @@ def build_certification():
         'Certifications · r-statistics.co',
         'Verifiable, evidence-based R programming certifications. Earn one by solving 80% of the exercises across a curated track of hubs. Free to attempt; Pro to claim.',
         body, page_css=css, sprite=sprite, active='certification',
-        page_js=['/www/cert-page.js?v=2'], jsonld=[webpage, breadcrumb],
+        page_js=['/www/cert-page.js?v=3'], jsonld=[webpage, breadcrumb],
         keywords='R certification, R programming certificate, verifiable credential, data science certificate, tidyverse certification, machine learning R certificate, statistics certificate, open badges')
 
 
