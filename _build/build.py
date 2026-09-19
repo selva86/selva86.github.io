@@ -1496,16 +1496,17 @@ def make_exercise_hub_head_block(asset_hrefs):
     studio_css = asset_hrefs.get('practice-studio.css', 'www/practice-studio.css')
     # The exercise title (.xh-ex-name) uses IBM Plex Serif 700 - already
     # self-hosted AND preloaded by template.html, so nothing to add here.
-    # Both sheets load async, which is right for the classic page and wrong
-    # for a studio URL: the classic layout paints first and the reader
-    # watches it get replaced. The inline script runs while the head is
-    # still parsing, before the body exists. It promotes both sheets to
-    # render-blocking and hides the classic layout in the same tick, so a
-    # studio link opens as the studio. It carries its own failsafe: a page
-    # hidden by a guard that never clears is worse than a flash.
+    # The studio is the default view of an exercise hub, so this runs on
+    # every hub unless the URL asks for the classic page with studio=0.
+    # Both sheets load async, which would let the classic layout paint and
+    # then be replaced in front of the reader. This runs while the head is
+    # still parsing, before the body exists: it promotes both sheets to
+    # render-blocking and hides the classic layout in the same tick. It
+    # carries two failsafes, because a page hidden by a guard that never
+    # clears is worse than a flash.
     boot = (
         '<script>(function(){'
-        'if(!/[?&]studio=1(?:&|$)/.test(location.search))return;'
+        'if(/[?&]studio=0(?:&|$)/.test(location.search))return;'
         'var d=document,h=d.documentElement;h.className+=" rs-booting";'
         '["xh-css","rs-studio-css"].forEach(function(i){var l=d.getElementById(i);if(l)l.media="all";});'
         'var s=d.createElement("style");s.id="rs-boot-guard";s.textContent='
@@ -1513,7 +1514,9 @@ def make_exercise_hub_head_block(asset_hrefs):
         'html.rs-booting .engagement-progress,html.rs-booting #mobile-sidebar{display:none!important}'
         'html.rs-booting,html.rs-booting body{background:#fff}";'
         '(d.head||h).appendChild(s);'
-        'setTimeout(function(){h.classList.remove("rs-booting");},8000);'
+        'd.addEventListener("DOMContentLoaded",function(){'
+        'if(!window.rsStudio)h.classList.remove("rs-booting");});'
+        'setTimeout(function(){h.classList.remove("rs-booting");},6000);'
         '})();</script>'
     )
     return (

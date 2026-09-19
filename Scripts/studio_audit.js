@@ -39,6 +39,15 @@
 
   /* -------- 1. shell -------- */
   ck('shell', 'studio mounted', document.body.classList.contains('rs-studio'));
+  /* The studio is the default view of an exercise hub: no query string needed.
+     ?studio=0 is the way back to the classic page. */
+  ck('shell', 'the studio mounted without being asked for',
+     !/[?&]studio=1/.test(location.search) || 'url carried studio=1, rerun on a plain hub URL');
+  ck('shell', 'the boot guard was lifted', !document.documentElement.classList.contains('rs-booting'));
+  ck('shell', 'the page still has one visible heading',
+     $$('h1').filter(function (n) { return n.getBoundingClientRect().width > 0; }).length === 1);
+  ck('shell', 'exit leads back to the classic page',
+     /studio=0/.test(($('.rs-exit') || {}).getAttribute ? $('.rs-exit').getAttribute('href') : ''));
   ck('shell', 'site navbar still visible', vis($('.sitenav')));
   ck('shell', 'one studio bar under the navbar', vis($('.rs-bar')));
   ck('shell', 'classic page body hidden', cs($('.container > .row'), 'display') === 'none');
@@ -254,6 +263,12 @@
   ck('status', 'challenge state cell', /Not started|running|Paused/i.test(flat(st)));
   ck('status', 'solved count cell', /of \d+ solved/.test(flat(st)));
   ck('status', 'XP cell', /XP/.test(flat(st)));
+  /* The allowance is the one number a reader plans around, so it is spelled
+     out in every state, including before they sign in and in the last few
+     checks, where it used to drop the limit exactly when it mattered. */
+  ck('status', 'the monthly allowance names its limit',
+     /\d+ of \d+ checks left this month|\d+ free checks a month|Unlimited checks/.test(flat(st)),
+     flat($('.rs-metercell')));
   ck('status', 'allowance cell is never empty',
      !!(st && $('.rs-metercell', st) && ($('.rs-metercell', st).innerText || '').trim().length > 0));
   ck('status', 'allowance cell says something meaningful',

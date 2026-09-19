@@ -24,6 +24,7 @@
   var PARAM = 'studio';
   var STORE_PIN = 'rsc-studio-pin';
   var STORE_TASTER = 'rsc-studio-taster';
+  var LIMIT = 25;          // the free monthly allowance, shown wherever it applies
   var OPEN_DELAY = 140, CLOSE_DELAY = 260;
   var IDLE_MS = 5 * 60 * 1000;
 
@@ -129,7 +130,9 @@
 
     // --- bar
     var bar = el('div', 'rs-bar');
-    var left = el('div', '', '<span class="rs-hub"></span>');
+    // an h1, not a span: the studio hides the page's own heading, and a page
+    // with no heading at all is a worse page, for a reader or a crawler
+    var left = el('div', '', '<h1 class="rs-hub"></h1>');
     ui.hub = qs('.rs-hub', left);
     ui.prog = el('div', 'rs-prog');
     var right = el('div', 'rs-right');
@@ -141,7 +144,8 @@
     ui.next = el('button', 'rs-arrow', '<svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>');
     ui.prev.title = 'Previous problem'; ui.next.title = 'Next problem';
     ui.exit = el('a', 'rs-exit', 'Exit studio');
-    ui.exit.href = location.pathname;
+    ui.exit.href = location.pathname + '?' + PARAM + '=0';
+    ui.exit.title = 'Read this hub as a plain page';
     right.appendChild(ui.slot); right.appendChild(ui.prev); right.appendChild(ui.next); right.appendChild(ui.exit);
     bar.appendChild(left); bar.appendChild(ui.prog); bar.appendChild(right);
     ui.bar = bar;
@@ -603,9 +607,16 @@
     ui.metercell.style.display = '';
     // Signed out there is no allowance yet, and Pro has none to spend. The cell
     // still has to say something: a blank cell with a divider reads as broken.
+    /* The monthly allowance is the one number a reader needs to plan around,
+       so it is spelled out in every state, including before they sign in.
+       It used to drop the limit exactly when it mattered most, in the last
+       five checks, leaving "3 checks left" with nothing to measure against. */
+    var limit = (m && m.limit) || LIMIT;
     if (!m) {
       ui.metercell.className = 'cell sep rs-metercell';
-      ui.metercell.innerHTML = '<span><a class="rs-signin" href="/signin.html">Sign in</a> to save progress and earn the badge</span>';
+      ui.metercell.innerHTML =
+        '<span><a class="rs-signin" href="/signin.html">Sign in</a> to check answers' +
+        '&nbsp;&middot;&nbsp;' + LIMIT + ' free checks a month</span>';
       return;
     }
     if (!m.metered) {
@@ -613,18 +624,20 @@
       ui.metercell.innerHTML = '<span>Unlimited checks</span>';
       return;
     }
-    var left = Math.max(0, (m.limit || 25) - (m.used || 0));
+    var left = Math.max(0, limit - (m.used || 0));
     var bars = '';
-    for (var i = 0; i < (m.limit || 25); i++) bars += '<i class="' + (i < left ? '' : 'off') + '"></i>';
+    for (var i = 0; i < limit; i++) bars += '<i class="' + (i < left ? '' : 'off') + '"></i>';
     var cls = 'cell sep rs-metercell', txt;
     if (left === 0) {
       cls += ' is-out';
-      txt = '<b>No checks left</b>&nbsp;this month&nbsp;&middot;<span class="rs-go">Upgrade, $14 a month</span>';
+      txt = '<b>0</b>&nbsp;of ' + limit + ' checks left this month' +
+            '&nbsp;&middot;<span class="rs-go">Upgrade, $14 a month</span>';
     } else if (left <= 5) {
       cls += ' is-warn';
-      txt = '<b>' + left + '</b>&nbsp;checks left this month&nbsp;&middot;<span class="rs-go">Upgrade</span>';
+      txt = '<b>' + left + '</b>&nbsp;of ' + limit + ' checks left this month' +
+            '&nbsp;&middot;<span class="rs-go">Upgrade</span>';
     } else {
-      txt = '<b>' + left + '</b>&nbsp;of ' + (m.limit || 25) + ' checks left this month';
+      txt = '<b>' + left + '</b>&nbsp;of ' + limit + ' checks left this month';
     }
     ui.metercell.className = cls;
     ui.metercell.innerHTML = '<span class="rs-meter">' + bars + '</span><span>' + txt + '</span>';
@@ -753,10 +766,12 @@
      console, styled for a white background. This asks first, in the studio's
      own language, and never reaches that path.
 
-     One exercise stays free. That is a live product decision, not an accident:
-     somebody has to feel the thing work before an account is worth making.
-     Flip TASTER to 0 to require an account from the very first check. */
-  var TASTER = 1;
+     TASTER is how many exercises may be graded before an account is required.
+     Owner decision 2026-09-19: none. Set it to 1 to put the old "first one on
+     the house" behaviour back. Reading and running code stays open to
+     everybody; it is grading that asks, because grading is what records XP,
+     the streak and the hub badge against a person. */
+  var TASTER = 0;
 
   /* auth-hydrate stamps the body with the reader's state, and that is the
      authoritative answer: a stale Supabase token can outlive a session, and
@@ -961,10 +976,15 @@
   }
   function clearGuard() { document.documentElement.classList.remove('rs-booting'); }
 
+  /* The studio is how an exercise hub looks now. ?studio=0 is the way back to
+     the classic page, and is what Exit studio links to.
+
+     Both exits clear the boot guard the inline head script put up. Leaving it
+     on a page that is never going to mount would hide the page. */
   function boot() {
     var p = new URLSearchParams(location.search);
-    if (p.get(PARAM) !== '1') return;
-    if (!qs('section.exercise')) return;
+    if (p.get(PARAM) === '0') { clearGuard(); return; }
+    if (!qs('section.exercise')) { clearGuard(); return; }
     bootGuard();
     // exercise-hub.js binds on DOMContentLoaded; window load is safely after.
     if (document.readyState === 'complete') setTimeout(start, 0);
