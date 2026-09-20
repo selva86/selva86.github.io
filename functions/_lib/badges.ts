@@ -25,6 +25,8 @@ export interface BadgeCtx {
   hubsTouched?: number;       // distinct hubs with at least one solve
   advanced?: number;          // solves worth 50 XP, which is what advanced pays
   unaided?: number;           // solves with no hint opened
+  threeStar?: number;         // solves that earned all three stars
+  hubsPerfect?: number;       // hubs where every exercise is a three-star
 }
 
 export interface BadgeDef {
@@ -44,6 +46,8 @@ export interface BadgeDef {
    a mark. */
 export const LADDER_MARKS = {
   solves: [1, 5, 10, 25, 50, 100, 200, 300, 500, 1000],
+  threeStar: [10, 50, 100, 250],
+  hubsPerfect: [1, 3, 10],
   streak: [3, 7, 14, 30, 60, 100, 200, 365],
   hubsDone: [1, 3, 5, 10, 25, 50],
   hubsTouched: [5, 10, 25, 50],
@@ -245,6 +249,41 @@ export const BADGE_DEFS: BadgeDef[] = [
     test: (c) => { const v = c.unaided ?? 0; return { earned: v >= 250, progress: Math.min(1, v / 250), note: `${v} of 250 unaided` }; },
   },
   {
+    id: "star-10", name: "Ten Clean", blurb: "ten solved with all three stars",
+    shape: "kite", color: "#a16207", glyph: "10",
+    test: (c) => { const v = c.threeStar ?? 0; return { earned: v >= 10, progress: Math.min(1, v / 10), note: `${v} of 10 clean` }; },
+  },
+  {
+    id: "star-50", name: "Fifty Clean", blurb: "fifty solved without a hint or a peek",
+    shape: "hex", color: "#a16207", glyph: "50",
+    test: (c) => { const v = c.threeStar ?? 0; return { earned: v >= 50, progress: Math.min(1, v / 50), note: `${v} of 50 clean` }; },
+  },
+  {
+    id: "star-100", name: "Hundred Clean", blurb: "one hundred flawless solves",
+    shape: "shield", color: "#a16207", glyph: "100",
+    test: (c) => { const v = c.threeStar ?? 0; return { earned: v >= 100, progress: Math.min(1, v / 100), note: `${v} of 100 clean` }; },
+  },
+  {
+    id: "star-250", name: "Spotless", blurb: "two hundred and fifty, every star kept",
+    shape: "shield", color: "#a16207", glyph: "250",
+    test: (c) => { const v = c.threeStar ?? 0; return { earned: v >= 250, progress: Math.min(1, v / 250), note: `${v} of 250 clean` }; },
+  },
+  {
+    id: "perfect-1", name: "Full Marks", blurb: "a whole hub, every problem three stars",
+    shape: "hex", color: "#7c3aed", glyph: "1",
+    test: (c) => { const v = c.hubsPerfect ?? 0; return { earned: v >= 1, progress: Math.min(1, v / 1), note: `${v} of 1 hubs` }; },
+  },
+  {
+    id: "perfect-3", name: "Three Perfect", blurb: "three hubs cleared without a hint",
+    shape: "shield", color: "#7c3aed", glyph: "3",
+    test: (c) => { const v = c.hubsPerfect ?? 0; return { earned: v >= 3, progress: Math.min(1, v / 3), note: `${v} of 3 hubs` }; },
+  },
+  {
+    id: "perfect-10", name: "Ten Perfect", blurb: "ten hubs, not a hint between them",
+    shape: "shield", color: "#7c3aed", glyph: "10",
+    test: (c) => { const v = c.hubsPerfect ?? 0; return { earned: v >= 10, progress: Math.min(1, v / 10), note: `${v} of 10 hubs` }; },
+  },
+  {
     id: "quiz-perfect", name: "No Residuals", blurb: "a flawless assessment, nothing left over",
     shape: "hex", color: "#7c3aed", glyph: "OK",
     test: (c) => ({ earned: c.quizBestScore >= 100, progress: Math.min(1, c.quizBestScore / 100), note: `best score: ${c.quizBestScore}%` }),
@@ -321,31 +360,43 @@ export async function loadBadgeExtras(
   DB: D1Database,
   userId: string,
   hubSize: (slug: string) => number,
-): Promise<{ hubsDone: number; hubsTouched: number; advanced: number; unaided: number }> {
-  const zero = { hubsDone: 0, hubsTouched: 0, advanced: 0, unaided: 0 };
+): Promise<{ hubsDone: number; hubsTouched: number; advanced: number; unaided: number; threeStar: number; hubsPerfect: number }> {
+  const zero = { hubsDone: 0, hubsTouched: 0, advanced: 0, unaided: 0, threeStar: 0, hubsPerfect: 0 };
   try {
     const [perHub, agg] = await Promise.all([
       DB.prepare(
-        "SELECT hub_slug, COUNT(*) AS n FROM exercise_attempts WHERE user_id = ?1 GROUP BY hub_slug",
-      ).bind(userId).all<{ hub_slug: string; n: number }>(),
+        `SELECT hub_slug, COUNT(*) AS n,
+                SUM(CASE WHEN COALESCE(hints_used,0)=0 AND COALESCE(solution_seen,0)=0
+                          AND source IS NOT 'backfill' THEN 1 ELSE 0 END) AS three
+           FROM exercise_attempts WHERE user_id = ?1 GROUP BY hub_slug`,
+      ).bind(userId).all<{ hub_slug: string; n: number; three: number }>(),
       DB.prepare(
         `SELECT
            SUM(CASE WHEN xp_awarded >= 50 THEN 1 ELSE 0 END) AS adv,
-           SUM(CASE WHEN COALESCE(hints_used, 0) = 0 THEN 1 ELSE 0 END) AS solo
+           SUM(CASE WHEN COALESCE(hints_used, 0) = 0 THEN 1 ELSE 0 END) AS solo,
+           SUM(CASE WHEN COALESCE(hints_used, 0) = 0
+                     AND COALESCE(solution_seen, 0) = 0
+                     AND source IS NOT 'backfill' THEN 1 ELSE 0 END) AS three
          FROM exercise_attempts WHERE user_id = ?1`,
-      ).bind(userId).first<{ adv: number; solo: number }>(),
+      ).bind(userId).first<{ adv: number; solo: number; three: number }>(),
     ]);
     const rows = perHub.results ?? [];
-    let done = 0;
+    let done = 0, perfect = 0;
     for (const r of rows) {
       const size = hubSize(r.hub_slug);
-      if (size > 0 && Number(r.n) >= size) done++;
+      if (size > 0 && Number(r.n) >= size) {
+        done++;
+        // a hub is perfect only if every one of its solves kept all three
+        if (Number(r.three ?? 0) >= size) perfect++;
+      }
     }
     return {
       hubsDone: done,
       hubsTouched: rows.length,
       advanced: Number(agg?.adv ?? 0),
       unaided: Number(agg?.solo ?? 0),
+      threeStar: Number(agg?.three ?? 0),
+      hubsPerfect: perfect,
     };
   } catch {
     return zero;

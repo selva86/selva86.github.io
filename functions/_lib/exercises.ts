@@ -1,3 +1,4 @@
+import { hubExerciseIds } from "./badges-hub";
 // Server-side exercise manifest + XP rules.
 //
 // The manifest is generated at build time by _build/build_exercise_manifest.py
@@ -84,6 +85,31 @@ export function lookupDifficulty(hubSlug: string, exerciseId: string): string | 
  * anonymous era carry hints_used = 0 because nothing was tracked then, and
  * rendering those as a flawless run would be a claim the data cannot support.
  */
+export const SECTION_CLEAR_XP = 25;
+
+/* The section an exercise belongs to, read off its own id.
+ *
+ * Ids are <hub>-ex-<section>-<n>, so dplyr-Exercises-in-R-ex-3-7 is section 3.
+ * This is why clearing a section needed no new manifest and no new column: the
+ * grouping has been sitting in the primary key the whole time.
+ * Returns null for any id that does not follow the pattern, which keeps lesson
+ * hubs and anything hand-made out of the section machinery rather than
+ * guessing a section for them.
+ */
+export function sectionOf(exerciseId: string): number | null {
+  const m = /-ex-(\d+)-\d+$/.exec(exerciseId || "");
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/* Every exercise id in one section of one hub, in the order the hub lists
+   them. Derived from the manifest, so a hub that gains a problem gains it here
+   too without anything being re-generated. */
+export function sectionExerciseIds(hubSlug: string, section: number): string[] {
+  return hubExerciseIds(hubSlug).filter((id) => sectionOf(id) === section);
+}
+
 export function starsFor(
   hintsUsed: number,
   solutionSeen: boolean,

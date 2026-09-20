@@ -716,6 +716,23 @@
     setTimeout(function () { try { go.focus(); } catch (e) {} }, 60);
   }
 
+  /* Clearing a section. Ranks above a three-star solve and below the hub
+     badge, so a single check never stacks two celebrations. */
+  function celebrateSection(info, stars) {
+    if (!ui.starScrim) return;
+    var card = qs('.rs-card', ui.starScrim);
+    var sec = S.sections[(info.section || 1) - 1];
+    qs('.rs-starrow', card).innerHTML =
+      '<span class="rs-secmark" aria-hidden="true"></span>' + starRow(stars, 'is-small');
+    qs('h3', card).textContent = (sec && sec.title) ? sec.title + ' cleared' : 'Section cleared';
+    qs('.sub', card).textContent = 'All ' + info.of + ' solved. +' + info.xp + ' XP.';
+    var nxt = S.cards[S.cur + 1];
+    var go = qs('.rs-starnext', card);
+    go.textContent = nxt ? 'Next section' : 'Keep going';
+    ui.starScrim.classList.add('is-open');
+    setTimeout(function () { try { go.focus(); } catch (e) {} }, 60);
+  }
+
   function closeStars(andAdvance) {
     if (!ui.starScrim) return;
     ui.starScrim.classList.remove('is-open');
@@ -737,6 +754,21 @@
   function hubBadgeName() {
     var t = document.title.split('|')[0].split(':')[0].trim();
     return (t || 'This hub') + ' badge';
+  }
+
+  /* Keep the two columns on the same line.
+   *
+   * The rail and the panel are separate scrollers, so matching their row
+   * pitch in CSS was necessary and not sufficient: with equal pitches but
+   * independent scrollTops, a bullet and its name still sat rows apart. They
+   * now mirror each other, and because one step is one step in both, mirroring
+   * the offset is enough to put every bullet beside its own row. */
+  function syncRails(from) {
+    if (!ui.pips || !ui.plist || S._syncing) return;
+    S._syncing = true;
+    if (from === 'list') ui.pips.scrollTop = ui.plist.scrollTop;
+    else ui.plist.scrollTop = ui.pips.scrollTop;
+    requestAnimationFrame(function () { S._syncing = false; });
   }
 
   function renderBar() {
@@ -918,7 +950,9 @@
      Panel open / close
      --------------------------------------------------------------- */
   var openT = null, closeT = null;
-  function openPanel() { clearTimeout(closeT); ui.panel.classList.add('is-open'); }
+  function openPanel() {
+    // the panel opens where the rail already is, not at the top
+    setTimeout(function () { syncRails('pips'); }, 0); clearTimeout(closeT); ui.panel.classList.add('is-open'); }
   function closePanel() { if (S.pinned) return; ui.panel.classList.remove('is-open'); }
   function hoverIn() { clearTimeout(closeT); if (S.pinned) return; openT = setTimeout(openPanel, OPEN_DELAY); }
   function hoverOut() { clearTimeout(openT); if (S.pinned) return; closeT = setTimeout(closePanel, CLOSE_DELAY); }
@@ -1039,6 +1073,8 @@
       n.addEventListener('mouseenter', hoverIn);
       n.addEventListener('mouseleave', hoverOut);
     });
+    ui.pips.addEventListener('scroll', function () { syncRails('pips'); }, { passive: true });
+    ui.plist.addEventListener('scroll', function () { syncRails('list'); }, { passive: true });
     ui.spinetop.addEventListener('click', function () {
       ui.panel.classList.contains('is-open') ? closePanel() : openPanel();
     });
@@ -1115,7 +1151,14 @@
         var cur = S.cards[S.cur];
         if (cur && cur.id) { S.starMap = S.starMap || {}; S.starMap[cur.id] = r.stars; }
         var hubEnding = !!(r.hub_badge && r.hub_badge.newly_minted);
-        if (r.stars === 3 && !hubEnding) {
+        /* One ceremony per check, in order of weight. The hub badge has its
+           own card and wins; a cleared section comes next; a three-star solve
+           after that; everything else resolves inline where the reader is. */
+        if (hubEnding) {
+          showInlineResult(r.stars, earnedXp);
+        } else if (r.section_cleared) {
+          celebrateSection(r.section_cleared, r.stars);
+        } else if (r.stars === 3) {
           var nxt = S.cards[S.cur + 1];
           celebrateStars(3, earnedXp, nxt ? nxt.title : '');
         } else {

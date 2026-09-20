@@ -23,6 +23,7 @@ import { resolveScope, scopeCovers } from "../../../../_lib/entitlement";
 import {
   isValidHubSlug, isValidExerciseId, hubExists, lookupDifficulty,
   xpForDifficulty, isLessonHub, starsFor, xpForStars,
+  sectionOf, sectionExerciseIds, SECTION_CLEAR_XP,
 } from "../../../../_lib/exercises";
 import { meterMonth, hubAccess, METER_LIMIT } from "../../../../_lib/meter";
 import { checkDailyBonus } from "../../../../_lib/daily";
@@ -158,6 +159,7 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
   );
 
   // ---- pass-2 extras: everything below is additive and fail-safe ----
+  let sectionCleared: Record<string, unknown> | null = null;
   let nudge: string | null = null;
   let newBadges: Array<{ id: string; name: string }> = [];
   let hubBadge: Record<string, unknown> | null = null;
@@ -196,6 +198,43 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
       ).bind(u.id).first<{ n: number }>();
       const solved = Number(solvedRow?.n ?? 0);
       const streak = result.current_streak_days;
+
+      /* Did this solve finish a section?
+       *
+       * Only ever on a first pass, and only once: the xp_ledger row is the
+       * lock. Writing it with INSERT OR IGNORE against a unique ref means two
+       * simultaneous solves of the last two problems in a section cannot both
+       * claim the bonus. Lesson hubs have no sections and are skipped by
+       * sectionOf returning null. Everything here is inside the same
+       * fail-safe block as the rest of the extras: a broken bonus must never
+       * cost someone their solve. */
+      const sec = sectionOf(exerciseId);
+      if (result.first_pass && sec !== null && !isLessonHub(hubSlug)) {
+        const ids = sectionExerciseIds(hubSlug, sec);
+        if (ids.length) {
+          const marks = ids.map(() => "?").join(",");
+          const done = await DB.prepare(
+            `SELECT COUNT(*) AS n FROM exercise_attempts
+              WHERE user_id = ?1 AND hub_slug = ?2 AND exercise_id IN (${marks})`,
+          ).bind(u.id, hubSlug, ...ids).first<{ n: number }>().catch(() => ({ n: 0 }));
+          if (Number(done?.n ?? 0) >= ids.length) {
+            const ref = `${hubSlug}#s${sec}`;
+            const ins = await DB.prepare(
+              `INSERT OR IGNORE INTO xp_ledger (user_id, action, ref, xp, at)
+               SELECT ?1, 'section.cleared', ?2, ?3, ?4
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM xp_ledger
+                   WHERE user_id = ?1 AND action = 'section.cleared' AND ref = ?2)`,
+            ).bind(u.id, ref, SECTION_CLEAR_XP, Math.floor(Date.now() / 1000)).run()
+              .catch(() => null);
+            if ((ins?.meta?.changes ?? 0) === 1) {
+              await DB.prepare("UPDATE users SET total_xp = total_xp + ? WHERE id = ?")
+                .bind(SECTION_CLEAR_XP, u.id).run().catch(() => null);
+              sectionCleared = { section: sec, of: ids.length, xp: SECTION_CLEAR_XP };
+            }
+          }
+        }
+      }
 
       nudge = milestoneNudge(solved, streak);
 
@@ -241,6 +280,7 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
 
   return json({
     stars: body.passed ? stars : null,
+    section_cleared: sectionCleared,
     ...result,
     ...(nudge ? { nudge } : {}),
     ...(newBadges.length ? { new_badges: newBadges } : {}),
