@@ -3481,17 +3481,81 @@ def patch_tool_pages(sections, asset_hrefs):
         )
         return sb_re.sub(lambda m: m.group(1) + sidebar_html + m.group(2), html, count=1)
 
+    OG_META_RE = re.compile(r'<meta property="og:[a-z_]+"[^>]*>')
+    OG_FIELD_RE = {
+        'title': re.compile(r'<meta property="og:title" content="([^"]*)"'),
+        'desc': re.compile(r'<meta property="og:description" content="([^"]*)"'),
+        'image': re.compile(r'<meta property="og:image" content="([^"]*)"'),
+    }
+
+    def _refresh_social(html, fname):
+        """Give a tool page the social card that is already on disk for it.
+
+        gen_og_images.py renders a branded card for every tool on every build
+        and has done for a year. Only 20 of the 72 pages ever pointed at one:
+        the other 52 declared og:title, og:description, og:type and og:url and
+        then stopped, so a share showed a bare link with no picture.
+
+        The Twitter tags are a separate repair. X renders the large image only
+        when twitter:card says summary_large_image, and three pages that did
+        name an og:image had no twitter block at all, so they shared as a
+        thumbnail.
+
+        Idempotent, and conservative: a page that already names an image keeps
+        it (tools/index.html points at the house card on purpose), and a tool
+        with no card on disk is skipped rather than pointed at a 404.
+        """
+        slug = fname[:-5]
+        card = os.path.join(REPO_ROOT, "screenshots", "og", slug + ".png")
+        card_url = "https://r-statistics.co/screenshots/og/%s.png" % slug
+        tm = OG_FIELD_RE["title"].search(html)
+        dm = OG_FIELD_RE["desc"].search(html)
+        if not tm:
+            return html                      # nothing to title a card with
+
+        add = ""
+        if "og:image" not in html and os.path.exists(card):
+            add += "\n<meta property=\"og:image\" content=\"%s\">" % card_url
+        if "twitter:card" not in html:
+            im = OG_FIELD_RE["image"].search(html)
+            img = im.group(1) if im else (card_url if os.path.exists(card) else "")
+            if img:
+                add += ("\n<meta name=\"twitter:card\" content=\"summary_large_image\">"
+                        "\n<meta name=\"twitter:title\" content=\"%s\">" % tm.group(1))
+                if dm:
+                    add += "\n<meta name=\"twitter:description\" content=\"%s\">" % dm.group(1)
+                add += "\n<meta name=\"twitter:image\" content=\"%s\">" % img
+        if not add:
+            return html
+
+        # after the last og: tag, so the social block reads as one group
+        last = None
+        for m in OG_META_RE.finditer(html):
+            last = m
+        if not last:
+            return html
+        return html[:last.end()] + add + html[last.end():]
+
     for fname in sorted(os.listdir(tools_dir)):
         if not fname.endswith('.html'):
             continue
         path = os.path.join(tools_dir, fname)
         with open(path, encoding='utf-8') as f:
             html = f.read()
+        orig_html = html
+
+        # The social card first, because it has nothing to do with the page
+        # chrome: a self-contained v2 tool and a chrome-injected one both
+        # want the og:image that is already on disk for them.
+        html = _refresh_social(html, fname)
 
         # Tool Farm v2 pages are fully self-contained (own masthead, styles,
         # footer, analytics) - marked with data-tool-v2 on <body>. Skip ALL
         # chrome injection or they end up with two mastheads + the sidebar.
         if 'data-tool-v2' in html:
+            if html != orig_html:
+                with open(path, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(html)
             continue
 
         # Already-patched tools: refresh the cache-bust hashes AND refresh
@@ -3501,7 +3565,7 @@ def patch_tool_pages(sections, asset_hrefs):
         if 'data-tool-chrome="injected"' in html:
             new_html = _refresh_cache_busts(html)
             new_html = _refresh_sidebar(new_html, fname)
-            if new_html != html:
+            if new_html != orig_html:
                 with open(path, 'w', encoding='utf-8', newline='\n') as f:
                     f.write(new_html)
             continue
