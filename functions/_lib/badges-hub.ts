@@ -18,7 +18,9 @@ const HUBS = (manifestJson as unknown as {
   hubs: Record<string, Record<string, string>>;
 }).hubs;
 
-interface CatalogHub { title: string; slug: string; n?: number }
+interface CatalogProblem { id: string; n?: number; t?: string }
+interface CatalogSection { num: number; title?: string; problems?: CatalogProblem[] }
+interface CatalogHub { title: string; slug: string; n?: number; sections?: CatalogSection[] }
 interface Catalog { categories: Array<{ name: string; hubs: CatalogHub[] }> }
 
 let TITLES: Record<string, string> | null = null;
@@ -43,6 +45,57 @@ export function hubTitle(slug: string): string {
 /** Every graded exercise id in the hub, from the bundled manifest. */
 export function hubExerciseIds(slug: string): string[] {
   return Object.keys(HUBS[slug] || {});
+}
+
+/* The shape of one hub, for anything that wants to say more than a count.
+ *
+ * Read from the same catalogue object hubTitles() already parses, so it adds
+ * no weight to the bundle. Memoised per hub because the dashboard asks for a
+ * dozen of them in one request. */
+export interface HubOutline {
+  title: string;
+  sections: number;
+  ids: string[];
+  titleOf: Record<string, string>;
+  sectionOf: Record<string, number>;
+  sectionTitle: Record<number, string>;
+}
+const OUTLINES: Record<string, HubOutline> = {};
+
+export function hubOutline(slug: string): HubOutline {
+  const hit = OUTLINES[slug];
+  if (hit) return hit;
+  const out: HubOutline = {
+    title: hubTitle(slug), sections: 0, ids: [], titleOf: {}, sectionOf: {},
+    sectionTitle: {},
+  };
+  for (const cat of (catalogJson as unknown as Catalog).categories || []) {
+    for (const h of cat.hubs || []) {
+      if (h.slug !== slug) continue;
+      const secs = h.sections || [];
+      out.sections = secs.length;
+      for (const sec of secs) {
+        if (sec.title) out.sectionTitle[sec.num] = sec.title;
+        for (const p of sec.problems || []) {
+          if (!p.id) continue;
+          out.ids.push(p.id);
+          if (p.t) out.titleOf[p.id] = p.t;
+          out.sectionOf[p.id] = sec.num;
+        }
+      }
+    }
+  }
+  // A hub published since the catalogue was last built still has a manifest,
+  // so fall back to it rather than reporting an empty hub.
+  if (!out.ids.length) out.ids = hubExerciseIds(slug);
+  OUTLINES[slug] = out;
+  return out;
+}
+
+/** "dplyr-Exercises-ex-4-7" reads as problem 4.7. */
+export function problemNumber(id: string): string | null {
+  const m = /-ex-(\d+)-(\d+)$/.exec(id || "");
+  return m ? m[1] + "." + m[2] : null;
 }
 
 export interface HubProgress { done: number; total: number; complete: boolean }

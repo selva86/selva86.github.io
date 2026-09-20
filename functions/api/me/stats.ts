@@ -29,6 +29,57 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     .first<{ n: number }>()
     .catch(() => ({ n: 0 } as { n: number }));
 
+  /* How the 312 were solved, not just that there were 312.
+   *
+   * The rule matches starsFor() in _lib/exercises.ts: a backfilled row is
+   * unrated rather than flawless, reading the solution is zero whatever the
+   * hint count, and otherwise hints decide. Kept in SQL as one pass over the
+   * same rows the count already reads. */
+  const q = await DB.prepare(
+    `SELECT COUNT(*) AS solved,
+            SUM(CASE WHEN COALESCE(source,'') = 'backfill' THEN 1 ELSE 0 END) AS unrated,
+            SUM(CASE WHEN COALESCE(source,'') != 'backfill'
+                      AND COALESCE(solution_seen,0) = 0
+                      AND COALESCE(hints_used,0) = 0 THEN 1 ELSE 0 END) AS unaided,
+            SUM(CASE WHEN COALESCE(source,'') != 'backfill'
+                      AND COALESCE(solution_seen,0) = 0
+                      AND COALESCE(hints_used,0) >= 1 THEN 1 ELSE 0 END) AS hinted,
+            SUM(CASE WHEN COALESCE(source,'') != 'backfill'
+                      AND COALESCE(solution_seen,0) = 1 THEN 1 ELSE 0 END) AS seen
+       FROM exercise_attempts WHERE user_id = ?1 AND passed = 1`,
+  ).bind(u.id).first<{ solved: number; unrated: number; unaided: number; hinted: number; seen: number }>()
+    .catch(() => null);
+
+  /* Fifty-two weeks, dense.
+   *
+   * Bucketed here from day counts rather than by strftime('%W') so the
+   * client gets a fixed 52-length array and never has to reimplement
+   * SQLite's week numbering to line the cells up. Index 0 is the oldest
+   * week, 51 is the one running now. The 90-day `days` series below is
+   * untouched: the greeting sparkline, the week bars and the recap all read
+   * it, and this is 52 numbers beside it, not a bigger version of it. */
+  const WEEKS = 52;
+  const yearFrom = Math.floor(Date.now() / 1000) - WEEKS * 7 * 86400;
+  const yearRows = (await DB.prepare(
+    `SELECT date(submitted_at, 'unixepoch') AS d, COUNT(*) AS n
+       FROM exercise_attempts
+      WHERE user_id = ?1 AND passed = 1 AND submitted_at >= ?2
+      GROUP BY d`,
+  ).bind(u.id, yearFrom).all<{ d: string; n: number }>().catch(() => ({ results: [] })))
+    .results ?? [];
+
+  const weeks = new Array<number>(WEEKS).fill(0);
+  let activeYear = 0;
+  const todayMs = Date.now();
+  for (const r of yearRows) {
+    const t = Date.parse(r.d + "T00:00:00Z");
+    if (!Number.isFinite(t)) continue;
+    const daysAgo = Math.floor((todayMs - t) / 86400000);
+    const idx = WEEKS - 1 - Math.floor(daysAgo / 7);
+    if (idx >= 0 && idx < WEEKS) weeks[idx] += Number(r.n || 0);
+    if (Number(r.n || 0) > 0) activeYear++;
+  }
+
   const since = Math.floor(Date.now() / 1000) - 90 * 86400;
   const xpDays = (await DB.prepare(
     `SELECT date(at, 'unixepoch') AS d, SUM(xp) AS xp
@@ -54,5 +105,14 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     last_active_date: stats.last_active_date,
     streak_freezes: Number((fz as { n?: number })?.n ?? 0),
     days,
+    solved: Number(q?.solved ?? 0),
+    quality: {
+      unaided: Number(q?.unaided ?? 0),
+      hinted: Number(q?.hinted ?? 0),
+      seen: Number(q?.seen ?? 0),
+      unrated: Number(q?.unrated ?? 0),
+    },
+    weeks,
+    active_days_year: activeYear,
   });
 };

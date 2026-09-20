@@ -44,7 +44,7 @@
   var courseFirst = /[?&]start(?:=|&|$)/.test(location.search);
   var isDemo = /[?&]demo=(1|pro)/.test(location.search);
 
-  var S = { me:null, stats:null, tracks:null, certs:null, reading:null, saved:null,
+  var S = { me:null, stats:null, tracks:null, certs:null, reading:null, saved:null, hubs:null,
             daily:null, shelf:null, cat:null, courses:null };
   var certBy = {};
 
@@ -91,275 +91,145 @@
   }
 
   // ================= renders =================
+  /* Desk. Two places rather than two rooms: the rail holds who you are and
+     what you have done, the work column holds what to do now and what is in
+     flight. Nothing is behind a tab.
+
+     The rule the previous version broke was spending a border, a fill, a
+     radius and a shadow on every block, which flattens the hierarchy until
+     nothing looks more important than anything else. Here there is one dark
+     object (the next action), one list, and one rail. */
+
+  function fmtPct(v){ v = +v || 0; return String(Math.round(v * 10) / 10).replace(/\.0$/, ''); }
+
+  function firstName(){
+    var u = (S.me && S.me.user) || {};
+    return String(u.display_name || (u.email ? u.email.split('@')[0] : '') || '').split(' ')[0];
+  }
+
   function renderHello(){
     var st = S.stats || {}, streak = st.current_streak_days || 0, fz = st.streak_freezes || 0;
-    var u = (S.me && S.me.user) || {};
-    var first = String(u.display_name || (u.email ? u.email.split('@')[0] : '') || '').split(' ')[0];
-    var em = streak > 1 ? (streak + ' days in a row.') : (streak === 1 ? 'Day one of a new streak.' : '');
-    $('dh-h1').innerHTML = (courseFirst ? 'Welcome' : 'Welcome back') + (first ? ', ' + esc(first) : '') + '.' + (em ? ' <em>' + esc(em) + '</em>' : '');
+    var first = firstName();
+    $('dh-h1').innerHTML = (courseFirst ? 'Welcome' : 'Welcome back') + (first ? ', ' + esc(first) : '') + '.';
     var sub = $('dh-sub'); sub.classList.remove('dh-skel');
     var todo = S.daily && S.daily.tasks ? S.daily.tasks.filter(function(t){ return !t.done; }).length : 0;
     if (courseFirst) sub.textContent = 'You are all set. Pick your first lesson below and start learning.';
-    else if (streak > 0) sub.textContent = 'Your streak is safe until midnight' +
-      (fz ? ', and you have ' + fz + (fz === 1 ? ' freeze' : ' freezes') + ' if life gets in the way' : '') + '.' +
-      (todo ? ' ' + (todo === 1 ? 'One set item remains.' : todo + ' set items remain.') : '');
-    else sub.textContent = 'Pick up where you left off.';
-    if (streak > 0){ $('dh-streakn').textContent = streak; $('dh-streakchip').hidden = false; }
-    $('dh-seg').hidden = false;
+    else sub.textContent =
+      (fz ? (fz === 1 ? 'One freeze banked.' : fz + ' freezes banked.') : 'No freezes banked.') +
+      (todo ? ' ' + (todo === 1 ? 'One set item left.' : todo + ' set items left.') : '');
+    var chip = $('dh-streakchip');
+    if (chip){ if (streak > 0){ $('dh-streakn').textContent = streak; chip.hidden = false; } else chip.hidden = true; }
   }
 
-  function renderCmd(){
-    var el = $('dh-cmd');
-    var act = activeLessonTrack();
-    var rd = S.reading && S.reading.items && S.reading.items[0];
-    if (act){
-      var L = RM.byKey ? RM.byKey(act.key) : null;
-      var pct = act.p.total ? Math.round(100 * act.p.done / act.p.total) : 0;
-      $('dh-cmd-k').textContent = act.fresh ? 'Start your course' : 'Next up in your course';
-      $('dh-cmd-h').textContent = titleFor(act.p.resume);
-      $('dh-cmd-p').textContent = 'Course lesson ' + (act.p.done + 1) + ' of ' + act.p.total +
-        (L ? ' in ' + L.cert : '') + '. Every lesson runs real R in your browser.';
-      $('dh-cmd-bar').style.width = Math.max(2, pct) + '%';
-      var btn = $('dh-cmd-btn'); btn.href = postHref(act.p.resume);
-      btn.textContent = act.fresh ? 'Start the course free' : 'Continue the course';
-      var todo = S.daily && S.daily.tasks ? S.daily.tasks.filter(function(t){ return !t.done; }).length : 0;
-      $('dh-cmd-alt').textContent = todo ? 'or finish the last set item first' : '';
-      var then = $('dh-cmd-then');
-      if (act.p.next){ then.hidden = false; then.innerHTML = 'After this one: <b>' + esc(titleFor(act.p.next)) + '</b>.'; }
-      else then.hidden = true;
-      el.hidden = false;
-    } else if (rd){
-      $('dh-cmd-k').textContent = 'Pick up your reading';
-      $('dh-cmd-h').textContent = titleFor(rd.slug);
-      $('dh-cmd-p').textContent = 'Tutorial, ' + Math.round(rd.scroll_pct || 0) + '% read' + (rd.last_section ? ', last at ' + rd.last_section : '') + '.';
-      $('dh-cmd-bar').style.width = Math.max(2, Math.min(100, Math.round(rd.scroll_pct || 0))) + '%';
-      var b2 = $('dh-cmd-btn'); b2.href = postHref(rd.slug); b2.textContent = 'Resume reading';
-      $('dh-cmd-alt').textContent = ''; $('dh-cmd-then').hidden = true;
-      el.hidden = false;
-    } else {
-      $('dh-cmd-k').textContent = 'Start learning';
-      $('dh-cmd-h').textContent = 'Begin the roadmap';
-      $('dh-cmd-p').textContent = 'Pick a track and your first lesson is one click away.';
-      $('dh-cmd-bar').style.width = '2%';
-      var b3 = $('dh-cmd-btn'); b3.href = '/roadmap/'; b3.textContent = 'Browse the roadmap';
-      $('dh-cmd-alt').textContent = ''; $('dh-cmd-then').hidden = true;
-      el.hidden = false;
-    }
-  }
+  // ---------------- the rail ----------------
 
-  function renderDaily(){
-    var d = S.daily, sec = $('dh-daily');
-    if (!d || !d.tasks || !d.tasks.length){ sec.hidden = true; renderWeek(); return; }
-    sec.hidden = false;
-    var done = d.tasks.filter(function(t){ return t.done; }).length;
-    $('dh-daily-aside').textContent = done + ' of ' + d.tasks.length + ' done';
-    $('dh-daily-list').innerHTML = d.tasks.map(function(t){
-      return '<a class="task' + (t.done ? ' done' : '') + '" href="' + esc(t.href) + '">' +
-        '<span class="ck">' + (t.done ? ic('i-check', 11, 11) : '') + '</span>' +
-        '<b>' + esc((t.hub || '').replace(/-/g, ' ').replace(/\.html$/, '')) +
-        '<i>' + esc((t.track ? t.track + ', ' : '') + (t.reason || '')) + '</i></b>' +
-        (t.difficulty ? '<span class="dif">' + esc(t.difficulty) + '</span>' : '') + '</a>';
-    }).join('');
-    $('dh-daily-bonus').innerHTML = d.all_done
-      ? (d.bonus_awarded ? 'All three done. The <b>+' + d.bonus_xp + ' XP</b> bonus is banked.' : 'All three done for today.')
-      : 'Finishing all three pays a <b>+' + d.bonus_xp + ' XP</b> bonus.';
-    renderWeek();
-  }
-  function renderWeek(){
-    var rows = lastNDays(7), max = 1;
-    rows.forEach(function(r){ if (r.xp > max) max = r.xp; });
-    var xpW = rows.reduce(function(a, r){ return a + r.xp; }, 0);
-    var solW = rows.reduce(function(a, r){ return a + r.solved; }, 0);
-    var actW = rows.filter(function(r){ return r.xp > 0 || r.solved > 0; }).length;
-    $('dh-week-aside').textContent = fmt(xpW) + ' XP';
-    var DAYS = ['S','M','T','W','T','F','S'];
-    $('dh-week-bars').innerHTML = rows.map(function(r, i){
-      var today = i === rows.length - 1;
-      var h = Math.max(3, Math.round((r.xp / max) * 52));
-      var lab = today ? 'now' : DAYS[new Date(r.d + 'T00:00:00Z').getUTCDay()];
-      return '<div class="wb' + (today ? ' today' : '') + '"><i style="height:' + h + 'px"></i><span>' + lab + '</span></div>';
-    }).join('');
-    $('dh-week-rows').innerHTML =
-      '<div class="wr"><span>Exercises</span><b>' + fmt(solW) + '</b></div>' +
-      '<div class="wr"><span>Active days</span><b>' + actW + ' of 7</b></div>';
-  }
-
-  function renderOpen(){
-    var sec = $('dh-open-sec');
-    var open = ((S.shelf && S.shelf.open) || []).slice().sort(function(a, b){ return a.closes_at - b.closes_at; });
-    if (!open.length){ sec.hidden = true; renderConvToday(); return; }
-    sec.hidden = false;
-    var oldest = hoursLeft(open[0].closes_at);
-    var pos = S.shelf.position;
-    $('dh-open-aside').textContent = open.length + ' open' + (pos != null ? ', day ' + pos + ' of 87' : '') +
-      (open.length > 1 ? ', the oldest closes in ' + oldest + 'h' : '');
-    var show = open.slice(0, 3);
-    $('dh-open').innerHTML = show.map(function(o){
-      var hl = hoursLeft(o.closes_at);
-      return '<a class="mini" href="/' + esc(o.slug) + '.html">' +
-        '<span class="ic">' + ic('i-mail') + '</span>' +
-        '<span class="tx"><b>' + esc(o.subject) + '</b><small>email lesson, day ' + o.seq +
-        (o.course ? ', ' + esc(String(o.course).replace(/-/g, ' ')) : '') + '</small></span>' +
-        '<span class="cd' + (hl <= 24 ? ' hot' : '') + '">' + hl + 'h left</span></a>';
-    }).join('');
-    var more = $('dh-open-more');
-    if (open.length > 3){
-      more.hidden = false;
-      more.innerHTML = '<span>' + (open.length - 3) + ' more, sorted by closing time.</span><a href="/account.html#lessons">View all ' + open.length + ' &rarr;</a>';
-    } else more.hidden = true;
-    renderConvToday();
-  }
-
-  function renderReading(){
-    var rd = S.reading && S.reading.items && S.reading.items[0];
-    var sec = $('dh-reading-sec');
-    var act = activeLessonTrack();
-    // when reading IS the hero (no course in progress), skip the rail card
-    if (!rd || !act){ sec.hidden = true; return; }
-    sec.hidden = false;
-    var pct = Math.max(2, Math.min(100, Math.round(rd.scroll_pct || 0)));
-    $('dh-reading-aside').textContent = pct + '% read';
-    $('dh-reading').innerHTML = '<a class="mini" href="' + postHref(rd.slug) + '" style="border:0;padding-top:8px">' +
-      '<span class="ic">' + ic('i-book') + '</span>' +
-      '<span class="tx"><b>' + esc(titleFor(rd.slug)) + '</b><small>tutorial' + (rd.last_section ? ', ' + esc(rd.last_section) : '') + '</small></span></a>';
-  }
-
-  function renderSaved(){
-    var items = (S.saved && S.saved.items) || [];
-    var total = S.saved && S.saved.total != null ? S.saved.total : items.length;
-    $('dh-saved-aside').textContent = String(total);
-    $('dh-saved').innerHTML = items.length ? items.slice(0, 4).map(function(it){
-      return '<a class="srow" href="' + postHref(it.slug) + '">' + ic('i-mark', 13, 13) + '<b>' + esc(titleFor(it.slug)) + '</b></a>';
-    }).join('') : '<div class="empty">Nothing saved yet. Bookmark a tutorial to read later.</div>';
-    var more = $('dh-saved-more');
-    if (total > 4){ more.hidden = false; more.innerHTML = '<span>' + (total - 4) + ' more</span><a href="/saved-posts.html">View all &rarr;</a>'; }
-    else more.hidden = true;
-  }
-
-  function renderConvToday(){
-    var host = $('dh-conv-today');
-    if (isPro()){ host.innerHTML = ''; return; }
-    var open = ((S.shelf && S.shelf.open) || []).slice().sort(function(a, b){ return a.closes_at - b.closes_at; });
-    if (open.length >= 2 && hoursLeft(open[0].closes_at) <= 48){
-      var hl = hoursLeft(open[0].closes_at);
-      host.innerHTML = '<div class="card conv rise" style="animation-delay:.09s">' +
-        '<h3>Your oldest email lesson closes in ' + hl + ' hours</h3>' +
-        '<p>' + open.length + ' lessons are open right now. Pro keeps every lesson open for good, so nothing you meant to read slips away.</p>' +
-        '<a href="/pricing.html?from=dash-window">See the Program &rarr;</a></div>';
-    } else host.innerHTML = '';
-  }
-
-  function renderCred(){
-    var el = $('dh-cred');
-    var a = activeCredTrack();
-    if (!a){ el.hidden = true; return; }
-    el.hidden = false;
-    var pct = Math.round(a.pct);
-    $('dh-cred-pct').textContent = pct + '%';
-    $('dh-cred-ring').setAttribute('stroke-dashoffset', Math.round(339 * (1 - Math.min(100, Math.max(0, a.pct)) / 100)));
-    $('dh-cred-h').textContent = a.L.cert;
-    $('dh-cred-p').textContent = (a.entry && a.entry.eligible)
-      ? 'You are eligible to claim this certificate. It is public, and anyone can verify it.'
-      : 'Graded practice in the ' + a.L.persona + ' track counts toward it. The certificate is public, and anyone can verify it.';
-    var p = trackProgress(a.key);
-    var facts = [];
-    if (p.total && p.done > 0) facts.push('<span><b>' + p.done + '</b> of ' + p.total + ' lessons done</span>');
-    facts.push('<span><b>' + fmt((S.tracks && S.tracks.total_solved) || 0) + '</b> exercises solved</span>');
-    var earned = ((S.certs && S.certs.items) || []).length;
-    if (earned) facts.push('<span><b>' + earned + '</b> earned before it</span>');
-    $('dh-cred-fact').innerHTML = facts.join('');
-  }
-
-  function fmtPct(v){ v = +v || 0; return String(Math.round(v * 10) / 10).replace(/\.0$/, ''); }
-  function renderStages(){
-    var byId = {}; ((S.tracks && S.tracks.tracks) || []).forEach(function(t){ byId[t.id] = t; });
-    var earnedN = 0, movingN = 0;
-    var html = LV.map(function(k){
-      var L = RM.byKey ? RM.byKey(k) : null; if (!L) return '';
-      var tid = L.track, entry = tid ? byId[tid] : null, earned = !!(tid && certBy[tid]);
-      var pct = earned ? 100 : (entry ? (entry.pct || 0) : 0);
-      if (earned) earnedN++; else if (pct > 0) movingN++;
-      var sub = earned ? (esc(L.cert) + ' earned')
-        : (entry && entry.eligible) ? ('Ready to claim ' + esc(L.cert))
-        : pct > 0 ? (fmtPct(pct) + '% to ' + esc(L.cert))
-        : esc(L.cert) + ', not started';
-      var cls = earned ? ' class="earn"' : (entry && entry.eligible ? ' class="claim"' : '');
-      return '<a class="stage" style="--cc:' + HUE[k] + '" href="' + rolePage(k) + '">' +
-        '<span class="mk">' + MONO[k] + '</span><b>' + esc(L.persona) + '</b>' +
-        '<span class="pb"><i style="width:' + Math.max(pct > 0 ? 2 : 0, Math.min(100, pct)) + '%"></i></span>' +
-        '<small' + cls + '>' + sub + '</small></a>';
-    }).join('');
-    $('dh-stages').innerHTML = html;
-    $('dh-stages-aside').textContent = earnedN + ' earned' + (movingN ? ', ' + movingN + ' in motion' : '');
-  }
-
-  function renderCatalog(){
-    var sec = $('dh-cat-sec');
-    var courses = (S.cat && S.cat.courses) || [];
-    if (!courses.length){ sec.hidden = true; return; }
-    sec.hidden = false;
-    var pro = isPro();
-    var earned = {}; ((S.shelf && S.shelf.badges) || []).forEach(function(b){ earned[b.badge] = b; });
-    $('dh-cat-aside').textContent = courses.length + ' courses' +
-      (Object.keys(earned).length ? ', ' + Object.keys(earned).length + ' badges earned' : '');
-    $('dh-cat').innerHTML = courses.map(function(c){
-      var built = (c.parts || []).filter(function(p){ return p.status === 'built'; });
-      var b = earned[c.id];
-      var st, href = null, won = '';
-      if (b){ st = '<span class="st g">Badge earned ' + fmtDate(b.earned_at) + '</span>'; href = '/badge/' + esc(b.public_id); won = ' won'; }
-      else if (pro && built.length){ st = '<span class="st g">' + built.length + ' of ' + (c.parts || []).length + ' lessons ready</span>'; href = '/' + esc(built[0].slug) + '.html'; }
-      else if (pro){ st = '<span class="st m">In production</span>'; }
-      else { st = '<span class="st p">Part of Pro</span>'; href = '/pricing.html?from=minicourses'; }
-      var inner = (b ? '<span class="tick">' + ic('i-check', 9, 9) + '</span>' : '') +
-        '<b>' + esc(c.title) + '</b><small>' + (c.parts || []).length + ' email lessons</small>' + st;
-      return href ? ('<a class="mc' + won + '" href="' + href + '" data-mc="' + esc(c.id) + '">' + inner + '</a>')
-                  : ('<div class="mc">' + inner + '</div>');
-    }).join('');
-  }
-
-  function renderCerts(){
-    var items = (S.certs && S.certs.items) || [];
+  function renderWho(){
     var u = (S.me && S.me.user) || {};
-    var name = u.display_name || '';
-    $('dh-certs').innerHTML = items.length ? items.map(function(c){
-      var tname = c.track_name || c.track || '';
-      var initials = String(tname).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); }).map(function(w){ return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
-      var meta = ['<span>' + fmtDate(c.issued_at) + '</span>'];
-      if (c.score != null) meta.push('<span>score <b>' + c.score + '%</b></span>');
-      if (c.public_id) meta.push('<span>' + esc(c.public_id) + '</span>');
-      var vurl = c.verify_url || (c.public_id ? '/cert/' + c.public_id : null);
-      if (vurl) meta.push('<a class="share" href="' + esc(vurl) + '">Share &rarr;</a>');
-      return '<div class="doc"><div class="top"><span class="lbl">Certificate</span><span class="seal">' + esc(initials) + '</span></div>' +
-        '<h3>' + esc(tname) + '</h3>' +
-        (name ? '<div class="to">Awarded to ' + esc(name) + '</div>' : '') +
-        '<div class="meta">' + meta.join('') + '</div></div>';
-    }).join('') : '<div class="empty">No certificates yet. Finish a track to earn your first.</div>';
+    var name = u.display_name || (u.email ? u.email.split('@')[0] : '') || 'Your account';
+    var n = $('dh-name'); n.classList.remove('dh-skel'); n.textContent = name;
+    var pic = $('dh-pic');
+    if (u.avatar_url){ pic.innerHTML = '<img alt="" src="' + esc(u.avatar_url) + '">'; }
+    else pic.textContent = String(name).charAt(0).toUpperCase();
+    var since = u.created_at || (S.me && S.me.created_at);
+    $('dh-since').textContent = since ? ('Member since ' + fmtMonth(since)) : '';
+  }
+
+  function fmtMonth(sec){
+    try{ return new Date(sec * 1000).toLocaleDateString('en-US', { year:'numeric', month:'long' }); }
+    catch(e){ return ''; }
+  }
+
+  function renderStreak(){
+    var st = S.stats || {}, streak = st.current_streak_days || 0;
+    var sec = $('dh-streak-sec');
+    sec.hidden = false;
+    $('dh-streakbig').textContent = streak;
+    $('dh-streakcap').innerHTML = streak > 0
+      ? (streak === 1 ? 'day running<br>safe until midnight' : 'days running<br>safe until midnight')
+      : 'days running<br>solve one to start';
+    /* The last seven days, oldest first, today last and half lit until it
+       counts. A streak number alone says nothing about the shape of the
+       week. */
+    var days = lastNDays(7);
+    $('dh-days').innerHTML = days.map(function(d, i){
+      var on = (d.solved || 0) > 0 || (d.xp || 0) > 0;
+      var today = i === days.length - 1;
+      return '<i class="' + (on ? 'on' : (today ? 'now' : '')) + '"></i>';
+    }).join('');
+  }
+
+  function renderRecord(){
+    var st = S.stats || {};
+    var q = st.quality || null;
+    var solved = st.solved != null ? st.solved : ((S.tracks && S.tracks.total_solved) || 0);
+    $('dh-rec-sec').hidden = false;
+    /* A brand new account has no record, and hiding the section leaves a rail
+       that is a name and nothing else. Say what starts it instead. */
+    if (!solved && !st.total_xp){
+      $('dh-figs').innerHTML = '<p class="empty" style="grid-column:1/-1;padding:0">' +
+        'Your record starts with the first problem you solve.</p>';
+      $('dh-qbar').hidden = true; $('dh-qkey').hidden = true;
+      return;
+    }
+
+    var figs = [
+      { b: fmt(solved), s: 'solved' },
+      q ? { b: fmt(q.unaided), s: 'unaided', gold: true } : null,
+      { b: fmt(st.total_xp || 0), s: 'XP' },
+      { b: fmt(st.longest_streak_days || 0), s: 'day best' },
+    ].filter(Boolean);
+    $('dh-figs').innerHTML = figs.map(function(f){
+      return '<span class="fig' + (f.gold ? ' gold' : '') + '"><b>' + f.b + '</b><span>' + f.s + '</span></span>';
+    }).join('');
+
+    /* The split is the point. "312 solved" is the least interesting true
+       sentence available once stars exist; how they were solved is the part
+       worth being proud of. Rows banked before grading existed are unrated
+       and are left out of the bar rather than counted as flawless. */
+    var bar = $('dh-qbar'), key = $('dh-qkey');
+    var rated = q ? (q.unaided + q.hinted + q.seen) : 0;
+    if (!q || rated < 1){ bar.hidden = true; key.hidden = true; return; }
+    bar.hidden = false; key.hidden = false;
+    function w(n){ return (n / rated * 100) + '%'; }
+    bar.innerHTML =
+      '<i style="width:' + w(q.unaided) + ';background:var(--gold)"></i>' +
+      '<i style="width:' + w(q.hinted) + ';background:#dcc48c"></i>' +
+      '<i style="width:' + w(q.seen) + ';background:var(--line)"></i>';
+    var bits = ['<b>' + fmt(q.unaided) + ' with no help</b>'];
+    if (q.hinted) bits.push(fmt(q.hinted) + ' after a hint');
+    if (q.seen) bits.push(fmt(q.seen) + ' after reading the solution');
+    key.innerHTML = bits.join(', ') + '.';
   }
 
   /* The milestone ladder. Two stores feed this page: badges_earned, drawn by
-     renderBadges below, and user_badges, drawn here. Before today only the
-     first had a surface on the dashboard, so the rungs a learner actually
-     climbs were visible on their public profile and nowhere else. */
+     renderBadges below, and user_badges, drawn here. The next rung leads,
+     because it is the only number on the page that goes down. */
   function renderMilestones(){
     var m = (S.shelf && S.shelf.milestones) || null;
     var sec = $('dh-miles-sec');
     if (!sec) return;
     if (!m || (!m.earned.length && !m.next)){ sec.hidden = true; return; }
     sec.hidden = false;
-
-    $('dh-miles-aside').textContent = m.earned.length + ' of ' + m.total;
-    $('dh-miles').innerHTML = m.earned.slice(0, 12).map(function(b){
-      return '<span class="gem" title="' + esc(b.blurb) + '">' + b.art +
-             '<b>' + esc(b.name) + '</b><small>' + fmtDate(b.at) + '</small></span>';
-    }).join('');
+    $('dh-miles-h').textContent = 'Milestones, ' + m.earned.length + ' of ' + m.total;
 
     var nx = $('dh-miles-next');
-    if (!m.next){ nx.hidden = true; return; }
-    nx.hidden = false;
-    nx.innerHTML = '<span class="gem is-next">' + m.next.art + '</span>' +
-      '<span class="nx"><b>Next: ' + esc(m.next.name) + '</b>' +
-      '<small>' + m.next.left + ' more ' + esc(m.next.unit) +
-      ' \u00b7 ' + m.next.have + ' of ' + m.next.need + '</small></span>';
+    if (m.next){
+      nx.hidden = false;
+      nx.innerHTML = '<span class="gem is-next">' + m.next.art + '</span>' +
+        '<span class="nx"><b>Next: ' + esc(m.next.name) + '</b>' +
+        '<small>' + m.next.left + ' more ' + esc(m.next.unit) +
+        ' · ' + m.next.have + ' of ' + m.next.need + '</small></span>';
+    } else nx.hidden = true;
+
+    var show = m.earned.slice(0, 9);
+    $('dh-miles').innerHTML = show.map(function(b){
+      return '<span class="gem" title="' + esc(b.name + ' · ' + b.blurb) + '">' + b.art + '</span>';
+    }).join('');
+    var rest = m.earned.length - show.length;
+    var more = $('dh-miles-more');
+    more.hidden = false;
+    more.innerHTML = (rest > 0 ? rest + ' more earned. ' : '') +
+      '<a href="/u/">See the wall &rarr;</a>';
   }
 
   function renderBadges(){
@@ -368,58 +238,287 @@
     if (!badges.length){ sec.hidden = true; return; }
     sec.hidden = false;
     var titleById = {}; ((S.cat && S.cat.courses) || []).forEach(function(c){ titleById[c.id] = c.title; });
-    $('dh-badges-aside').textContent = badges.length + ' earned';
+    $('dh-badges-h').textContent = 'Badges, ' + badges.length + ' earned';
     $('dh-badges').innerHTML = badges.map(function(b){
       var t = titleById[b.badge] || String(b.badge).replace(/-/g, ' ');
-      var initials = String(t).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); }).map(function(w){ return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
-      return '<a class="coin" href="/badge/' + esc(b.public_id) + '"><span class="c">' + esc(initials) + '</span><b>' + esc(t) + '</b><small>' + fmtDate(b.earned_at) + '</small></a>';
+      var initials = String(t).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); })
+        .map(function(w){ return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+      return '<a class="coin" title="' + esc(t) + ', earned ' + fmtDate(b.earned_at) +
+             '" href="/badge/' + esc(b.public_id) + '"><span class="c">' + esc(initials) + '</span></a>';
     }).join('');
   }
 
-  function renderAllTime(){
-    var st = S.stats || {};
-    $('dh-alltime').innerHTML =
-      '<div class="wr"><span>XP earned</span><b>' + fmt(st.total_xp || 0) + '</b></div>' +
-      '<div class="wr"><span>Exercises solved</span><b>' + fmt((S.tracks && S.tracks.total_solved) || 0) + '</b></div>' +
-      '<div class="wr"><span>Longest streak</span><b>' + fmt(st.longest_streak_days || 0) + ' days</b></div>' +
-      '<div class="wr"><span>Streak freezes banked</span><b>' + fmt(st.streak_freezes || 0) + '</b></div>';
+  /* Credentials: the earned ones as rows, then the two closest still open.
+     No ring. A 132px circle reading 0% was the largest thing on the old page
+     and it told somebody with 27 solves that they had done nothing. */
+  function renderCreds(){
+    var items = (S.certs && S.certs.items) || [];
+    var byId = {}; ((S.tracks && S.tracks.tracks) || []).forEach(function(t){ byId[t.id] = t; });
+
+    var open = [];
+    LV.forEach(function(k){
+      var L = RM.byKey ? RM.byKey(k) : null;
+      if (!L || !L.track || certBy[L.track]) return;
+      var e = byId[L.track], pct = Math.max(0, (e && e.pct) || 0);
+      /* Only credentials actually under way. Two rows reading 0% is the same
+         "you have done nothing" the old ring told somebody with 27 solves,
+         just smaller. */
+      if (pct > 0) open.push({ name: L.cert || L.title || L.track, pct: pct });
+    });
+    open.sort(function(a, b){ return b.pct - a.pct; });
+    open = open.slice(0, 2);
+
+    if (!items.length && !open.length){ $('dh-cred-sec').hidden = true; return; }
+    $('dh-cred-sec').hidden = false;
+
+    $('dh-certs').innerHTML = items.map(function(c){
+      var tname = c.track_name || c.track || '';
+      var initials = String(tname).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); })
+        .map(function(w){ return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
+      var vurl = c.verify_url || (c.public_id ? '/cert/' + c.public_id : null);
+      return '<div class="cert"><span class="seal">' + esc(initials) + '</span>' +
+        '<span class="n"><b>' + esc(tname) + '</b><small>' + fmtDate(c.issued_at) +
+        (c.score != null ? ' · ' + c.score + '%' : '') + '</small></span>' +
+        (vurl ? '<a class="share" href="' + esc(vurl) + '">Share &rarr;</a>' : '') + '</div>';
+    }).join('');
+
+    $('dh-credprog').innerHTML = open.map(function(o){
+      var low = o.pct < 10;
+      return '<div class="cprog' + (low ? ' low' : '') + '">' +
+        '<span class="lb"><b>' + esc(o.name) + '</b><span>' + fmtPct(o.pct) + '%</span></span>' +
+        '<span class="t"><i style="width:' + Math.max(1, Math.min(100, o.pct)) + '%"></i></span></div>';
+    }).join('');
   }
 
-  function renderRecap(){
-    var sec = $('dh-recap');
-    var wk = lastNDays(14).slice(0, 7);
-    var xp = wk.reduce(function(a, r){ return a + r.xp; }, 0);
-    var sol = wk.reduce(function(a, r){ return a + r.solved; }, 0);
-    var act = wk.filter(function(r){ return r.xp > 0 || r.solved > 0; }).length;
-    if (!xp && !sol){ sec.hidden = true; return; }
-    sec.hidden = false;
-    $('dh-recap-aside').textContent = act + ' of 7 days';
-    $('dh-recap-p').textContent = act >= 5
-      ? ('A strong week: ' + act + ' active days, ' + fmt(sol) + ' exercises, and ' + fmt(xp) + ' XP.')
-      : act >= 3 ? ('A steady week: ' + act + ' active days and ' + fmt(sol) + ' exercises.')
-      : ('A quiet week: ' + fmt(xp) + ' XP. One exercise today restarts the rhythm.');
+  function renderRailFoot(){
+    var total = (S.saved && S.saved.total) || 0;
+    var foot = $('dh-railfoot');
+    if (!total){ foot.hidden = true; return; }
+    foot.hidden = false;
+    foot.innerHTML = fmt(total) + (total === 1 ? ' saved post. ' : ' saved posts. ') +
+      '<a href="/saved-posts.html">Open them &rarr;</a>';
   }
 
-  function renderUpsell(){
-    var el = $('dh-upsell');
-    if (S.me && S.me.team){
-      var tManage = S.me.team.role === 'owner' || S.me.team.role === 'admin';
-      el.innerHTML = '<div class="card conv rise" style="animation-delay:.24s">' +
-        '<h3>' + (tManage ? 'Manage your team' : 'Your team seat is active') + '</h3>' +
-        '<p>' + (tManage ? 'Invite people, manage seats, and see how your team is progressing.' : 'You have All-Access Pro through your team.') + '</p>' +
-        '<a href="/team.html">Open team &rarr;</a></div>';
+  // ---------------- the work ----------------
+
+  /* Hubs the reader has touched, most recent first. /api/me/hubs returns the
+     count, the section they stopped in and what the next unsolved problem is
+     called, so the dashboard can finally answer the one question it never
+     could: what were you doing, and where do you pick it up. */
+  function openHubs(){
+    var m = (S.hubs && S.hubs.hubs) || {};
+    return Object.keys(m).map(function(slug){
+      var h = m[slug]; h.slug = slug; return h;
+    }).filter(function(h){ return h && h.total > 0; })
+      .sort(function(a, b){ return (b.last_at || 0) - (a.last_at || 0); });
+  }
+  function hubHref(h){
+    return '/' + h.slug + '.html?studio=1' + (h.next && h.next.id ? '#' + h.next.id : '');
+  }
+  function hubName(h){
+    return String(h.slug).replace(/-Exercises-in-R$/, ' Exercises')
+      .replace(/-Exercises$/, ' Exercises').replace(/-/g, ' ');
+  }
+
+  /* The next real action, in priority order: a section you are close to
+     clearing, then a course lesson, then the roadmap. Always with what it
+     pays, because clearing a section is worth 25 XP and nothing on the site
+     said so. */
+  function renderAct(){
+    var band = $('dh-act');
+    var hubs = openHubs().filter(function(h){ return h.next && h.done < h.total; });
+    var h = hubs[0];
+    var act = activeLessonTrack();
+    var rd = S.reading && S.reading.items && S.reading.items[0];
+    var pb = $('dh-act-pb'), then = $('dh-act-then');
+
+    if (h){
+      var n = h.next, left = Math.max(0, (n.section_total || 0) - (n.section_done || 0));
+      $('dh-act-k').textContent = 'Pick up where you left off';
+      $('dh-act-h').textContent = hubName(h) + ', section ' + n.section +
+        (n.section_title ? ': ' + n.section_title : '');
+      $('dh-act-p').textContent =
+        n.section_done + ' of ' + n.section_total + ' solved in this section. ' +
+        (left === 1 ? 'One more clears it' : left + ' more clears it') + ' and pays 25 XP' +
+        (n.last_section ? ', and leaves only the badge.' : '.');
+      pb.hidden = false;
+      $('dh-act-bar').style.width = Math.max(3, Math.round(100 * h.done / h.total)) + '%';
+      var b = $('dh-act-btn');
+      b.href = hubHref(h);
+      b.innerHTML = 'Solve ' + esc(n.num || 'the next one') + ' &rarr;';
+      $('dh-act-aft').textContent = n.title || '';
+      if (act && act.p.resume){
+        then.hidden = false;
+        then.innerHTML = 'Then: <b>' + esc(titleFor(act.p.resume)) + '</b>, course lesson ' +
+          (act.p.done + 1) + ' of ' + act.p.total + '.';
+      } else then.hidden = true;
+      band.hidden = false;
       return;
     }
-    if (isPro()){ el.innerHTML = ''; return; }
-    var a = activeCredTrack();
-    el.innerHTML = '<div class="card conv rise" style="animation-delay:.24s">' +
-      '<h3>Get certified</h3>' +
-      '<p>' + (a ? ('The graded practice that finishes ' + esc(a.L.cert) + ' is part of Pro, and everything you have done so far carries over.')
-                 : 'Graded practice, every specialization section, and all twelve mini courses.') + '</p>' +
-      '<a href="/pricing.html">See the Program &rarr;</a></div>';
+
+    if (act){
+      var L = RM.byKey ? RM.byKey(act.key) : null;
+      $('dh-act-k').textContent = act.fresh ? 'Start your course' : 'Next up in your course';
+      $('dh-act-h').textContent = titleFor(act.p.resume);
+      $('dh-act-p').textContent = 'Course lesson ' + (act.p.done + 1) + ' of ' + act.p.total +
+        (L ? ' in ' + L.cert : '') + '. Every lesson runs real R in your browser.';
+      pb.hidden = false;
+      $('dh-act-bar').style.width = Math.max(3, act.p.total ? Math.round(100 * act.p.done / act.p.total) : 3) + '%';
+      var b2 = $('dh-act-btn'); b2.href = postHref(act.p.resume);
+      b2.innerHTML = (act.fresh ? 'Start the course free' : 'Continue the course') + ' &rarr;';
+      $('dh-act-aft').textContent = '';
+      if (act.p.next){ then.hidden = false; then.innerHTML = 'After this one: <b>' + esc(titleFor(act.p.next)) + '</b>.'; }
+      else then.hidden = true;
+      band.hidden = false;
+      return;
+    }
+
+    if (rd){
+      $('dh-act-k').textContent = 'Pick up your reading';
+      $('dh-act-h').textContent = titleFor(rd.slug);
+      $('dh-act-p').textContent = 'Tutorial, ' + Math.round(rd.scroll_pct || 0) + '% read' +
+        (rd.last_section ? ', last at ' + rd.last_section : '') + '.';
+      pb.hidden = false;
+      $('dh-act-bar').style.width = Math.max(3, Math.min(100, Math.round(rd.scroll_pct || 0))) + '%';
+      var b3 = $('dh-act-btn'); b3.href = postHref(rd.slug); b3.innerHTML = 'Resume reading &rarr;';
+      $('dh-act-aft').textContent = ''; then.hidden = true;
+      band.hidden = false;
+      return;
+    }
+
+    $('dh-act-k').textContent = 'Start practising';
+    $('dh-act-h').textContent = 'Pick a hub and solve one';
+    $('dh-act-p').textContent = 'A hundred and forty seven hubs, every problem graded the moment you check it.';
+    pb.hidden = true;
+    var b4 = $('dh-act-btn'); b4.href = '/exercises/'; b4.innerHTML = 'Browse the exercises &rarr;';
+    $('dh-act-aft').textContent = ''; then.hidden = true;
+    band.hidden = false;
   }
 
-  // ----- daily-series opt-in (ported from lesson-shelf.js) -----
+  /* One list where there used to be four cards. Today's set, where you were,
+     reading in progress and email lessons closing were four boxes asking the
+     same question; they are one table now, most urgent first. */
+  function renderFlight(){
+    var sec = $('dh-flight-sec');
+    var rows = [];
+
+    ((S.shelf && S.shelf.open) || []).forEach(function(o){
+      var h = hoursLeft(o.closes_at);
+      rows.push({
+        sort: h, kind: 'mail',
+        title: o.subject || 'Email lesson',
+        meta: 'email lesson, day ' + o.seq + (o.course ? ', ' + String(o.course).replace(/-/g, ' ') : ''),
+        num: h + 'h', numCls: h <= 24 ? 'hot' : (h <= 48 ? 'warm' : ''),
+        href: o.slug ? postHref(o.slug) : '/dashboard.html', action: 'Open',
+      });
+    });
+
+    openHubs().forEach(function(h){
+      var done = h.done >= h.total;
+      rows.push({
+        sort: 1000 + rows.length, kind: '',
+        title: hubName(h),
+        meta: done
+          ? 'every problem solved'
+          : (h.next
+              ? 'section ' + h.next.section + (h.sections ? ' of ' + h.sections : '') +
+                (h.next.num ? ', next is ' + h.next.num : '') +
+                (h.next.title ? ' ' + h.next.title : '')
+              : 'in progress'),
+        num: h.done + ' / ' + h.total, numCls: '',
+        stars: null,
+        href: hubHref(h), action: done ? 'Revisit' : 'Resume',
+      });
+    });
+
+    var act = activeLessonTrack();
+    if (act && act.p.resume){
+      var L = RM.byKey ? RM.byKey(act.key) : null;
+      rows.push({
+        sort: 2000, kind: 'lesson',
+        title: (L && L.cert) || titleFor(act.p.resume),
+        meta: 'course lesson ' + (act.p.done + 1) + ' of ' + act.p.total +
+              ', next is ' + titleFor(act.p.resume),
+        num: act.p.done + ' / ' + act.p.total, numCls: '',
+        href: postHref(act.p.resume), action: 'Resume',
+      });
+    }
+
+    var rd = S.reading && S.reading.items && S.reading.items[0];
+    if (rd){
+      rows.push({
+        sort: 3000, kind: 'read',
+        title: titleFor(rd.slug),
+        meta: 'tutorial' + (rd.last_section ? ', ' + rd.last_section : '') +
+              ', ' + Math.round(rd.scroll_pct || 0) + '% read',
+        num: Math.round(rd.scroll_pct || 0) + '%', numCls: '',
+        href: postHref(rd.slug), action: 'Resume',
+      });
+    }
+
+    if (!rows.length){ sec.hidden = true; return; }
+    sec.hidden = false;
+    rows.sort(function(a, b){ return a.sort - b.sort; });
+    var show = rows.slice(0, 6);
+
+    $('dh-flight-aside').textContent = rows.length === 1
+      ? 'one thing' : rows.length + ' things, most urgent first';
+    $('dh-flight').innerHTML = show.map(function(r){
+      return '<a class="row" href="' + esc(r.href) + '">' +
+        '<span class="t"><b><i class="kind ' + r.kind + '"></i>' + esc(r.title) + '</b>' +
+        '<small>' + esc(r.meta) + '</small></span>' +
+        '<span class="n ' + (r.numCls || '') + '">' + esc(r.num) + '</span>' +
+        '<span class="s"></span>' +
+        '<span class="a">' + esc(r.action) + ' &rarr;</span></a>';
+    }).join('');
+
+    var hubs = openHubs();
+    var finished = hubs.filter(function(h){ return h.done >= h.total; }).length;
+    var foot = $('dh-flight-foot');
+    var extra = rows.length - show.length;
+    if (extra > 0 || hubs.length){
+      foot.hidden = false;
+      var bits = [];
+      if (extra > 0) bits.push(extra + ' more here');
+      if (hubs.length) bits.push(hubs.length + (hubs.length === 1 ? ' hub touched' : ' hubs touched') +
+        (finished ? ', ' + finished + ' finished' : ''));
+      foot.innerHTML = '<span>' + esc(bits.join('. ')) + (bits.length ? '.' : '') +
+        '</span><a href="/exercises/">All exercises &rarr;</a>';
+    } else foot.hidden = true;
+
+    /* One sell, in the one place a reader is already looking at a deadline. */
+    var open = (S.shelf && S.shelf.open) || [];
+    var sell = $('dh-sell');
+    if (open.length >= 2 && !isPro()){
+      var soonest = open.reduce(function(a, b){ return hoursLeft(a.closes_at) <= hoursLeft(b.closes_at) ? a : b; });
+      sell.hidden = false;
+      sell.innerHTML = open.length + ' email lessons are open and the oldest closes in ' +
+        hoursLeft(soonest.closes_at) + ' hours. Pro keeps every one of them open for good. ' +
+        '<a href="/pricing.html">See the Program &rarr;</a>';
+    } else sell.hidden = true;
+  }
+
+  /* A year of showing up. The one chart worth the room: a week tells you
+     nothing about a habit. */
+  function renderYear(){
+    var wk = (S.stats && S.stats.weeks) || null;
+    var sec = $('dh-year-sec');
+    if (!wk || !wk.length){ sec.hidden = true; return; }
+    var any = wk.some(function(n){ return n > 0; });
+    if (!any){ sec.hidden = true; return; }
+    sec.hidden = false;
+    var max = Math.max.apply(null, wk);
+    $('dh-year').innerHTML = wk.map(function(n){
+      if (!n) return '<i></i>';
+      var lv = n >= max * 0.75 ? 4 : n >= max * 0.45 ? 3 : n >= max * 0.2 ? 2 : 1;
+      return '<i class="l' + lv + '" title="' + n + (n === 1 ? ' solve' : ' solves') + '"></i>';
+    }).join('');
+    var active = (S.stats && S.stats.active_days_year) || 0;
+    $('dh-year-aside').textContent = active + (active === 1 ? ' active day' : ' active days');
+    $('dh-year-note').textContent = 'The last fifty-two weeks. Your longest run so far is ' +
+      ((S.stats && S.stats.longest_streak_days) || 0) + ' days.';
+  }
+
   var OPTIN_LIVE = true, OPTIN_DISMISS_KEY = 'rsc-optin-dismiss', OPTIN_ROUTE_KEY = 'rsc-optin-routed';
   var optin = null;
   function checkOptin(){
@@ -467,34 +566,22 @@
     try{ if (typeof gtag === 'function' && mc && (mc.getAttribute('href') || '').indexOf('/pricing') === 0) gtag('event', 'minicourse_locked_click', { course: mc.dataset.mc }); }catch(err){}
   });
 
-  // ----- room switch (remembers the last room) -----
-  (function(){
-    var seg = $('dh-seg');
-    function setRoom(r){
-      Array.prototype.forEach.call(seg.querySelectorAll('button'), function(x){ x.classList.toggle('on', x.dataset.room === r); });
-      Array.prototype.forEach.call(document.querySelectorAll('.room'), function(x){ x.classList.remove('on'); });
-      var el = $('room-' + r); if (el) el.classList.add('on');
-      try{ localStorage.setItem('rsc-dash-room', r); }catch(e){}
-    }
-    seg.addEventListener('click', function(e){
-      var b = e.target.closest('button'); if (!b) return; setRoom(b.dataset.room);
-    });
-    if (!courseFirst){
-      try{ var saved = localStorage.getItem('rsc-dash-room'); if (saved === 'building') setRoom('building'); }catch(e){}
-    }
-  })();
+  /* The room switch is gone with the rooms. Desk puts the record in a rail
+     beside the work instead of behind a tab, so there is no second room to
+     remember. The old block queried #dh-seg and bound a listener to it, which
+     on a page without that element threw before anything rendered. */
 
   function renderAll(){
     certBy = {}; ((S.certs && S.certs.items) || []).forEach(function(c){ certBy[c.track] = c; });
-    renderHello(); renderCmd(); renderDaily(); renderOpen(); renderReading(); renderSaved();
-    renderCred(); renderStages(); renderCatalog(); renderCerts(); renderBadges(); renderMilestones();
-    renderAllTime(); renderRecap(); renderUpsell();
+    renderHello(); renderWho(); renderStreak(); renderRecord();
+    renderMilestones(); renderBadges(); renderCreds(); renderRailFoot();
+    renderAct(); renderFlight(); renderYear();
   }
 
-  fetch('/www/sidebar.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(sb){ if (!sb) return; sb.forEach(function(sec){ (sec.items || []).forEach(function(it){ if (it.href && it.text) sbTitle[String(it.href).replace(/^\//, '')] = it.text; }); }); if (S.me){ renderSaved(); renderCmd(); renderReading(); } }).catch(function(){});
-  fetch('/courses.json', { cache:'no-cache' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if (d){ S.courses = d; if (S.me){ renderCmd(); renderReading(); renderCred(); } } }).catch(function(){});
-  fetch('/api/nurture/catalog').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if (d){ S.cat = d; if (S.me){ renderCatalog(); renderBadges(); renderMilestones(); } } }).catch(function(){});
-  document.addEventListener('auth-hydrated', function(){ if (S.me){ renderCatalog(); renderConvToday(); renderUpsell(); } checkOptin(); });
+  fetch('/www/sidebar.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(sb){ if (!sb) return; sb.forEach(function(sec){ (sec.items || []).forEach(function(it){ if (it.href && it.text) sbTitle[String(it.href).replace(/^\//, '')] = it.text; }); }); if (S.me){ renderAct(); renderFlight(); } }).catch(function(){});
+  fetch('/courses.json', { cache:'no-cache' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if (d){ S.courses = d; if (S.me){ renderAct(); renderFlight(); renderCreds(); } } }).catch(function(){});
+  fetch('/api/nurture/catalog').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if (d){ S.cat = d; if (S.me){ renderBadges(); renderMilestones(); } } }).catch(function(){});
+  document.addEventListener('auth-hydrated', function(){ checkOptin(); });
 
   if (isDemo){
     var dn = Math.floor(Date.now() / 1000), dpro = /[?&]demo=pro/.test(location.search);
@@ -509,6 +596,22 @@
       { hub:'dplyr-Exercises', href:'#', reason:'keeps your wrangling sharp', difficulty:'core', done:true, track:'Data Analyst' },
       { hub:'Cross-Validation-Exercises', href:'#', reason:'practice from your active course', difficulty:'stretch', done:true, track:'Machine Learning' },
       { hub:'Inference-Exercises', href:'#', reason:'retries a question you missed on Tuesday', difficulty:'review', done:false, track:'Statistics' }] };
+    S.hubs = { hubs: {
+      'dplyr-Exercises': { done:38, total:50, sections:6, last_at:dn - 3600,
+        next:{ id:'dplyr-Exercises-ex-4-7', num:'4.7', title:'Left joins that keep every row',
+               section:4, section_title:'Joins and combining tables', section_done:6, section_total:8, last_section:false } },
+      'Data-Cleaning-Exercises-in-R': { done:12, total:28, sections:5, last_at:dn - 90000,
+        next:{ id:'Data-Cleaning-Exercises-in-R-ex-2-3', num:'2.3', title:'Fix the dates before the join',
+               section:2, section_title:'Dates and types', section_done:3, section_total:6, last_section:false } },
+      'stringr-Exercises-in-R': { done:18, total:22, sections:4, last_at:dn - 400000,
+        next:{ id:'stringr-Exercises-in-R-ex-3-2', num:'3.2', title:'Capture groups that hold up',
+               section:3, section_title:'Patterns', section_done:4, section_total:6, last_section:false } },
+      'ggplot2-Exercises-in-R': { done:50, total:50, sections:6, last_at:dn - 900000, next:null }
+    } };
+    S.stats.solved = 312;
+    S.stats.quality = { unaided:214, hinted:71, seen:27, unrated:0 };
+    S.stats.weeks = (function(){ var w = [], k = 3; for (var j = 0; j < 52; j++){ k = (k * 37 + 11) % 97; w.push(k % 11 === 0 ? 0 : k % 14); } return w; })();
+    S.stats.active_days_year = 186;
     S.shelf = { position:39, badges:[
         { badge:'inference-from-zero', public_id:'B-DEMO1', earned_at:dn - 3300000 },
         { badge:'regression-health-check', public_id:'B-DEMO2', earned_at:dn - 400000 },
@@ -527,8 +630,11 @@
       if (!r[0] || !r[0].user) return toSignin();
       S.me = r[0]; S.stats = r[1]; S.tracks = r[2]; S.certs = r[3]; S.reading = r[4]; S.saved = r[5];
       renderAll();
-      soft('/api/me/daily').then(function(d){ if (d){ S.daily = d; renderHello(); renderCmd(); renderDaily(); } });
-      soft('/api/me/shelf').then(function(d){ if (d){ S.shelf = d; renderOpen(); renderCatalog(); renderBadges(); renderMilestones(); } });
+      soft('/api/me/daily').then(function(d){ if (d){ S.daily = d; renderHello(); } });
+      soft('/api/me/shelf').then(function(d){ if (d){ S.shelf = d; renderBadges(); renderMilestones(); renderFlight(); } });
+      /* The hub rows are what the In flight list is mostly made of, so they
+         arrive on their own request rather than holding up the first paint. */
+      soft('/api/me/hubs').then(function(d){ if (d){ S.hubs = d; renderAct(); renderFlight(); } });
       checkOptin();
     }).catch(function(e){
       if (e && e.a401) return toSignin();

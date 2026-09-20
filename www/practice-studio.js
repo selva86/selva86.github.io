@@ -602,8 +602,13 @@
      any server round trip; everything else comes from /api/me/hubs. */
   function hubProgress(slug, total) {
     if (slug === S.hubSlug) return { done: solvedCount(), total: S.cards.length || total };
+    /* /api/me/hubs returns a row per hub now, not a bare count, because the
+       dashboard needs the rest of the sentence. Both shapes are read here so
+       a cached older response cannot blank the rail. */
     var d = S.hubDone && S.hubDone[slug];
-    return { done: typeof d === 'number' ? d : 0, total: total };
+    if (typeof d === 'number') return { done: d, total: total };
+    if (d && typeof d.done === 'number') return { done: d.done, total: d.total || total };
+    return { done: 0, total: total };
   }
 
   function hubState(p) {
@@ -782,12 +787,16 @@
      Three for solving it alone, two after a hint, one after two, none after
      reading the solution. The server decides; this only draws it. */
 
+  /* Every result says the number out loud, because the shapes do not carry
+     it: three hollow stars and three filled stars are the same silhouette at
+     this size. The zero case also says why it is zero. */
   var STAR_WORDS = {
-    3: 'Solved unaided',
-    2: 'Solved after one hint',
-    1: 'Solved after two hints',
-    0: 'Solved after reading the solution',
+    3: 'Three stars. Solved with no help at all.',
+    2: 'Two stars. One hint used.',
+    1: 'One star. Two hints used.',
+    0: 'No stars. The solution was open before you solved it.',
   };
+  var STAR_SHORT = { 3: 'Three stars', 2: 'Two stars', 1: 'One star', 0: 'No stars' };
 
   function starRow(stars, cls) {
     if (stars === null || stars === undefined) return '';
@@ -801,8 +810,10 @@
               '</svg></span>';
     }
     // the written equivalent, never optional: the shapes alone are not the message
-    return '<span class="rs-stars ' + (cls || '') + '" role="img" aria-label="' +
-           esc(n + ' of 3 stars. ' + (STAR_WORDS[n] || '')) + '">' + pips + '</span>';
+    return '<span class="rs-stars ' + (cls || '') + (n === 0 ? ' is-none' : '') +
+           '" role="img" aria-label="' +
+           esc(n + ' of 3 stars. ' + (STAR_WORDS[n] || '')) + '">' + pips +
+           '<b class="rs-starn">' + n + ' of 3</b></span>';
   }
 
   /* The inline result, for one and two and zero stars. Lives in the work pane
@@ -810,16 +821,47 @@
      Frequent modals make every later modal less likely to be read, so the
      modal is saved for the outcomes that earn it. */
   function showInlineResult(stars, xp) {
-    var host = qs('.rs-actions', ui.stage) || qs('.rs-pane-work', ui.stage);
+    /* Scoped to the card on screen, not to the stage.
+     *
+     * Every exercise in the hub lives inside the stage at once, with the
+     * others at display:none, so querying the stage found the FIRST card's
+     * actions and the FIRST card's result row, whichever problem had just
+     * been solved. The result was written into a hidden card and nobody saw
+     * it: correct on problem 1, invisible on every problem after it. */
+    var cur = S.cards[S.cur];
+    var node = cur && cur.node;
+    if (!node) return;
+    var host = qs('.rs-actions', node) || qs('.rs-pane-work', node);
     if (!host) return;
-    var row = qs('.rs-result', ui.stage);
+    var row = qs('.rs-result', node);
     if (!row) {
       row = el('div', 'rs-result');
       host.parentNode.insertBefore(row, host);
+      /* One listener, bound when the row is first built. The contents are
+         rewritten on every solve, so binding to the button itself would be
+         lost the next time round. */
+      row.addEventListener('click', function (ev) {
+        if (ev.target.closest && ev.target.closest('.rs-resnext')) show(S.cur + 1);
+      });
     }
-    row.innerHTML = starRow(stars) +
-      '<b>' + esc(STAR_WORDS[Math.max(0, Math.min(3, stars))] || 'Solved') + '</b>' +
-      (typeof xp === 'number' && xp > 0 ? '<span class="xp">+' + xp + ' XP</span>' : '');
+    var n = Math.max(0, Math.min(3, stars));
+    var nxt = S.cards[S.cur + 1];
+    /* Solving it is the end of the work, so the way onward belongs here and
+       not only in the arrows up in the bar. Somebody who has just read the
+       solution gets no ceremony, and used to get no exit either. */
+    var onward = nxt
+      ? '<button class="rs-resnext" type="button">Next problem' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/>' +
+        '<polyline points="12 5 19 12 12 19"/></svg></button>'
+      : '<span class="last">That was the last problem in this hub.</span>';
+    row.innerHTML = starRow(n) +
+      '<b>' + esc(STAR_WORDS[n] || 'Solved') + '</b>' +
+      (n === 0 ? '<span class="why">Stars are settled on the first pass, so this ' +
+                 'one keeps none however often you solve it again. The XP is yours.</span>' : '') +
+      '<span class="end">' +
+      (typeof xp === 'number' && xp > 0 ? '<span class="xp">+' + xp + ' XP</span>' : '') +
+      onward + '</span>';
+    row.classList.toggle('is-none', n === 0);
     row.classList.remove('is-in');
     void row.offsetWidth;          // restart the transition
     row.classList.add('is-in');
@@ -832,7 +874,7 @@
     if (!ui.starScrim) return;
     var card = qs('.rs-card', ui.starScrim);
     qs('.rs-starrow', card).innerHTML = starRow(stars, 'is-big');
-    qs('h3', card).textContent = STAR_WORDS[stars] || 'Solved';
+    qs('h3', card).textContent = STAR_SHORT[stars] || 'Solved';
     qs('.sub', card).textContent = (typeof xp === 'number' && xp > 0 ? '+' + xp + ' XP. ' : '') +
       (nextTitle ? 'Next: ' + nextTitle : 'That is the last one in this hub.');
     var go = qs('.rs-starnext', card);
@@ -1536,7 +1578,17 @@
     adopt();
     wire();
     try { if (localStorage.getItem(STORE_PIN) === '1') setPin(true); } catch (e) { /* fine */ }
-    show(0);
+    /* #<exercise-id> opens that problem.
+     *
+     * The dashboard's Resume links carry one, because "resume" that lands
+     * you on problem 1 of 50 is not resuming. Unknown or absent, it opens at
+     * the start exactly as before. */
+    var want = -1;
+    try {
+      var frag = decodeURIComponent((location.hash || '').replace(/^#/, ''));
+      if (frag) S.cards.forEach(function (c, i) { if (c.id === frag) want = i; });
+    } catch (e) { /* a malformed hash is not worth failing a mount for */ }
+    show(want >= 0 ? want : 0);
     renderStatus();
     loadMeter();
     loadHubIndex();
