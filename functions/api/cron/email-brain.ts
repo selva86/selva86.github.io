@@ -10,6 +10,8 @@ import { sweepAbandonedCheckouts } from "../../_lib/cartrecovery";
 import { sweepPriceAlerts } from "../../_lib/pricealerts";
 import { json, err401 } from "../../_lib/errors";
 import { runBrain } from "../../_lib/brain";
+import { maybeSendDigest } from "../../_lib/digest";
+import { sendMail } from "../../_lib/email";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 
@@ -43,5 +45,15 @@ export const onRequestPost: PagesFunction<Env & { CRON_SECRET?: string; EMAIL_UN
   // same heartbeat: every step is a time window, and the hourly cadence is
   // exactly what the hh:30 expiry snap is built around.
   try { context.waitUntil(sweepPriceAlerts(context.env)); } catch (_) {}
+  /* The daily operator digest rides the same heartbeat and fires in exactly
+     one of the twenty-four runs. Its own once-a-day guard is the email_events
+     row it writes, so a retry cannot double-send. */
+  try {
+    context.waitUntil(maybeSendDigest(
+      context.env as never,
+      (a) => sendMail(context.env as never, a),
+      { force: url.searchParams.get("force_digest") === "1" },
+    ).then(() => undefined).catch(() => undefined));
+  } catch (_) {}
   return json({ ran: result.ran, mode: result.mode, daily_run: result.daily_run, counts, total: result.decisions.length });
 };
