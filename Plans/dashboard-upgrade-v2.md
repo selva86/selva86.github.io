@@ -1,6 +1,7 @@
 # Dashboard upgrade v2
 
-Written 2026-09-20. Status: mocks built, awaiting the owner's pick.
+Written 2026-09-20. Reworked the same day after the first pair was
+rejected as unstructured. Status: two mocks, awaiting the owner's pick.
 
 The dashboard shipped as B6 on 2026-08-26 and has not moved since. Three
 things have happened to the platform since then and none of them reached it:
@@ -79,36 +80,60 @@ that makes a long habit visible, and the only one worth the space.
 **C9. Certificates, when empty, becomes "Closest certificate"** with the
 real distance.
 
-**C10. The hub map.** 147 cells, coloured by progress: the whole platform
-and the learner's place in it, in one glance. Cheap to build, easy to cut if
-it turns out to be decoration.
+**C10. The hub map.** 147 cells, coloured by progress. Built, looked at,
+and cut: it demoed well and told a learner nothing they could act on, which
+is the definition of decoration. The catalogue belongs on /exercises/.
 
 ## The two architectures
 
-Both mocks carry every change above. They differ only in how the page is
-organised, which is the decision to make.
+Both carry every change above and describe the same learner, so the decision
+is about organisation and nothing else.
 
-### A2, one thing first (`_mocks/dash-A2-onething.html`)
+### What the first pair got wrong
 
-One column, 760px, no tabs. A single hero, then zones in a fixed reading
-order: Today, Where you were, Your record, Your library. The rule is that
-there is never more than one decision on screen: everything below the hero
-is reference, not a competing call to action.
+A2 and B7 (still in `_mocks/`, superseded) put the ten changes on the page as
+ten more cards. Counted: **fourteen and twenty card surfaces, eleven and
+nineteen headings, seventeen and eighteen separate progress visuals.** Every
+box had the same border, radius and shadow, so "Milestones" looked exactly as
+important as "Last week" and the reader had to work out the hierarchy for
+themselves. That is not a styling problem, it is the absence of an
+information architecture: I added features and appended a card for each.
 
-Costs: the page is long, and the proud part (badges, certificates, stars)
-sits below the fold on a laptop. Wins: nothing is hidden behind a tab, the
-next action is unmissable, and it reads the same on a phone as on a desktop.
+The rework starts from four questions a dashboard has to answer, in order:
+what do I do right now, where was I, how am I doing, what have I earned.
+Four questions, four regions, and separation done with a rule and with space
+rather than with a box. The counts are now **three and two surfaces, ten
+progress visuals**, and four cards of the old set are gone entirely: the
+catalogue map, the library grid, the mini-course grid and the week bars, all
+of which belong on /exercises/, /roadmap/ and the profile.
 
-### B7, two rooms refined (`_mocks/dash-B7.html`)
+The biggest single simplification: **one "In flight" list** replaces four
+cards. Today's set, where you were, reading in progress and email lessons
+closing were four boxes asking the same question. They are one table now,
+sorted most urgent first, with a coloured dot for the kind of thing each row
+is.
 
-Keeps the Today / What you're building split that shipped as B6, and fixes
-the second room: no 0% ring, the next rung promoted, hub progress and stars
-added, empty tracks collapsed.
+### Ledger (`_mocks/dash-v3-ledger.html`)
 
-Costs: half the dashboard is always one click away, and the split means the
-streak and the milestone that would reinforce it never share a view. Wins:
-each room is short enough to take in at once, and "what you're building" is
-a room a learner can send somebody to.
+One column, 820px. A greeting, one dark action band, then three regions
+under hairlines: In flight, Your record, Earned. Two bordered objects on the
+whole page, both certificates, because a certificate genuinely is an object.
+Typographic and quiet.
+
+Costs: the page is long, and the proud part sits below the fold on a laptop.
+Wins: a single reading order, the next action unmissable, identical on a
+phone.
+
+### Desk (`_mocks/dash-v3-desk.html`)
+
+Two columns, no tabs. B6's two rooms become two places: a rail that stays put
+carries who you are and what you have done, and the work runs beside it. The
+rail is one surface with hairline sections, not five cards.
+
+Costs: needs width, and stacks on a phone, so the record falls below the work
+there. Wins: nothing is behind a tab, and the streak and the milestone that
+reinforces it finally share a view, which is the one pairing the current
+dashboard never shows.
 
 ## Data work behind the changes
 
@@ -119,7 +144,7 @@ a room a learner can send somebody to.
 | C4 star aggregate | `/api/me/stats` | one new field, one query |
 | C5 next rung | `/api/me/shelf` | already returns `milestones.next` |
 | C8 52-week strip | `/api/me/stats` | needs a per-day aggregate |
-| C10 hub map | reuses C3 | none |
+| C10 hub map | reuses C3 | cut in the rework, it was decoration |
 
 Nothing here needs a schema change. `exercise_attempts` already carries
 `hints_used` and `solution_seen`.
