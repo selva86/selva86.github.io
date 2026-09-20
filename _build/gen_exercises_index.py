@@ -746,6 +746,17 @@ js = (JS.replace('__PEN__', PEN.replace("'", "\\'")).replace('__CATHASH__', CAT_
         .replace('__WCMAP__', WCMAP).replace('__FEATAID__', aid(FEATURED)))
 page = shell.replace('<!--EXBODY-->',
     '<main class="wrap">\n<style>' + CSS + '</style>\n' + BODY + '\n' + reveal + '\n<script>' + js + '</script>\n')
+# The three meta descriptions carry the exercise and hub counts, and they were
+# typed by hand: they said 2,904 across 127 hubs against a real 3,461 across
+# 147, so every search result undersold the page by a fifth. Rewritten from
+# the catalogue on every build, and loud if the sentence ever moves, because a
+# silent no-op here is how the numbers drifted in the first place.
+_count_pat = re.compile(r'[\d,]+ auto-graded R exercises across \d+ hubs')
+_count_txt = '{:,} auto-graded R exercises across {} hubs'.format(
+    TOT['exercises'], TOT['hubs'])
+page, _n = _count_pat.subn(_count_txt, page)
+assert _n == 3, 'expected 3 meta count sentences in the shell, patched %d' % _n
+
 assert chr(8212) not in CSS + BODY + js, 'em dash found'
 assert page.count('<main class="wrap">') == 1
 io.open('exercises/index.html', 'w', encoding='utf-8', newline='\n').write(page)

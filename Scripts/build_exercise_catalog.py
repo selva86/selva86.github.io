@@ -150,6 +150,19 @@ def main():
     for k in cats:
         cats[k].sort(key=lambda h: (-(h['b']/h['n']) if h['n'] else 0,
                                     (h['a']/h['n']) if h['n'] else 0, h['title']))
+    # A page can be listed under Practice Exercises and carry no graded
+    # problems at all: brms-Exercises-in-R is eight exercises written as prose,
+    # with no section.exercise and no data-exercise-id, so the engine has
+    # nothing to grade there. Listing it would put a "0 problems" row on
+    # /exercises/ and in the studio rail that no one can do anything with.
+    # Loud, because the fix is to convert the page, not to hide it.
+    empty = [h['slug'] for c in cats.values() for h in c if not h['n']]
+    if empty:
+        sys.stderr.write('WARNING: hubs with no graded problems, left out of the '
+                         'catalogue: %s\n' % empty)
+        for k in cats:
+            cats[k] = [h for h in cats[k] if h['n']]
+
     other = [h['slug'] for h in cats['Other']]
     if other:
         sys.stderr.write('WARNING: uncategorized hubs (add a KEYMAP line): %s\n' % other)

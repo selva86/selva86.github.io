@@ -3809,6 +3809,50 @@ def _mtime_or_zero(path):
         return 0
 
 
+def audit_og_images():
+    """Name every page whose og:image points at a PNG that is not there.
+
+    generate_og_image() guards its Pillow import in a try/except and returns
+    silently when it is missing, which is what Cloudflare does: Pillow is not
+    in requirements.txt, so the cards are only ever written by a local build
+    and only reach production if somebody remembers to commit them. Nobody
+    did, for a hundred and eleven pages, and their social cards were a 404
+    from whenever the page shipped. Pages written outside the _posts loop
+    (the four Course landing pages) never had one generated at all.
+
+    A warning rather than a failure: a missing card is a bad share, not a
+    broken page. But it has to be said out loud at the end of every build,
+    because the silent version of this cost the site a year of blank cards.
+    """
+    want = {}
+    pat = re.compile(r'og:image" content="https://r-statistics\.co/(screenshots/og/[^"]+\.png)"')
+    for root, dirs, files in os.walk(REPO_ROOT):
+        dirs[:] = [d for d in dirs if not d.startswith(('.', '_', 'node_modules'))]
+        for fn in files:
+            if not fn.endswith('.html'):
+                continue
+            p = os.path.join(root, fn)
+            try:
+                with open(p, encoding='utf-8', errors='ignore') as fh:
+                    # og:image sits around byte 48,000 on these pages, after
+                    # the inlined critical CSS. Reading the first few KB found
+                    # 19 of 1,936 and reported the rest as fine.
+                    head = fh.read(80000)
+            except OSError:
+                continue
+            m = pat.search(head)
+            if m:
+                want.setdefault(m.group(1), os.path.relpath(p, REPO_ROOT))
+    missing = sorted(rel for rel in want
+                     if not os.path.exists(os.path.join(REPO_ROOT, rel)))
+    if missing:
+        print(f"  WARN: {len(missing)} og:image file(s) missing, social cards "
+              f"will 404: {', '.join(os.path.basename(m) for m in missing[:6])}"
+              + (' ...' if len(missing) > 6 else ''))
+    else:
+        print(f"  OG images: all {len(want)} referenced cards present")
+
+
 def main():
     # Flags:
     #   --full           Rebuild every page regardless of mtimes
@@ -4030,6 +4074,8 @@ def main():
     # sidebar state for the site (we may have skipped a per-page refresh).
     if not only_target:
         _save_sidebar_snapshot(_curr_sidebar_sig, SIDEBAR_STATE_PATH)
+
+    audit_og_images()
 
     # Refresh PSEO master tracker (pseo-status.json) - cheap, idempotent.
     # Runs on every build so url/published_date/update_date stay current
