@@ -402,6 +402,23 @@
     var sec = $('dh-flight-sec');
     var rows = [];
 
+    /* Today's set leads, because it is the thing with a deadline of tonight
+       and a bonus attached. It used to have a card of its own; the card is
+       gone but the set is not, and the greeting still counts it, so it has to
+       be reachable from here. Items already done are left out: a ticked row
+       is a record, not a thing in flight. */
+    var dset = (S.daily && S.daily.tasks) || [];
+    dset.filter(function(t){ return !t.done; }).forEach(function(t, i){
+      var hub = String(t.hub || '').replace(/\.html$/, '');
+      rows.push({
+        sort: -100 + i, kind: 'set',
+        title: hub.replace(/-/g, ' '),
+        meta: "today's set" + (t.track ? ', ' + t.track : '') + (t.reason ? ', ' + t.reason : ''),
+        num: t.difficulty || '', numCls: '',
+        href: t.href || ('/' + hub + '.html?studio=1'), action: 'Solve',
+      });
+    });
+
     ((S.shelf && S.shelf.open) || []).forEach(function(o){
       var h = hoursLeft(o.closes_at);
       rows.push({
@@ -481,6 +498,12 @@
       if (extra > 0) bits.push(extra + ' more here');
       if (hubs.length) bits.push(hubs.length + (hubs.length === 1 ? ' hub touched' : ' hubs touched') +
         (finished ? ', ' + finished + ' finished' : ''));
+      var dd = S.daily || {};
+      if (dd.tasks && dd.tasks.length && !dd.all_done && dd.bonus_xp){
+        bits.unshift('Finishing today’s set pays a +' + dd.bonus_xp + ' XP bonus');
+      } else if (dd.all_done && dd.bonus_xp){
+        bits.unshift('Today’s set is done, +' + dd.bonus_xp + ' XP banked');
+      }
       foot.innerHTML = '<span>' + esc(bits.join('. ')) + (bits.length ? '.' : '') +
         '</span><a href="/exercises/">All exercises &rarr;</a>';
     } else foot.hidden = true;
@@ -629,7 +652,7 @@
       if (!r[0] || !r[0].user) return toSignin();
       S.me = r[0]; S.stats = r[1]; S.tracks = r[2]; S.certs = r[3]; S.reading = r[4]; S.saved = r[5];
       renderAll();
-      soft('/api/me/daily').then(function(d){ if (d){ S.daily = d; renderHello(); } });
+      soft('/api/me/daily').then(function(d){ if (d){ S.daily = d; renderHello(); renderFlight(); } });
       soft('/api/me/shelf').then(function(d){ if (d){ S.shelf = d; renderBadges(); renderMilestones(); renderFlight(); } });
       /* The hub rows are what the In flight list is mostly made of, so they
          arrive on their own request rather than holding up the first paint. */
