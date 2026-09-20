@@ -270,9 +270,10 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
               SUM(CASE WHEN event = 'open'  THEN 1 ELSE 0 END) opened,
               SUM(CASE WHEN event = 'click' THEN 1 ELSE 0 END) clicked
          FROM email_events
-        WHERE at >= ?1
+        WHERE at >= ?1 AND at < ?2
         GROUP BY email_key HAVING sent > 0 ORDER BY sent DESC LIMIT 10`,
-    ).bind(dayStartUTC(1)).all<{ k: string; sent: number; opened: number; clicked: number }>()).results ?? [];
+    ).bind(dayStartUTC(1), dayStartUTC(0))
+      .all<{ k: string; sent: number; opened: number; clicked: number }>()).results ?? [];
     for (const r of rows) {
       emailByTemplate.push({
         key: r.k || "(none)", sent: Number(r.sent || 0),
