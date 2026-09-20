@@ -21,6 +21,14 @@ const SIGNALS = new Set([
   "lesson_start", "lesson_complete", "cert_view", "track_view",
   // 2026-08-29: parity pricing + the price-alert flow
   "parity_view", "offer_view", "price_alert",
+  /* 2026-09-21: pro_wall_hit was missing, and it is the one signal with an
+     email waiting on it. lesson-mode.js has fired it from upgradeGateForMember
+     since the player shipped, brain.ts queries for it to send the wall
+     follow-up, flag:wall-email has been on, and intent_signals held zero rows
+     of it because line 48 dropped every one. An allowlist that silently
+     discards a signal the client is already sending is a trap; if another
+     joins the client, add it here in the same commit. */
+  "pro_wall_hit",
 ]);
 
 let tableReady = false;
