@@ -5,7 +5,7 @@
 // _lib/db.ts recordAttempt. Streak is touched only on passing attempts.
 //
 // Body shape:
-//   { passed: bool, hints_used?: int, elapsed_ms?: int }
+//   { passed: bool, hints_used?: int, elapsed_ms?: int, solution_seen?: bool }
 //     elapsed_ms is the Practice Studio challenge clock, paused time already
 //     removed. It is only read when this attempt completes the hub.
 // Response:
@@ -22,7 +22,7 @@ import { recordAttempt, isProActive } from "../../../../_lib/db";
 import { resolveScope, scopeCovers } from "../../../../_lib/entitlement";
 import {
   isValidHubSlug, isValidExerciseId, hubExists, lookupDifficulty,
-  xpForDifficulty, isLessonHub,
+  xpForDifficulty, isLessonHub, starsFor, xpForStars,
 } from "../../../../_lib/exercises";
 import { meterMonth, hubAccess, METER_LIMIT } from "../../../../_lib/meter";
 import { checkDailyBonus } from "../../../../_lib/daily";
@@ -125,7 +125,7 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
     }
   }
 
-  let body: { passed?: unknown; hints_used?: unknown; elapsed_ms?: unknown };
+  let body: { passed?: unknown; hints_used?: unknown; elapsed_ms?: unknown; solution_seen?: unknown };
   try {
     body = await context.request.json();
   } catch {
@@ -146,9 +146,15 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
       ? Math.max(0, Math.min(86400000, Math.round(body.elapsed_ms)))
       : 0;
 
-  const xpIfFirstPass = xpForDifficulty(difficulty);
+  // The solution counts only if it was opened before this pass. Opening it
+  // afterwards to compare approaches is good practice and costs nothing: the
+  // flag is read at check time and only the first pass is ever recorded.
+  const solutionSeen = body.solution_seen === true;
+  const stars = starsFor(hintsUsed, solutionSeen, null);
+  const xpIfFirstPass = xpForStars(xpForDifficulty(difficulty), stars);
   const result = await recordAttempt(
     context.env.DB, u.id, hubSlug, exerciseId, body.passed, hintsUsed, xpIfFirstPass,
+    solutionSeen,
   );
 
   // ---- pass-2 extras: everything below is additive and fail-safe ----
@@ -234,6 +240,7 @@ export const onRequestPost: PagesFunction<Env, "hub" | "id", RequestData> = asyn
   }
 
   return json({
+    stars: body.passed ? stars : null,
     ...result,
     ...(nudge ? { nudge } : {}),
     ...(newBadges.length ? { new_badges: newBadges } : {}),

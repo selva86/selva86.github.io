@@ -385,6 +385,14 @@
         // a toggle, because the studio hides the disclosure's own summary and
         // this would otherwise be the only way in and no way back out
         d.open = !d.open;
+        // opening it is what costs the stars; closing it again changes nothing
+        if (d.open) {
+          try {
+            // exercise-hub.js listens for the toggle and reads the id off
+            // .xh-ex-body, so the studio does not need to resolve it here.
+            // Left as a no-op on purpose rather than duplicating that lookup.
+          } catch (e) { /* never block the reveal */ }
+        }
         b.textContent = d.open ? 'Hide solution' : 'Solution';
         if (d.open) scrollProblem(card, '.exercise-solution');
         return;

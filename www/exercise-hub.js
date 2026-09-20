@@ -180,6 +180,76 @@
      started in COLLAPSE_DELAY ms (the auto-collapse + scroll sequence).
      Anon users: silent no-op; their progress lives in localStorage and
      migrates on first sign-in via backfillIfNeeded. */
+  /* Which exercises had their solution opened before they were solved.
+     Kept per hub in localStorage so a refresh between peeking and solving
+     cannot turn a read-the-answer into a three-star run. */
+  var SOLUTION_SEEN_KEY = 'rsc-solution-seen-v1';
+
+  function solutionSeenStore() {
+    try { return JSON.parse(localStorage.getItem(SOLUTION_SEEN_KEY) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+
+  function markSolutionSeen(exerciseId) {
+    if (!exerciseId) return;
+    var hub = hubSlugFromPath();
+    if (!hub) return;
+    try {
+      var all = solutionSeenStore();
+      var forHub = all[hub] || (all[hub] = {});
+      if (forHub[exerciseId]) return;
+      forHub[exerciseId] = 1;
+      localStorage.setItem(SOLUTION_SEEN_KEY, JSON.stringify(all));
+    } catch (e) { /* private mode: the flag is lost, which favours the learner */ }
+  }
+
+  function solutionWasSeen(exerciseId) {
+    var hub = hubSlugFromPath();
+    if (!hub || !exerciseId) return false;
+    var all = solutionSeenStore();
+    return !!(all[hub] && all[hub][exerciseId]);
+  }
+  window.rscMarkSolutionSeen = markSolutionSeen;
+
+  /* The studio reveals the solution through its own button, but the classic
+     layout (?studio=0) opens the <details> directly, so catch that too. One
+     delegated listener covers every card on the page, now and after any
+     re-render. `toggle` does not bubble, hence the capture phase. */
+  /* One listener per solution disclosure, bound directly.
+     A delegated capture listener on document looked tidier and did not fire:
+     `toggle` does not bubble, and relying on it reaching document was the kind
+     of assumption that quietly records every peeked solution as a flawless
+     unaided run. Direct listeners always fire, and because the studio moves
+     these nodes rather than rebuilding them, the binding survives the move. */
+  function bindSolutionWatchers(root) {
+    var list = (root || document).querySelectorAll('details.exercise-solution');
+    Array.prototype.forEach.call(list, function (d) {
+      if (d.__rscSolWatch) return;
+      d.__rscSolWatch = 1;
+      // section.exercise carries no id; the exercise id lives on the body
+      // wrapper as xh-body-<id>, the same id the attempt is posted for.
+      var idOf = function () {
+        var body = d.closest && d.closest('.xh-ex-body');
+        return body && body.id ? body.id.replace(/^xh-body-/, '') : '';
+      };
+      // Two ways in, because neither is sufficient alone. `toggle` catches the
+      // studio's button, which flips .open in script; it does not fire at all
+      // for a programmatic open in every engine, which is precisely how this
+      // could have silently recorded every peeked solution as unaided. The
+      // click on the summary catches the classic layout and always fires.
+      var mark = function () { var id = idOf(); if (id) markSolutionSeen(id); };
+      d.addEventListener('toggle', function () { if (d.open) mark(); });
+      var sum = d.querySelector('summary');
+      if (sum) sum.addEventListener('click', function () { if (!d.open) mark(); });
+    });
+  }
+  window.rscBindSolutionWatchers = bindSolutionWatchers;
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { bindSolutionWatchers(); });
+  } else {
+    bindSolutionWatchers();
+  }
+
   function reportSolve(card) {
     if (!authToken) return;
     var hub = hubSlugFromPath();
@@ -187,7 +257,7 @@
     var hints = (typeof card.hintsUsed === 'number') ? card.hintsUsed : 0;
     // The Practice Studio runs a challenge clock. When it is mounted it
     // exposes the elapsed time, which the server records on the hub badge.
-    var payload = { passed: true, hints_used: hints };
+    var payload = { passed: true, hints_used: hints, solution_seen: solutionWasSeen(card.id) };
     try {
       if (window.rsStudio && typeof window.rsStudio.elapsedMs === 'function') {
         var ms = window.rsStudio.elapsedMs();

@@ -376,6 +376,7 @@ export async function recordAttempt(
   passed: boolean,
   hintsUsed: number,
   xpIfFirstPass: number,
+  solutionSeen = false,
 ): Promise<AttemptResult> {
   const now = Math.floor(Date.now() / 1000);
 
@@ -391,10 +392,10 @@ export async function recordAttempt(
     const insRes = await db
       .prepare(
         `INSERT OR IGNORE INTO exercise_attempts
-           (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at)
-         VALUES (?, ?, ?, 1, ?, ?, ?)`,
+           (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at, solution_seen)
+         VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
       )
-      .bind(userId, hubSlug, exerciseId, hintsUsed, xpIfFirstPass, now)
+      .bind(userId, hubSlug, exerciseId, hintsUsed, xpIfFirstPass, now, solutionSeen ? 1 : 0)
       .run();
     firstPass = (insRes.meta?.changes ?? 0) === 1;
     if (firstPass) {

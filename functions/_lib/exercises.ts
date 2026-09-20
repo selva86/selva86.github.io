@@ -70,6 +70,39 @@ export function lookupDifficulty(hubSlug: string, exerciseId: string): string | 
 // XP for a difficulty. Unknown difficulty falls back to "beginner" — matches
 // www/exercise-hub.js xpWeight() fallback so the displayed and awarded XP
 // always agree.
+/* Stars for one solved exercise.
+ *
+ * Derived from what the attempt row already records, so there is nothing to
+ * keep in sync and nothing to backfill if the rule changes.
+ *
+ *   read the solution first  -> 0
+ *   no hints                 -> 3
+ *   one hint                 -> 2
+ *   two or more              -> 1
+ *
+ * Returns null for an unrated attempt. Rows banked at sign-in from the
+ * anonymous era carry hints_used = 0 because nothing was tracked then, and
+ * rendering those as a flawless run would be a claim the data cannot support.
+ */
+export function starsFor(
+  hintsUsed: number,
+  solutionSeen: boolean,
+  source?: string | null,
+): number | null {
+  if (source === "backfill") return null;
+  if (solutionSeen) return 0;
+  return 3 - Math.min(Math.max(0, hintsUsed), 2);
+}
+
+/* XP for a first pass, priced by the stars it earned. Three stars is the
+   unchanged full award; the rest taper. Never zero: reading the solution and
+   then writing the code is still work. */
+export function xpForStars(baseXp: number, stars: number | null): number {
+  if (stars === null) return baseXp;
+  const factor = stars >= 3 ? 1 : stars === 2 ? 0.8 : stars === 1 ? 0.6 : 0.4;
+  return Math.max(1, Math.round(baseXp * factor));
+}
+
 export function xpForDifficulty(difficulty: string | null | undefined): number {
   const key = String(difficulty || "beginner").toLowerCase();
   return manifest.xp_by_difficulty[key] ?? manifest.xp_by_difficulty.beginner ?? 10;

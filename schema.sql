@@ -91,7 +91,13 @@ CREATE TABLE IF NOT EXISTS exercise_attempts (
   hints_used   INTEGER DEFAULT 0,
   xp_awarded   INTEGER DEFAULT 0,
   submitted_at INTEGER NOT NULL,
-  source       TEXT                     -- NULL = live attempt; 'backfill' = anon-era solve banked at sign-in
+  source       TEXT,                    -- NULL = live attempt; 'backfill' = anon-era solve banked at sign-in
+  -- Stars (2026-09-20). Derived, never stored: solution_seen -> 0, else
+  -- 3 - min(hints_used, 2). Existing deploys must apply:
+  --   ALTER TABLE exercise_attempts ADD COLUMN solution_seen INTEGER DEFAULT 0
+  -- Backfilled rows carry hints_used = 0 because nothing was tracked then, so
+  -- they would read as a perfect run. They are unrated, not zero-starred.
+  solution_seen INTEGER DEFAULT 0
 );
 -- Existing-deploy migration for the win-first taster (applied 2026-08-10 to dev+prod):
 --   ALTER TABLE exercise_attempts ADD COLUMN source TEXT
