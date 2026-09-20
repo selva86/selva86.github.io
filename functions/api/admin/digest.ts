@@ -14,6 +14,8 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403 } from "../../_lib/errors";
 import { buildDigest, renderDigestHtml, renderDigestText } from "../../_lib/digest";
 import { sendMail } from "../../_lib/email";
+import { getUserById } from "../../_lib/db";
+import { readCookie, verifyIdCookie, ID_COOKIE } from "../../_lib/idcookie";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 
@@ -22,7 +24,22 @@ export const onRequestGet: PagesFunction<
   string,
   RequestData
 > = async (context) => {
-  const u = context.data.user;
+  /* Bearer first, then the signed identity cookie the middleware already
+     trusts for page requests.
+     
+     Without the cookie fallback this endpoint could only be reached by code
+     that reads the Supabase token out of localStorage and sets a header,
+     which makes "open it in a browser" a lie: typing the URL got you
+     "Sign in to continue" while signed in. The cookie is the same rsc-id the
+     middleware verifies for every Pro lesson, with the same secret. */
+  let u = context.data.user;
+  if (!u) {
+    const secret = (context.env as { EDGE_ID_SECRET?: string }).EDGE_ID_SECRET || "";
+    const sub = secret
+      ? await verifyIdCookie(secret, readCookie(context.request, ID_COOKIE))
+      : null;
+    if (sub) u = await getUserById(context.env.DB, sub).catch(() => null);
+  }
   if (!u) return err401();
   const admin = (context.env as { ADMIN_EMAIL?: string }).ADMIN_EMAIL || DEFAULT_ADMIN;
   if ((u.email || "").toLowerCase() !== admin.toLowerCase()) return err403("Admins only");
