@@ -260,10 +260,11 @@
       var L = RM.byKey ? RM.byKey(k) : null;
       if (!L || !L.track || certBy[L.track]) return;
       var e = byId[L.track], pct = Math.max(0, (e && e.pct) || 0);
-      /* Only credentials actually under way. Two rows reading 0% is the same
-         "you have done nothing" the old ring told somebody with 27 solves,
-         just smaller. */
-      if (pct > 0) open.push({ name: L.cert || L.title || L.track, pct: pct });
+      /* Only credentials actually under way, and "under way" is measured by
+         what the row would SAY, not by what the number is: 0.04% passes a
+         pct > 0 test and then prints "0%", which is the same "you have done
+         nothing" the old ring told somebody with 27 solves, just smaller. */
+      if (fmtPct(pct) !== '0') open.push({ name: L.cert || L.title || L.track, pct: pct });
     });
     open.sort(function(a, b){ return b.pct - a.pct; });
     open = open.slice(0, 2);
