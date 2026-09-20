@@ -413,21 +413,20 @@
       });
     });
 
-    openHubs().forEach(function(h){
-      var done = h.done >= h.total;
+    /* "In flight" means in flight. A finished hub is a thing you did, not a
+       thing you are doing: it belongs in the count at the foot, not in the
+       list. */
+    openHubs().filter(function(h){ return h.done < h.total; }).forEach(function(h){
       rows.push({
         sort: 1000 + rows.length, kind: '',
         title: hubName(h),
-        meta: done
-          ? 'every problem solved'
-          : (h.next
-              ? 'section ' + h.next.section + (h.sections ? ' of ' + h.sections : '') +
-                (h.next.num ? ', next is ' + h.next.num : '') +
-                (h.next.title ? ' ' + h.next.title : '')
-              : 'in progress'),
+        meta: h.next
+          ? 'section ' + h.next.section + (h.sections ? ' of ' + h.sections : '') +
+            (h.next.num ? ', next is ' + h.next.num : '') +
+            (h.next.title ? ' ' + h.next.title : '')
+          : 'in progress',
         num: h.done + ' / ' + h.total, numCls: '',
-        stars: null,
-        href: hubHref(h), action: done ? 'Revisit' : 'Resume',
+        href: hubHref(h), action: 'Resume',
       });
     });
 

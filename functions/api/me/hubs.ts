@@ -19,6 +19,7 @@
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401 } from "../../_lib/errors";
 import { hubOutline, problemNumber } from "../../_lib/badges-hub";
+import { isLessonHub } from "../../_lib/exercises";
 
 /* How many in-progress hubs get the expensive treatment. The dashboard shows
    six and links to the rest; twelve leaves room to sort and still be honest
@@ -56,6 +57,11 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
 
     for (const r of rows) {
       if (!r.hub_slug) continue;
+      /* Lesson hubs are not practice hubs. A gated check inside an email
+         lesson posts to the same attempt endpoint, so "Bayesian Mini 7, 3 of
+         3" was turning up in the dashboard's In flight list beside dplyr.
+         The lesson itself is already listed there, as a lesson. */
+      if (isLessonHub(r.hub_slug)) continue;
       const o = hubOutline(r.hub_slug);
       out[r.hub_slug] = {
         done: Math.min(o.ids.length || Number(r.n || 0), Number(r.n || 0)),
