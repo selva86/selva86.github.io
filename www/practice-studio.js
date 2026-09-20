@@ -219,6 +219,12 @@
       '<button class="rs-btn rs-close" type="button">Keep going</button></div>'));
     document.body.appendChild(ui.scrim);
 
+    ui.starScrim = el('div', 'rs-scrim rs-starscrim');
+    ui.starScrim.appendChild(el('div', 'rs-card',
+      '<div class="rs-starrow"></div><h3></h3><p class="sub"></p>' +
+      '<div class="rs-cardrow"><button class="rs-btn p rs-starnext" type="button">Accept the challenge</button></div>'));
+    document.body.appendChild(ui.starScrim);
+
     ui.signinScrim = el('div', 'rs-scrim');
     ui.signinScrim.appendChild(el('div', 'rs-card rs-signincard',
       '<h3></h3><p class="sub"></p>' +
@@ -646,6 +652,76 @@
     return t || 'This hub';
   }
 
+
+  /* ---------------- stars ----------------
+     Three for solving it alone, two after a hint, one after two, none after
+     reading the solution. The server decides; this only draws it. */
+
+  var STAR_WORDS = {
+    3: 'Solved unaided',
+    2: 'Solved after one hint',
+    1: 'Solved after two hints',
+    0: 'Solved after reading the solution',
+  };
+
+  function starRow(stars, cls) {
+    if (stars === null || stars === undefined) return '';
+    var n = Math.max(0, Math.min(3, stars));
+    var pips = '';
+    for (var i = 0; i < 3; i++) {
+      pips += '<span class="rs-star' + (i < n ? ' is-on' : '') +
+              '" style="--i:' + i + '">' +
+              '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+              '<path d="M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4 6.2 20.5l1.1-6.5L2.6 9.4l6.5-.9z"/>' +
+              '</svg></span>';
+    }
+    // the written equivalent, never optional: the shapes alone are not the message
+    return '<span class="rs-stars ' + (cls || '') + '" role="img" aria-label="' +
+           esc(n + ' of 3 stars. ' + (STAR_WORDS[n] || '')) + '">' + pips + '</span>';
+  }
+
+  /* The inline result, for one and two and zero stars. Lives in the work pane
+     under the actions, where the reader already is, and costs no interruption.
+     Frequent modals make every later modal less likely to be read, so the
+     modal is saved for the outcomes that earn it. */
+  function showInlineResult(stars, xp) {
+    var host = qs('.rs-actions', ui.stage) || qs('.rs-pane-work', ui.stage);
+    if (!host) return;
+    var row = qs('.rs-result', ui.stage);
+    if (!row) {
+      row = el('div', 'rs-result');
+      host.parentNode.insertBefore(row, host);
+    }
+    row.innerHTML = starRow(stars) +
+      '<b>' + esc(STAR_WORDS[Math.max(0, Math.min(3, stars))] || 'Solved') + '</b>' +
+      (typeof xp === 'number' && xp > 0 ? '<span class="xp">+' + xp + ' XP</span>' : '');
+    row.classList.remove('is-in');
+    void row.offsetWidth;          // restart the transition
+    row.classList.add('is-in');
+  }
+
+  /* The ceremony, for a three-star solve. Same scrim language as the hub
+     badge so the two read as one family, and it carries the accept for the
+     next exercise rather than adding a second interruption after it. */
+  function celebrateStars(stars, xp, nextTitle) {
+    if (!ui.starScrim) return;
+    var card = qs('.rs-card', ui.starScrim);
+    qs('.rs-starrow', card).innerHTML = starRow(stars, 'is-big');
+    qs('h3', card).textContent = STAR_WORDS[stars] || 'Solved';
+    qs('.sub', card).textContent = (typeof xp === 'number' && xp > 0 ? '+' + xp + ' XP. ' : '') +
+      (nextTitle ? 'Next: ' + nextTitle : 'That is the last one in this hub.');
+    var go = qs('.rs-starnext', card);
+    go.textContent = nextTitle ? 'Accept the challenge' : 'Keep going';
+    ui.starScrim.classList.add('is-open');
+    setTimeout(function () { try { go.focus(); } catch (e) {} }, 60);
+  }
+
+  function closeStars(andAdvance) {
+    if (!ui.starScrim) return;
+    ui.starScrim.classList.remove('is-open');
+    if (andAdvance) show(S.cur + 1);
+  }
+
   function renderBar() {
     var c = S.cards[S.cur];
     var sec = S.sections[c.sectionIndex];
@@ -962,6 +1038,16 @@
       if (card && gateCheck(card)) { ev.preventDefault(); ev.stopPropagation(); }
     }, true);
 
+    ui.starScrim.addEventListener('click', function (ev) {
+      if (ev.target.classList.contains('rs-starnext')) { closeStars(true); return; }
+      if (ev.target === ui.starScrim) closeStars(false);
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (!ui.starScrim.classList.contains('is-open')) return;
+      if (ev.key === 'Escape') { ev.preventDefault(); closeStars(false); }
+      else if (ev.key === 'Enter') { ev.preventDefault(); closeStars(true); }
+    });
+
     ui.signinScrim.addEventListener('click', function (ev) {
       if (ev.target === ui.signinScrim || ev.target.classList.contains('rs-signinlater')) {
         ui.signinScrim.classList.remove('is-open');
@@ -974,6 +1060,19 @@
       if (typeof r.xp_awarded_now === 'number') S.xp += r.xp_awarded_now;
       repaint();
       setNudge(r.nudge);
+      /* Three stars earns the ceremony; anything else resolves inline. The
+         hub badge outranks both: on the last exercise of a hub it would
+         otherwise be two celebrations stacked on one solve. */
+      if (typeof r.stars === 'number') {
+        var earnedXp = typeof r.xp_awarded_now === 'number' ? r.xp_awarded_now : 0;
+        var hubEnding = !!(r.hub_badge && r.hub_badge.newly_minted);
+        if (r.stars === 3 && !hubEnding) {
+          var nxt = S.cards[S.cur + 1];
+          celebrateStars(3, earnedXp, nxt ? nxt.title : '');
+        } else {
+          showInlineResult(r.stars, earnedXp);
+        }
+      }
       if (r.hub_badge && r.hub_badge.newly_minted) setTimeout(function () { celebrate(r.hub_badge); }, 650);
     });
     // exercise-hub.js repaints cards on hydrate; keep our chrome in step
