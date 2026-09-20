@@ -74,6 +74,24 @@ def parse_hub(slug):
         ex_titles[m.group(1)] = t
     return blurb, sec_titles, ex_titles
 
+def write_hub_index(out):
+    """The slim index the practice studio's rail reads.
+
+    One line per hub, grouped by the same categories the exercises index
+    uses, so the rail on a hub page and the catalogue page agree by
+    construction. Kept separate from exercise-catalog.json because that file
+    carries every problem title and would be a 463 KB download on every one
+    of the 148 hub pages."""
+    slim = {'categories': [
+        {'name': c['name'],
+         'hubs': [[h['title'], h['href'], h['n']] for h in c['hubs']]}
+        for c in out['categories']]}
+    payload = json.dumps(slim, separators=(',', ':'))
+    io.open('www/hub-index.json', 'w', encoding='utf-8', newline='\n').write(payload)
+    n = sum(len(c['hubs']) for c in slim['categories'])
+    print(f'www/hub-index.json: {n} hubs / {len(payload)//1024}KB')
+
+
 def main():
     sidebar = json.load(open('www/sidebar.json', encoding='utf-8'))
     manifest = json.load(open('functions/_data/exercise-manifest.json', encoding='utf-8'))
@@ -144,9 +162,17 @@ def main():
            'xp_rules': {'beginner': 10, 'intermediate': 25, 'advanced': 50}}
     payload = json.dumps(out, separators=(',', ':'))
     io.open('www/exercise-catalog.json', 'w', encoding='utf-8', newline='\n').write(payload)
+    write_hub_index(out)
     h8 = hashlib.md5(payload.encode()).hexdigest()[:8]
     print(f'www/exercise-catalog.json: {tot_h} hubs / {tot_n} problems / {tot_xp} XP / {len(quizzes)} quizzes / {len(payload)//1024}KB / hash {h8}')
     return h8
 
 if __name__ == '__main__':
-    main()
+    # --index-only rebuilds just www/hub-index.json from the committed
+    # catalogue. The catalogue itself needs curriculum-status.json, which is
+    # local and gitignored, so a full run is not always possible and is not
+    # needed to refresh a file that is a pure projection of one already here.
+    if '--index-only' in sys.argv:
+        write_hub_index(json.load(io.open('www/exercise-catalog.json', encoding='utf-8')))
+    else:
+        main()

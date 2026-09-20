@@ -5,7 +5,7 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401 } from "../../_lib/errors";
-import { BADGE_DEFS, loadUserBadges, badgeArt } from "../../_lib/badges";
+import { BADGE_DEFS, loadUserBadges, badgeArt, LADDER_MARKS } from "../../_lib/badges";
 import miniCoursesJson from "../../_data/mini-courses.json";
 
 interface Mini { window_hours: number; sequence: Array<{ seq: number; kind: string; subject: string; slug?: string | null; course?: string | null }> }
@@ -22,13 +22,19 @@ const WINDOW_SEC = (MINI.window_hours || 72) * 3600;
  * reported when earned but never dangled as a target, because their distance
  * is not a number a learner can act on.
  */
-const SOLVE_MARKS: Array<[string, number]> = [
-  ["solves-5", 5], ["solves-10", 10], ["solves-25", 25], ["solves-50", 50],
-  ["solves-100", 100], ["solves-200", 200], ["solves-300", 300],
-];
-const STREAK_MARKS: Array<[string, number]> = [
-  ["streak-7", 7], ["streak-30", 30], ["streak-100", 100],
-];
+/* Derived from the ladder rather than restated here.
+ *
+ * These were a hand-copied subset and had already fallen behind: the ladder
+ * runs to a thousand solves and a full year, and this list stopped at three
+ * hundred and at a hundred days, so the four longest rungs could be earned
+ * but never dangled. A list that has to be edited in two places to stay true
+ * is a list that will be edited in one. */
+const SOLVE_MARKS: Array<[string, number]> = LADDER_MARKS.solves.map(
+  (n) => [n === LADDER_MARKS.solves[0] ? "first-solve" : `solves-${n}`, n] as [string, number],
+);
+const STREAK_MARKS: Array<[string, number]> = LADDER_MARKS.streak.map(
+  (n) => [`streak-${n}`, n] as [string, number],
+);
 
 async function ladderFor(DB: D1Database, userId: string, streakBest: number) {
   const owned = await loadUserBadges(DB, userId);

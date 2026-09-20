@@ -54,7 +54,10 @@
     t0: 0, tick: null, pausedAt: 0, pauses: 0,
     pinned: false,
     meter: null,
-    idle: null
+    idle: null,
+    vsec: 0,          // the section the two menus and the dot strip are showing
+    hubIndex: null,   // every hub on the platform, from /www/hub-index.json
+    hubDone: null     // slug -> problems this reader has passed there
   };
 
   /* ---------------------------------------------------------------
@@ -94,6 +97,19 @@
       S.cards.push(card);
       if (section) section.cards.push(card);
     });
+    /* A hub's last heading is often "What to do next", prose with no problems
+       under it. Left in, it became a section you could pick from the menu and
+       land on nothing: an empty exercise list and an empty strip. Dropping the
+       empty ones here means every section anything counts is a section that
+       has work in it. */
+    S.sections = S.sections.filter(function (sc) { return sc.cards.length > 0; });
+    S.sections.forEach(function (sc, si) {
+      sc.cards.forEach(function (c) { c.sectionIndex = si; });
+    });
+    // a problem that appeared before any heading belongs to the first section
+    S.cards.forEach(function (c) {
+      if (!(c.sectionIndex >= 0 && c.sectionIndex < S.sections.length)) c.sectionIndex = 0;
+    });
     return S.cards.length > 0;
   }
 
@@ -132,9 +148,21 @@
     var bar = el('div', 'rs-bar');
     // an h1, not a span: the studio hides the page's own heading, and a page
     // with no heading at all is a worse page, for a reader or a crawler
-    var left = el('div', '', '<h1 class="rs-hub"></h1>');
+    var left = el('div', 'rs-barleft', '<h1 class="rs-hub"></h1>');
     ui.hub = qs('.rs-hub', left);
+    /* The two menus and the dot strip live together in the middle of the
+       bar: section, then problem, then the shape of that section. Fifty dots
+       used to sit here instead, which was a picture of the hub rather than a
+       way through it. */
+    ui.nav2 = el('div', 'rs-nav2');
+    ui.secmenu = makeMenu('rs-secmenu', 'Section');
+    ui.exmenu = makeMenu('rs-exmenu', 'Problem');
+    ui.secmenu.onpick = function (si) { setViewedSection(si); };
+    ui.exmenu.onpick = function (i) { show(i); };
     ui.prog = el('div', 'rs-prog');
+    ui.nav2.appendChild(ui.secmenu);
+    ui.nav2.appendChild(ui.exmenu);
+    ui.nav2.appendChild(ui.prog);
     var right = el('div', 'rs-right');
     ui.slot = el('span', 'rs-slot');
     ui.accept = el('button', 'rs-accept',
@@ -147,7 +175,7 @@
     ui.exit.href = location.pathname + '?' + PARAM + '=0';
     ui.exit.title = 'Read this hub as a plain page';
     right.appendChild(ui.slot); right.appendChild(ui.prev); right.appendChild(ui.next); right.appendChild(ui.exit);
-    bar.appendChild(left); bar.appendChild(ui.prog); bar.appendChild(right);
+    bar.appendChild(left); bar.appendChild(ui.nav2); bar.appendChild(right);
     ui.bar = bar;
 
     // --- body: spine, panel, stage
@@ -544,61 +572,158 @@
     body.setAttribute('data-rs-split', '1');
   }
 
-  /* The rail, collapsed. Twenty squares each reading "1.1" at nine pixels was
-     a wall of digits. The section number leads its own group, and each square
-     carries only its position inside that section, which is the number the
-     reader is actually counting. */
+  /* ---------------- the rail ----------------
+
+     Every hub on the platform, not this hub's problems. Those have the dot
+     strip, the two menus and the arrows already; what a reader had no way to
+     see was where this hub sits among the other hundred and forty two, or
+     which of them they had touched.
+
+     Collapsed and expanded are the same list at the same pitch: one square
+     per hub against one row per hub, --rowh apart in both, so hovering the
+     rail slides names in beside the squares rather than past them.
+
+     The whole platform, and never a filtered slice of it: a rail that hid
+     the categories a reader has not started would hide exactly the ones
+     worth showing them. */
+
+  function railCats() { return S.hubIndex || []; }
+
+  // hub-index rows are [title, href, problems]; the slug is the page name
+  function hubSlugOf(href) { return String(href || '').replace(/\.html$/, ''); }
+
+  function thisHubSlug() {
+    var p = location.pathname.split('/').pop() || '';
+    return hubSlugOf(p);
+  }
+
+  /* done / total for one hub. The hub the reader is standing in is read live
+     off the page, because a solve two seconds ago has to show here before
+     any server round trip; everything else comes from /api/me/hubs. */
+  function hubProgress(slug, total) {
+    if (slug === S.hubSlug) return { done: solvedCount(), total: S.cards.length || total };
+    var d = S.hubDone && S.hubDone[slug];
+    return { done: typeof d === 'number' ? d : 0, total: total };
+  }
+
+  function hubState(p) {
+    if (p.total > 0 && p.done >= p.total) return 'is-done';
+    return p.done > 0 ? 'is-part' : '';
+  }
+
   function renderPips() {
-    ui.pips.innerHTML = '';
-    S.sections.forEach(function (sec, si) {
-      var head = el('span', 'rs-pipsec', String(si + 1));
-      head.title = sec.title || ('Section ' + (si + 1));
-      ui.pips.appendChild(head);
-      sec.cards.forEach(function (c, j) {
-        var i = S.cards.indexOf(c);
-        var p = el('button', 'rs-pip' + (isSolved(c) ? ' is-done' : '') + (i === S.cur ? ' is-cur' : ''),
-                   String(j + 1));
-        p.type = 'button';
-        p.setAttribute('data-go', String(i));
-        p.setAttribute('aria-label', 'Problem ' + c.num + ', ' + c.title);
-        p.title = c.num + '  ' + c.title;
-        ui.pips.appendChild(p);
+    var h = '';
+    railCats().forEach(function (cat) {
+      /* A rule, not a number. The squares below it already count 1..n inside
+         the category, so a category ordinal sitting in the same column read
+         as one more hub with a wrong number. The name is on hover, and
+         expanded it is written out. */
+      h += '<span class="rs-pipsec" title="' + esc(cat.name) + '"></span>';
+      cat.hubs.forEach(function (row, hi) {
+        var slug = hubSlugOf(row[1]);
+        var here = slug === S.hubSlug;
+        var p = hubProgress(slug, row[2]);
+        h += '<button type="button" class="rs-pip ' + hubState(p) +
+             (here ? ' is-cur' : '') + '" data-hub="' + esc(row[1]) +
+             '" aria-label="' + esc(row[0]) + ', ' + p.done + ' of ' + p.total + ' solved' +
+             (here ? ', you are here' : '') + '" title="' + esc(row[0]) +
+             '  ' + p.done + '/' + p.total + '">' + (hi + 1) + '</button>';
       });
     });
+    ui.pips.innerHTML = h;
     ui.count.textContent = solvedCount() + '/' + S.cards.length;
   }
 
-  /* The panel, expanded. Each section says how far through it the reader is,
-     and each row is a real button, so the list can be walked from the keyboard
-     rather than only clicked. */
+  /* The rail, expanded. The same rows, now with names, and every one of them
+     a real link: a reader can middle-click a hub open in a tab, which a
+     button could never give them. The hub they are in is not a link, because
+     a link to where you already are is a dead control. */
   function renderList() {
     var h = '';
-    S.sections.forEach(function (sec, si) {
-      var done = 0;
-      sec.cards.forEach(function (c) { if (isSolved(c)) done++; });
-      var cleared = sec.cards.length > 0 && done === sec.cards.length;
-      h += '<div class="rs-psec' + (cleared ? ' is-done' : '') + '"><span class="t">' +
-           esc(sec.title || ('Section ' + (si + 1))) + '</span>' +
-           '<span class="c">' + (cleared ? 'cleared' : done + '/' + sec.cards.length) +
-           '</span></div>';
-      sec.cards.forEach(function (c) {
-        var i = S.cards.indexOf(c);
-        h += '<button type="button" class="rs-prow' +
-             (isSolved(c) ? ' is-done' : '') + (i === S.cur ? ' is-cur' : '') +
-             '" data-go="' + i + '">' +
+    railCats().forEach(function (cat) {
+      if (!cat.name) return;
+      var tot = 0, got = 0;
+      cat.hubs.forEach(function (row) {
+        var p = hubProgress(hubSlugOf(row[1]), row[2]);
+        tot += p.total; got += p.done;
+      });
+      h += '<div class="rs-psec' + (tot > 0 && got >= tot ? ' is-done' : '') +
+           '"><span class="t">' + esc(cat.name) + '</span>' +
+           '<span class="c">' + cat.hubs.length + '</span></div>';
+      cat.hubs.forEach(function (row, hi) {
+        var slug = hubSlugOf(row[1]);
+        var here = slug === S.hubSlug;
+        var p = hubProgress(slug, row[2]);
+        h += (here ? '<span class="rs-prow is-cur ' : '<a class="rs-prow ') +
+             hubState(p) + (here ? '"' : '" href="/' + esc(row[1]) + '?studio=1"') + '>' +
              '<span class="mark" aria-hidden="true"></span>' +
-             '<span class="no">' + esc(c.num) + '</span>' +
-             '<span class="ti">' + esc(c.title) + '</span>' +
-             (c.difficulty ? '<span class="df is-' + esc(c.difficulty) +
-                             '" title="' + esc(c.difficulty) + '"></span>' : '') +
-             '</button>';
+             '<span class="no">' + (hi + 1) + '</span>' +
+             '<span class="ti">' + esc(row[0]) + '</span>' +
+             '<span class="hn">' + (p.done ? p.done + '/' + p.total : p.total) + '</span>' +
+             (here ? '</span>' : '</a>');
       });
     });
-    ui.plist.innerHTML = h;
+    ui.plist.innerHTML = h || '<div class="rs-pempty">Loading the catalogue</div>';
     renderDest();
     var n = solvedCount();
-    ui.pcount.innerHTML = '<b>' + n + '</b> of ' + S.cards.length + ' solved';
+    ui.pcount.innerHTML = '<b>' + n + '</b> of ' + S.cards.length + ' solved here';
     if (ui.pbar) ui.pbar.style.width = (S.cards.length ? (n / S.cards.length * 100) : 0) + '%';
+  }
+
+  /* Open the rail on the hub the reader is in. Both scrollers are moved by
+     the same amount, because they share one pitch and mirroring the offset is
+     what keeps a square beside its own name. */
+  function railToHere() {
+    var pip = qs('.rs-pip.is-cur', ui.pips);
+    if (!pip) return;
+    /* Both axes: the rail is a column on a desktop and a swipe strip on a
+       phone, and the other axis has no overflow to move in either case. */
+    var top = Math.max(0, pip.offsetTop - Math.round(ui.pips.clientHeight / 2));
+    ui.pips.scrollTop = top;
+    ui.plist.scrollTop = top;
+    ui.pips.scrollLeft = Math.max(0, pip.offsetLeft - Math.round(ui.pips.clientWidth / 2));
+  }
+
+  /* The catalogue, once, from a 9 KB projection of the file /exercises/ is
+     built from. Cached hard by the /www/ rule, so a reader moving between
+     hubs pays for it on the first page only. */
+  function loadHubIndex() {
+    fetch('/www/hub-index.json?v=1', { credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.categories) return;
+        S.hubIndex = d.categories;
+        /* A hub can be published before the catalogue is rebuilt, and five of
+           them are in that state today. Rather than leave a reader unable to
+           find the page they are standing on, it is added at the end. The
+           group disappears of its own accord the next time the catalogue is
+           built, because the hub will be in a real category by then. */
+        var found = false;
+        S.hubIndex.forEach(function (c) {
+          c.hubs.forEach(function (r) { if (hubSlugOf(r[1]) === S.hubSlug) found = true; });
+        });
+        if (!found && S.hubSlug) {
+          S.hubIndex = S.hubIndex.concat([{ name: 'Also published', hubs: [
+            [hubName(), S.hubSlug + '.html', S.cards.length]] }]);
+        }
+        renderPips(); renderList();
+        railToHere();
+      })
+      .catch(function () { /* the rail stays empty; nothing else depends on it */ });
+  }
+
+  /* What the reader has solved everywhere else. Signed out this 401s and the
+     rail simply shows problem counts instead of progress, which is the right
+     thing to show somebody who has none yet. */
+  function loadHubProgress() {
+    fetch('/api/me/hubs', { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.hubs) return;
+        S.hubDone = d.hubs;
+        renderPips(); renderList();
+      })
+      .catch(function () { /* counts only, which is still a usable rail */ });
   }
 
 
@@ -771,9 +896,165 @@
     requestAnimationFrame(function () { S._syncing = false; });
   }
 
+
+  /* ---------------- the two menus ----------------
+
+     A native select cannot show what these rows have to show: whether a
+     section is cleared, whether a problem is solved, how many stars it was
+     solved with. So this is a listbox, built once and refilled, with the
+     keyboard behaviour a listbox owes a reader: Enter and Space to open,
+     arrows to walk, Escape to leave, Tab and an outside click to dismiss.
+
+     One at a time. Opening the exercise menu closes the section menu, which
+     is what a reader expects from two controls sitting side by side. */
+
+  var openMenu = null;
+
+  function makeMenu(cls, label) {
+    var m = el('div', 'rs-menu ' + cls);
+    m.innerHTML =
+      '<button class="rs-mbtn" type="button" aria-haspopup="listbox" aria-expanded="false">' +
+        '<span class="v"></span>' +
+        '<svg class="cv" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>' +
+      '</button>' +
+      '<div class="rs-mpop" role="listbox" tabindex="-1" hidden></div>';
+    m.btn = qs('.rs-mbtn', m);
+    m.pop = qs('.rs-mpop', m);
+    m.val = qs('.v', m.btn);
+    m.btn.setAttribute('aria-label', label);
+    m.label = label;
+
+    m.btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      menuToggle(m);
+    });
+    m.btn.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        menuOpen(m);
+        menuStep(m, ev.key === 'ArrowUp' ? -1 : 1);
+      }
+    });
+    m.pop.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') {
+        ev.preventDefault(); ev.stopPropagation(); menuClose(m, true);
+      }
+      else if (ev.key === 'ArrowDown') { ev.preventDefault(); menuStep(m, 1); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); menuStep(m, -1); }
+      else if (ev.key === 'Home') { ev.preventDefault(); menuStep(m, 0, 'first'); }
+      else if (ev.key === 'End') { ev.preventDefault(); menuStep(m, 0, 'last'); }
+    });
+    m.pop.addEventListener('click', function (ev) {
+      var row = ev.target.closest ? ev.target.closest('[data-v]') : null;
+      if (!row) return;
+      menuClose(m, true);
+      m.onpick(parseInt(row.getAttribute('data-v'), 10));
+    });
+    return m;
+  }
+
+  function menuOpen(m) {
+    if (openMenu && openMenu !== m) menuClose(openMenu, false);
+    if (m.pop.hidden === false) return;
+    m.pop.hidden = false;
+    m.btn.setAttribute('aria-expanded', 'true');
+    openMenu = m;
+    // open where the reader is, not at the top of a twelve-row list
+    var cur = qs('[aria-selected="true"]', m.pop);
+    if (cur) m.pop.scrollTop = Math.max(0, cur.offsetTop - m.pop.clientHeight / 2 + 16);
+  }
+  function menuClose(m, refocus) {
+    if (m.pop.hidden) return;
+    m.pop.hidden = true;
+    m.btn.setAttribute('aria-expanded', 'false');
+    if (openMenu === m) openMenu = null;
+    if (refocus) { try { m.btn.focus(); } catch (e) { /* fine */ } }
+  }
+  function menuToggle(m) { m.pop.hidden ? menuOpen(m) : menuClose(m, true); }
+
+  function menuStep(m, delta, where) {
+    var rows = qsa('[data-v]', m.pop);
+    if (!rows.length) return;
+    var at = rows.indexOf(document.activeElement);
+    if (where === 'first') at = 0;
+    else if (where === 'last') at = rows.length - 1;
+    else if (at < 0) at = Math.max(0, rows.indexOf(qs('[aria-selected="true"]', m.pop)));
+    else at = Math.max(0, Math.min(rows.length - 1, at + delta));
+    try { rows[at].focus(); } catch (e) { /* fine */ }
+  }
+
+  /* Section menu: every section in this hub, each saying how far in the
+     reader is. Picking one does not move them off the problem they are on;
+     it repoints the exercise menu and the dot strip, which is how a reader
+     looks ahead without losing their place. */
+  function renderSecMenu() {
+    if (!ui.secmenu) return;
+    var h = '';
+    S.sections.forEach(function (sc, si) {
+      var done = 0;
+      sc.cards.forEach(function (c) { if (isSolved(c)) done++; });
+      var cleared = sc.cards.length > 0 && done === sc.cards.length;
+      h += '<button type="button" role="option" class="rs-mrow' +
+           (cleared ? ' is-done' : '') + (si === S.vsec ? ' is-cur' : '') +
+           '" data-v="' + si + '" aria-selected="' + (si === S.vsec) + '">' +
+           '<span class="mk" aria-hidden="true"></span>' +
+           '<span class="no">' + (si + 1) + '</span>' +
+           '<span class="ti">' + esc(sc.title || ('Section ' + (si + 1))) + '</span>' +
+           '<span class="c">' + (cleared ? 'cleared' : done + '/' + sc.cards.length) +
+           '</span></button>';
+    });
+    ui.secmenu.pop.innerHTML = h;
+    var cur = S.sections[S.vsec];
+    // the value says what it is, so the control needs no label beside it
+    ui.secmenu.val.textContent = 'Section ' + (S.vsec + 1) +
+      ((cur && cur.title) ? ': ' + cur.title : '');
+  }
+
+  /* Exercise menu: only the chosen section, which is the whole point of
+     having two of these. Stars ride along so a reader can see at a glance
+     which ones they took help on and might want back. */
+  function renderExMenu() {
+    if (!ui.exmenu) return;
+    var sc = S.sections[S.vsec];
+    var h = '';
+    (sc ? sc.cards : []).forEach(function (c) {
+      var i = S.cards.indexOf(c);
+      var st = starOf(c);
+      h += '<button type="button" role="option" class="rs-mrow' +
+           (isSolved(c) ? ' is-done' : '') + (i === S.cur ? ' is-cur' : '') +
+           '" data-v="' + i + '" aria-selected="' + (i === S.cur) + '">' +
+           '<span class="mk" aria-hidden="true"></span>' +
+           '<span class="no">' + esc(c.num) + '</span>' +
+           '<span class="ti">' + esc(c.title) + '</span>' +
+           (st === null ? '' : '<span class="st" title="' + st +
+              ' of 3 stars">' + starPips(st) + '</span>') +
+           '</button>';
+    });
+    ui.exmenu.pop.innerHTML = h;
+    var cur = S.cards[S.cur];
+    var here = cur && cur.sectionIndex === S.vsec;
+    ui.exmenu.val.textContent = here
+      ? (cur.num + '  ' + cur.title)
+      : ((sc && sc.cards.length) ? ('Pick one of ' + sc.cards.length) : 'None');
+    ui.exmenu.btn.classList.toggle('is-elsewhere', !here);
+  }
+
+  /* Three small solid-or-hollow marks. The menu row is too tight for the
+     real star row, and this is a summary, not the award. */
+  function starPips(n) {
+    var h = '';
+    for (var i = 0; i < 3; i++) h += '<i class="' + (i < n ? 'on' : '') + '"></i>';
+    return h;
+  }
+
+  function setViewedSection(si) {
+    if (si < 0 || si >= S.sections.length) return;
+    S.vsec = si;
+    renderSecMenu(); renderExMenu(); renderPath();
+  }
+
   function renderBar() {
     var c = S.cards[S.cur];
-    var sec = S.sections[c.sectionIndex];
     /* The page's own h1 is hidden by the studio, so this one stands in for it
        and has to carry the same words. Splitting on the colon dropped half the
        heading ("dplyr Exercises in R" out of "dplyr Exercises in R: 50
@@ -781,42 +1062,53 @@
        had to match. Keep the whole title; the bar ellipsises it if it is long. */
     var full = document.title.split('|')[0].trim() || 'Practice';
     ui.hub.title = full;
-    ui.hub.innerHTML = esc(full) +
-      (sec && sec.title ? ' <span>&middot; ' + esc(sec.title) + '</span>' : '');
-    /* The whole hub, not just this section. A checkpoint sits at every
-       section boundary and the badge closes the line, so the shape of the
-       work is legible before any of it is done. Long hubs stay calm by
-       shrinking the step rather than by hiding most of the path. */
-    var h = '', prevCard = null;
-    S.sections.forEach(function (sc, si) {
-      if (si) {
-        var prevCleared = sc.cards.length >= 0 && S.sections[si - 1].cards.every(isSolved);
-        h += '<s class="' + (prevCleared ? 'is-done' : '') + '"></s>' +
-             '<b class="rs-ckpt' + (prevCleared ? ' is-done' : '') + '" title="' +
-             esc(S.sections[si - 1].title || ('Section ' + si)) + ' complete"></b>';
-        prevCard = null;   // the checkpoint carries the join across the seam
-      }
-      sc.cards.forEach(function (cc, j) {
-        var i = S.cards.indexOf(cc);
-        if (prevCard) h += '<s class="' + (isSolved(prevCard) ? 'is-done' : '') + '"></s>';
-        var st = starOf(cc);
-        h += '<i class="' + (isSolved(cc) ? 'is-done' : '') +
-             (st === 3 ? ' is-gold' : '') +
-             (i === S.cur ? ' is-cur' : '') + '" data-go="' + i +
-             '" title="' + esc(cc.num + '  ' + cc.title +
-               (st === null ? '' : '  (' + st + ' of 3 stars)')) + '"></i>';
-        prevCard = cc;
-      });
-    });
-    var allDone = S.cards.length > 0 && S.cards.every(isSolved);
-    h += '<s class="' + (allDone ? 'is-done' : '') + '"></s>' +
-         '<b class="rs-pathbadge' + (allDone ? ' is-done' : '') +
-         '" title="' + esc(hubBadgeName()) + '"></b>';
-    ui.prog.innerHTML = h;
-    // one step size for the whole strip, so a 50-problem hub fits the bar
-    ui.prog.style.setProperty('--step', (S.cards.length > 34 ? 5 : S.cards.length > 22 ? 9 : 14) + 'px');
+    // the section menu names the section now, so the h1 stops repeating it
+    ui.hub.innerHTML = esc(full);
+    renderSecMenu(); renderExMenu(); renderPath();
     ui.prev.disabled = S.cur === 0;
     ui.next.disabled = S.cur === S.cards.length - 1;
+  }
+
+  /* The dot strip: one section, and what finishing it earns.
+   *
+   * The whole hub used to be drawn here, fifty dots at five pixels apart on
+   * the bigger hubs, which is a texture rather than a path. A section is six
+   * to ten problems, so every dot is a real target and the strip ends on the
+   * thing the reader is working towards: the section checkpoint, or on the
+   * last section the hub badge itself. */
+  function renderPath() {
+    if (!ui.prog) return;
+    var sc = S.sections[S.vsec];
+    if (!sc) { ui.prog.innerHTML = ''; return; }
+    var h = '';
+    sc.cards.forEach(function (cc, j) {
+      var i = S.cards.indexOf(cc);
+      if (j) h += '<s class="' + (isSolved(sc.cards[j - 1]) ? 'is-done' : '') + '"></s>';
+      var st = starOf(cc);
+      h += '<i class="' + (isSolved(cc) ? 'is-done' : '') +
+           (st === 3 ? ' is-gold' : '') +
+           (i === S.cur ? ' is-cur' : '') + '" data-go="' + i +
+           '" title="' + esc(cc.num + '  ' + cc.title +
+             (st === null ? '' : '  (' + st + ' of 3 stars)')) + '"></i>';
+    });
+    var cleared = sc.cards.length > 0 && sc.cards.every(isSolved);
+    var last = S.vsec === S.sections.length - 1;
+    if (last) {
+      var allDone = S.cards.length > 0 && S.cards.every(isSolved);
+      h += '<s class="' + (allDone ? 'is-done' : '') + '"></s>' +
+           '<b class="rs-pathbadge' + (allDone ? ' is-done' : '') +
+           '" title="' + esc(hubBadgeName() + (allDone ? ', earned' : ', solve every problem')) +
+           '"></b>';
+    } else {
+      h += '<s class="' + (cleared ? 'is-done' : '') + '"></s>' +
+           '<b class="rs-ckpt' + (cleared ? ' is-done' : '') + '" title="' +
+           esc((sc.title || ('Section ' + (S.vsec + 1))) +
+               (cleared ? ' cleared' : ' complete, +25 XP')) + '"></b>';
+    }
+    ui.prog.innerHTML = h;
+    // a section is small enough to draw at full size until it is not
+    var n = sc.cards.length;
+    ui.prog.style.setProperty('--step', (n > 14 ? 8 : n > 9 ? 12 : 18) + 'px');
   }
 
   /* The next rung, named. The server sends it on every graded solve as
@@ -882,6 +1174,12 @@
     if (i < 0 || i >= S.cards.length) return;
     S.cards.forEach(function (c) { c.node.classList.remove('rs-current'); });
     S.cur = i;
+    /* Moving snaps the menus back to where the reader now is. Repainting does
+       not: a background repaint (the auth hydrate, a solve landing) used to
+       yank someone who was reading ahead in section six back to section one
+       mid-scroll. Browsing is a deliberate act and only a deliberate act
+       should end it. */
+    if (typeof S.cards[i].sectionIndex === 'number') S.vsec = S.cards[i].sectionIndex;
     var node = S.cards[i].node;
     node.classList.add('rs-current');
     splitCard(node);
@@ -1080,11 +1378,19 @@
     });
     ui.spinetop.addEventListener('focus', openPanel);
     ui.pin.addEventListener('click', function (e) { e.stopPropagation(); setPin(!S.pinned); });
-    [ui.pips, ui.plist, ui.prog].forEach(function (n) {
-      n.addEventListener('click', function (ev) {
-        var t = ev.target.closest('[data-go]');
-        if (t) show(parseInt(t.getAttribute('data-go'), 10));
-      });
+    ui.prog.addEventListener('click', function (ev) {
+      var t = ev.target.closest('[data-go]');
+      if (t) show(parseInt(t.getAttribute('data-go'), 10));
+    });
+    // a square in the collapsed rail is the same link as its expanded row
+    ui.pips.addEventListener('click', function (ev) {
+      var t = ev.target.closest('[data-hub]');
+      if (!t || t.classList.contains('is-cur')) return;
+      location.href = '/' + t.getAttribute('data-hub') + '?studio=1';
+    });
+    // a click anywhere else puts the open menu away
+    document.addEventListener('click', function () {
+      if (openMenu) menuClose(openMenu, false);
     });
     qs('.rs-resume', ui.paused).addEventListener('click', resume);
     [ui.scrim, ui.up].forEach(function (s) {
@@ -1223,6 +1529,7 @@
   }
 
   function mount() {
+    S.hubSlug = thisHubSlug();
     document.body.classList.add('rs-studio');
     clearGuard();
     build();
@@ -1232,8 +1539,11 @@
     show(0);
     renderStatus();
     loadMeter();
+    loadHubIndex();
     document.addEventListener('auth-hydrated', function () {
-      setTimeout(function () { renderPips(); renderList(); renderBar(); loadMeter(); }, 60);
+      setTimeout(function () {
+        renderPips(); renderList(); renderBar(); loadMeter(); loadHubProgress();
+      }, 60);
     });
   }
 
