@@ -722,6 +722,23 @@
     if (andAdvance) show(S.cur + 1);
   }
 
+
+  /* Stars for a card, from the server's map. Null means unrated: either not
+     solved, or banked from the anonymous era where nothing was tracked. */
+  function starOf(card) {
+    var m = S.starMap;
+    if (!m || !card || !card.id) return null;
+    var v = m[card.id];
+    return (typeof v === 'number') ? v : null;
+  }
+
+  /* The name on the badge at the end of the path. The page title without its
+     trailing description is what a reader recognises. */
+  function hubBadgeName() {
+    var t = document.title.split('|')[0].split(':')[0].trim();
+    return (t || 'This hub') + ' badge';
+  }
+
   function renderBar() {
     var c = S.cards[S.cur];
     var sec = S.sections[c.sectionIndex];
@@ -734,16 +751,38 @@
     ui.hub.title = full;
     ui.hub.innerHTML = esc(full) +
       (sec && sec.title ? ' <span>&middot; ' + esc(sec.title) + '</span>' : '');
-    // dots across the current section only, so the bar stays calm on big hubs
-    var h = '';
-    if (sec) {
-      sec.cards.forEach(function (cc, j) {
+    /* The whole hub, not just this section. A checkpoint sits at every
+       section boundary and the badge closes the line, so the shape of the
+       work is legible before any of it is done. Long hubs stay calm by
+       shrinking the step rather than by hiding most of the path. */
+    var h = '', prevCard = null;
+    S.sections.forEach(function (sc, si) {
+      if (si) {
+        var prevCleared = sc.cards.length >= 0 && S.sections[si - 1].cards.every(isSolved);
+        h += '<s class="' + (prevCleared ? 'is-done' : '') + '"></s>' +
+             '<b class="rs-ckpt' + (prevCleared ? ' is-done' : '') + '" title="' +
+             esc(S.sections[si - 1].title || ('Section ' + si)) + ' complete"></b>';
+        prevCard = null;   // the checkpoint carries the join across the seam
+      }
+      sc.cards.forEach(function (cc, j) {
         var i = S.cards.indexOf(cc);
-        if (j) h += '<s class="' + (isSolved(sec.cards[j - 1]) ? 'is-done' : '') + '"></s>';
-        h += '<i class="' + (isSolved(cc) ? 'is-done' : '') + (i === S.cur ? ' is-cur' : '') + '" data-go="' + i + '"></i>';
+        if (prevCard) h += '<s class="' + (isSolved(prevCard) ? 'is-done' : '') + '"></s>';
+        var st = starOf(cc);
+        h += '<i class="' + (isSolved(cc) ? 'is-done' : '') +
+             (st === 3 ? ' is-gold' : '') +
+             (i === S.cur ? ' is-cur' : '') + '" data-go="' + i +
+             '" title="' + esc(cc.num + '  ' + cc.title +
+               (st === null ? '' : '  (' + st + ' of 3 stars)')) + '"></i>';
+        prevCard = cc;
       });
-    }
+    });
+    var allDone = S.cards.length > 0 && S.cards.every(isSolved);
+    h += '<s class="' + (allDone ? 'is-done' : '') + '"></s>' +
+         '<b class="rs-pathbadge' + (allDone ? ' is-done' : '') +
+         '" title="' + esc(hubBadgeName()) + '"></b>';
     ui.prog.innerHTML = h;
+    // one step size for the whole strip, so a 50-problem hub fits the bar
+    ui.prog.style.setProperty('--step', (S.cards.length > 34 ? 5 : S.cards.length > 22 ? 9 : 14) + 'px');
     ui.prev.disabled = S.cur === 0;
     ui.next.disabled = S.cur === S.cards.length - 1;
   }
@@ -1054,6 +1093,14 @@
       }
     });
 
+    /* exercise-hub.js asks the server which problems are already solved when
+       it hydrates; the same answer now carries the stars. Listening for it
+       beats a second request for the same row. */
+    document.addEventListener('exercise-progress-loaded', function (ev) {
+      var d = (ev && ev.detail) || {};
+      if (d.stars && typeof d.stars === 'object') { S.starMap = d.stars; repaint(); }
+    });
+
     document.addEventListener('exercise-attempt-result', function (ev) {
       var r = (ev.detail && ev.detail.result) || {};
       if (r.meter) { S.meter = r.meter; }
@@ -1065,6 +1112,8 @@
          otherwise be two celebrations stacked on one solve. */
       if (typeof r.stars === 'number') {
         var earnedXp = typeof r.xp_awarded_now === 'number' ? r.xp_awarded_now : 0;
+        var cur = S.cards[S.cur];
+        if (cur && cur.id) { S.starMap = S.starMap || {}; S.starMap[cur.id] = r.stars; }
         var hubEnding = !!(r.hub_badge && r.hub_badge.newly_minted);
         if (r.stars === 3 && !hubEnding) {
           var nxt = S.cards[S.cur + 1];

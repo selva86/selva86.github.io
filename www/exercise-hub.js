@@ -320,6 +320,13 @@
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (body) {
       if (!body || !Array.isArray(body.solved)) return;
+      /* The same response now carries stars per exercise. Announce it so the
+         studio can colour its path without asking for the same rows again. */
+      if (body.stars && typeof body.stars === 'object') {
+        document.dispatchEvent(new CustomEvent('exercise-progress-loaded', {
+          detail: { hub: hub, solved: body.solved, stars: body.stars }
+        }));
+      }
       var ids = body.solved;
       var dirty = false;
       for (var i = 0; i < ids.length; i++) {
