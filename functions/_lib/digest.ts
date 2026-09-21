@@ -44,6 +44,9 @@ export interface Metric {
   label: string;
   value: number;
   mean7: number;
+  /** the same weekday a week earlier, the baseline that controls for the
+      weekly shape of traffic. */
+  lastWeek: number;
   /** null when a baseline would be meaningless (too little history). */
   delta: number | null;
   /** true when the move is big enough to be worth a reader's attention. */
@@ -55,6 +58,7 @@ export interface Metric {
 
 export interface Digest {
   day: string;            // the day being reported, YYYY-MM-DD (UTC)
+  weekday: string;        // its weekday, short, for the column heading
   subject: string;
   headline: string;
   metrics: Record<string, Metric>;
@@ -68,6 +72,13 @@ export interface Digest {
 }
 
 /* ---------------------------------------------------------------- helpers */
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function weekdayOf(dayKey: string): string {
+  const t = Date.parse(dayKey + "T00:00:00Z");
+  return Number.isFinite(t) ? WEEKDAYS[new Date(t).getUTCDay()] : "";
+}
 
 function dayKeyUTC(offsetDays: number): string {
   const d = new Date(Date.now() - offsetDays * 86400000);
@@ -91,16 +102,32 @@ function metric(
 ): Metric {
   const value = byDay.get(dayKeyUTC(1)) ?? 0;
   const prior: number[] = [];
+  // offsets 2..8 are exactly one week, so the mean contains each weekday once
   for (let i = 2; i <= 8; i++) prior.push(byDay.get(dayKeyUTC(i)) ?? 0);
   const seen = prior.filter((n) => n > 0).length;
   const mean7 = prior.reduce((a, b) => a + b, 0) / prior.length;
+  const lastWeek = byDay.get(dayKeyUTC(8)) ?? 0;
   const delta = seen >= 2 ? value - mean7 : null;
-  const ratio = mean7 > 0 ? value / mean7 : (value > 0 ? Infinity : 1);
-  const notable = delta !== null && Math.abs(value - mean7) >= 3 &&
-    (ratio >= 1.6 || ratio <= 0.55);
+
+  /* Both baselines have to agree before anything is called out.
+   *
+   * Traffic here has a strong weekly shape, so a Saturday measured against a
+   * Monday-to-Sunday mean always reads as a collapse and the email would cry
+   * wolf every weekend. Measured against last Saturday it reads as a
+   * Saturday. Requiring the mean AND the same weekday to move the same way,
+   * both by enough to matter, leaves only the moves that are actually moves. */
+  const bigVs = (base: number) => {
+    if (base <= 0) return value >= 3;
+    const r = value / base;
+    return Math.abs(value - base) >= 3 && (r >= 1.6 || r <= 0.55);
+  };
+  const sameWay = (a: number, b: number) =>
+    (value - a) * (value - b) > 0 || a === b;
+  const notable = delta !== null && bigVs(mean7) &&
+    (lastWeek === 0 && seen < 4 ? true : bigVs(lastWeek) && sameWay(mean7, lastWeek));
   // silence: it used to happen on most days and yesterday it did not happen
   const silent = value === 0 && seen >= 4 && mean7 >= 1;
-  return { key, label, value, mean7, delta, notable, silent, suffix };
+  return { key, label, value, mean7, lastWeek, delta, notable, silent, suffix };
 }
 
 /** One grouped query -> a day => count map, for a `date(col,'unixepoch')` group. */
@@ -334,7 +361,7 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
   const subject = `r-statistics.co ${day} · ${headline}`;
 
   return {
-    day, subject, headline, metrics,
+    day, weekday: weekdayOf(day), subject, headline, metrics,
     order: [g1, g2, g3, g4, g5],
     sections: ["Who arrived", "What they did", "Intent and money", "Email", "Earned"],
     alerts, quiet, topPages, emailByTemplate, intent,
@@ -348,22 +375,39 @@ function esc(s: string): string {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function arrow(m: Metric): string {
-  if (m.delta === null) return "";
-  if (Math.abs(m.delta) < 0.5) return "level";
-  const up = m.delta > 0;
-  return `${up ? "up" : "down"} ${Math.abs(Math.round(m.delta))}`;
+/* One table, one header, three numbers. The old row spelled out "7-day mean
+   2337, down 857" on every line, which is the same phrase thirty times and a
+   sentence to re-parse before you reach a figure. */
+function num(n: number): string {
+  return n.toLocaleString("en-US", { maximumFractionDigits: n < 10 ? 1 : 0 });
 }
 
 function row(m: Metric): string {
-  const base = m.delta === null ? "no baseline yet"
-    : `7-day mean ${m.mean7 < 10 ? m.mean7.toFixed(1) : Math.round(m.mean7)}, ${arrow(m)}`;
-  const colour = m.notable ? (m.delta! > 0 ? "#1f7a55" : "#b45309") : "#6b7280";
+  const ink = m.notable
+    ? (m.value > m.mean7 ? "#1f7a55" : "#b45309")
+    : "#0d1117";
+  const base = (v: number) => m.delta === null
+    ? `<span style="color:#c3ccd6">&mdash;</span>` : num(v);
   return `<tr>
     <td style="padding:7px 0;border-bottom:1px solid #eef1ef;font:400 14px Inter,Arial,sans-serif;color:#454c58">${esc(m.label)}</td>
-    <td style="padding:7px 0;border-bottom:1px solid #eef1ef;text-align:right;font:700 15px Inter,Arial,sans-serif;color:#0d1117">${m.value.toLocaleString("en-US")}</td>
-    <td style="padding:7px 0 7px 14px;border-bottom:1px solid #eef1ef;text-align:right;font:400 12px Inter,Arial,sans-serif;color:${colour};white-space:nowrap">${esc(base)}</td>
+    <td style="padding:7px 0;border-bottom:1px solid #eef1ef;text-align:right;font:700 15px Inter,Arial,sans-serif;color:${ink}">${num(m.value)}</td>
+    <td style="padding:7px 0 7px 18px;border-bottom:1px solid #eef1ef;text-align:right;font:400 13.5px Inter,Arial,sans-serif;color:#78808c">${base(m.mean7)}</td>
+    <td style="padding:7px 0 7px 18px;border-bottom:1px solid #eef1ef;text-align:right;font:400 13.5px Inter,Arial,sans-serif;color:#78808c">${base(m.lastWeek)}</td>
   </tr>`;
+}
+
+function headRow(d: Digest): string {
+  const th = "padding:0 0 6px;font:600 11.5px Inter,Arial,sans-serif;color:#9aa2ac;border-bottom:1px solid #e3e8e4";
+  return `<tr>
+    <th style="${th};text-align:left"></th>
+    <th style="${th};text-align:right">${esc(d.day.slice(5))}</th>
+    <th style="${th};text-align:right;padding-left:18px">7-day mean</th>
+    <th style="${th};text-align:right;padding-left:18px">last ${esc(d.weekday)}</th>
+  </tr>`;
+}
+
+function sectionRow(title: string): string {
+  return `<tr><td colspan="4" style="padding:20px 0 4px;font:600 12.5px Inter,Arial,sans-serif;color:#78808c">${esc(title)}</td></tr>`;
 }
 
 export function renderDigestHtml(d: Digest): string {
@@ -385,17 +429,20 @@ export function renderDigestHtml(d: Digest): string {
     h.push(`</ul></div>`);
   }
 
+  /* One table for the lot, so the three column headings are written once
+     instead of once per section. */
+  h.push(`<table style="width:100%;border-collapse:collapse;margin-top:18px">`);
+  h.push(headRow(d));
   d.order.forEach((keys, i) => {
-    h.push(`<h2 style="font:600 13px Inter,Arial,sans-serif;color:#78808c;margin:24px 0 4px">${esc(d.sections[i])}</h2>`);
-    h.push(`<table style="width:100%;border-collapse:collapse">`);
+    h.push(sectionRow(d.sections[i]));
     for (const k of keys) if (d.metrics[k]) h.push(row(d.metrics[k]));
-    h.push(`</table>`);
-    if (d.sections[i] === "Email" && d.metrics.eSent.value > 0) {
-      const o = Math.round(100 * d.metrics.eOpen.value / d.metrics.eSent.value);
-      const c = Math.round(100 * d.metrics.eClick.value / d.metrics.eSent.value);
-      h.push(`<p style="font:400 12.5px Inter,Arial,sans-serif;color:#78808c;margin:6px 0 0">${o}% opened, ${c}% clicked.</p>`);
-    }
   });
+  h.push(`</table>`);
+  if (d.metrics.eSent.value > 0) {
+    const o = Math.round(100 * d.metrics.eOpen.value / d.metrics.eSent.value);
+    const c = Math.round(100 * d.metrics.eClick.value / d.metrics.eSent.value);
+    h.push(`<p style="font:400 12.5px Inter,Arial,sans-serif;color:#78808c;margin:8px 0 0">${o}% of yesterday's sends were opened, ${c}% clicked.</p>`);
+  }
 
   if (d.emailByTemplate.length) {
     h.push(`<h2 style="font:600 13px Inter,Arial,sans-serif;color:#78808c;margin:24px 0 4px">Which emails</h2><table style="width:100%;border-collapse:collapse">`);
@@ -424,7 +471,10 @@ export function renderDigestHtml(d: Digest): string {
   }
 
   h.push(`<p style="font:400 12px Inter,Arial,sans-serif;color:#9aa2ac;margin:26px 0 0;padding-top:14px;border-top:1px solid #eef1ef">
-    Days run 00:00 to 24:00 UTC. Baselines are the mean of the seven days before.
+    Days run 00:00 to 24:00 UTC. The 7-day mean is the week before the day shown;
+    last ${esc(d.weekday)} is the same weekday a week earlier, which is the fairer
+    comparison when traffic has a weekly shape. A figure is coloured only when both
+    baselines move the same way by enough to matter.
     <a href="${SITE}/api/admin/digest" style="color:#1f7a55;text-decoration:none">Open today's</a>
     &middot; <a href="${SITE}/dashboard.html" style="color:#1f7a55;text-decoration:none">Dashboard</a></p>`);
   h.push(`</div></div>`);
@@ -446,17 +496,20 @@ export function renderDigestText(d: Digest): string {
     for (const a of d.alerts) L.push("  - " + a);
     L.push("");
   }
+  const pad = (s: string, n: number) => s.padStart(n);
+  L.push(`  ${"".padEnd(36)} ${pad(d.day.slice(5), 7)} ${pad("7d mean", 9)} ${pad("last " + d.weekday, 9)}`);
+  L.push(`  ${"".padEnd(36)} ${"-".repeat(7)} ${"-".repeat(9)} ${"-".repeat(9)}`);
   d.order.forEach((keys, i) => {
-    L.push(d.sections[i].toUpperCase());
+    L.push("");
+    L.push("  " + d.sections[i].toUpperCase());
     for (const k of keys) {
       const m = d.metrics[k];
       if (!m) continue;
-      const base = m.delta === null ? "no baseline yet"
-        : `mean ${m.mean7 < 10 ? m.mean7.toFixed(1) : Math.round(m.mean7)}, ${arrow(m)}`;
-      L.push(`  ${m.label.padEnd(36)} ${String(m.value).padStart(6)}   (${base})`);
+      const b = (v: number) => m.delta === null ? "-" : num(v);
+      L.push(`  ${m.label.padEnd(36)} ${pad(num(m.value), 7)} ${pad(b(m.mean7), 9)} ${pad(b(m.lastWeek), 9)}`);
     }
-    L.push("");
   });
+  L.push("");
   if (d.emailByTemplate.length) {
     L.push("WHICH EMAILS");
     for (const t of d.emailByTemplate) {
@@ -474,7 +527,8 @@ export function renderDigestText(d: Digest): string {
     for (const p of d.topPages) L.push(`  ${String(p.visits).padStart(5)}  ${p.path}`);
     L.push("");
   }
-  L.push("Days run 00:00 to 24:00 UTC. Baselines are the mean of the seven days before.");
+  L.push("Days run 00:00 to 24:00 UTC. The 7-day mean is the week before the day");
+  L.push(`shown; last ${d.weekday} is the same weekday a week earlier.`);
   L.push(`${SITE}/api/admin/digest`);
   return L.join("\n");
 }
