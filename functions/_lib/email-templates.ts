@@ -66,6 +66,12 @@ export interface TemplateData {
   // Wall follow-up (3e)
   lesson_title?: string;
   track_name?: string;
+  // The wall email answers "what is behind it" with the track's own numbers
+  // and syllabus rather than adjectives. Both are derived in brain.ts from
+  // pro-lessons.json, the same file the gate uses, so they cannot drift from
+  // what the reader actually hit.
+  locked_count?: number;
+  track_topics?: string;
   lesson_url?: string;
   // Per-recipient tracking context (brain fills it): the same HMAC signature
   // as the unsubscribe link. When present, the HTML body gets the open pixel
@@ -252,6 +258,8 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
       first_name: firstName(d),
       lesson_title: d.lesson_title || "that lesson",
       track_name: d.track_name || "same",
+      locked_count: d.locked_count ? String(d.locked_count) : "",
+      track_topics: d.track_topics || "the rest of the applied work",
       lesson_url: d.lesson_url || utm("/roadmap/", "wall"),
       offer_url: d.offer_url || utm("/pricing.html", "wall"),
     }),

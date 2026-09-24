@@ -48,6 +48,28 @@ const TRACK_NAMES: Record<string, string> = {
 };
 const PRO_LESSON_TRACK = proLessonsJson as Record<string, string>;
 
+/* The wall email answers "what is behind it" with the track's own figures
+   instead of adjectives, so both halves of that answer are derived here from
+   the same file the gate reads.
+
+   TRACK_LOCKED counts the Pro lessons in each track. TRACK_TOPICS names a few
+   of them in prose, taken verbatim in substance from the syllabus published on
+   pricing.html, so the email can never promise something the page does not.
+   Prose, not a bulleted list: renderPersonalNote sends these as plain personal
+   notes precisely because benefit bullets are what the Promotions classifier
+   keys on. */
+const TRACK_LOCKED: Record<string, number> = (() => {
+  const n: Record<string, number> = {};
+  for (const t of Object.values(PRO_LESSON_TRACK)) n[t] = (n[t] || 0) + 1;
+  return n;
+})();
+
+const TRACK_TOPICS: Record<string, string> = {
+  ds: "leak-free feature engineering, nested cross-validation, calibrated classification, and how to explain a finished model and ship it",
+  ts: "ETS and ARIMA with fable, state-space models and the Kalman filter, GARCH volatility, and rolling-origin backtesting",
+  analyst: "every join type including non-equi and fuzzy, data.table and duckdb for data bigger than memory, report-ready tables with gt, and Quarto dashboards",
+};
+
 function fmtHour(sec: number): string {
   const d = new Date(sec * 1000);
   return d.toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
@@ -275,11 +297,18 @@ export async function runBrain(
       if (lastWall && now - lastWall < 14 * 86400) continue;
       // meta = courseId:lessonOrder|title (player); title falls back to the slug words.
       const title = ((r.meta || "").split("|")[1] || slug.replace(/-/g, " ")).trim();
-      const track = TRACK_NAMES[PRO_LESSON_TRACK[slug] || ""] || "same";
+      /* Everything this email says is derived from the track, so an unmapped
+         slug has nothing honest to say and is skipped rather than padded. The
+         gate reads this same map, so a wall hit off-map should not happen. */
+      const trackKey = PRO_LESSON_TRACK[slug] || "";
+      const track = TRACK_NAMES[trackKey];
+      if (!track || !TRACK_LOCKED[trackKey] || !TRACK_TOPICS[trackKey]) continue;
       candidates.push({ u: r, key, template: "wall", category: "offers", priority: 3, data: {
         first_name: r.display_name,
         lesson_title: title,
         track_name: track,
+        locked_count: TRACK_LOCKED[trackKey],
+        track_topics: TRACK_TOPICS[trackKey],
         lesson_url: `${SITE}/${slug}.html?utm_source=email&utm_campaign=wall`,
         offer_url: `${SITE}/pricing.html?utm_source=email&utm_campaign=wall`,
       }, why: `pro wall on ${slug} ${Math.round((now - r.at) / 60)}min ago` });
