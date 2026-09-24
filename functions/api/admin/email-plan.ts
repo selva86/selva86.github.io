@@ -88,8 +88,12 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
       return jsonError(404, "no_template", `Unknown template. Have: ${Object.keys(TEMPLATES).join(", ")}, seq:<n>`);
     }
     if (!r) return jsonError(500, "render_failed", "Template rendered null");
+    /* data_keys makes an empty token visible as what it is. Without it, a
+       template rendering "one of  in the same track" looks like broken copy
+       when the real cause is data that never reached the renderer. */
     return json({ template: previewKey, subject: r.subject, preheader: r.preheader,
-      category: r.category, reason: r.reason, text: r.text, html: r.html });
+      category: r.category, reason: r.reason, text: r.text, html: r.html,
+      data_keys: Object.keys(SAMPLE).sort() });
   }
 
   if (testKey) {
