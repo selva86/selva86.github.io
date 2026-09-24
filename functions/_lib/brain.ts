@@ -64,6 +64,19 @@ const TRACK_LOCKED: Record<string, number> = (() => {
   return n;
 })();
 
+export function wallSample(trackKey = "ds"): {
+  track_name: string; locked_count: number; track_topics: string;
+} {
+  /* The admin test send renders from live figures rather than a frozen
+     sample, so the test email cannot drift from what subscribers receive
+     as lessons are added to a track. */
+  return {
+    track_name: TRACK_NAMES[trackKey] || TRACK_NAMES.ds,
+    locked_count: TRACK_LOCKED[trackKey] || 0,
+    track_topics: TRACK_TOPICS[trackKey] || TRACK_TOPICS.ds,
+  };
+}
+
 const TRACK_TOPICS: Record<string, string> = {
   ds: "leak-free feature engineering, nested cross-validation, calibrated classification, and how to explain a finished model and ship it",
   ts: "ETS and ARIMA with fable, state-space models and the Kalman filter, GARCH volatility, and rolling-origin backtesting",

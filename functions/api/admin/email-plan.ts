@@ -10,7 +10,7 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, err403, jsonError } from "../../_lib/errors";
-import { runBrain, unsubUrl, userSig } from "../../_lib/brain";
+import { runBrain, unsubUrl, userSig, wallSample } from "../../_lib/brain";
 import { renderEmail, TEMPLATES, SENDER, REPLY_TO } from "../../_lib/email-templates";
 import { renderSeqEmail, seqUrl, getSeqCopy, SEQ_ITEMS } from "../../_lib/nurture";
 import { sendMail } from "../../_lib/email";
@@ -34,6 +34,13 @@ const SAMPLE = {
   course_title: "Data Wrangling with dplyr",
   next_lesson_url: "/roadmap/data-analyst.html",
   reset_date: "Sep 1",
+  // The wall email is entirely track-derived, so without these the test send
+  // renders "one of  in the same track" and tells you nothing about the real
+  // email. Figures come from the live maps, not from a copy frozen here.
+  lesson_title: "Nested cross-validation and Bayesian tuning",
+  lesson_url: "/ds-tuning-nested-cv.html",
+  offer_url: "/pricing.html",
+  ...wallSample("ds"),
 };
 
 export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EMAIL_TEST_ALLOWLIST?: string; CRON_SECRET?: string }, string, RequestData> = async (context) => {
