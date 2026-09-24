@@ -14,6 +14,8 @@ import { runBrain, unsubUrl, userSig } from "../../_lib/brain";
 import { renderEmail, TEMPLATES, SENDER, REPLY_TO } from "../../_lib/email-templates";
 import { renderSeqEmail, seqUrl, getSeqCopy, SEQ_ITEMS } from "../../_lib/nurture";
 import { sendMail } from "../../_lib/email";
+import { getUserById } from "../../_lib/db";
+import { readCookie, verifyIdCookie, ID_COOKIE } from "../../_lib/idcookie";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";
@@ -38,7 +40,19 @@ export const onRequestGet: PagesFunction<Env & { EMAIL_UNSUB_SECRET?: string; EM
   // Auth: the admin's own session, OR the CRON_SECRET bearer (infrastructure).
   // Either way, test sends can only reach the allowlist, so the secret cannot
   // be used to email anyone else.
-  const u = context.data.user;
+  /* /api/* resolves context.data.user from a bearer only, so typing this URL
+     into a browser while signed in returned 401 and "open the dry run in a
+     browser" was not actually true. Same rsc-id cookie fallback as
+     /api/admin/digest: the signed identity cookie the middleware already
+     verifies for every Pro lesson, with the same secret. */
+  let u = context.data.user;
+  if (!u) {
+    const secret = (context.env as { EDGE_ID_SECRET?: string }).EDGE_ID_SECRET || "";
+    const sub = secret
+      ? await verifyIdCookie(secret, readCookie(context.request, ID_COOKIE))
+      : null;
+    if (sub) u = await getUserById(context.env.DB, sub).catch(() => null);
+  }
   const admin = (context.env as { ADMIN_EMAIL?: string }).ADMIN_EMAIL || DEFAULT_ADMIN;
   const auth = context.request.headers.get("Authorization") || "";
   const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
