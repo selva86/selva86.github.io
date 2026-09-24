@@ -78,9 +78,14 @@ export function wallSample(trackKey = "ds"): {
 }
 
 const TRACK_TOPICS: Record<string, string> = {
-  ds: "leak-free feature engineering, nested cross-validation, calibrated classification, and how to explain a finished model and ship it",
-  ts: "ETS and ARIMA with fable, state-space models and the Kalman filter, GARCH volatility, and rolling-origin backtesting",
-  analyst: "every join type including non-equi and fuzzy, data.table and duckdb for data bigger than memory, report-ready tables with gt, and Quarto dashboards",
+  /* These name lessons that EXIST. Sourcing them from pricing.html was a
+     mistake: that page is ideal-first, the same as the roadmap, so it sells
+     sections nobody has written yet. GARCH, duckdb, gt and non-equi joins all
+     appeared there and none has a lesson. Check any edit against the built
+     titles in courses.json before shipping it. */
+  ds: "leak-free feature engineering, nested cross-validation, calibrated probabilities, model interpretability with SHAP, and putting a model into production",
+  ts: "seasonal ARIMA and ETS, dynamic harmonic regression and TBATS for awkward seasonality, the Kalman filter, and judging a forecast with rolling-origin cross-validation",
+  analyst: "joins, pivoting and rectangling, data.table for data bigger than memory, report-ready tables, and Quarto dashboards and Shiny",
 };
 
 function fmtHour(sec: number): string {
