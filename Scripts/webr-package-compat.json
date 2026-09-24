@@ -1,6 +1,6 @@
 {
   "note": "KNOWN-GOOD WebR package list. EVERY entry was PROVEN by actually running the package in real WebR (probe via the headless-WebR harness) - never guessed. Consult this BEFORE choosing a package for a lesson, so you pick a compatible one up front instead of finding out at verify-time. The per-lesson runner Scripts/verify_lesson_webr.mjs is the final ground truth for a lesson's actual code; this is the fast lookup the gate + /write-lesson use. To add a package: PROBE it once and record the evidence here. Statuses: runnable = runs and gives real output (live ```r block); runnable_no_visual = runs without error but its rich HTML/widget output does NOT render in WebR (use ```r for the data/text, show the visual as a static image, or ```r-static); illustrative = library loads but the lesson's real use needs a server / API key / network (use ```r-static); incompatible = errors in WebR (switch package or ```r-static).",
-  "tested": "2026-06-25",
+  "tested": "2026-09-24",
   "webr_repo_size": "~21,600 CRAN packages compiled to WASM at repo.r-wasm.org; most pure-R and many compiled packages work. Likely-bad (not yet needed, probe before use): GPU stacks (torch, tensorflow, keras), Java-backed (rJava and dependents), and anything needing a live system service. Servers/APIs load but cannot run their core use (see 'illustrative').",
   "base_always_runnable": [
     "base",
@@ -103,7 +103,7 @@
     },
     "forecast": {
       "status": "runnable",
-      "evidence": "auto.arima + forecast run"
+      "evidence": "auto.arima + forecast run Also probed 2026-09-24: nnetar() fits and forecast() returns a real neural-network forecast in WebR, the runnable stand-in for torch."
     },
     "gam": {
       "status": "runnable",
@@ -280,7 +280,7 @@
     },
     "tseries": {
       "status": "runnable",
-      "evidence": "adf.test() and kpss.test() run in WebR and reproduce local R 4.6.0 values EXACTLY (probed 2026-07-17 via verify_lesson_webr.mjs with stopifnot assertions on the published numbers: adf.test(AirPassengers) stat -7.3186 / p 0.01, kpss.test(AirPassengers) stat 2.7395, kpss.test(AirPassengers, null='Trend') stat 0.09615, plus set.seed(42) rnorm/cumsum and set.seed(11) arima.sim chains - all matched). Attach with suppressMessages(library(tseries)): the plain attach emits a 'Registered S3 method overwritten by quantmod' message. Note both tests warn 'p-value smaller/greater than printed p-value' when the statistic falls outside the interpolation table; that is normal, not an error.",
+      "evidence": "adf.test() and kpss.test() run in WebR and reproduce local R 4.6.0 values EXACTLY (probed 2026-07-17 via verify_lesson_webr.mjs with stopifnot assertions on the published numbers: adf.test(AirPassengers) stat -7.3186 / p 0.01, kpss.test(AirPassengers) stat 2.7395, kpss.test(AirPassengers, null='Trend') stat 0.09615, plus set.seed(42) rnorm/cumsum and set.seed(11) arima.sim chains - all matched). Attach with suppressMessages(library(tseries)): the plain attach emits a 'Registered S3 method overwritten by quantmod' message. Note both tests warn 'p-value smaller/greater than printed p-value' when the statistic falls outside the interpolation table; that is normal, not an error. Also probed 2026-09-24: garch(y, order=c(1,1)) fits a real GARCH(1,1) in WebR, which makes tseries the runnable ARCH/GARCH path now that rugarch is ruled out.",
       "gotcha": "tseries::adf.test ALWAYS fits a constant AND a linear trend, so its alternative is trend-stationary, not level-stationary. Pair it with kpss.test(null='Trend') when comparing verdicts, or the two tests look like they disagree when they do not."
     },
     "tsibble": {
@@ -297,7 +297,7 @@
     },
     "urca": {
       "status": "runnable",
-      "evidence": "library(urca) loads and ur.kpss(x, type='mu') returns a real test statistic + critical-value table in WebR (probed 2026-07-17 via verify_lesson_webr.mjs). It is also pulled in as a forecast dependency, which is how forecast::ndiffs(test='kpss') works live."
+      "evidence": "library(urca) loads and ur.kpss(x, type='mu') returns a real test statistic + critical-value table in WebR (probed 2026-07-17 via verify_lesson_webr.mjs). It is also pulled in as a forecast dependency, which is how forecast::ndiffs(test='kpss') works live. Also probed 2026-09-24: ca.jo(type=\"trace\", K=2) followed by cajorls(r=1) returns a fitted VECM in WebR, which is the runnable replacement for tsDyn."
     },
     "uwot": {
       "status": "incompatible",
@@ -305,7 +305,7 @@
     },
     "vars": {
       "status": "runnable",
-      "evidence": "library(vars) loads in WebR and the full VAR workflow runs live (probed 2026-07-22 via verify_lesson_webr.mjs): VAR(Canada, p=2, type='const'), VARselect, serial.test (Portmanteau), causality (Granger + instant), irf(boot=TRUE, runs=20), fevd, and predict(n.ahead) all returned real numeric results. Pulls MASS/strucchange/urca/lmtest/sandwich, which install cleanly from repo.r-wasm.org."
+      "evidence": "library(vars) loads in WebR and the full VAR workflow runs live (probed 2026-07-22 via verify_lesson_webr.mjs): VAR(Canada, p=2, type='const'), VARselect, serial.test (Portmanteau), causality (Granger + instant), irf(boot=TRUE, runs=20), fevd, and predict(n.ahead) all returned real numeric results. Pulls MASS/strucchange/urca/lmtest/sandwich, which install cleanly from repo.r-wasm.org. Also probed 2026-09-24: vec2var() on a ca.jo object then predict(n.ahead=3) returns a real forecast in WebR, completing the cointegration-to-forecast chain."
     },
     "xts": {
       "status": "runnable",
@@ -329,6 +329,93 @@
     "changepoint": {
       "status": "runnable",
       "evidence": "probed 2026-07-22 via Scripts/verify_lesson_webr.mjs: library(changepoint) + cpt.mean(method=\"PELT\") + cpts() + param.est() all executed in real WebR (exit 0)"
+    },
+    "fGarch": {
+      "status": "runnable",
+      "evidence": "library(fGarch) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). This is the GARCH path for the Forecaster track because rugarch cannot load. garchFit() covers GARCH and APARCH, and APARCH nests GJR.",
+      "gotcha": "EGARCH is rugarch-only. Teach EGARCH conceptually or as r-static; do not promise it as runnable."
+    },
+    "rugarch": {
+      "status": "incompatible",
+      "evidence": "library(rugarch) FAILS in WebR: \"there is no package called mclust\" (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). mclust has no wasm build at all, so no amount of installing fixes it. Use fGarch or tseries::garch() instead."
+    },
+    "rmgarch": {
+      "status": "incompatible",
+      "evidence": "library(rmgarch) FAILS in WebR: \"package rugarch could not be loaded\" (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest), so it inherits the mclust hole. For multivariate volatility use MTS or mgarchBEKK, both of which attach."
+    },
+    "MTS": {
+      "status": "runnable",
+      "evidence": "library(MTS) attaches and its DCC/BEKK entry points exist in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). The runnable substitute for rmgarch."
+    },
+    "mgarchBEKK": {
+      "status": "runnable",
+      "evidence": "library(mgarchBEKK) attaches and BEKK() exists in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest)."
+    },
+    "BEKKs": {
+      "status": "incompatible",
+      "evidence": "library(BEKKs) FAILS to load in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). Use mgarchBEKK or MTS."
+    },
+    "tsDyn": {
+      "status": "incompatible",
+      "evidence": "library(tsDyn) FAILS in WebR: \"there is no package called deSolve\" (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest), and deSolve is not in the wasm repo. Use urca::ca.jo + urca::cajorls for the VECM and vars::vec2var to forecast from it; that whole chain was probed working."
+    },
+    "hts": {
+      "status": "runnable",
+      "evidence": "library(hts) attaches and hts(matrix(...)) builds a real hierarchy in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest)."
+    },
+    "modeltime": {
+      "status": "runnable",
+      "evidence": "library(modeltime) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest).",
+      "gotcha": "The FRAMEWORK loads but its usual engines do not: xgboost and lightgbm both fail to load their compiled libraries. Drive modeltime with engines that do run (glmnet, randomForest, rpart, nnet) or the lesson will not execute."
+    },
+    "xgboost": {
+      "status": "incompatible",
+      "evidence": "library(xgboost) FAILS in WebR: the compiled library will not dyn.load (\"mismatch in shared state of memory\") (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). Use gbm for boosting in a runnable block."
+    },
+    "lightgbm": {
+      "status": "incompatible",
+      "evidence": "library(lightgbm) FAILS in WebR for the same compiled-library reason as xgboost (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest)."
+    },
+    "torch": {
+      "status": "incompatible",
+      "evidence": "library(torch) FAILS in WebR: it cannot dyn.load bit.so, and torch additionally expects to fetch libtorch binaries at runtime (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). Deep forecasting (DeepAR, N-BEATS, N-HiTS, temporal fusion) must be r-static; forecast::nnetar and nnfor::mlp are the runnable neural options."
+    },
+    "gbm": {
+      "status": "runnable",
+      "evidence": "library(gbm) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). The runnable boosting substitute for xgboost and lightgbm."
+    },
+    "nnfor": {
+      "status": "runnable",
+      "evidence": "library(nnfor) attaches and mlp() exists in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). Neural network forecasting that actually runs."
+    },
+    "neuralnet": {
+      "status": "runnable",
+      "evidence": "library(neuralnet) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest)."
+    },
+    "tsintermittent": {
+      "status": "runnable",
+      "evidence": "library(tsintermittent) attaches and crost() exists in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). Croston, ADIDA and TSB are all runnable."
+    },
+    "conformalForecast": {
+      "status": "runnable",
+      "evidence": "library(conformalForecast) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest), so conformal prediction intervals can be a runnable block."
+    },
+    "greybox": {
+      "status": "runnable",
+      "evidence": "library(greybox) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest)."
+    },
+    "vetiver": {
+      "status": "runnable_no_visual",
+      "evidence": "library(vetiver) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest), so model versioning can be shown running.",
+      "gotcha": "Attaching is not serving. Anything that stands an endpoint up needs plumber, which does not load; show deployment as r-static."
+    },
+    "pins": {
+      "status": "runnable",
+      "evidence": "library(pins) attaches in WebR (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest)."
+    },
+    "plumber": {
+      "status": "illustrative",
+      "evidence": "library(plumber) FAILS in WebR: it cannot dyn.load later.so (probed 2026-09-24 via scratchpad probe_pkgs.mjs, one package per WebR session so a failure could not mask the rest). A served API cannot run inside a browser session anyway, so show plumber code as r-static framed as \"run this locally\"."
     }
   }
 }
