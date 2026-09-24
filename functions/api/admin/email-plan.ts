@@ -37,9 +37,11 @@ const SAMPLE = {
   // The wall email is entirely track-derived, so without these the test send
   // renders "one of  in the same track" and tells you nothing about the real
   // email. Figures come from the live maps, not from a copy frozen here.
+  // No lesson_url/offer_url here on purpose: every template resolves those as
+  // `d.offer_url || utm("/pricing.html", key)`, so a bare path supplied here
+  // wins and ships a relative, untracked link. Leaving them unset lets each
+  // template build its own absolute utm URL, which is what really goes out.
   lesson_title: "Nested cross-validation and Bayesian tuning",
-  lesson_url: "/ds-tuning-nested-cv.html",
-  offer_url: "/pricing.html",
   ...wallSample("ds"),
 };
 
