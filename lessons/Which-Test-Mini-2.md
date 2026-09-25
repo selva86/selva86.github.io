@@ -22,20 +22,22 @@ catalog_blurb: "Classic ANOVA can be misled by one noisy group; Welch's corrects
 === step === cover
 ## Welch's ANOVA: the test for unequal group variances
 
-Today let's understand Welch's ANOVA, the test you reach for the moment one group in your comparison is far noisier than the rest.
+Today let's understand Welch's ANOVA, the test you can use when one group in your comparison is far noisier than the rest.
 
-Here is the setup. A company with 90 employees splits evenly into three departments, Marketing, Support and Engineering, 30 people each. You want to know whether the three departments really earn different average salaries.
+Here is the setup: A company with 90 employees has three departments, Marketing, Support and Engineering, 30 people each. You want to know whether the three departments really earn different average salaries.
 
 ::widget chart-plotter {"data": [{"x":"Marketing","y":70082},{"x":"Marketing","y":63681},{"x":"Marketing","y":68557},{"x":"Marketing","y":67661},{"x":"Marketing","y":65333},{"x":"Marketing","y":57936},{"x":"Marketing","y":65059},{"x":"Marketing","y":63920},{"x":"Marketing","y":68454},{"x":"Marketing","y":66105},{"x":"Marketing","y":66367},{"x":"Marketing","y":65078},{"x":"Marketing","y":67114},{"x":"Marketing","y":67097},{"x":"Marketing","y":57812},{"x":"Marketing","y":73388},{"x":"Marketing","y":70466},{"x":"Marketing","y":68870},{"x":"Marketing","y":64781},{"x":"Marketing","y":70759},{"x":"Marketing","y":66685},{"x":"Marketing","y":67341},{"x":"Marketing","y":62432},{"x":"Marketing","y":73863},{"x":"Marketing","y":68193},{"x":"Marketing","y":75632},{"x":"Marketing","y":74924},{"x":"Marketing","y":68233},{"x":"Marketing","y":70581},{"x":"Marketing","y":74903},{"x":"Support","y":68620},{"x":"Support","y":71749},{"x":"Support","y":69854},{"x":"Support","y":72498},{"x":"Support","y":71821},{"x":"Support","y":76241},{"x":"Support","y":73671},{"x":"Support","y":66987},{"x":"Support","y":73598},{"x":"Support","y":67288},{"x":"Support","y":65792},{"x":"Support","y":74501},{"x":"Support","y":65581},{"x":"Support","y":72380},{"x":"Support","y":67249},{"x":"Support","y":77382},{"x":"Support","y":74203},{"x":"Support","y":69189},{"x":"Support","y":74597},{"x":"Support","y":72919},{"x":"Support","y":65735},{"x":"Support","y":70072},{"x":"Support","y":66812},{"x":"Support","y":73022},{"x":"Support","y":68098},{"x":"Support","y":69959},{"x":"Support","y":65436},{"x":"Support","y":66676},{"x":"Support","y":71603},{"x":"Support","y":66504},{"x":"Engineering","y":88463},{"x":"Engineering","y":96183},{"x":"Engineering","y":87030},{"x":"Engineering","y":84720},{"x":"Engineering","y":48640},{"x":"Engineering","y":85182},{"x":"Engineering","y":47002},{"x":"Engineering","y":120819},{"x":"Engineering","y":66917},{"x":"Engineering","y":95705},{"x":"Engineering","y":104987},{"x":"Engineering","y":92136},{"x":"Engineering","y":125676},{"x":"Engineering","y":70824},{"x":"Engineering","y":103085},{"x":"Engineering","y":67571},{"x":"Engineering","y":145112},{"x":"Engineering","y":109192},{"x":"Engineering","y":83416},{"x":"Engineering","y":111629},{"x":"Engineering","y":63111},{"x":"Engineering","y":129723},{"x":"Engineering","y":63113},{"x":"Engineering","y":53080},{"x":"Engineering","y":90619},{"x":"Engineering","y":113230},{"x":"Engineering","y":91723},{"x":"Engineering","y":72992},{"x":"Engineering","y":121395},{"x":"Engineering","y":152361}], "geoms": ["boxplot"], "x": "department", "y": "salary"}
 
 Look at the three boxes. Marketing and Support sit in a similar tight band. Engineering's box is far taller, stretching from under \$50,000 to well past \$150,000. Engineering pays most people about what the other two departments pay, but a few of its specialists earn several times that, and those few salaries widen the whole box.
 
-That gap, tight for two departments and wide for the third, is exactly what makes the question hard to answer honestly.
+That gap, quite tight for two departments and wide for the third one, is exactly what makes the question hard to answer honestly.
 
 === step === concept
 ## What one-way ANOVA assumes about your groups' spread
 
 A one-way ANOVA compares three or more group means by weighing how much the group averages differ from each other (the between-group variation) against how much individual values scatter inside each group (the within-group variation). If the averages differ by a lot more than individuals scatter within a group, that's evidence the groups are genuinely different.
+
+How do we do that?
 
 To do that weighing, the classic F-test pools every group's variance into one shared number. That pooling is only sound when the groups' real spread is similar to begin with. Let's check whether it is here.
 
@@ -69,7 +71,7 @@ round(max(group_stats$var) / min(group_stats$var), 1)
 
 Look at the `var` column. Marketing's variance sits at 19.2 million, Support's at 12.2 million, and Engineering's at 740.9 million. Dividing the largest variance by the smallest gives 60.7.
 
-A common rule of thumb says the classic F-test stays trustworthy as long as that ratio stays under 4. Ours is more than fifteen times past that line.
+A common rule of thumb says the **classic F-test stays trustworthy as long as that ratio stays under 4**. Ours is more than fifteen times past that line.
 
 [NOTE]
 Variance is in dollars squared, which is why the numbers look so large. The standard deviations in the `sd` column, \$4,382, \$3,494 and \$27,219, are in the same units as salary itself and are easier to read directly.

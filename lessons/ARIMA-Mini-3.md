@@ -22,11 +22,11 @@ catalog_blurb: "Turn a real, imperfect ACF and PACF into an ARIMA order you can 
 === step === cover
 ## How to choose ARIMA order (p, d, q): a practical guide
 
-Today you are going to take one real series of daily counts and turn it into an ARIMA order you can defend, not guess at.
+Today let's understand how to determine the ARIMA orders - p, d and q using worked out examples and work it out practically.
 
 Bellwood Coffee, an independent coffee shop, logs how many drink orders its point-of-sale system rings up every day. The owner pulled the first 100 days of that log: orders open near 47, dip as low as 26 by day 39, then climb to 113 by day 100 as the shop built up its regulars.
 
-An ARIMA model for a series like this needs exactly three integers, written ARIMA(p, d, q). Get those three right and R estimates everything else on its own, the coefficients and the forecasts included. Get them wrong and the model either misses a pattern that is really there or invents one that is not.
+An ARIMA model for a series like this needs exactly three integers, written ARIMA(p, d, q). Get those three right and R estimates everything else on its own, the coefficients and the forecasts included. If you get them wrong, the model either misses a pattern that is really there or invents one that is not.
 
 Picking p, d, and q is not a matter of taste. It is a short, repeatable routine, always the same four stages in the same order, and you will run every one of them on Bellwood's own numbers.
 
@@ -39,7 +39,9 @@ That is the whole routine laid out above. Four stages, always in that order, and
 
 An ARIMA(p, d, q) model is built from three separate components, and each one answers a different question about the series.
 
-d is the order of differencing: how many times you subtract each value from the one before it until the series settles at a level that stays roughly constant over time. p is the number of autoregressive terms: how many of the series' own past values it takes to predict the next one. q is the number of moving-average terms: how many past forecast errors it takes to predict the next one.
+d is the order of differencing: how many times you subtract each value from the one before it until the series settles at a level that stays roughly constant over time, that is make the series stationary. 
+
+p is the number of autoregressive terms: how many of the series' own past values it takes to predict the next one. q is the number of moving-average terms: how many past forecast errors it takes to predict the next one.
 
 Once those three integers are fixed, R estimates every coefficient in the model on its own. So choosing an order really is the whole job, and nothing else is left to guess.
 
