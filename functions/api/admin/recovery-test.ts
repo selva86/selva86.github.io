@@ -41,18 +41,22 @@ export const onRequestGet: PagesFunction<Env & { CRON_SECRET?: string; EMAIL_TES
 
   const code = "BACK15TESTX";
   const t1 = recoveryEmail(code);
-  const t2 = reminderEmail(code);
+  // 3 hours is what a real reminder carries: the sweep sends 20-22h after
+  // touch 1 against a 24h code, so the gap is 2-4 hours.
+  const t2 = reminderEmail(code, 3);
   const r1 = await sendMail(env, {
     to: { email: to },
-    subject: "Finish your r-statistics.co enrollment (15% off inside)",
+    subject: t1.subject,
     htmlBody: t1.html, textBody: t1.text,
     from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
   });
   const r2 = await sendMail(env, {
     to: { email: to },
-    subject: "Your 15% code expires tomorrow",
+    subject: t2.subject,
     htmlBody: t2.html, textBody: t2.text,
     from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
   });
-  return json({ touch1: r1.ok, touch2: r2.ok, to, note: "dummy code, not minted in Paddle" });
+  return json({ touch1: r1.ok, touch2: r2.ok, to,
+    subjects: [t1.subject, t2.subject],
+    note: "dummy code, not minted in Paddle" });
 };
