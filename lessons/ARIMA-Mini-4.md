@@ -65,7 +65,9 @@ round(var(res), 3)
 #> [1] 9.7
 ```
 
-auto.arima() searched and landed on an ARIMA(1,1,1): one autoregressive term, one difference, one moving-average term, with coefficients ar1 = 0.6504 and ma1 = 0.5256. res now holds 100 numbers, one prediction error per minute. Its mean, 0.3036, sits close enough to zero that the model isn't consistently over- or under-predicting. Its variance, 9.7, lines up with the sigma^2 = 9.995 the model itself reported, which is exactly what that number is: the variance the fitting process expects the residuals to have.
+auto.arima() searched and landed on an ARIMA(1,1,1): one autoregressive term, one difference, one moving-average term, with coefficients ar1 = 0.6504 and ma1 = 0.5256. res now holds 100 numbers, one prediction error per minute. 
+
+Its mean, 0.3036, sits close enough to zero that the model isn't consistently over- or under-predicting. Its variance, 9.7, lines up with the sigma^2 = 9.995 the model itself reported, which is exactly what that number is: the variance the fitting process expects the residuals to have.
 
 === step === concept
 ## The white-noise standard residuals must meet

@@ -22,9 +22,9 @@ catalog_blurb: "Compare two groups without letting one extreme value decide the 
 === step === cover
 ## Mann-Whitney U test: when and how to run it
 
-Today let's understand the Mann-Whitney U test: what it actually compares, and why one extreme value that wrecks a plain average barely touches it.
+Today let's understand the Mann-Whitney U test: what it actually compares, and why one extreme value that wrecks a plain average still gets handled by the test.
 
-Here is the setup. Northline and Southfield are two small companies, each with eight employees. One of Northline's eight is an executive earning \$1,400,000 a year, close to twenty times what a typical Northline employee makes. The other seven Northline salaries and all eight Southfield salaries sit in an ordinary range, nowhere near that.
+Here is the setup: Northline and Southfield are two small companies, each with eight employees. One of Northline's eight is an executive earning \$1,400,000 a year, close to twenty times what a typical Northline employee makes. The other seven Northline salaries and all eight Southfield salaries sit in an ordinary range, nowhere near that.
 
 <img src="screenshots/Which-Test-Mini-3-cover-boxplot.png" alt="Boxplot of Northline and Southfield salaries; one Northline salary sits far above every other point" width="900" height="620" />
 

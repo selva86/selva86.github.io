@@ -22,15 +22,15 @@ catalog_blurb: "Learn the two numbers that tell you what a bet is really worth."
 === step === cover
 ## Expected value and variance, explained
 
-Today we are going to work out expected value and variance, the two numbers that tell you what a bet is really worth, and how much its result can swing around that number.
+Today we are going to understand and work out expected value and variance, the two numbers that tell you what a bet is really worth, and how much the results can swing.
 
 A gas station sells a scratch card for \$2. Wipe off the panel and you get one of three results: nothing, \$5, or a \$500 top prize.
 
 Nothing turns up on about 8 out of 10 cards. The \$5 shows up on about 1 in 5. The \$500 top prize lands on roughly 1 in 1,000.
 
-Buy one, and is it worth it? That is the first thing to work out.
+Buy one, and is it worth it? Let's find out.
 
-There is a second question sitting right behind it. Two bets can share the exact same average payout and still feel nothing alike to play, one steady, one wild. Telling those two apart is the second thing to work out.
+There is also a follow up question to it. Two bets can share the exact same average payout and still feel nothing alike when you play, one steady and the other gives wild results. We will understand this phenomenon as well.
 
 Press the buttons below and watch a computer play this exact card, over and over. Watch how rarely that top prize actually shows up, even after hundreds of tries.
 
@@ -40,6 +40,8 @@ Notice how many tries it takes before that top prize shows up even once. Rare wi
 
 === step === concept
 ## What expected value means for the scratch card
+
+First, let's compute the expectd value.
 
 Start by writing the card down in R terms: every payout it can pay, and how often each one happens.
 
@@ -75,7 +77,7 @@ Expected value is not a payout you will ever see on one card. This card only eve
 === step === widget
 ## Simulating many scratch cards
 
-\$1.50 is the theoretical answer, worked out from the formula. Does it actually hold up if you deal out real cards? Simulation is how you check.
+\$1.50 is the theoretical answer, worked out from the formula. Does it actually hold up if you deal out real cards? Let's simulate and find out.
 
 The widget below plays this exact card, one draw at a time. Its chance of hitting is set to the card's own 20% probability of paying exactly \$5, so every click is one real card decided by that same 0.2 chance.
 

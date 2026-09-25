@@ -22,22 +22,22 @@ catalog_blurb: "How to test whether a gap in your data is real or just noise."
 === step === cover
 ## Hypothesis testing: the framework, explained
 
-Today, let's understand hypothesis testing as one complete framework, the same five decisions repeated underneath every statistical test you run in R.
+Today, let's understand hypothesis testing as one complete framework.
 
-Take R's built in `mtcars` dataset, 32 cars road tested for a 1974 Motor Trend article. Split them by engine size: 11 four-cylinder cars and 7 six-cylinder cars. The four-cylinder cars average 26.66 miles per gallon. The six-cylinder cars average 19.74. That's a 6.92 mpg gap.
+Let's start with R's built in `mtcars` dataset, 32 cars road tested for a 1974 Motor Trend article. Split them by engine size, we get: 11 four-cylinder cars and 7 six-cylinder cars. The four-cylinder cars average 26.66 miles per gallon. The six-cylinder cars average 19.74. That's a 6.92 mpg gap.
 
-Is that gap a real difference between the two engine types, or could it just be the ordinary wobble you'd expect from looking at 18 particular cars rather than every car ever built? Hypothesis testing is the procedure that turns a question like that into a yes or no answer, with a known chance of getting it wrong.
+ But is that gap a real difference between the two engine types, or could it just be the ordinary fluctuation you'd expect from looking at 18 particular cars rather than every car ever built? Hypothesis testing is the procedure that turns a question like that into a yes or no answer, along with a known chance of getting it wrong.
 
-The chart below plots mpg for both groups as a boxplot, so you can see the gap for yourself before any test runs.
+The chart below plots `mpg` for both groups as a boxplot, so you can see the gap for yourself before any test runs.
 
 ::widget chart-plotter {"data": [{"x": "4-cyl", "y": 22.8}, {"x": "4-cyl", "y": 24.4}, {"x": "4-cyl", "y": 22.8}, {"x": "4-cyl", "y": 32.4}, {"x": "4-cyl", "y": 30.4}, {"x": "4-cyl", "y": 33.9}, {"x": "4-cyl", "y": 21.5}, {"x": "4-cyl", "y": 27.3}, {"x": "4-cyl", "y": 26.0}, {"x": "4-cyl", "y": 30.4}, {"x": "4-cyl", "y": 21.4}, {"x": "6-cyl", "y": 21.0}, {"x": "6-cyl", "y": 21.0}, {"x": "6-cyl", "y": 21.4}, {"x": "6-cyl", "y": 18.1}, {"x": "6-cyl", "y": 19.2}, {"x": "6-cyl", "y": 17.8}, {"x": "6-cyl", "y": 19.7}], "geoms": ["boxplot"], "x": "cylinders", "y": "mpg"}
 
-Look at how little the two boxes overlap. A test statistic and a p-value are about to put an exact number on how surprising a gap that size really is.
+Look at how little the two boxes overlap. A test statistic and a p-value can be used put an exact number on how surprising a gap that size really is.
 
 === step === concept
 ## The null hypothesis: the claim that needs evidence to overturn
 
-Before computing anything, hypothesis testing asks you to write down two competing claims, and to write them down before you look at how the test turns out.
+Before computing anything, hypothesis testing asks you to write down two competing claims, and it has to be done before we look at any test results.
 
 The first is the **null hypothesis**, written H0. It is the boring, default claim: nothing is going on. For our two groups, H0 says the four-cylinder and six-cylinder cars share one mean mpg in the population these 18 cars came from: mu(4-cyl) = mu(6-cyl).
 
@@ -52,7 +52,7 @@ H0 works the same way. It stands by default, and only the data can overturn it. 
 === step === concept
 ## Compressing a gap into one number: the test statistic
 
-You now have two claims and one gap to judge between them, 6.92 mpg. But a raw gap in mpg can't be compared straight against a cutoff, because it doesn't say whether 6.92 is a lot or a little, relative to how much numbers like this naturally wobble from sample to sample.
+You now have two claims and one gap we measured to judge between them, 6.92 mpg. But a raw gap in mpg can't be compared straight against a cutoff, because it doesn't say whether 6.92 is a lot or a little, relative to how much numbers like this naturally fluctuate from sample to sample.
 
 A **test statistic** fixes that. It rescales the gap into standard-error units, so a value of 2 means "this gap is twice the size of the typical noise for a sample this size," no matter what units the raw data are in. For two independent groups:
 
