@@ -19,7 +19,7 @@ Flags: --sync-every N (default 5), --claude <cli path>.
 
 lessons-status.json is gitignored (resumable state) and blocked by the middleware.
 """
-import os, sys, json, argparse, subprocess
+import os, sys, json, shutil, argparse, subprocess
 
 from verify_state import verify_published   # artifact check, not exit-code trust
 
@@ -104,44 +104,90 @@ WRITER_SETTINGS = json.dumps({'claudeMdExcludes': [_GLOBAL_CLAUDE_MD]})
 # post_plans/ against the project root in ~50% of sessions and exited on
 # "no plan file" (2026-09-10, Tidy-Temporal-Data-with-tsibble). Mirrors the
 # inline briefs batch_windowed.py has used for every clean build.
-_WD = ("Work from the project root; the repo is selva86.github.io/ and every "
-       "repo path (lessons/, post_plans/, _build/, Scripts/, www/, Plans/) lives "
-       "under selva86.github.io/. ")
+# ABSOLUTE, not repo-prefixed. The relative form was itself a fix for workers
+# resolving post_plans/ against the wrong directory, but it only moved the
+# problem: with more than one worktree on disk "selva86.github.io/" names
+# several trees on several branches, and a worker resolving it to the canonical
+# one writes a finished plan into a tree this driver is not watching. The driver
+# then reports a failure for work that was done (2026-09-25,
+# Forecasting-Volatility-and-Value-at-Risk). An absolute path has one reading.
+ROOTP = ROOT.replace(chr(92), "/")
+
+_WD = ("Work from {root}, which is THE repo for this run. Every repo path "
+       "(lessons/, post_plans/, _build/, Scripts/, www/, Plans/) is under that "
+       "exact directory. Other checkouts of this repo exist on this machine on "
+       "other branches; never read or write any of them, even if a path looks "
+       "familiar. ").format(root=ROOTP)
 
 def plan_prompt(slug):
     return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --plan-only mode "
-            "for the lesson `%s`. " % slug + _WD +
-            "The lesson's course arc is its entry in selva86.github.io/Plans/lessons-curriculum.md; "
-            "derive its metadata per selva86.github.io/_build/lessons-derive.md. Produce ONLY "
-            "selva86.github.io/post_plans/%s_lesson-plan.md. Do not write lesson prose. Do not run "
-            "gates. Do not touch git." % slug)
+            "for the lesson `{slug}`. " + _WD +
+            "The lesson's course arc is its entry in {root}/Plans/lessons-curriculum.md; "
+            "derive its metadata per {root}/_build/lessons-derive.md. Produce ONLY "
+            "{root}/post_plans/{slug}_lesson-plan.md. Do not write lesson prose. Do not run "
+            "gates. Do not touch git.").format(slug=slug, root=ROOTP)
 
 def plan_check_prompt(slug):
     return ("Follow the skill at .claude/skills/check-lesson-plan/SKILL.md for the plan "
-            "selva86.github.io/post_plans/%s_lesson-plan.md. " % slug + _WD +
+            "{root}/post_plans/{slug}_lesson-plan.md. " + _WD +
             "Fix flow directly in the plan, then set `status: approved`. Do not approve an "
-            "unfixable plan. Do not write lesson prose. Do not touch git.")
+            "unfixable plan. Do not write lesson prose. Do not touch git."
+            ).format(slug=slug, root=ROOTP)
 
 def build_prompt(slug):
     return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --build mode for the "
-            "lesson `%s`. " % slug + _WD +
-            "The plan at selva86.github.io/post_plans/%s_lesson-plan.md is stamped approved: build "
+            "lesson `{slug}`. " + _WD +
+            "The plan at {root}/post_plans/{slug}_lesson-plan.md is stamped approved: build "
             "strictly from it (floor, not ceiling; never reorder or re-plan). Write "
-            "selva86.github.io/lessons/%s.md, run both gates until green, and finish with the short "
-            "summary the skill asks for. Do not publish, build the site, or touch git." % (slug, slug))
+            "{root}/lessons/{slug}.md, run both gates until green, and finish with the short "
+            "summary the skill asks for. Do not publish, build the site, or touch git."
+            ).format(slug=slug, root=ROOTP)
 
 def check_prompt(slug):
     return ("Follow the skill at .claude/skills/check-lesson/SKILL.md for the lesson "
-            "selva86.github.io/lessons/%s.md (its approved plan is at "
-            "selva86.github.io/post_plans/%s_lesson-plan.md). " % (slug, slug) + _WD +
+            "{root}/lessons/{slug}.md (its approved plan is at "
+            "{root}/post_plans/{slug}_lesson-plan.md). " + _WD +
             "Apply bounded fixes, re-run both gates, and give the verdict the skill defines. "
-            "Do not publish, build the site, or touch git.")
+            "Do not publish, build the site, or touch git.").format(slug=slug, root=ROOTP)
 
 def publish_prompt(slug):
     return ("Follow the skill at .claude/skills/publish-lesson/SKILL.md for the lesson `%s` "
             "with --skip-sync. " % slug + _WD +
             "Commit to the CURRENT working branch and push that branch; never switch branches "
             "and never push to master.")
+
+def _sibling_worktrees():
+    """Every other checkout of this repo, so a misfiled artifact can be found."""
+    try:
+        out = subprocess.run(['git', '-C', ROOT, 'worktree', 'list', '--porcelain'],
+                             capture_output=True, text=True, timeout=30).stdout
+    except Exception:
+        return []
+    paths = [ln.split(' ', 1)[1].strip() for ln in out.splitlines() if ln.startswith('worktree ')]
+    here = os.path.normcase(os.path.normpath(ROOT))
+    return [p for p in paths if os.path.normcase(os.path.normpath(p)) != here]
+
+
+def rescue_misfiled(relpath):
+    """Look for an artifact this run produced in a sibling worktree, and bring it home.
+
+    A worker that resolves a repo path to the wrong checkout still did the work;
+    only the destination was wrong. Treating that as a failure throws away a
+    finished plan or lesson, so look before concluding. An existing local copy is
+    never overwritten: the local one may already carry reviewer edits."""
+    dst = os.path.join(ROOT, relpath)
+    if os.path.exists(dst):
+        return None
+    for wt in _sibling_worktrees():
+        src = os.path.join(wt, relpath)
+        if os.path.exists(src):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.move(src, dst)
+            print('  RESCUED %s from %s (a worker wrote to the wrong worktree)'
+                  % (relpath, wt), flush=True)
+            return src
+    return None
+
 
 def run_claude(cli, prompt, timeout=None):
     print('+ %s -p "%s..."  (--model %s --effort %s, no-global-CLAUDE.md, cwd=%s)' % (cli, prompt[:90], BATCH_MODEL, BATCH_EFFORT, PROJECT_ROOT), flush=True)
@@ -286,7 +332,11 @@ def main():
             approved_already = os.path.exists(plan_path) and 'status: approved' in open(plan_path, encoding='utf-8').read()
             if approved_already:
                 print('  approved plan exists, skipping planner + plan review: %s' % slug)
-            if not approved_already and (run_claude(args.claude, plan_prompt(slug), args.timeout or None) != 0 or not os.path.exists(plan_path)):
+            _plan_rel = os.path.join('post_plans', slug + '_lesson-plan.md')
+            _rc = 0 if approved_already else run_claude(args.claude, plan_prompt(slug), args.timeout or None)
+            if not approved_already:
+                rescue_misfiled(_plan_rel)
+            if not approved_already and (_rc != 0 or not os.path.exists(plan_path)):
                 st[slug]['status'] = 'plan_failed'
                 save_status(st)
                 print('  plan failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
@@ -302,6 +352,7 @@ def main():
                 print('  plan approved (plan-only): %s' % slug)
                 continue
             _md = os.path.join(ROOT, 'lessons', slug + '.md')
+            rescue_misfiled(os.path.join('lessons', slug + '.md'))
             ok, why = run_stage(args.claude, slug, 'build', build_prompt(slug), args.timeout or None,
                                 lambda: (os.path.exists(_md), 'no lesson markdown written'))
             if not ok:
