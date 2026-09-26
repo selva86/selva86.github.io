@@ -1,0 +1,859 @@
+---
+title: "Volatility Modeling with ARCH and GARCH Lesson 4: Fitting GARCH in R"
+description: "Fit GARCH(1,1) to 1,859 daily DAX returns with tseries and fGarch in R, check the standardised residuals, and compare Normal and Student-t errors using AIC."
+keywords: "fit GARCH in R, GARCH(1,1) in R, tseries garch, fGarch garchFit, conditional standard deviation, standardised residuals, Student-t errors, Ljung-Box test, volatility persistence"
+mathjax: true
+webr: true
+curriculum_id: "5.100.4"
+post_type: "LESSON"
+course_id: "ts-volatility"
+course_title: "Volatility Modeling with ARCH and GARCH"
+course_lesson: "4"
+course_total: "6"
+course_landing: "Volatility-Modeling-ARCH-and-GARCH-Course.html"
+course_next: "Forecasting-Volatility-and-Value-at-Risk.html"
+course_prev: "The-GARCH-Family.html"
+lesson_access: "pro"
+catalog_blurb: "How to fit GARCH in R and test whether the model describes your data."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Fitting GARCH in R</h2>
+
+<p>Today let's fit a GARCH model to a real stock index in R, and then check how well the fit describes the data.</p>
+
+<p>Our data are the daily closing prices of the German DAX index. From those prices we get 1,859 daily returns, one for each trading day from mid-1991 to 1998. A daily return is the change in the log of the closing price from one trading day to the next, written in percent. The standard deviation of the 1,859 returns is close to 1%, so on a typical day the index moves about 1% up or down.</p>
+
+<p>But that 1% is an average over the whole period, and it hides something. The chart below shows the returns of trading days 1600 to 1800. From day 1600 to day 1660 the line swings widely, and the two largest moves in the window are on days 1651 and 1652, when the return was -6.01% and then +4.32%. From day 1720 to day 1780 the swings are much smaller.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1600,"y":0.07},{"x":1601,"y":2.66},{"x":1602,"y":1.46},{"x":1603,"y":-1.11},{"x":1604,"y":-2.76},{"x":1605,"y":-0.33},{"x":1606,"y":-2.06},{"x":1607,"y":-0.04},{"x":1608,"y":-2.4},{"x":1609,"y":0.57},{"x":1610,"y":2.07},{"x":1611,"y":3.09},{"x":1612,"y":-1.59},{"x":1613,"y":0.77},{"x":1614,"y":-0.48},{"x":1615,"y":1.4},{"x":1616,"y":-0.65},{"x":1617,"y":-1.88},{"x":1618,"y":-3.48},{"x":1619,"y":-2.44},{"x":1620,"y":1.9},{"x":1621,"y":3.21},{"x":1622,"y":-0.63},{"x":1623,"y":0.84},{"x":1624,"y":-0.53},{"x":1625,"y":2.82},{"x":1626,"y":-0.12},{"x":1627,"y":1.44},{"x":1628,"y":-1.11},{"x":1629,"y":0.73},{"x":1630,"y":-0.45},{"x":1631,"y":0.93},{"x":1632,"y":2.57},{"x":1633,"y":0.07},{"x":1634,"y":0},{"x":1635,"y":1.4},{"x":1636,"y":-0.35},{"x":1637,"y":-1.02},{"x":1638,"y":-2.07},{"x":1639,"y":-0.37},{"x":1640,"y":1.45},{"x":1641,"y":-0.24},{"x":1642,"y":-1.11},{"x":1643,"y":-0.45},{"x":1644,"y":-2.46},{"x":1645,"y":0.49},{"x":1646,"y":2.5},{"x":1647,"y":-1.15},{"x":1648,"y":-3.67},{"x":1649,"y":0.13},{"x":1650,"y":-2.8},{"x":1651,"y":-6.01},{"x":1652,"y":4.32},{"x":1653,"y":-1.53},{"x":1654,"y":0.13},{"x":1655,"y":2.48},{"x":1656,"y":-1.65},{"x":1657,"y":1.48},{"x":1658,"y":-0.72},{"x":1659,"y":-2.62},{"x":1660,"y":0.35},{"x":1661,"y":0.17},{"x":1662,"y":-1},{"x":1663,"y":0.12},{"x":1664,"y":-0.69},{"x":1665,"y":3.74},{"x":1666,"y":0.72},{"x":1667,"y":0.85},{"x":1668,"y":1.41},{"x":1669,"y":0.26},{"x":1670,"y":-2.83},{"x":1671,"y":0.47},{"x":1672,"y":1.97},{"x":1673,"y":0.89},{"x":1674,"y":0.25},{"x":1675,"y":3.8},{"x":1676,"y":-0.72},{"x":1677,"y":-0.53},{"x":1678,"y":2.07},{"x":1679,"y":0.77},{"x":1680,"y":0.39},{"x":1681,"y":-0.5},{"x":1682,"y":-1.7},{"x":1683,"y":-2.46},{"x":1684,"y":1.12},{"x":1685,"y":-0.81},{"x":1686,"y":2.96},{"x":1687,"y":0.1},{"x":1688,"y":0.2},{"x":1689,"y":-2.62},{"x":1690,"y":1.72},{"x":1691,"y":0.18},{"x":1692,"y":0},{"x":1693,"y":0},{"x":1694,"y":0},{"x":1695,"y":3.17},{"x":1696,"y":-0.98},{"x":1697,"y":0},{"x":1698,"y":0},{"x":1699,"y":3.26},{"x":1700,"y":1.2},{"x":1701,"y":-1.3},{"x":1702,"y":-0.46},{"x":1703,"y":-1.07},{"x":1704,"y":-1.31},{"x":1705,"y":-2.46},{"x":1706,"y":0.37},{"x":1707,"y":-0.11},{"x":1708,"y":-0.13},{"x":1709,"y":1.82},{"x":1710,"y":1.74},{"x":1711,"y":0.48},{"x":1712,"y":-1.41},{"x":1713,"y":-0.28},{"x":1714,"y":-0.39},{"x":1715,"y":1.04},{"x":1716,"y":1.16},{"x":1717,"y":1.59},{"x":1718,"y":1.34},{"x":1719,"y":-0.05},{"x":1720,"y":1.95},{"x":1721,"y":-0.02},{"x":1722,"y":-0.44},{"x":1723,"y":-0.32},{"x":1724,"y":0.93},{"x":1725,"y":-0.38},{"x":1726,"y":0.86},{"x":1727,"y":-0.14},{"x":1728,"y":-0.95},{"x":1729,"y":0.29},{"x":1730,"y":0.29},{"x":1731,"y":2.01},{"x":1732,"y":-0.34},{"x":1733,"y":-0.67},{"x":1734,"y":0.04},{"x":1735,"y":0.6},{"x":1736,"y":-0.13},{"x":1737,"y":2.15},{"x":1738,"y":-0.19},{"x":1739,"y":-0.04},{"x":1740,"y":1.85},{"x":1741,"y":-0.46},{"x":1742,"y":-1.46},{"x":1743,"y":-0.3},{"x":1744,"y":1.83},{"x":1745,"y":1.38},{"x":1746,"y":0.48},{"x":1747,"y":0.21},{"x":1748,"y":-0.49},{"x":1749,"y":0.69},{"x":1750,"y":0.68},{"x":1751,"y":0.82},{"x":1752,"y":-0.76},{"x":1753,"y":0.84},{"x":1754,"y":1.91},{"x":1755,"y":-0.62},{"x":1756,"y":1},{"x":1757,"y":0.98},{"x":1758,"y":-1.68},{"x":1759,"y":0.75},{"x":1760,"y":0.06},{"x":1761,"y":0.54},{"x":1762,"y":0.74},{"x":1763,"y":0.85},{"x":1764,"y":1.44},{"x":1765,"y":1.73},{"x":1766,"y":-0.68},{"x":1767,"y":-0.8},{"x":1768,"y":0.85},{"x":1769,"y":0},{"x":1770,"y":0},{"x":1771,"y":1.04},{"x":1772,"y":-0.16},{"x":1773,"y":-1.24},{"x":1774,"y":0.63},{"x":1775,"y":1.51},{"x":1776,"y":-0.63},{"x":1777,"y":-1.15},{"x":1778,"y":-0.94},{"x":1779,"y":-2.27},{"x":1780,"y":-2.79},{"x":1781,"y":2.14},{"x":1782,"y":-0.53},{"x":1783,"y":3.05},{"x":1784,"y":0},{"x":1785,"y":1.82},{"x":1786,"y":-2.11},{"x":1787,"y":0.73},{"x":1788,"y":-1.91},{"x":1789,"y":2.03},{"x":1790,"y":1.47},{"x":1791,"y":-0.77},{"x":1792,"y":1.2},{"x":1793,"y":0.04},{"x":1794,"y":0.75},{"x":1795,"y":-1.31},{"x":1796,"y":1.81},{"x":1797,"y":1.34},{"x":1798,"y":0},{"x":1799,"y":0.28},{"x":1800,"y":1.12}],"geoms":["line"],"x":"trading_day","y":"return_pct","code":{"line":"# Plot the DAX daily returns of trading days 1600 to 1800\nggplot(df, aes(trading_day, return_pct)) +\n  geom_hline(yintercept = 0, colour = \"grey60\") +\n  geom_line() +\n  labs(x = \"Trading day\", y = \"Daily return (%)\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>In this chart the large returns come in a group, and so do the small ones.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The DAX daily returns and a check for ARCH effects</h2>
+
+<p>Before we fit anything, let's build the returns and check that their variance really does change over time.</p>
+
+<p>The prices come from <code>EuStockMarkets</code>, a dataset that ships with R. It holds the daily closing prices of four European stock indices, and we take the <code>DAX</code> column. The prices are sampled in business time: weekends and holidays are left out and there are no calendar dates, so from here on we count trading days.</p>
+
+<p>We work with log returns. The return on day t is the log of that day's price minus the log of the previous day's price, which is what <code>diff(log(price))</code> computes. For small moves it is close to the percentage change, and unlike the percentage change it adds up across days. The first price has no day before it, so 1,860 prices give 1,859 returns, and we call the t-th return day t.</p>
+
+<p>The first block builds the returns <code>r</code>, summarises them in percent and prints their variance.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the DAX daily log returns and summarise them
+dax_price &lt;- EuStockMarkets[, &quot;DAX&quot;]
+r &lt;- as.numeric(diff(log(dax_price)))
+
+length(r)
+#&gt; [1] 1859
+
+round(c(mean = 100 * mean(r), sd = 100 * sd(r), min = 100 * min(r), max = 100 * max(r)), 3)
+#&gt;   mean     sd    min    max
+#&gt;  0.065  1.030 -9.628  5.076
+
+var(r)
+#&gt; [1] 0.0001061072</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean return is 0.065% a day and the standard deviation is 1.03%. The worst day was -9.63% and the best was +5.08%. The variance of <code>r</code> is 0.000106, which is a small number because the returns are small decimals.</p>
+
+<p>What we want to know is whether that spread is the same on every day. The tool for it is the autocorrelation function (ACF): the correlation of a series with itself k days back, where k is the lag. At lag 1 it is the correlation of today's value with yesterday's, at lag 2 with the value two days back, and so on.</p>
+
+<p>Here is the idea. If the variance changes in stretches, then the size of a return is related to the size of the returns just before it: a big move, up or down, tends to be followed by another big move. The size of a return shows up in its square. So we check for autocorrelation in <code>r^2</code>. The returns <code>r</code> themselves can stay uncorrelated, because the direction of the moves does not have to follow a pattern.</p>
+
+<p>The Ljung-Box test looks at all the autocorrelations up to a chosen lag at once. Its null hypothesis is that there is no autocorrelation up to that lag, and a small p-value rejects it. The block runs it at lag 10 on <code>r</code> and on <code>r^2</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Test the returns and the squared returns for autocorrelation up to lag 10
+Box.test(r, lag = 10, type = &quot;Ljung-Box&quot;)
+#&gt;
+#&gt; 	Box-Ljung test
+#&gt;
+#&gt; data:  r
+#&gt; X-squared = 6.3656, df = 10, p-value = 0.7837
+
+Box.test(r^2, lag = 10, type = &quot;Ljung-Box&quot;)
+#&gt;
+#&gt; 	Box-Ljung test
+#&gt;
+#&gt; data:  r^2
+#&gt; X-squared = 110.75, df = 10, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On <code>r</code>, the statistic Q is 6.37 and p is 0.784. Under the null hypothesis Q follows a chi-squared distribution with 10 degrees of freedom, which has a mean of 10, so 6.37 is nothing unusual. There is no evidence of autocorrelation in the returns, and that is why the mean equation can be a constant. On <code>r^2</code>, Q is 110.75 and p is below 2.2e-16, so the null hypothesis is clearly rejected.</p>
+
+<p>The table below puts the autocorrelations of <code>r</code> and <code>r^2</code> at lags 1 to 5 side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the autocorrelation of the returns and of the squared returns at lags 1 to 5
+acf_r  &lt;- acf(r, lag.max = 5, plot = FALSE)$acf[-1]
+acf_r2 &lt;- acf(r^2, lag.max = 5, plot = FALSE)$acf[-1]
+
+acf_table &lt;- round(rbind(returns = acf_r, squared_returns = acf_r2), 3)
+colnames(acf_table) &lt;- paste(&quot;lag&quot;, 1:5)
+acf_table
+#&gt;                 lag 1  lag 2  lag 3 lag 4  lag 5
+#&gt; returns         0.000 -0.027 -0.010 0.000 -0.032
+#&gt; squared_returns 0.079  0.171  0.074 0.078  0.053</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The autocorrelations of the returns are all within 0.032 of zero. Those of the squared returns are 0.079, 0.171, 0.074, 0.078 and 0.053, all positive.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The returns are not correlated with their own past, but their squares are. So large moves of either sign follow large moves, and small moves follow small ones. This is called volatility clustering, and it means the variance of the returns changes over time. The dependence of the variance on past squared returns is called an ARCH effect, and a GARCH model is built to describe it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The GARCH(1,1) model, coefficient by coefficient</h2>
+
+<p>A model with one constant variance cannot describe calm stretches and violent stretches. GARCH lets the variance change from day to day, using two equations: one for the return and one for its variance. The first says the return is a constant mean plus a shock:</p>
+
+<p>\[ r_t = \mu + \varepsilon_t \]</p>
+
+<p>Here \(r_t\) is the return on day t, \(\mu\) is the mean return, and \(\varepsilon_t\) is the shock, the part of the return that the mean does not explain. The shock carries the changing variance, through this equation:</p>
+
+<p>\[ \varepsilon_t = \sigma_t z_t \]</p>
+
+<p>\(\sigma_t\) is the standard deviation on day t, and \(z_t\) is a random draw with mean 0 and variance 1, independent from one day to the next. To begin with, \(z_t\) is Normal. The square \(\sigma_t^2\) is the conditional variance of the return: its variance given all the returns up to day t-1. The second equation builds it:</p>
+
+<p>\[ \sigma_t^2 = \omega + \alpha_1 \varepsilon_{t-1}^2 + \beta_1 \sigma_{t-1}^2 \]</p>
+
+<p>So today's variance is a constant, plus a share of yesterday's squared shock, plus a share of yesterday's variance. The two 1s in GARCH(1,1) count the lags: one lag of the squared shock and one lag of the variance. The table says what each coefficient controls.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Coefficient</th>
+<th>What it controls</th>
+<th>Constraint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>omega</td>
+<td>The constant part of the variance, the same on every day</td>
+<td>Positive</td>
+</tr>
+<tr>
+<td>alpha1</td>
+<td>How much yesterday's squared shock adds to today's variance</td>
+<td>Not negative</td>
+</tr>
+<tr>
+<td>beta1</td>
+<td>How much of yesterday's variance carries over to today</td>
+<td>Not negative</td>
+</tr>
+<tr>
+<td>alpha1 + beta1</td>
+<td>The persistence: how slowly a jump in the variance dies out</td>
+<td>Less than 1</td>
+</tr>
+</tbody>
+</table>
+
+<p>The constraints keep the variance positive and give it a long-run level, the value it averages out to over many days:</p>
+
+<p>\[ \bar{\sigma}^2 = \frac{\omega}{1 - \alpha_1 - \beta_1} \]</p>
+
+<p>If alpha1 + beta1 reached 1, this formula would divide by 0, so there would be no finite long-run variance. That is the reason for the last constraint. The formula also explains the size of omega. It equals the long-run variance times (1 - alpha1 - beta1), and the variance of returns written as decimals is tiny (0.000106 for <code>r</code>). So omega comes out as a very small number.</p>
+
+<p>Now to persistence. After a large shock the variance jumps above its long-run level. On each day after that, the gap between the expected variance and the long-run variance is multiplied by alpha1 + beta1, so a persistence near 1 means the gap closes slowly. The half-life is the number of days the gap takes to halve:</p>
+
+<p>\[ \text{half-life} = \frac{\log 0.5}{\log(\alpha_1 + \beta_1)} \]</p>
+
+<p>A persistence of 0.90 gives a half-life of 6.6 days, and a persistence of 0.99 gives 69 days.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>How to fit GARCH(1,1) with tseries::garch()</h2>
+
+<p>The <code>tseries</code> package fits the model with <code>garch()</code>. It estimates omega, alpha1 and beta1 by maximum likelihood: it searches for the parameter values under which the observed returns are most probable, that is, have the highest likelihood, assuming Normal errors. The function has no mean term, so we pass it the returns with their mean removed, <code>r - mean(r)</code>.</p>
+
+<p>The argument <code>order = c(1, 1)</code> gives the orders of the model. The first number is the GARCH order (lags of the variance) and the second is the ARCH order (lags of the squared shock). <code>trace = FALSE</code> switches off the optimiser's printout. The block fits the model and prints its coefficient table.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit GARCH(1,1) with tseries::garch() and print its coefficient table
+suppressMessages(library(tseries))
+
+fit_ts &lt;- garch(r - mean(r), order = c(1, 1), trace = FALSE)
+summary(fit_ts)$coef
+#&gt;        Estimate   Std. Error   t value     Pr(&gt;|t|)
+#&gt; a0 4.745923e-06 7.788348e-07  6.093619 1.103859e-09
+#&gt; a1 6.837046e-02 1.111316e-02  6.152204 7.641334e-10
+#&gt; b1 8.877458e-01 1.666803e-02 53.260383 0.000000e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table calls the coefficients <code>a0</code>, <code>a1</code> and <code>b1</code>, which are omega, alpha1 and beta1. The standard error says how precisely each one is estimated, and the t value is the estimate divided by its standard error. All three t values are above 6, so all three coefficients are clearly different from 0.</p>
+
+<p>Alpha1 is 0.0684, so a squared shock adds 6.84% of its size to the next day's variance. Beta1 is 0.8877, so 88.77% of yesterday's variance carries over to today. The next block computes the persistence, the half-life and the long-run standard deviation from the coefficients.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute persistence, half-life and long-run standard deviation from the coefficients
+cf &lt;- coef(fit_ts)
+persistence &lt;- unname(cf[&quot;a1&quot;] + cf[&quot;b1&quot;])
+half_life &lt;- log(0.5) / log(persistence)
+long_run_sd &lt;- sqrt(unname(cf[&quot;a0&quot;]) / (1 - persistence))
+
+round(c(persistence = persistence, half_life_days = half_life), 4)
+#&gt;    persistence half_life_days
+#&gt;         0.9561        15.4459
+round(100 * c(long_run_sd = long_run_sd, sample_sd = sd(r)), 3)
+#&gt; long_run_sd   sample_sd
+#&gt;        1.04        1.03</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The persistence is 0.9561, so after a shock the gap between the variance and its long-run level shrinks by a factor of 0.9561 each day, and the half-life is 15.4 days. The long-run standard deviation is 1.04% a day, close to the 1.03% sample standard deviation of the returns.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>The fitted conditional standard deviation</h2>
+
+<p>The fitted conditional standard deviation \(\sigma_t\) is what the model produces for every day. Calling <code>fitted()</code> on a <code>garch</code> fit returns two columns, plus and minus \(\sigma_t\), so we take the first. Its first value is <code>NA</code>, since the variance equation needs a previous day. The block extracts \(\sigma_t\) and looks at its range.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Extract the fitted conditional standard deviation and look at its range
+sigma_ts &lt;- fitted(fit_ts)[, 1]
+
+round(100 * range(sigma_ts, na.rm = TRUE), 2)
+#&gt; [1] 0.70 2.73
+round(100 * median(sigma_ts, na.rm = TRUE), 2)
+#&gt; [1] 0.93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>\(\sigma_t\) ranges from 0.70% to 2.73% a day, with a median of 0.93%. It is computed from the returns up to day t-1, so it is the standard deviation the model gives day t without using that day's return. The next block prints the returns and \(\sigma_t\) around the -9.63% return of day 35, and then for day 45 and day 65.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Show the returns and the fitted standard deviation around the day-35 shock
+days_shown &lt;- c(34:38, 45, 65)
+data.frame(
+  day        = days_shown,
+  return_pct = round(100 * r[days_shown], 2),
+  sigma_pct  = round(100 * sigma_ts[days_shown], 2)
+)
+#&gt;   day return_pct sigma_pct
+#&gt; 1  34      -0.03      0.80
+#&gt; 2  35      -9.63      0.79
+#&gt; 3  36       1.48      2.65
+#&gt; 4  37       5.08      2.53
+#&gt; 5  38       1.17      2.73
+#&gt; 6  45       0.22      1.90
+#&gt; 7  65      -0.46      0.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On day 35 the return was -9.63%, yet \(\sigma_{35}\) was only 0.79%. The model's standard deviation for that day was low, because the days before it were quiet. On day 36, \(\sigma_{36}\) jumped to 2.65%, since it is computed from the day-35 shock, and on day 37 it eased to 2.53%.</p>
+
+<p>Then the return on day 37 was +5.08%, the largest positive return in the sample, and it lifted \(\sigma_{38}\) to 2.73%, the highest value in the whole series. After that \(\sigma_t\) decays: it is 1.90% on day 45 and back to 0.91% on day 65. A fall and a rise both push \(\sigma_t\) up, because the variance equation reacts to the size of a shock and not to its sign.</p>
+
+<p>To see where these numbers come from, the next block recomputes \(\sigma_{36}\) from the variance equation, using the day-35 shock and \(\sigma_{35}\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Recompute sigma on day 36 from the variance equation and compare it with the fit
+e_35 &lt;- r[35] - mean(r)
+sigma_36 &lt;- sqrt(cf[&quot;a0&quot;] + cf[&quot;a1&quot;] * e_35^2 + cf[&quot;b1&quot;] * sigma_ts[35]^2)
+
+round(100 * c(by_hand = unname(sigma_36), fitted = sigma_ts[36]), 3)
+#&gt; by_hand  fitted
+#&gt;   2.649   2.649</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The variance equation reproduces the fitted value, 2.649%. So \(\sigma_t\) is nothing more than that equation applied day after day.</p>
+
+<p>The plot below shows the returns of days 1 to 200 with lines at plus and minus 2 \(\sigma_t\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot days 1 to 200 with plus and minus 2 fitted standard deviations
+first_200 &lt;- 1:200
+band &lt;- 2 * 100 * sigma_ts[first_200]
+
+plot(first_200, 100 * r[first_200], type = &quot;l&quot;, col = &quot;grey40&quot;,
+     xlab = &quot;Trading day&quot;, ylab = &quot;Daily return (%)&quot;)
+lines(first_200, band, col = &quot;red&quot;)
+lines(first_200, -band, col = &quot;red&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The red lines open up right after day 35, to about 5.3% on each side on day 36, and then narrow again over the next 30 days or so, to about 1.8% by day 65. A model with a constant variance cannot draw a band like this.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>The same fit with fGarch::garchFit()</h2>
+
+<p>The <code>fGarch</code> package fits the same model with <code>garchFit()</code>, and its output is richer. The formula <code>~ garch(1, 1)</code> sets the variance equation, <code>cond.dist = &quot;norm&quot;</code> sets Normal errors, and <code>trace = FALSE</code> turns off the optimiser's printout. Unlike <code>garch()</code>, it estimates the mean <code>mu</code> together with the other coefficients, so we pass it <code>r</code> itself.</p>
+
+<p>The coefficient matrix sits in the <code>matcoef</code> element of the fit's <code>fit</code> slot, and <code>@</code> is how R reads a slot of the object that <code>garchFit()</code> returns. The block fits the model and prints that matrix.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit GARCH(1,1) with fGarch::garchFit() and print its coefficient matrix
+suppressMessages(library(fGarch))
+
+fit_norm &lt;- garchFit(~ garch(1, 1), data = r, cond.dist = &quot;norm&quot;, trace = FALSE)
+fit_norm@fit$matcoef
+#&gt;            Estimate   Std. Error   t value     Pr(&gt;|t|)
+#&gt; mu     6.535079e-04 2.157584e-04  3.028887 2.454565e-03
+#&gt; omega  4.754313e-06 1.264427e-06  3.760054 1.698770e-04
+#&gt; alpha1 6.841653e-02 1.477706e-02  4.629917 3.658128e-06
+#&gt; beta1  8.876111e-01 2.355855e-02 37.676814 0.000000e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The matrix has the same columns as before. Mu is 0.000654 (t value 3.03), alpha1 is 0.0684 (standard error 0.0148, t value 4.63) and beta1 is 0.8876 (standard error 0.0236, t value 37.68). The next block puts the two fits side by side, with the estimates rounded to 4 significant digits and the standard errors to 3.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Put the tseries and fGarch estimates and standard errors side by side
+params &lt;- c(&quot;omega&quot;, &quot;alpha1&quot;, &quot;beta1&quot;)
+
+side_by_side &lt;- data.frame(
+  parameter   = params,
+  tseries_est = signif(unname(coef(fit_ts)), 4),
+  fgarch_est  = signif(unname(coef(fit_norm)[params]), 4),
+  tseries_se  = signif(unname(summary(fit_ts)$coef[, 2]), 3),
+  fgarch_se   = signif(unname(fit_norm@fit$matcoef[params, 2]), 3)
+)
+side_by_side
+#&gt;   parameter tseries_est fgarch_est tseries_se fgarch_se
+#&gt; 1     omega   4.746e-06  4.754e-06   7.79e-07  1.26e-06
+#&gt; 2    alpha1   6.837e-02  6.842e-02   1.11e-02  1.48e-02
+#&gt; 3     beta1   8.877e-01  8.876e-01   1.67e-02  2.36e-02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimates agree. Alpha1 is 0.0684 in both, beta1 is 0.8877 and 0.8876, and omega is 4.75e-06 in both once rounded to 3 digits. The standard errors do not agree, and fGarch's are larger: 0.0148 against 0.0111 for alpha1, and 0.0236 against 0.0167 for beta1.</p>
+
+<p>The two packages calculate the standard errors differently. <code>tseries</code> uses the outer product of the gradient, and <code>fGarch</code> uses the Hessian of the log-likelihood. The Hessian is the matrix of second derivatives, and it measures how sharply the log-likelihood curves around its maximum. In both packages every t value is above 3, so the conclusion is the same.</p>
+
+<p>Both packages fit the model by maximising the log-likelihood, and <code>fGarch</code> reports its value. The log-likelihood is the sum, over the 1,859 days, of the log of the density the fitted model gives to that day's return. A higher value means the observed returns are more probable under the model.</p>
+
+<p>The fit stores the negative of it in its <code>value</code> element, because that is the number the optimiser minimises. The block flips the sign and checks it against a direct sum of Normal log densities.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check the log-likelihood: the sum over days of the log Normal density of each return
+mu_hat &lt;- coef(fit_norm)[&quot;mu&quot;]
+sigma_norm &lt;- fit_norm@sigma.t
+
+loglik_norm &lt;- unname(-fit_norm@fit$value)
+by_hand &lt;- sum(dnorm(r, mean = mu_hat, sd = sigma_norm, log = TRUE))
+
+round(c(from_fit = loglik_norm, by_hand = by_hand), 2)
+#&gt; from_fit  by_hand
+#&gt;  5966.21  5966.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both come to 5966.21. The last block compares \(\sigma_t\) from the two fits, in percent, on the same days.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare sigma from the two fits on the same days, in percent
+sigma_compare &lt;- round(100 * rbind(tseries = sigma_ts[days_shown], fGarch = sigma_norm[days_shown]), 3)
+colnames(sigma_compare) &lt;- paste(&quot;day&quot;, days_shown)
+sigma_compare
+#&gt;         day 34 day 35 day 36 day 37 day 38 day 45 day 65
+#&gt; tseries  0.801  0.786  2.649  2.533  2.731  1.895  0.911
+#&gt; fGarch   0.801  0.786  2.650  2.534  2.732  1.895  0.910
+
+round(100 * max(abs(sigma_ts - sigma_norm), na.rm = TRUE), 4)
+#&gt; [1] 0.0086</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two \(\sigma_t\) paths agree to the second decimal, for example 0.786 and 0.786 on day 35, and 2.649 and 2.650 on day 36. Over all days the largest gap is 0.0086 percentage points. From here on we use the <code>fGarch</code> fit, because it returns the standardised residuals directly and lets us change the error distribution.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<h2>What should a plot of the standardised residuals look like?</h2>
+
+<p>If the variance equation captures the clustering, dividing each shock by its \(\sigma_t\) should leave values with the same spread on every day. Those values are the standardised residuals:</p>
+
+<p>\[ z_t = \frac{r_t - \hat{\mu}}{\hat{\sigma}_t} \]</p>
+
+<p>The hats mark fitted values. A plot of \(z_t\) against time should look like a flat band. A funnel, wide in some stretches and narrow in others, would say that the fitted \(\sigma_t\) has not removed all the changes in variance.</p>
+
+<p>The widget below carries its own small regression example, not the DAX returns. Its Funnel setting shows a spread that changes, which is the pattern we do not want in \(z_t\), and its Healthy setting shows the constant spread that \(z_t\) should have. Switch between the two.</p>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"funnel"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>In the Funnel setting the points fan out as the fitted value grows, so the spread is not constant. In the Healthy setting they stay in an even band around zero.</p>
+
+<p>Now let's check the DAX. The block computes \(z_t\) by hand and with <code>residuals()</code>, confirms that they match, prints the standard deviation of \(z_t\) and plots it against the trading day.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Standardise the residuals by hand and with residuals(), then check their spread
+z_norm &lt;- residuals(fit_norm, standardize = TRUE)
+z_hand &lt;- (r - coef(fit_norm)[&quot;mu&quot;]) / fit_norm@sigma.t
+
+all.equal(as.numeric(z_hand), as.numeric(z_norm))
+#&gt; [1] TRUE
+round(sd(z_norm), 4)
+#&gt; [1] 0.9999
+
+plot(z_norm, type = &quot;l&quot;, col = &quot;grey40&quot;, xlab = &quot;Trading day&quot;, ylab = &quot;Standardised residual&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two computations agree, and the standard deviation of \(z_t\) is 0.9999, very close to the 1 that the model assumes for it. The plot shows a band of roughly constant height across all 1,859 days, with one spike down at day 35, where \(z_t\) is about -12.</p>
+
+<p>The last block compares the autocorrelation of <code>r^2</code> with that of the squared standardised residuals at lags 1 to 5.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the autocorrelation of the squared returns and the squared standardised residuals
+acf_r2 &lt;- acf(r^2, lag.max = 5, plot = FALSE)$acf[-1]
+acf_z2 &lt;- acf(z_norm^2, lag.max = 5, plot = FALSE)$acf[-1]
+
+squared_table &lt;- round(rbind(r_squared = acf_r2, z_squared = acf_z2), 3)
+colnames(squared_table) &lt;- paste(&quot;lag&quot;, 1:5)
+squared_table
+#&gt;            lag 1 lag 2  lag 3 lag 4  lag 5
+#&gt; r_squared  0.079 0.171  0.074 0.078  0.053
+#&gt; z_squared -0.008 0.006 -0.003 0.013 -0.008</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For <code>r^2</code> the autocorrelations were 0.079, 0.171, 0.074, 0.078 and 0.053. For the squared standardised residuals they fall to -0.008, 0.006, -0.003, 0.013 and -0.008, all within 0.013 of zero. So dividing by the fitted \(\sigma_t\) has removed the correlation between the sizes of the moves.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Testing the standardised residuals: autocorrelation and tails</h2>
+
+<p>The plots suggest that the variance equation works, so now let's test it. There are two questions. Is any autocorrelation left in \(z_t\) or in \(z_t^2\)? And does \(z_t\) look like a Normal draw, which is what the model assumed? We start with autocorrelation, using the Ljung-Box test at lag 10 as before.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Test the standardised residuals and their squares for autocorrelation up to lag 10
+Box.test(z_norm, lag = 10, type = &quot;Ljung-Box&quot;)
+#&gt;
+#&gt; 	Box-Ljung test
+#&gt;
+#&gt; data:  z_norm
+#&gt; X-squared = 3.1958, df = 10, p-value = 0.9764
+
+Box.test(z_norm^2, lag = 10, type = &quot;Ljung-Box&quot;)
+#&gt;
+#&gt; 	Box-Ljung test
+#&gt;
+#&gt; data:  z_norm^2
+#&gt; X-squared = 0.89327, df = 10, p-value = 0.9999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The null hypothesis is that there is no autocorrelation up to lag 10, so a high p-value means there is no evidence of any left. For \(z_t\), p is 0.976. For \(z_t^2\), p is 0.9999, and that is the one that matters most: no autocorrelation is left in the squared standardised residuals, so no volatility clustering remains. The tests give no evidence against the GARCH(1,1) variance equation.</p>
+
+<p>The second question is about the tails. If \(z_t\) were Normal, the share of values beyond 3 in size (above 3 or below -3) would be 0.27%, which is 5.0 values out of 1,859. Beyond 4 it would be 0.0063%, which is 0.12 values. The block counts the actual values and compares them with those numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the standardised residuals beyond 3 and 4 in size, against a Normal
+n &lt;- length(z_norm)
+cutoffs &lt;- c(3, 4)
+
+data.frame(
+  beyond   = cutoffs,
+  observed = sapply(cutoffs, function(cut) sum(abs(z_norm) &gt; cut)),
+  expected = round(n * 2 * pnorm(-cutoffs), 2)
+)
+#&gt;   beyond observed expected
+#&gt; 1      3       12     5.02
+#&gt; 2      4        3     0.12
+
+which.min(z_norm)
+#&gt; [1] 35
+round(min(z_norm), 2)
+#&gt; [1] -12.34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 12 values beyond 3 against 5.0 expected, and 3 beyond 4 against 0.12. The smallest value is -12.34, on day 35: the -9.63% fall on a day when \(\sigma_{35}\) was only 0.79%. A Normal would almost never produce a value that far out.</p>
+
+<p>A QQ plot shows the same thing for the whole distribution. It plots the sorted values of \(z_t\) against the quantiles of a Normal, and if \(z_t\) is Normal the points fall on the line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw the Normal QQ plot of the standardised residuals
+qqnorm(z_norm, main = &quot;Standardised residuals against Normal quantiles&quot;)
+qqline(z_norm, col = &quot;red&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points follow the line through the middle. But in both tails they bend away from it: the lowest values sit below the line and the highest sit above it, and the point at -12.34 is far from it. Those are heavy tails, meaning more extreme values than a Normal allows.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Autocorrelation left in the squared standardised residuals would point at the variance equation. Tails heavier than a Normal point at the error distribution. Here no autocorrelation is left and the tails show a clear excess, so the variance equation stays and the error distribution needs work.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what do the residual tests say about the Normal fit?</h2>
+
+<p>On the Normal fit, the Ljung-Box test on the squared standardised residuals gave p = 0.9999, and 12 standardised residuals fell beyond 3 in size against 5.0 expected under a Normal. What do the two results say together?</p>
+<section class="exercise" data-exercise-id="Fitting-GARCH-in-R-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A p-value near 1 means ARCH effects remain in the residuals, so the variance equation needs more terms.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The 12 large values show that the GARCH order is too low, so the model should be refit as GARCH(2,2).</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No autocorrelation is left in the squared standardised residuals, so the variance equation is not rejected, but the excess of large values means the errors have heavier tails than a Normal.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The mean equation needs ARMA terms, because the large values show that the returns can be predicted from their past.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. A p-value of 0.9999 means there is no autocorrelation left in the squared standardised residuals, which is the constant spread we saw in the residual plot. The tail counts and the QQ plot are a separate question, and they say a Normal is too thin in the tails.</div><div class="lesson-qfb lesson-qfb-no">A high p-value means no autocorrelation is left, so nothing points to a bigger variance equation or to a different mean equation. The large values are about the shape of the error distribution: 12 beyond 3 against 5.0 expected is a tail problem, and it needs a different distribution, not more lags.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<h2>Student-t errors: refit and compare with the Normal fit</h2>
+
+<p>A Student-t distribution has heavier tails than a Normal, which is the feature the tail counts pointed to. It has one parameter, the shape, also called the degrees of freedom and written \(\nu\). A small shape means heavy tails, and as the shape grows the Student-t gets closer to the Normal.</p>
+
+<p>In <code>garchFit()</code>, <code>cond.dist = &quot;std&quot;</code> gives a Student-t scaled to have variance 1, so \(z_t\) keeps its mean 0 and variance 1 and \(\sigma_t\) keeps its meaning. The block refits the model and prints the coefficient matrix.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit with Student-t errors and print the coefficient matrix
+fit_std &lt;- garchFit(~ garch(1, 1), data = r, cond.dist = &quot;std&quot;, trace = FALSE)
+fit_std@fit$matcoef
+#&gt;            Estimate   Std. Error   t value    Pr(&gt;|t|)
+#&gt; mu     7.640502e-04 1.888625e-04  4.045537 5.22034e-05
+#&gt; omega  2.163043e-06 8.620199e-07  2.509273 1.20980e-02
+#&gt; alpha1 7.902217e-02 1.617481e-02  4.885507 1.03163e-06
+#&gt; beta1  9.035853e-01 2.010193e-02 44.950182 0.00000e+00
+#&gt; shape  6.038375e+00 8.140557e-01  7.417643 1.19238e-13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shape is estimated at 6.04 with a standard error of 0.81, so the estimated tails are much heavier than a Normal's. The other coefficients move as well: alpha1 is 0.0790 (0.0684 before) and beta1 is 0.9036 (0.8876 before).</p>
+
+<p>Now we compare the two fits. Both log-likelihoods are computed on the same 1,859 returns, so they can be compared, and the higher one fits better. But the Student-t model has one more parameter, so we also use two criteria that charge for the number of parameters k:</p>
+
+<p>\[ \text{AIC} = -2 \log L + 2k \qquad \text{BIC} = -2 \log L + k \log n \]</p>
+
+<p>Here \(\log L\) is the log-likelihood and n = 1,859 is the number of returns. Lower is better for both. The block computes them by hand.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the two fits by log-likelihood, AIC and BIC
+n &lt;- length(r)
+loglik &lt;- c(normal = loglik_norm, student_t = unname(-fit_std@fit$value))
+k &lt;- c(normal = length(coef(fit_norm)), student_t = length(coef(fit_std)))
+
+aic &lt;- -2 * loglik + 2 * k
+bic &lt;- -2 * loglik + k * log(n)
+
+round(rbind(loglik = loglik, aic = aic, bic = bic), 1)
+#&gt;          normal student_t
+#&gt; loglik   5966.2    6065.7
+#&gt; aic    -11924.4  -12121.5
+#&gt; bic    -11902.3  -12093.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Student-t log-likelihood is higher, 6065.7 against 5966.2. AIC is lower by 197, from -11924.4 to -12121.5, even after charging for the extra parameter. BIC charges 7.5 per parameter where AIC charges 2, and it is still lower by 191.5, from -11902.3 to -12093.8. Both criteria are lower for the Student-t fit, so it is the better fit.</p>
+
+<p>The error distribution also moves the persistence. The next block compares the persistence and the half-life under the two fits.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare persistence and half-life under the two error distributions
+persistence_by_fit &lt;- c(
+  normal    = unname(coef(fit_norm)[&quot;alpha1&quot;] + coef(fit_norm)[&quot;beta1&quot;]),
+  student_t = unname(coef(fit_std)[&quot;alpha1&quot;] + coef(fit_std)[&quot;beta1&quot;])
+)
+half_life_by_fit &lt;- log(0.5) / log(persistence_by_fit)
+
+round(persistence_by_fit, 4)
+#&gt;    normal student_t
+#&gt;    0.9560    0.9826
+round(half_life_by_fit, 1)
+#&gt;    normal student_t
+#&gt;      15.4      39.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With Normal errors the persistence is 0.9560 and the half-life is 15.4 days. With Student-t errors the persistence rises to 0.9826 and the half-life to 39.5 days. So the error distribution changes the half-life of a shock's effect: about 15 days under the Normal and about 40 under the Student-t.</p>
+
+<p>Finally we check the tails against the fitted Student-t, using tail probabilities from <code>pstd()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the Student-t standardised residuals beyond 3 and 4, against the fitted t
+z_std &lt;- residuals(fit_std, standardize = TRUE)
+nu &lt;- unname(coef(fit_std)[&quot;shape&quot;])
+
+data.frame(
+  beyond   = cutoffs,
+  observed = sapply(cutoffs, function(cut) sum(abs(z_std) &gt; cut)),
+  expected = round(n * 2 * pstd(-cutoffs, nu = nu), 2)
+)
+#&gt;   beyond observed expected
+#&gt; 1      3       17    19.25
+#&gt; 2      4        4     4.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted Student-t expects 19.25 values beyond 3 in size and 4.99 beyond 4, and the data have 17 and 4. That is close, unlike the Normal fit, which expected 5.02 and 0.12 against 12 and 3 observed. The QQ plot below uses Student-t quantiles from <code>qstd()</code>, at the shape we estimated.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw the QQ plot of the standardised residuals against Student-t quantiles
+qqplot(qstd(ppoints(n), nu = nu), z_std,
+       xlab = &quot;Student-t quantiles&quot;, ylab = &quot;Standardised residuals&quot;)
+abline(0, 1, col = &quot;red&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The points now follow the line much more closely in both tails. The one exception is the lowest point, the -9.63% day, which is still far below the line.</p>
+
+<p>The table below collects the two fits, and its toggle switches between a raw print and a report table.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["statistic","Normal","Student-t"],"rows":[["mu","0.000654","0.000764"],["omega","4.75e-06","2.16e-06"],["alpha1","0.0684","0.0790"],["beta1","0.8876","0.9036"],["shape","not applicable","6.04"],["persistence","0.9560","0.9826"],["half-life (days)","15.4","39.5"],["log-likelihood","5966.21","6065.74"],["AIC","-11924.4","-12121.5"],["BIC","-11902.3","-12093.8"]],"formats":{},"title":"GARCH(1,1) on DAX daily returns","note":"garchFit(), 1,859 daily returns"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which error distribution fits the DAX returns better?</h2>
+
+<p>The table gives the two fits of the DAX returns. Which error distribution fits better, and what changes in the persistence?</p>
+<section class="exercise" data-exercise-id="Fitting-GARCH-in-R-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The Normal, because it has one fewer parameter and so is the simpler model.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The Student-t: its AIC is lower by 197 even after paying for one extra parameter, and the persistence rises from 0.9560 to 0.9826.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither is better: alpha1 and beta1 barely move, so the two fits are equal.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">There is no way to say, because likelihoods from different error distributions cannot be compared.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. Both fits are log-likelihoods of the same 1,859 returns, so they can be compared, and AIC already charges for the extra shape parameter. The half-life of a shock also lengthens, from 15.4 days to 39.5.</div><div class="lesson-qfb lesson-qfb-no">The two fits model the same returns, so their log-likelihoods, AIC and BIC can be compared directly. The Student-t fit is better on all three, by 197 in AIC. It changes the persistence too: alpha1 and beta1 look close, but their sum moves from 0.9560 to 0.9826, which more than doubles the half-life.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: what changes when the returns are in percent?</h2>
+
+<p>Returns are often quoted in percent instead of decimals. Refit the Student-t model on the returns multiplied by 100, with the same <code>garchFit()</code> call as before, and print the coefficients. Before you run it, predict which of mu, omega, alpha1, beta1 and shape change, and by what factor. <code>fit_std</code> still holds the Student-t fit on the decimal returns, so you can compare.</p>
+<section class="exercise" data-exercise-id="Fitting-GARCH-in-R-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="^(?=[\s\S]*garchFit)(?=[\s\S]*cond[.]dist\s*=\s*.std.)(?=[\s\S]*(100\s*[*]\s*r|r\s*[*]\s*100))"><textarea class="lesson-tryit-input" spellcheck="false"># Refit the model on returns in percent and print its coefficients.
+# r holds the decimal returns and fit_std holds the Student-t fit on them.
+# Predict the change in each coefficient, then press Check.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: mu is 100 times larger and omega is 10,000 times larger, while alpha1, beta1 and shape do not change. Omega is measured in squared return units, and alpha1 and beta1 multiply squared shocks and variances that are scaled together, so the scale cancels.</span><span class="lesson-tryit-fb lesson-tryit-no">Multiply the returns by 100 first, for example <code>r_pct &lt;- 100 * r</code>, then call <code>garchFit()</code> on <code>r_pct</code> with the same formula as before, the Student-t error distribution and <code>trace = FALSE</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Refit the Student-t model on returns in percent and compare with the first fit
+r_pct &lt;- 100 * r
+fit_pct &lt;- garchFit(~ garch(1, 1), data = r_pct, cond.dist = &quot;std&quot;, trace = FALSE)
+
+round(coef(fit_pct), 4)
+#&gt;     mu  omega alpha1  beta1  shape
+#&gt; 0.0764 0.0216 0.0790 0.9036 6.0384
+round(coef(fit_pct) / coef(fit_std), 4)
+#&gt;     mu  omega alpha1  beta1  shape
+#&gt;    100  10000      1      1      1</code></pre></details></div>
+</section>
+<p>Mu is 100 times larger and omega is 10,000 times larger, because omega is in squared return units and 100 squared is 10,000. Alpha1 and beta1 multiply squared shocks and variances, which are both scaled by 10,000, so the scale cancels. The shape describes the tails of \(z_t\), which has no units, so it does not change either.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1016/0304-4076(86">Generalized autoregressive conditional heteroskedasticity</a>90063-1) - Bollerslev (1986), Journal of Econometrics 31(3), 307-327. The paper that introduced the GARCH model.</li>
+
+<li><a href="https://doi.org/10.2307/1925546">A conditionally heteroskedastic time series model for speculative prices and rates of return</a> - Bollerslev (1987), Review of Economics and Statistics 69(3), 542-547. GARCH with Student-t errors.</li>
+
+<li><a href="https://doi.org/10.1002/jae.800">A forecast comparison of volatility models: does anything beat a GARCH(1,1)?</a> - Hansen and Lunde (2005), Journal of Applied Econometrics 20(7), 873-889.</li>
+
+<li><a href="https://cran.r-project.org/package=fGarch">fGarch: Rmetrics, Autoregressive Conditional Heteroskedastic Modelling</a> - Wuertz, Setz and Chalabi, CRAN package documentation for <code>garchFit()</code>.</li>
+
+<li><a href="https://cran.r-project.org/package=tseries">tseries: Time Series Analysis and Computational Finance</a> - Trapletti and Hornik, CRAN package documentation for <code>garch()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You fitted GARCH(1,1) to 1,859 daily DAX returns with two packages, checked the fit, and compared two error distributions. To summarize:</p>
+
+<ul>
+
+<li>The Ljung-Box test gave p = 0.784 on the returns and p below 2.2e-16 on the squared returns, so the mean is constant and the variance changes over time.</li>
+
+<li><code>tseries::garch()</code> and <code>fGarch::garchFit()</code> agree on alpha1 (0.0684) and beta1 (0.888). Their sum, 0.956, is the persistence, and it gives a half-life of 15.4 days.</li>
+
+<li>The fitted conditional standard deviation was 0.79% on day 35, the day of the -9.63% return, then 2.65% on day 36, and it was back to 0.91% by day 65.</li>
+
+<li>On the standardised residuals, p = 0.9999 for the squares shows no clustering left, but 12 values beyond 3 against 5.0 expected show heavier tails than a Normal.</li>
+
+<li>Student-t errors with a shape of 6.04 lowered AIC by 197 and moved alpha1 to 0.079 and beta1 to 0.904. That raises the persistence to 0.9826 and the half-life to 39.5 days.</li>
+
+</ul>
+
+<p>The workflow is the same for any returns series: test for ARCH effects, fit, extract \(\sigma_t\), check the standardised residuals, and compare error distributions. The next part forecasts volatility several days ahead and turns a forecast into a one-day Value at Risk.</p>
+</section>
+
+{% endraw %}
