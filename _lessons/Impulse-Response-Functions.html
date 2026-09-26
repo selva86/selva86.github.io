@@ -1,0 +1,636 @@
+---
+title: "Multivariate Time Series Lesson 4: Tracing a shock through a VAR with impulse responses"
+description: "Trace one shock through a fitted VAR with impulse responses: compute them by hand, add bootstrap bands, and see why the variable ordering changes the answer."
+keywords: "impulse response function, impulse response in R, vars package, irf, VAR model, bootstrap confidence bands, Cholesky ordering, orthogonalised impulse response, multivariate time series"
+mathjax: true
+webr: true
+curriculum_id: "5.110.4"
+post_type: "LESSON"
+course_id: "ts-multivariate"
+course_title: "Multivariate Time Series"
+course_lesson: "4"
+course_total: "6"
+course_landing: "Multivariate-Time-Series-Course.html"
+course_next: "Cointegration-and-the-VECM"
+course_prev: "Granger-Causality"
+lesson_access: "pro"
+catalog_blurb: "Trace one shock through a VAR, and see why variable ordering changes the answer."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Tracing a shock through a VAR with impulse responses</h2>
+
+<p>Today let's learn how to read a fitted VAR through impulse responses: we push one variable once, and watch what the whole system does over the next 12 quarters.</p>
+
+<p>Let's take Canada's labour market. We have 84 quarters, from 1980 Q1 to 2000 Q4, published by the OECD, and three series: employment, the real wage and the unemployment rate.</p>
+
+<p>A VAR, short for vector autoregression, fits one regression per series on the recent past of all the series. Fitted to these three, it gives a table of coefficients that is hard to read. Each coefficient says how one series responds to one lagged series, and the answer we want comes from all of them working together.</p>
+
+<p>So we ask a concrete question instead. Suppose employment growth lands 1 percentage point above what the past of the three series predicts, in one quarter. What happens to wage growth and to the unemployment rate over the following 12 quarters?</p>
+
+<p>The answer is called an impulse response, and there are only three actions in it.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Shock one variable once","sub":"employment growth 1 point above what the past predicts"},{"title":"Run the fitted VAR forward","sub":"push the shock through the coefficients, 12 quarters"},{"title":"Record each variable per quarter","sub":"the gap from the no-shock path, per quarter"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The three boxes above are the whole method. Everything from here on carries them out on the Canada data.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The three-series VAR for Canada's labour market</h2>
+
+<p>Let's start by building the data and the model, because every response we compute will come from them.</p>
+
+<p>The series are in the <code>Canada</code> data of the <code>vars</code> package. <code>e</code> is employment and <code>rw</code> is the real wage. Each is stored as 100 times its natural log, so a change of 1 in either is about a 1 percent change. <code>U</code> is the unemployment rate in percent, so a change of 1 is 1 percentage point.</p>
+
+<p>We model quarterly changes rather than levels, using <code>diff()</code>, and we name the three changed series <code>d_emp</code>, <code>d_wage</code> and <code>d_unemp</code>. The roots printed at the end of the code show why.</p>
+
+<p>A VAR(2) is three regressions, one per series. Each one regresses a series' change on the last 2 quarters of all three series, plus a constant. That is 7 terms per equation and 3 equations, so 21 coefficients.</p>
+
+<p>Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the quarterly changes, fit a VAR(2) and check its stability
+library(vars)
+data(Canada)
+
+levels_df &lt;- Canada[, c(&quot;e&quot;, &quot;rw&quot;, &quot;U&quot;)]   # employment, real wage, unemployment rate
+d &lt;- diff(levels_df)                       # quarterly changes
+colnames(d) &lt;- c(&quot;d_emp&quot;, &quot;d_wage&quot;, &quot;d_unemp&quot;)
+
+dim(d)
+#&gt; [1] 83  3
+round(apply(d, 2, sd), 3)
+#&gt;   d_emp  d_wage d_unemp
+#&gt;   0.584   1.044   0.435
+
+fit &lt;- VAR(d, p = 2, type = &quot;const&quot;)
+sum(sapply(fit$varresult, function(eq) length(coef(eq))))
+#&gt; [1] 21
+
+round(roots(fit), 3)
+#&gt; [1] 0.662 0.662 0.476 0.476 0.217 0.217
+
+fit_levels &lt;- VAR(levels_df, p = 2, type = &quot;const&quot;)
+round(roots(fit_levels), 3)
+#&gt; [1] 0.996 0.854 0.781 0.781 0.049 0.010
+round(log(0.5) / log(max(roots(fit_levels))))
+#&gt; [1] 161</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 83 quarterly changes, and the VAR uses 81 of them because the first 2 quarters only supply lags. The standard deviations of the 3 changes are 0.584, 1.044 and 0.435: in percent for <code>d_emp</code> and <code>d_wage</code>, and in percentage points for <code>d_unemp</code>.</p>
+
+<p><code>roots()</code> returns six numbers, one for each pattern of movement in the system. Each is the factor by which that pattern shrinks every quarter (formally, the moduli of the eigenvalues of the VAR's companion matrix). When all of them are below 1, the VAR is stable: a disturbance fades away.</p>
+
+<p>For the changes, the largest modulus is 0.662, so a disturbance loses about a third of its size each quarter. For the levels, it is 0.996. A disturbance would keep 99.6% of its size each quarter, and the last line shows it would take about 161 quarters to halve. That is why the responses in this lesson come from the changes.</p>
+
+<p>The lag order 2 is a choice we state here, not one a criterion picked for us.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>An impulse response worked out by hand</h2>
+
+<p>An impulse response is the gap between two paths of the system: one path where a shock hits in quarter 0, and one where nothing does. To compute it, we need to know what a shock is and how the VAR carries it forward.</p>
+
+<p>The fitted VAR(2) says that each quarter's vector of changes \(y_t\) follows this equation.</p>
+
+<p>\[ y_t = c + A_1 y_{t-1} + A_2 y_{t-2} + u_t \]</p>
+
+<p>Here \(c\) is the constant, \(A_1\) and \(A_2\) are the 3 by 3 coefficient matrices, and \(u_t\) is the residual: the part of each change that the last 2 quarters do not predict. A shock is a quarter in which a residual is not zero.</p>
+
+<p>Now take two paths that start from the same history. In the first, every residual is 0. In the second, the residuals are (1, 0, 0) in quarter 0 only: <code>d_emp</code> lands 1 point above what the past predicts, and nothing else is off. The two paths share the constant and the history, so the gap between them follows the same equation without the constant.</p>
+
+<p>\[ \Phi_h = A_1 \Phi_{h-1} + A_2 \Phi_{h-2}, \qquad \Phi_0 = (1, 0, 0), \quad \Phi_{-1} = 0 \]</p>
+
+<p>\(\Phi_h\) is the impulse response at quarter \(h\): the gap in the three changes, \(h\) quarters after the shock. In words, each quarter's gap is the previous two gaps run through the coefficient matrices.</p>
+
+<p>The loop below builds \(\Phi_0\) to \(\Phi_{12}\). <code>Acoef(fit)</code> returns \(A_1\) and \(A_2\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the response to a 1 point d_emp shock by iterating the coefficient matrices
+A_mats &lt;- Acoef(fit)
+A1 &lt;- A_mats[[1]]
+A2 &lt;- A_mats[[2]]
+
+phi_hand &lt;- matrix(0, nrow = 13, ncol = 3,
+                   dimnames = list(paste0(&quot;q&quot;, 0:12), colnames(d)))
+phi_hand[&quot;q0&quot;, ] &lt;- c(1, 0, 0)                 # the shock: d_emp 1 point up, nothing else
+phi_hand[&quot;q1&quot;, ] &lt;- A1 %*% phi_hand[&quot;q0&quot;, ]    # quarter 1 has no term from quarter -1
+for (h in 2:12) {
+  phi_hand[h + 1, ] &lt;- A1 %*% phi_hand[h, ] + A2 %*% phi_hand[h - 1, ]
+}
+round(phi_hand, 3)
+#&gt;      d_emp d_wage d_unemp
+#&gt; q0   1.000  0.000   0.000
+#&gt; q1   0.942 -0.243  -0.603
+#&gt; q2   0.397  0.111  -0.400
+#&gt; q3   0.055  0.267  -0.045
+#&gt; q4  -0.065  0.276   0.086
+#&gt; q5  -0.098  0.216   0.084
+#&gt; q6  -0.100  0.140   0.075
+#&gt; q7  -0.080  0.079   0.063
+#&gt; q8  -0.053  0.036   0.042
+#&gt; q9  -0.029  0.009   0.022
+#&gt; q10 -0.013 -0.005   0.009
+#&gt; q11 -0.004 -0.010   0.002
+#&gt; q12  0.002 -0.010  -0.002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the <code>q1</code> row first. One quarter after the shock, <code>d_emp</code> is still 0.942 above the no-shock path, <code>d_wage</code> is 0.243 below it and <code>d_unemp</code> is 0.603 below it. In <code>q2</code>, <code>d_unemp</code> is 0.400 below. By <code>q12</code>, every entry is within 0.010 of 0.</p>
+
+<p>The vars package computes the same table with <code>Phi()</code>. Let's confirm that ours matches.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the hand-built response with the package's Phi()
+phi_arr &lt;- Phi(fit, nstep = 12)
+phi_pkg &lt;- t(phi_arr[, 1, ])              # column 1 = the shock to d_emp
+max(abs(phi_hand - phi_pkg)) &lt; 1e-10
+#&gt; [1] TRUE
+
+round(sqrt(summary(fit)$covres[&quot;d_emp&quot;, &quot;d_emp&quot;]), 3)   # residual sd of the d_emp equation
+#&gt; [1] 0.387</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>TRUE</code> means the largest gap between the two tables is below 1e-10, which is rounding error. So the response is nothing more than the fitted VAR run forward from one shock.</p>
+
+<p>The last line gives the size of that shock. The <code>d_emp</code> residual has a standard deviation of 0.387, so 1 point is about 2.6 of them. That is a large shock. The VAR is linear, so a shock of one standard deviation gives 0.387 times each number in the table.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">This response assumes that in quarter 0 the <code>d_wage</code> and <code>d_unemp</code> residuals are exactly 0 while the <code>d_emp</code> residual is 1.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Reading a response: the fall, the overshoot and the settling</h2>
+
+<p>The <code>d_unemp</code> column of that table holds quarterly changes in the unemployment rate. To see what happens to the rate itself, we add the changes up with <code>cumsum()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add up the d_unemp responses to get the rate's gap from the no-shock path
+gap &lt;- cumsum(phi_hand[, &quot;d_unemp&quot;])
+data.frame(quarter = 0:12, gap = round(gap, 3))
+#&gt;     quarter    gap
+#&gt; q0        0  0.000
+#&gt; q1        1 -0.603
+#&gt; q2        2 -1.003
+#&gt; q3        3 -1.048
+#&gt; q4        4 -0.962
+#&gt; q5        5 -0.877
+#&gt; q6        6 -0.802
+#&gt; q7        7 -0.739
+#&gt; q8        8 -0.698
+#&gt; q9        9 -0.676
+#&gt; q10      10 -0.667
+#&gt; q11      11 -0.664
+#&gt; q12      12 -0.666</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The widget below draws these 13 values. Switch between the line, bar and point views.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0,"y":0},{"x":1,"y":-0.603},{"x":2,"y":-1.003},{"x":3,"y":-1.048},{"x":4,"y":-0.962},{"x":5,"y":-0.877},{"x":6,"y":-0.802},{"x":7,"y":-0.739},{"x":8,"y":-0.698},{"x":9,"y":-0.676},{"x":10,"y":-0.667},{"x":11,"y":-0.664},{"x":12,"y":-0.666}],"geoms":["line","bar","point"],"x":"quarter","y":"unemployment_gap"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Let's read the path in three parts.</p>
+
+<ol>
+
+<li>The fall: the rate is 0.603 points below the no-shock path after 1 quarter and 1.003 below after 2, and it reaches its bottom at -1.048 in quarter 3.</li>
+
+<li>The overshoot: an overshoot means the response goes further than the level it finally holds. Here the rate climbs back after quarter 3 and holds near -0.666, so the bottom sits 0.38 below its final level.</li>
+
+<li>The settling: from quarter 10 on, the quarterly changes are smaller than 0.01 in size, so the gap stops moving.</li>
+
+</ol>
+
+<p>Why does it settle? Every root of this VAR has modulus below 1, and the largest is 0.662. So the changes fade quarter after quarter, and a running total of fading changes levels off.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>How bootstrap bands are built and what they cover</h2>
+
+<p>The response above comes from one fit on 81 rows. Another 81 quarters would give slightly different coefficients, and so a different response. A bootstrap band shows how much the response moves because of that.</p>
+
+<p>Here is how <code>irf()</code> builds it.</p>
+
+<ol>
+
+<li>It takes the fitted model's residuals, centred to have mean 0, and resamples their rows with replacement.</li>
+
+<li>It rebuilds a series of the same length from the fitted coefficients plus the resampled residual rows.</li>
+
+<li>It refits the VAR on that series and computes the response again.</li>
+
+<li>It repeats this 200 times. At each quarter, the 2.5th and 97.5th percentiles of the 200 responses are the edges of a 95% band.</li>
+
+</ol>
+
+<p>We set <code>ortho = FALSE</code>, so <code>irf()</code> returns the response we built by hand: a shock to <code>d_emp</code> alone. We run it twice, once on the changes and once with <code>cumulative = TRUE</code>, which gives the running total. <code>set.seed(2026)</code> makes the bands reproducible.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bootstrap the response of d_unemp to a d_emp shock (200 runs) and list where the band excludes 0
+set.seed(2026)
+boot_change &lt;- irf(fit, impulse = &quot;d_emp&quot;, response = &quot;d_unemp&quot;,
+                   n.ahead = 12, ortho = FALSE, boot = TRUE, runs = 200)
+set.seed(2026)
+boot_cum &lt;- irf(fit, impulse = &quot;d_emp&quot;, response = &quot;d_unemp&quot;,
+                n.ahead = 12, ortho = FALSE, boot = TRUE, runs = 200,
+                cumulative = TRUE)
+
+band_table &lt;- function(obj) {
+  lower &lt;- obj$Lower$d_emp[, &quot;d_unemp&quot;]
+  upper &lt;- obj$Upper$d_emp[, &quot;d_unemp&quot;]
+  data.frame(
+    quarter    = 0:12,
+    estimate   = round(obj$irf$d_emp[, &quot;d_unemp&quot;], 3),
+    lower      = round(lower, 3),
+    upper      = round(upper, 3),
+    excludes_0 = lower &gt; 0 | upper &lt; 0
+  )
+}
+print(band_table(boot_change), row.names = FALSE)
+#&gt;  quarter estimate  lower  upper excludes_0
+#&gt;        0    0.000  0.000  0.000      FALSE
+#&gt;        1   -0.603 -0.835 -0.387       TRUE
+#&gt;        2   -0.400 -0.659 -0.110       TRUE
+#&gt;        3   -0.045 -0.288  0.232      FALSE
+#&gt;        4    0.086 -0.127  0.294      FALSE
+#&gt;        5    0.084 -0.086  0.265      FALSE
+#&gt;        6    0.075 -0.055  0.225      FALSE
+#&gt;        7    0.063 -0.023  0.174      FALSE
+#&gt;        8    0.042 -0.029  0.124      FALSE
+#&gt;        9    0.022 -0.045  0.063      FALSE
+#&gt;       10    0.009 -0.049  0.036      FALSE
+#&gt;       11    0.002 -0.050  0.023      FALSE
+#&gt;       12   -0.002 -0.054  0.019      FALSE
+print(band_table(boot_cum), row.names = FALSE)
+#&gt;  quarter estimate  lower  upper excludes_0
+#&gt;        0    0.000  0.000  0.000      FALSE
+#&gt;        1   -0.603 -0.835 -0.387       TRUE
+#&gt;        2   -1.003 -1.460 -0.520       TRUE
+#&gt;        3   -1.048 -1.722 -0.363       TRUE
+#&gt;        4   -0.962 -1.732 -0.143       TRUE
+#&gt;        5   -0.877 -1.706  0.022      FALSE
+#&gt;        6   -0.802 -1.680  0.121      FALSE
+#&gt;        7   -0.739 -1.618  0.180      FALSE
+#&gt;        8   -0.698 -1.605  0.215      FALSE
+#&gt;        9   -0.676 -1.609  0.197      FALSE
+#&gt;       10   -0.667 -1.614  0.153      FALSE
+#&gt;       11   -0.664 -1.599  0.129      FALSE
+#&gt;       12   -0.666 -1.601  0.114      FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>excludes_0</code> column says whether the band stays on one side of 0. In the first table, the changes, it does so in quarters 1 and 2 only: -0.835 to -0.387, and -0.659 to -0.110. From quarter 3 on, each band contains 0.</p>
+
+<p>The second table, the running total, is the rate's gap. Its band excludes 0 through quarter 4, where it runs from -1.732 to -0.143. Quarter 5 is borderline, because its upper edge is 0.022.</p>
+
+<p>Another seed puts that edge on either side of 0, so we claim nothing for quarter 5. By quarter 12 the band is -1.601 to 0.114. It contains 0, so the data do not settle whether any gap is left at quarter 12.</p>
+
+<p>The widget below shows what a band covers, on simulated data. It draws its own points around a straight line, not the Canada series. Its green confidence band is the uncertainty about where the fitted line is.</p>
+
+<p>That is the analogue of our response band: uncertainty from estimating on a finite sample. The widget's orange prediction band is where a single new point can land, the analogue of where the actual unemployment rate in a future quarter would land. The bootstrap band is not that.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Set the slider to 81, the number of rows in our VAR. The read-out gives a confidence half-width of ±0.15 and a prediction half-width of ±1.34. Now move it to 300. The confidence band shrinks to ±0.08, while the prediction band stays at ±1.34.</p>
+
+<p>So more data narrows the band around the estimate, but a single new value still carries the full noise. Our bootstrap band works like the green one. It reflects the sampling error in the estimated response, and it narrows as the number of quarters grows. It does not say where the unemployment rate will actually be, because that also depends on the shocks that have not happened yet.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what the bands allow you to conclude</h2>
+
+<p>The cumulative response of the unemployment rate reaches -1.048 in quarter 3 and is -0.666 in quarter 12, where its 95% band is -1.601 to 0.114. Which statement do these results support?</p>
+<section class="exercise" data-exercise-id="Impulse-Response-Functions-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">After the shock, the unemployment rate is permanently 0.67 points lower.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The band shows where the actual unemployment rate will fall 12 quarters later, with 95% probability.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The rate is below the no-shock path through quarter 4, but a gap at quarter 12 is not established.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The dip to -1.048 is below the final -0.666, so the overshoot is proven.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The band separates the fall from 0 through quarter 4, and at quarter 12 it cannot separate the final gap from 0. That is what a band built on sampling error can tell you.</div><div class="lesson-qfb lesson-qfb-no">Each of these reads more into the response than the band supports. A permanent 0.67 point fall is not established, since the quarter 12 band contains 0. The band covers estimation error, like the widget's green band, and not where a future value will land, which is what the wider orange prediction band shows. And the quarter 3 band, -1.722 to -0.363, contains -0.666, so the data cannot separate the dip from the final level.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Correlated residuals and the orthogonalised response</h2>
+
+<p>The hand-built response moved the <code>d_emp</code> residual by 1 point and left the other two residuals at exactly 0. Let's check whether the data ever look like that.</p>
+
+<p>The code below takes the residual covariance matrix of the fit and turns it into correlations.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Correlations between the three residual series, and the d_unemp on d_emp slope
+S &lt;- summary(fit)$covres
+round(cov2cor(S), 3)
+#&gt;          d_emp d_wage d_unemp
+#&gt; d_emp    1.000 -0.108  -0.717
+#&gt; d_wage  -0.108  1.000   0.276
+#&gt; d_unemp -0.717  0.276   1.000
+round(S[&quot;d_unemp&quot;, &quot;d_emp&quot;] / S[&quot;d_emp&quot;, &quot;d_emp&quot;], 3)
+#&gt; [1] -0.574</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The heatmap shows the same three correlations as colours. Green cells are positive and blue cells are negative.</p>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["d_emp","d_wage","d_unemp"],"matrix":[[1,-0.108,-0.717],[-0.108,1,0.276],[-0.717,0.276,1]]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The <code>d_emp</code> and <code>d_unemp</code> residuals have a correlation of -0.717. In a quarter where employment growth beats what the past predicted, the change in the unemployment rate tends to come in below what the past predicted, in the same quarter.</p>
+
+<p>The last number puts that in units. It is the slope of the <code>d_unemp</code> residual on the <code>d_emp</code> residual: when the <code>d_emp</code> residual is 1 point higher, the <code>d_unemp</code> residual is on average 0.574 lower.</p>
+
+<p>So "a shock to <code>d_emp</code> alone" is not what the data show. The two residuals tend to move together, but the hand-built response kept the <code>d_unemp</code> residual at 0 while the <code>d_emp</code> residual was 1.</p>
+
+<p>To get responses to shocks that do not overlap, called orthogonalised responses, we split the residuals into uncorrelated shocks. The Cholesky factorisation does this. It writes the residual covariance matrix \(S\) as</p>
+
+<p>\[ S = P P^{\top} \]</p>
+
+<p>where \(P\) is lower triangular, meaning every entry above its diagonal is 0. Then each residual vector is \(u_t = P e_t\), where the three shocks in \(e_t\) are uncorrelated and each has variance 1.</p>
+
+<p>Because \(P\) is lower triangular, the first shock moves all three variables in the same quarter. The second shock moves the second and third variables, and the third shock moves only the third. So the order of the columns in the data matters. The variable placed first can affect all the others within the quarter, and the variable placed last affects none of them within the quarter.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Cholesky factor with d_emp first, and the orthogonalised response of d_unemp by hand
+P &lt;- t(chol(S))
+round(P, 3)
+#&gt;          d_emp d_wage d_unemp
+#&gt; d_emp    0.387  0.000   0.000
+#&gt; d_wage  -0.100  0.917   0.000
+#&gt; d_unemp -0.222  0.062   0.206
+
+orth_hand &lt;- sapply(0:12, function(h) (phi_arr[, , h + 1] %*% P)[3, 1])
+orth_irf &lt;- irf(fit, impulse = &quot;d_emp&quot;, response = &quot;d_unemp&quot;,
+                n.ahead = 12, ortho = TRUE, boot = FALSE)
+compare &lt;- rbind(by_hand  = round(orth_hand[1:4], 3),
+                 from_irf = round(orth_irf$irf$d_emp[1:4, &quot;d_unemp&quot;], 3))
+colnames(compare) &lt;- paste0(&quot;q&quot;, 0:3)
+compare
+#&gt;              q0     q1    q2     q3
+#&gt; by_hand  -0.222 -0.215 -0.15 -0.079
+#&gt; from_irf -0.222 -0.215 -0.15 -0.079</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the first column of <code>P</code>. A first shock of one standard deviation moves <code>d_emp</code> by 0.387, <code>d_wage</code> by -0.100 and <code>d_unemp</code> by -0.222 in the same quarter. Check the last one: 0.387 times -0.574 is -0.222. The first shock carries the whole shared part of the <code>d_emp</code> and <code>d_unemp</code> residuals.</p>
+
+<p>The orthogonalised response at quarter \(h\) is \(\Phi_h\) times the first column of \(P\). The two rows in <code>compare</code> agree: our by-hand version matches <code>irf(ortho = TRUE)</code>. Notice that this response starts at -0.222 in quarter 0, where the hand-built response started at 0.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>The same VAR with the order reversed</h2>
+
+<p>Nothing in the data says <code>d_emp</code> must come first. So let's fit the same VAR with the columns reversed, <code>d_unemp</code> first and <code>d_emp</code> last, and compare the responses to a <code>d_emp</code> shock. We call the original arrangement order A and the reversed one order B.</p>
+
+<p>Reversing the columns changes only how the residual correlation is split into shocks. The coefficients and residuals stay the same.</p>
+
+<p>One more adjustment is needed. A shock of one standard deviation has a different size in each order. So we divide each response by the impact response of <code>d_emp</code>, and both then describe a 1 point rise in <code>d_emp</code> on impact.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the reversed order, scale both responses to a 1 point d_emp rise, and plot the running totals
+d_rev &lt;- d[, c(&quot;d_unemp&quot;, &quot;d_wage&quot;, &quot;d_emp&quot;)]
+fit_rev &lt;- VAR(d_rev, p = 2, type = &quot;const&quot;)
+round(c(order_A = as.numeric(logLik(fit)), order_B = as.numeric(logLik(fit_rev))), 4)
+#&gt;   order_A   order_B
+#&gt; -122.0185 -122.0185
+
+irf_A &lt;- irf(fit, impulse = &quot;d_emp&quot;, response = c(&quot;d_emp&quot;, &quot;d_unemp&quot;),
+             n.ahead = 12, ortho = TRUE, boot = FALSE)
+irf_B &lt;- irf(fit_rev, impulse = &quot;d_emp&quot;, response = c(&quot;d_emp&quot;, &quot;d_unemp&quot;),
+             n.ahead = 12, ortho = TRUE, boot = FALSE)
+
+impact_A &lt;- as.numeric(irf_A$irf$d_emp[1, &quot;d_emp&quot;])
+impact_B &lt;- as.numeric(irf_B$irf$d_emp[1, &quot;d_emp&quot;])
+round(c(order_A = impact_A, order_B = impact_B), 3)
+#&gt; order_A order_B
+#&gt;   0.387   0.267
+
+paths &lt;- rbind(order_A = irf_A$irf$d_emp[, &quot;d_unemp&quot;] / impact_A,
+               order_B = irf_B$irf$d_emp[, &quot;d_unemp&quot;] / impact_B)
+colnames(paths) &lt;- paste0(&quot;q&quot;, 0:12)
+round(paths[, 1:5], 3)
+#&gt;             q0     q1     q2     q3     q4
+#&gt; order_A -0.574 -0.557 -0.388 -0.205 -0.019
+#&gt; order_B  0.000 -0.603 -0.400 -0.045  0.086
+
+cum_paths &lt;- t(apply(paths, 1, cumsum))
+round(cum_paths[, &quot;q8&quot;], 3)
+#&gt; order_A order_B
+#&gt;  -1.544  -0.698
+
+matplot(0:12, t(cum_paths), type = &quot;l&quot;, lty = 1, lwd = 2, col = c(&quot;black&quot;, &quot;red&quot;),
+        xlab = &quot;quarter&quot;, ylab = &quot;cumulative response of d_unemp (points)&quot;,
+        main = &quot;The same VAR under two orderings&quot;)
+abline(h = 0, lty = 3)
+legend(&quot;bottomright&quot;, legend = c(&quot;order A: d_emp first&quot;, &quot;order B: d_emp last&quot;),
+       col = c(&quot;black&quot;, &quot;red&quot;), lty = 1, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The log-likelihood is -122.0185 for both orders, so the data do not favour either one. It is the same fit, split into shocks in two different ways.</p>
+
+<p>The sizes of a one standard deviation <code>d_emp</code> shock are 0.387 in order A and 0.267 in order B. In order B the <code>d_emp</code> shock is what remains of the <code>d_emp</code> residual after the other two residuals are taken out, so it is smaller. That is why we scaled.</p>
+
+<p>Now compare the <code>d_unemp</code> responses. In order A the impact is -0.574, because the <code>d_emp</code> shock moves <code>d_unemp</code> within the quarter. In order B the impact is 0.</p>
+
+<p>Order B then gives -0.603, -0.400, -0.045 and 0.086. That is the hand-built path from before, because with <code>d_emp</code> ordered last, its shock has no same-quarter effect on the others, and the hand-built path had none either.</p>
+
+<p>After 8 quarters the running total is -1.544 in order A and -0.698 in order B. In the plot, the two running totals start apart in quarter 0 and stay apart through quarter 12.</p>
+
+<p><code>irf()</code> returns its columns in the order of the VAR, so the code picks responses by name, with <code>&quot;d_emp&quot;</code> and <code>&quot;d_unemp&quot;</code>, and never by position.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Reporting a response that depends on the ordering</h2>
+
+<p>Two orderings gave two totals. There are 6 ways to order 3 variables, so let's refit under all 6 and see how far the answer moves.</p>
+
+<p>The loop below refits the VAR for each ordering, scales the <code>d_emp</code> shock to 1 point, and records the impact response of <code>d_unemp</code>, its running total after 4 quarters and its running total after 8 quarters.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit under all 6 orderings and tabulate the scaled response of d_unemp
+orders &lt;- list(
+  c(&quot;d_emp&quot;, &quot;d_wage&quot;, &quot;d_unemp&quot;),
+  c(&quot;d_emp&quot;, &quot;d_unemp&quot;, &quot;d_wage&quot;),
+  c(&quot;d_wage&quot;, &quot;d_emp&quot;, &quot;d_unemp&quot;),
+  c(&quot;d_wage&quot;, &quot;d_unemp&quot;, &quot;d_emp&quot;),
+  c(&quot;d_unemp&quot;, &quot;d_emp&quot;, &quot;d_wage&quot;),
+  c(&quot;d_unemp&quot;, &quot;d_wage&quot;, &quot;d_emp&quot;)
+)
+
+order_table &lt;- t(sapply(orders, function(ord) {
+  ord_fit &lt;- VAR(d[, ord], p = 2, type = &quot;const&quot;)
+  resp &lt;- irf(ord_fit, impulse = &quot;d_emp&quot;, response = c(&quot;d_emp&quot;, &quot;d_unemp&quot;),
+              n.ahead = 8, ortho = TRUE, boot = FALSE)$irf$d_emp
+  scaled &lt;- resp[, &quot;d_unemp&quot;] / resp[1, &quot;d_emp&quot;]
+  c(impact = scaled[1], q4_total = sum(scaled[1:5]), q8_total = sum(scaled[1:9]))
+}))
+rownames(order_table) &lt;- sapply(orders, paste, collapse = &quot; &gt; &quot;)
+round(order_table, 3)
+#&gt;                          impact q4_total q8_total
+#&gt; d_emp &gt; d_wage &gt; d_unemp -0.574   -1.743   -1.544
+#&gt; d_emp &gt; d_unemp &gt; d_wage -0.574   -1.743   -1.544
+#&gt; d_wage &gt; d_emp &gt; d_unemp -0.556   -1.636   -1.406
+#&gt; d_wage &gt; d_unemp &gt; d_emp  0.000   -0.962   -0.698
+#&gt; d_unemp &gt; d_emp &gt; d_wage  0.000   -0.814   -0.499
+#&gt; d_unemp &gt; d_wage &gt; d_emp  0.000   -0.962   -0.698</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 6 rows fall into two groups. In the first three, <code>d_emp</code> comes before <code>d_unemp</code>, and the 8-quarter total runs from -1.544 to -1.406. In the last three, <code>d_emp</code> comes after <code>d_unemp</code>, and the total runs from -0.698 to -0.499.</p>
+
+<p>The two groups are at least 0.70 apart. That gap comes from the residual correlation of -0.717: the ordering decides which of the two shocks carries it.</p>
+
+<p>Where <code>d_wage</code> sits matters much less. Inside a group, moving it shifts the total by at most 0.20. Its residual correlations with the other two are weaker, -0.108 with <code>d_emp</code> and 0.276 with <code>d_unemp</code>.</p>
+
+<p>So how should a response like this be reported? The ordering cannot be chosen by the data, so it needs an argument from outside them: which variable cannot react to the others within the same quarter? An analyst who argues that employment is set first, and that unemployment responds within the quarter, orders <code>d_emp</code> before <code>d_unemp</code> and reports a total of -1.544. One who argues the reverse reports -0.698 or -0.499.</p>
+
+<p>Either way, the report should state the ordering it used and show the alternative. The bootstrap band from earlier does not help here. It covers sampling error, and the ordering is not sampling error.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why two analysts get different totals</h2>
+
+<p>Two analysts fit the same VAR(2) to the same 81 rows and scale the <code>d_emp</code> shock to 1 point. One reports that the unemployment rate is 1.54 points below the no-shock path after 8 quarters. The other reports 0.70. What explains the gap?</p>
+<section class="exercise" data-exercise-id="Impulse-Response-Functions-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">They ran different bootstrap runs, so their bands and estimates differ.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">They ordered <code>d_emp</code> and <code>d_unemp</code> differently, so the residual correlation went to different shocks.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">With more quarters of data, the two totals would move together and the gap would close.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">One of the two fits is better, so its response is the one to report.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. The fit is the same, but the ordering decides which shock carries the -0.717 residual correlation. That is where -1.544 and -0.698 come from.</div><div class="lesson-qfb lesson-qfb-no">None of these explains the gap. Bootstrap runs move the bands, and the estimate itself does not change. More data narrows a band around one estimate, but the gap comes from the ordering, which is an assumption, and not from sampling error. And the two fits are the same one: both have a log-likelihood of -122.0185. Only the ordering differs.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: put d_wage first and read the impact response</h2>
+
+<p>Order <code>d_wage</code> first, then <code>d_emp</code>, then <code>d_unemp</code>. Refit the VAR, get the orthogonalised response to a <code>d_emp</code> shock, and scale it so <code>d_emp</code> rises by 1 point on impact. Then read <code>d_unemp</code>'s response in quarters 0 and 1.</p>
+
+<p>Before you run it, decide which case you expect this to resemble: order A, with an impact near -0.574, or order B, with an impact of 0. The residual correlations of <code>d_wage</code> with the other two variables are the clue.</p>
+<section class="exercise" data-exercise-id="Impulse-Response-Functions-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*irf[(])c[(].d_wage.,\s*.d_emp.,\s*.d_unemp.[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Refit with d_wage first and print the scaled d_unemp response for quarters 0 and 1.
+# d holds the three quarterly change series, and the vars package is loaded.
+# Reorder the columns with d_wage first, then d_emp, then d_unemp.
+# Refit the VAR(2) on the reordered data.
+# Get the orthogonalised response of d_emp and d_unemp to a d_emp shock,
+# without bootstrap bands.
+# Divide d_unemp's response by d_emp's impact response, so the shock is 1 point.
+# Print quarters 0 and 1. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes: -0.556 on impact and -0.546 in quarter 1. That is close to order A and nowhere near 0. The d_wage residual correlates much less with the other two than they do with each other, so putting it first moves the slope of the d_unemp residual on the d_emp residual only from -0.574 to -0.556.</span><span class="lesson-tryit-fb lesson-tryit-no">Reorder the columns of d with d_wage first, refit with VAR(), then call irf() with ortho = TRUE and boot = FALSE, as in the reversed-order fit.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Refit with d_wage ordered first and scale the d_unemp response to a 1 point d_emp shock
+d_wage_first &lt;- d[, c(&quot;d_wage&quot;, &quot;d_emp&quot;, &quot;d_unemp&quot;)]
+fit_w &lt;- VAR(d_wage_first, p = 2, type = &quot;const&quot;)
+irf_w &lt;- irf(fit_w, impulse = &quot;d_emp&quot;, response = c(&quot;d_emp&quot;, &quot;d_unemp&quot;),
+             n.ahead = 12, ortho = TRUE, boot = FALSE)
+scaled_w &lt;- irf_w$irf$d_emp[, &quot;d_unemp&quot;] / irf_w$irf$d_emp[1, &quot;d_emp&quot;]
+round(scaled_w[1:2], 3)
+#&gt; [1] -0.556 -0.546</code></pre></details></div>
+</section>
+<p>The impact response is -0.556, near order A's -0.574 and not 0. The <code>d_wage</code> residual correlates -0.108 with <code>d_emp</code> and 0.276 with <code>d_unemp</code>, so ordering it first moves the slope of the <code>d_unemp</code> residual on the <code>d_emp</code> residual only from -0.574 to -0.556. What decides the impact is where <code>d_emp</code> sits relative to <code>d_unemp</code>, not where <code>d_wage</code> sits.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.18637/jss.v027.i04">VAR, SVAR and SVEC Models: Implementation Within R Package vars</a> - Pfaff (2008), Journal of Statistical Software 27(4). The <code>irf()</code>, <code>Phi()</code> and <code>roots()</code> workflow.</li>
+
+<li><a href="https://doi.org/10.1007/978-3-540-27752-1">New Introduction to Multiple Time Series Analysis</a> - Lütkepohl (2005), Springer. Impulse responses and orthogonalisation.</li>
+
+<li><a href="https://doi.org/10.2307/1912017">Macroeconomics and Reality</a> - Sims (1980), Econometrica 48(1), 1-48. The origin of VAR impulse responses and the Cholesky ordering.</li>
+
+<li><a href="https://doi.org/10.1162/003465398557465">Small-Sample Confidence Intervals for Impulse Response Functions</a> - Kilian (1998), Review of Economics and Statistics 80(2), 218-230.</li>
+
+<li><a href="https://doi.org/10.1017/CBO9780511606885">Applied Time Series Econometrics</a> - Lütkepohl and Krätzig (eds.) (2004), Cambridge University Press. The book resource for the Canada data.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You traced one shock through a fitted VAR, built its impulse response by hand, and learnt how far the answer can be trusted. To summarize:</p>
+
+<ul>
+
+<li>An impulse response is the fitted VAR run forward from one shock: 1 point on <code>d_emp</code>, iterated through the coefficient matrices. It matches <code>Phi()</code>.</li>
+
+<li>The unemployment rate's gap from the no-shock path is -0.603 in quarter 1, reaches -1.048 in quarter 3, and settles near -0.666, so it overshoots its final level.</li>
+
+<li>A bootstrap band separates that gap from 0 through quarter 4 only. It covers sampling error, not future shocks.</li>
+
+<li>The <code>d_emp</code> and <code>d_unemp</code> residuals have a correlation of -0.717, so a shock to one variable alone is not what the data show. A Cholesky ordering assigns the shared part to the variable placed first.</li>
+
+<li>The same VAR gives -1.544 after 8 quarters with <code>d_emp</code> first and -0.698 with <code>d_emp</code> last. Report the ordering with the result.</li>
+
+</ul>
+
+<p>So, whenever someone shows you an impulse response, ask two things: what the band covers, and which ordering it used.</p>
+
+<p>The next lesson covers cointegration and the VECM: series that each wander, but are tied together by a stable relationship.</p>
+</section>
+
+{% endraw %}
