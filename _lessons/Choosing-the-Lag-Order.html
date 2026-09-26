@@ -1,0 +1,638 @@
+---
+title: "Multivariate Time Series Lesson 2: Choosing the Lag Order"
+description: "Choose the lag order of a VAR on four Canadian labour-market series: see what too few and too many lags cost, read AIC, HQ and SC, and test the residuals in R."
+keywords: "VAR lag order, VARselect, AIC HQ SC criteria, lag selection VAR in R, Edgerton-Shukur test, residual autocorrelation, vars package, Canada labour market"
+mathjax: true
+webr: true
+curriculum_id: "5.110.2"
+post_type: "LESSON"
+course_id: "ts-multivariate"
+course_title: "Multivariate Time Series"
+course_lesson: "2"
+course_total: "6"
+course_landing: "Multivariate-Time-Series-Course.html"
+course_next: "Granger-Causality.html"
+course_prev: "Vector-Autoregression-VAR.html"
+lesson_access: "pro"
+catalog_blurb: "How far back a VAR should look, and how to check the choice."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Choosing the Lag Order</h2>
+
+<p>Today let's work out how far back a VAR should look, that is, how many past quarters each of its equations should use.</p>
+
+<p>Take a labour-market analyst who wants to model four Canadian series together. They are employment (<code>e</code>), labour productivity (<code>prod</code>), the real wage (<code>rw</code>) and the unemployment rate (<code>U</code>, in percent), measured every quarter from 1980Q1 to 2000Q4. That is 84 quarters of OECD data, and it ships with the <code>vars</code> package as the data set <code>Canada</code>.</p>
+
+<p>A vector autoregression, or VAR, gives each of the four series its own equation, and each equation predicts that series from the past values of all four. The number of past quarters an equation looks back over is called the <strong>lag order</strong>, written p. The analyst has to pick p before the VAR can be fitted.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1980,"y":7.53},{"x":1980.25,"y":7.7},{"x":1980.5,"y":7.47},{"x":1980.75,"y":7.27},{"x":1981,"y":7.37},{"x":1981.25,"y":7.13},{"x":1981.5,"y":7.4},{"x":1981.75,"y":8.33},{"x":1982,"y":8.83},{"x":1982.25,"y":10.43},{"x":1982.5,"y":12.2},{"x":1982.75,"y":12.77},{"x":1983,"y":12.43},{"x":1983.25,"y":12.23},{"x":1983.5,"y":11.7},{"x":1983.75,"y":11.2},{"x":1984,"y":11.27},{"x":1984.25,"y":11.47},{"x":1984.5,"y":11.3},{"x":1984.75,"y":11.17},{"x":1985,"y":11},{"x":1985.25,"y":10.63},{"x":1985.5,"y":10.27},{"x":1985.75,"y":10.2},{"x":1986,"y":9.67},{"x":1986.25,"y":9.6},{"x":1986.5,"y":9.6},{"x":1986.75,"y":9.5},{"x":1987,"y":9.5},{"x":1987.25,"y":9.03},{"x":1987.5,"y":8.7},{"x":1987.75,"y":8.13},{"x":1988,"y":7.87},{"x":1988.25,"y":7.67},{"x":1988.5,"y":7.8},{"x":1988.75,"y":7.73},{"x":1989,"y":7.57},{"x":1989.25,"y":7.57},{"x":1989.5,"y":7.33},{"x":1989.75,"y":7.57},{"x":1990,"y":7.63},{"x":1990.25,"y":7.6},{"x":1990.5,"y":8.17},{"x":1990.75,"y":9.2},{"x":1991,"y":10.17},{"x":1991.25,"y":10.33},{"x":1991.5,"y":10.4},{"x":1991.75,"y":10.37},{"x":1992,"y":10.6},{"x":1992.25,"y":11},{"x":1992.5,"y":11.4},{"x":1992.75,"y":11.73},{"x":1993,"y":11.07},{"x":1993.25,"y":11.67},{"x":1993.5,"y":11.47},{"x":1993.75,"y":11.3},{"x":1994,"y":10.97},{"x":1994.25,"y":10.63},{"x":1994.5,"y":10.1},{"x":1994.75,"y":9.67},{"x":1995,"y":9.53},{"x":1995.25,"y":9.47},{"x":1995.5,"y":9.5},{"x":1995.75,"y":9.27},{"x":1996,"y":9.5},{"x":1996.25,"y":9.43},{"x":1996.5,"y":9.7},{"x":1996.75,"y":9.9},{"x":1997,"y":9.43},{"x":1997.25,"y":9.3},{"x":1997.5,"y":8.87},{"x":1997.75,"y":8.77},{"x":1998,"y":8.6},{"x":1998.25,"y":8.33},{"x":1998.5,"y":8.17},{"x":1998.75,"y":8.03},{"x":1999,"y":7.9},{"x":1999.25,"y":7.87},{"x":1999.5,"y":7.53},{"x":1999.75,"y":6.93},{"x":2000,"y":6.8},{"x":2000.25,"y":6.7},{"x":2000.5,"y":6.93},{"x":2000.75,"y":6.87}],"geoms":["line","point"],"x":"year","y":"unemployment_rate"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The chart plots the unemployment rate for all 84 quarters, one point per quarter. It is one of the four series the VAR has to look back over.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What the lag order p sets in a VAR</h2>
+
+<p>Let's start by loading the data and looking at its first three quarters.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load the Canada data and look at its first three quarters
+library(vars)
+data(Canada)
+
+round(Canada[1:3, ], 2)
+#&gt;           e   prod     rw    U
+#&gt; [1,] 929.61 405.37 386.14 7.53
+#&gt; [2,] 929.80 404.64 388.14 7.70
+#&gt; [3,] 930.32 403.81 390.54 7.47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one quarter and each column is one series. The series <code>e</code>, <code>prod</code> and <code>rw</code> are stored as 100 times the natural log of the original level, which is why they sit in the hundreds. <code>U</code> is the unemployment rate in percent.</p>
+
+<p>Now let's write down the VAR itself. With p = 2, the equation for <code>U</code> uses the two most recent quarters of all four series, plus a constant and a linear trend. The trend is there because the levels of these series climb and fall over the years.</p>
+
+<p>Here is that equation written out.</p>
+
+<p>\[ U_t = c + \delta\, t + a_1 e_{t-1} + a_2 \mathrm{prod}_{t-1} + a_3 \mathrm{rw}_{t-1} + a_4 U_{t-1} + b_1 e_{t-2} + b_2 \mathrm{prod}_{t-2} + b_3 \mathrm{rw}_{t-2} + b_4 U_{t-2} + \varepsilon_t \]</p>
+
+<p>The constant is c, and \(\delta\) multiplies the time index t. The a's multiply the four series one quarter back, the b's multiply them two quarters back, and \(\varepsilon_t\) is the error.</p>
+
+<p>So this one equation has 10 coefficients. In general, an equation of a VAR(p) has 4p + 2 of them: four series times p lags, plus the constant and the trend. The system has four equations, so 4(4p + 2) coefficients in all.</p>
+
+<p>Let's count them for a few orders, by fitting the VAR and counting the coefficients of the <code>U</code> equation.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the coefficients a VAR(p) estimates for p = 1, 2, 3 and 8
+count_coefs &lt;- function(p) {
+  fit &lt;- VAR(Canada, p = p, type = &quot;both&quot;)
+  per_equation &lt;- length(coef(fit$varresult$U))
+  data.frame(p = p, per_equation = per_equation, in_total = 4 * per_equation)
+}
+
+do.call(rbind, lapply(c(1, 2, 3, 8), count_coefs))
+#&gt;   p per_equation in_total
+#&gt; 1 1            6       24
+#&gt; 2 2           10       40
+#&gt; 3 3           14       56
+#&gt; 4 8           34      136</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>type = &quot;both&quot;</code> adds the constant and the trend. <code>coef(fit$varresult$U)</code> returns the coefficients of the <code>U</code> equation, and <code>length()</code> counts them. At p = 2 that count is 10, the same as the equation above.</p>
+
+<p>Each extra lag adds 4 coefficients to every equation, so 16 to the system. Going from p = 1 to p = 8 takes the system from 24 coefficients to 136, all estimated from the same 84 quarters.</p>
+
+<p>The analyst sets p before fitting. The data do not estimate it. A p that is too small leaves useful information from the past out of the equations, and a p that is too large spends coefficients on noise.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>What too few lags leaves in the residuals</h2>
+
+<p>Suppose p is too small. The equations leave out lags that still carry information about the series, and that information does not disappear. It stays in the residuals, which are the observed values minus the fitted values of an equation.</p>
+
+<p>So a check on p is a look at the residuals. If one quarter's residual still helps predict the next quarter's, the equation has missed something from the past. The correlation of a residual series with itself, shifted back k quarters, is its autocorrelation at lag k, and <code>acf()</code> plots it for many lags at once.</p>
+
+<p>The block fits VAR(1), VAR(2) and VAR(3) and plots the autocorrelation of the <code>U</code> residuals for p = 1 and p = 3.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the autocorrelation of the unemployment residuals for p = 1 and p = 3
+fits &lt;- lapply(1:3, function(p) VAR(Canada, p = p, type = &quot;both&quot;))
+
+res_u1 &lt;- residuals(fits[[1]])[, &quot;U&quot;]
+res_u3 &lt;- residuals(fits[[3]])[, &quot;U&quot;]
+
+par(mfrow = c(1, 2))
+acf(res_u1, main = &quot;U residuals, p = 1&quot;)
+acf(res_u3, main = &quot;U residuals, p = 3&quot;)
+par(mfrow = c(1, 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each bar is the autocorrelation at one lag, and the dashed lines mark a band of about 2 / sqrt(n), where n is the number of residuals. A bar inside the band is consistent with no autocorrelation at that lag. In the left plot (p = 1), the bar at lag 1 sits far outside the band. In the right plot (p = 3), it sits inside.</p>
+
+<p>Let's put numbers on this for all four equations. The table gives the lag 1 autocorrelation of each residual series for p = 1, 2 and 3, and the band for each fit.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read the lag 1 residual autocorrelation of every equation for p = 1, 2 and 3
+lag1_acf &lt;- function(fit) {
+  apply(residuals(fit), 2, function(r) acf(r, plot = FALSE)$acf[2])
+}
+
+lag1 &lt;- t(sapply(fits, lag1_acf))
+rownames(lag1) &lt;- paste0(&quot;p = &quot;, 1:3)
+round(lag1, 2)
+#&gt;          e  prod    rw     U
+#&gt; p = 1  0.58  0.17 -0.03  0.51
+#&gt; p = 2  0.21 -0.02  0.01  0.07
+#&gt; p = 3 -0.05 -0.03 -0.06 -0.07
+
+n_res &lt;- sapply(fits, function(fit) nrow(residuals(fit)))
+round(2 / sqrt(n_res), 2)
+#&gt; [1] 0.22 0.22 0.22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At p = 1, employment (0.58) and unemployment (0.51) are more than twice the band of 0.22, while productivity (0.17) and the real wage (-0.03) are inside it. At p = 2 all four are inside, with employment at 0.21 just under the limit. At p = 3 every one of them is within 0.07 of zero.</p>
+
+<p>Now let's read the R-squared of each p = 1 equation.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read the R-squared of each VAR(1) equation
+round(sapply(fits[[1]]$varresult, function(eq) summary(eq)$r.squared), 4)
+#&gt;      e   prod     rw      U
+#&gt; 0.9975 0.9754 0.9989 0.9557</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All four are above 0.95. So the p = 1 equations reproduce the levels of the series very closely, and two of their residual series are still autocorrelated.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Autocorrelation left in the residuals of a fitted VAR is a sign that p is too small. A high R-squared does not rule it out.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>What autocorrelated errors do to a confidence interval</h2>
+
+<p>Residual autocorrelation does more than signal missing lags. When it is positive, as it is here, it also makes the standard errors too small, so the confidence intervals that come with the coefficients are too narrow.</p>
+
+<p>To see how much, the widget uses a plain regression of a series on a time trend, with 60 points. The errors are autocorrelated: each one is phi times the previous error plus new noise, so phi is the correlation between neighbouring errors. At every value of phi the widget simulates 2,000 studies and reports two numbers. <strong>Coverage</strong> is the share of studies whose 95% interval contains the true slope, and R-squared is the fit.</p>
+
+<p>The widget has its own built-in data, not the Canada series. But phi plays the role of the lag 1 residual autocorrelation we just measured, so the dial starts at phi = 0.55, between the 0.51 and 0.58 we found at p = 1.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation","start":6}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Read the widget at three settings. At phi = 0, the interval covers the true slope in about 95% of the 2,000 studies, which is the coverage a 95% interval is built to have, and R-squared is about 0.50. Drag the dial to phi = 0.55 and the coverage drops to about 72%, while R-squared rises to about 0.52. At phi = 0.92, the coverage is about 32% and R-squared is about 0.64.</p>
+
+<p>So as the errors become more autocorrelated, the 95% interval loses its 95%, and R-squared does not fall. It rises. The interval is too narrow because 60 autocorrelated errors carry less information than 60 independent ones, and the usual standard error formula assumes 60 independent errors.</p>
+
+<p>The R block under the widget runs the same experiment, so you can change <code>sev</code> and see the coverage and R-squared for yourself.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">R-squared cannot detect autocorrelated errors, because it can stay the same or rise while the interval fails. The only way to see them is to look at the residuals.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>What too many lags cost</h2>
+
+<p>More lags are not the fix for everything. Each lag adds 4 coefficients to every equation, and all of them are estimated from the same 84 quarters. A lag also needs earlier rows to look back on, so a VAR(p) can only use 84 - p rows.</p>
+
+<p>Divide the rows by the coefficients in one equation and you get the observations per coefficient. It is 13.8 at p = 1, 8.2 at p = 2 and 5.8 at p = 3. At p = 8 an equation has 34 coefficients and 76 rows, which leaves only 2.2 observations for each coefficient.</p>
+
+<p>With so few observations per coefficient, each coefficient is estimated imprecisely, and the equations begin to fit the noise in the sample instead of the pattern. The cost shows up as forecast error on data the fit has not seen.</p>
+
+<p>To measure it, the block below fits the VAR on 1980Q1 to 1990Q4 and forecasts unemployment one quarter ahead. Then it adds the next quarter to the training data, refits and forecasts again, so the training window expands by one quarter each time. That gives 40 one-step forecasts, for 1991Q1 to 2000Q4, and the block repeats it for p = 1 to 6. It fits 240 small VARs, so give it a moment.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast unemployment one quarter ahead from 40 origins and compare VAR orders 1 to 6
+first_end &lt;- 1990.75                     # the first fit uses 1980Q1 to 1990Q4
+n_origins &lt;- 40                          # forecasts for 1991Q1 to 2000Q4
+u_actual  &lt;- Canada[45:84, &quot;U&quot;]
+
+rmse_for_p &lt;- function(p) {
+  errors &lt;- numeric(n_origins)
+  for (i in 1:n_origins) {
+    train &lt;- window(Canada, end = first_end + (i - 1) / 4)
+    fit   &lt;- VAR(train, p = p, type = &quot;both&quot;)
+    pred  &lt;- predict(fit, n.ahead = 1)$fcst$U[1, &quot;fcst&quot;]
+    errors[i] &lt;- u_actual[i] - pred
+  }
+  sqrt(mean(errors^2))
+}
+
+orders &lt;- 1:6
+n_coef &lt;- 4 * orders + 2                 # coefficients per equation
+n_obs  &lt;- 84 - orders                    # rows each order can use on the full sample
+
+data.frame(p = orders,
+           coefficients = n_coef,
+           observations = n_obs,
+           obs_per_coef = round(n_obs / n_coef, 1),
+           rmse         = round(sapply(orders, rmse_for_p), 3))
+#&gt;   p coefficients observations obs_per_coef  rmse
+#&gt; 1 1            6           83         13.8 0.405
+#&gt; 2 2           10           82          8.2 0.378
+#&gt; 3 3           14           81          5.8 0.397
+#&gt; 4 4           18           80          4.4 0.427
+#&gt; 5 5           22           79          3.6 0.487
+#&gt; 6 6           26           78          3.0 0.561
+
+round((84 - 8) / (4 * 8 + 2), 1)         # observations per coefficient at p = 8
+#&gt; [1] 2.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>RMSE is the root mean squared error of the 40 forecasts, in percentage points of unemployment. It is 0.405 at p = 1, 0.378 at p = 2 and 0.397 at p = 3, and on 40 forecasts those three differ by little. From p = 4 the error climbs: 0.427, 0.487, and 0.561 at p = 6.</p>
+
+<p>So extra lags stop helping after the first few and then make the forecasts worse, while the observations per coefficient keep falling. The first fits use only 44 quarters, so early in the loop the ratio is lower than the table shows.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: does a high R-squared show the lag order is enough?</h2>
+
+<p>The VAR(1) equations have R-squared of 0.9975, 0.9754, 0.9989 and 0.9557, and the lag 1 autocorrelation of the <code>U</code> residuals is 0.51. An analyst says the high R-squared shows that one lag is enough. Which reply is right?</p>
+<section class="exercise" data-exercise-id="Choosing-the-Lag-Order-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The analyst is right. An R-squared this close to 1 means the equations leave nothing in the residuals.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The analyst is wrong. R-squared stays high or rises when errors are autocorrelated, and autocorrelated errors of this size leave the 95% intervals too narrow, as the dial showed at phi = 0.55.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The analyst is wrong, because autocorrelated errors make the 95% intervals cover more than 95% of the time. The intervals are safe and just wasteful.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The analyst is right, and the largest order is the safest choice, because adding lags cannot make the fit worse.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. The 0.51 in the <code>U</code> residuals is the evidence that p = 1 is not enough, and no R-squared can replace a look at the residuals. In the dial, coverage fell to about 72% while R-squared rose.</div><div class="lesson-qfb lesson-qfb-no">R-squared measures how closely the equations reproduce the levels of the series. It cannot show that the errors are free of autocorrelation: in the dial, R-squared rose from about 0.50 to about 0.52 while coverage fell from 95% to 72%. And it cannot show that more lags are safer. Adding lags cannot make the in-sample fit worse, yet the forecast RMSE rose to 0.561 at p = 6, and p = 8 leaves 2.2 observations per coefficient. The residual autocorrelation, 0.51 for <code>U</code> at p = 1, is what shows p = 1 is not enough.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>How an information criterion scores a lag order</h2>
+
+<p>So far there are two ways to get p wrong and no rule for getting it right. An information criterion is such a rule. It gives every order a score made of two parts: how well the equations fit, and a penalty for how many coefficients they use. The order with the smallest score is selected.</p>
+
+<p>The fit part is the determinant of the residual covariance matrix. That matrix is 4 x 4, with the variance of each residual series on the diagonal and the covariances between the series off it. Its determinant is called the generalized variance: one number for the overall spread of the residuals, which is smaller when the equations fit more tightly. The criteria use its natural log, written ln det.</p>
+
+<p>Adding lags cannot make the fit worse in the sample, so ln det falls at every order. On its own it would always select the largest order. The penalty is what stops that.</p>
+
+<p>Here is the score, with p the lag order and T the number of quarters the fit uses.</p>
+
+<p>\[ \mathrm{score}(p) = \ln\det\hat{\Sigma}(p) + c \cdot \frac{16p + 8}{T} \]</p>
+
+<p>\(\hat{\Sigma}(p)\) is the residual covariance matrix of the VAR(p). The count 16p + 8 is the total number of coefficients from before, 4(4p + 2). And c is the price charged per coefficient. The three criteria differ only in c:</p>
+
+<ul>
+
+<li>AIC, the Akaike criterion: c = 2.</li>
+
+<li>HQ, the Hannan-Quinn criterion: c = 2 ln ln T, which is 2.93 for T = 76.</li>
+
+<li>SC, the Schwarz criterion (also called BIC): c = ln T, which is 4.33 for T = 76.</li>
+
+</ul>
+
+<p>To compare orders fairly, every order has to be fitted on the same rows. The largest order, p = 8, loses the first 8 quarters, so all eight fits use 1982Q1 to 2000Q4. That is T = 76.</p>
+
+<p>The function below scores one order by hand, and the last lines run it for p = 1 to 8.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute ln det, AIC, HQ and SC by hand for VAR orders 1 to 8 on one common sample
+T_obs &lt;- 76                              # 1982Q1 to 2000Q4, the same rows for every order
+Y     &lt;- Canada[9:84, ]
+
+score_order &lt;- function(p) {
+  lagged &lt;- lapply(1:p, function(j) Canada[(9 - j):(84 - j), ])
+  X      &lt;- cbind(do.call(cbind, lagged), trend = 9:84)
+  res    &lt;- residuals(lm(Y ~ X))         # lm adds the constant
+  ln_det &lt;- log(det(crossprod(res) / T_obs))
+  n_par  &lt;- 4 * (4 * p + 2)              # coefficients over all four equations
+  c(ln_det = ln_det,
+    AIC = ln_det + 2 * n_par / T_obs,
+    HQ  = ln_det + 2 * log(log(T_obs)) * n_par / T_obs,
+    SC  = ln_det + log(T_obs) * n_par / T_obs)
+}
+
+hand &lt;- t(sapply(1:8, score_order))
+rownames(hand) &lt;- paste0(&quot;p = &quot;, 1:8)
+round(hand, 4)
+#&gt;        ln_det     AIC      HQ      SC
+#&gt; p = 1 -6.9042 -6.2726 -5.9784 -5.5366
+#&gt; p = 2 -7.6893 -6.6367 -6.1464 -5.4100
+#&gt; p = 3 -8.2449 -6.7712 -6.0848 -5.0538
+#&gt; p = 4 -8.5293 -6.6346 -5.7522 -4.4265
+#&gt; p = 5 -8.7139 -6.3981 -5.3196 -3.6994
+#&gt; p = 6 -9.0445 -6.3077 -5.0331 -3.1183
+#&gt; p = 7 -9.2286 -6.0707 -4.6000 -2.3906
+#&gt; p = 8 -9.6405 -6.0616 -4.3947 -1.8908</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Y</code> holds the four series for those 76 quarters. Inside the function, <code>lagged</code> shifts the series back j quarters for j = 1 to p, so that row i of every shifted matrix lines up with row i of <code>Y</code>. Then <code>lm()</code> regresses all four series on those lags and the trend. <code>crossprod(res)</code> sums the residual cross-products, and dividing by T gives the residual covariance matrix.</p>
+
+<p>Read the <code>ln_det</code> column first. It starts at -6.9042 for p = 1 and falls at every order down to -9.6405 at p = 8, so on its own it would select p = 8. The AIC column behaves differently: it falls to -6.7712 at p = 3 and then rises again.</p>
+
+<p>Check one AIC score by hand. At p = 3 there are 4 x 14 = 56 coefficients, so the penalty is 2 x 56 / 76 = 1.4737, and -8.2449 + 1.4737 = -6.7712.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">An information criterion is a fit term plus a price per coefficient. AIC, HQ and SC use the same fit term and differ only in the price.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>How to read the four criteria in VARselect</h2>
+
+<p>You would not compute these by hand for every model. <code>VARselect()</code> scores every order up to <code>lag.max</code> and reports four criteria. The first three are the ones we just computed. The fourth, FPE (final prediction error), multiplies the determinant by a factor that grows with the number of coefficients, so it charges for them too.</p>
+
+<p>The block runs <code>VARselect()</code> on the same data, prints the order each criterion selects and its scores, and compares three of its columns with the hand scores from the previous block.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run VARselect and check that it reproduces the scores computed by hand
+vs &lt;- VARselect(Canada, lag.max = 8, type = &quot;both&quot;)
+vs$selection
+#&gt; AIC(n)  HQ(n)  SC(n) FPE(n)
+#&gt;      3      2      1      3
+
+round(t(vs$criteria), 4)
+#&gt;    AIC(n)   HQ(n)   SC(n) FPE(n)
+#&gt; 1 -6.2726 -5.9784 -5.5366 0.0019
+#&gt; 2 -6.6367 -6.1464 -5.4100 0.0013
+#&gt; 3 -6.7712 -6.0848 -5.0538 0.0012
+#&gt; 4 -6.6346 -5.7522 -4.4265 0.0014
+#&gt; 5 -6.3981 -5.3196 -3.6994 0.0018
+#&gt; 6 -6.3077 -5.0331 -3.1183 0.0020
+#&gt; 7 -6.0707 -4.6000 -2.3906 0.0028
+#&gt; 8 -6.0616 -4.3947 -1.8908 0.0031
+
+by_varselect &lt;- t(vs$criteria)[, 1:3]    # the AIC, HQ and SC columns
+max_gap &lt;- max(abs(by_varselect - hand[, c(&quot;AIC&quot;, &quot;HQ&quot;, &quot;SC&quot;)]))
+max_gap &lt; 1e-9
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>$selection</code> names the order each criterion selects: AIC 3, HQ 2, SC 1 and FPE 3. <code>$criteria</code> holds the scores, and <code>t()</code> turns them so each row is one order. The last three lines show that the largest gap between the <code>VARselect()</code> scores and our hand scores is below 1e-9, so they are the same numbers computed two ways.</p>
+
+<p>The table below sets the same scores side by side. Read down each column to its smallest value: AIC is smallest at p = 3 (-6.771), HQ at p = 2 (-6.146) and SC at p = 1 (-5.537).</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["lag","AIC","HQ","SC","FPE"],"rows":[[1,"-6.273","-5.978","-5.537","0.00189"],[2,"-6.637","-6.146","-5.410","0.00132"],[3,"-6.771","-6.085","-5.054","0.00117"],[4,"-6.635","-5.752","-4.427","0.00136"],[5,"-6.398","-5.320","-3.699","0.00178"],[6,"-6.308","-5.033","-3.118","0.00204"],[7,"-6.071","-4.600","-2.391","0.00277"],[8,"-6.062","-4.395","-1.891","0.00306"],["selected",3,2,1,3]],"formats":{},"title":"Information criteria for VAR orders 1 to 8","note":"The smallest value in each column marks the order that criterion selects."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>One data set gives three different orders: 3, 2 and 1.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Why do AIC, HQ and SC select different lag orders?</h2>
+
+<p>The three criteria share the fit term, ln det. They differ only in c, the price per coefficient. One more lag adds 16 coefficients to the system, 4 in each equation, so a criterion charges 16c / T for it.</p>
+
+<p>A lag lowers the score when the fall in ln det is bigger than that penalty. The block computes the three penalties for T = 76, then the fall in ln det from each added lag, and asks for each criterion whether that lag lowers its score.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the fall in ln det from each added lag with the penalty each criterion charges
+T_obs   &lt;- 76
+penalty &lt;- 16 * c(AIC = 2, HQ = 2 * log(log(T_obs)), SC = log(T_obs)) / T_obs
+round(penalty, 3)
+#&gt;   AIC    HQ    SC
+#&gt; 0.421 0.617 0.912
+
+fall &lt;- unname(-diff(hand[, &quot;ln_det&quot;]))  # fall in ln det from p - 1 to p, for p = 2 to 8
+
+data.frame(p = 2:8,
+           fall = round(fall, 3),
+           lowers_AIC = ifelse(fall &gt; penalty[&quot;AIC&quot;], &quot;yes&quot;, &quot;no&quot;),
+           lowers_HQ  = ifelse(fall &gt; penalty[&quot;HQ&quot;], &quot;yes&quot;, &quot;no&quot;),
+           lowers_SC  = ifelse(fall &gt; penalty[&quot;SC&quot;], &quot;yes&quot;, &quot;no&quot;))
+#&gt;   p  fall lowers_AIC lowers_HQ lowers_SC
+#&gt; 1 2 0.785        yes       yes        no
+#&gt; 2 3 0.556        yes        no        no
+#&gt; 3 4 0.284         no        no        no
+#&gt; 4 5 0.185         no        no        no
+#&gt; 5 6 0.331         no        no        no
+#&gt; 6 7 0.184         no        no        no
+#&gt; 7 8 0.412         no        no        no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is how each criterion reads that table.</p>
+
+<ul>
+
+<li>AIC charges 0.421 per added lag. The falls from lag 2 (0.785) and lag 3 (0.556) are above it, so both lags lower the AIC. The fall from lag 4 is 0.284, below the price, and the falls from lags 5 to 8 (0.184 to 0.412) stay below it as well. So AIC is smallest at p = 3.</li>
+
+<li>HQ charges 0.617. Lag 2 pays for itself (0.785) but lag 3 does not (0.556), so HQ selects 2.</li>
+
+<li>SC charges 0.912. Even lag 2 falls short (0.785), so SC selects 1.</li>
+
+</ul>
+
+<p>The higher the price, the smaller the selected order. In large samples SC and HQ are consistent, which means they select the true order, if there is one, with a probability that goes to 1. AIC and FPE are not consistent, and they can keep selecting an order that is too large.</p>
+
+<p>When there are at least 16 observations, the SC order is never above the HQ order, and the HQ order is never above the AIC order. That is the 1, 2, 3 we have here.</p>
+
+<p>So the three orders are candidates, not answers. Which one leaves residuals without autocorrelation is a separate check.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>How to settle the lag order with a serial correlation test</h2>
+
+<p>A criterion ranks orders by fit and cost. It never looks at whether the residuals of an order are still autocorrelated. A serial correlation test does. Serial correlation is another name for the autocorrelation we read off the residuals earlier, and the test gives a p-value we can read against the usual 5% level.</p>
+
+<p>The Edgerton-Shukur test (ES) has the null hypothesis that there is no residual serial correlation up to lag h. It regresses the residuals on the original regressors plus h lagged residuals, and tests with an F test whether those lagged residuals add anything, with a correction for small samples. A small p-value rejects the null: the residuals are still autocorrelated, so the order is too small.</p>
+
+<p>The lagged residuals in that regression come from all four equations. So the test can reject even when no single lag 1 autocorrelation in the earlier table crossed its band.</p>
+
+<p>The block runs the ES test on the residuals of VAR(1) to VAR(5), for h = 1 to 5, and stores the 25 p-values in a matrix with p in the rows and h in the columns.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the Edgerton-Shukur test on the residuals of VAR(1) to VAR(5) at test lags 1 to 5
+es_grid &lt;- matrix(NA, nrow = 5, ncol = 5, dimnames = list(p = 1:5, h = 1:5))
+
+for (p in 1:5) {
+  fit &lt;- VAR(Canada, p = p, type = &quot;both&quot;)
+  for (h in 1:5) {
+    es_grid[p, h] &lt;- serial.test(fit, lags.bg = h, type = &quot;ES&quot;)$serial$p.value
+  }
+}
+
+round(es_grid, 4)
+#&gt;    h
+#&gt; p        1      2      3      4      5
+#&gt;   1 0.0000 0.0000 0.0000 0.0002 0.0008
+#&gt;   2 0.0013 0.0038 0.0280 0.0820 0.1570
+#&gt;   3 0.4025 0.6877 0.3873 0.4851 0.5072
+#&gt;   4 0.7262 0.3506 0.3574 0.3152 0.1052
+#&gt;   5 0.3724 0.5651 0.3066 0.3463 0.0708</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read one row at a time.</p>
+
+<ul>
+
+<li>At p = 1, every p-value is below 0.001. The null is rejected at every h.</li>
+
+<li>At p = 2, the null is rejected at h = 1, 2 and 3 (0.0013, 0.0038, 0.028) and not at h = 4 and 5 (0.082, 0.157).</li>
+
+<li>At p = 3, it is rejected at no h. The p-values run from 0.387 to 0.688.</li>
+
+</ul>
+
+<p>The rule is to take the smallest order whose residuals pass at every tested lag. That is p = 3, which is also the order AIC and FPE selected. Orders 4 and 5 pass as well, but they add coefficients the residuals do not need.</p>
+
+<p><code>serial.test()</code> offers another check, the asymptotic portmanteau test. It adds up the autocorrelations of all four residual series over 16 lags and compares the total with a chi-squared distribution. Here it runs on the p = 1 fit, which we know has autocorrelation at lag 1.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the asymptotic portmanteau test on the VAR(1) residuals
+fit1 &lt;- VAR(Canada, p = 1, type = &quot;both&quot;)
+portmanteau &lt;- serial.test(fit1, lags.pt = 16, type = &quot;PT.asymptotic&quot;)$serial
+
+round(unname(portmanteau$p.value), 3)
+#&gt; [1] 0.606
+
+portmanteau$parameter
+#&gt;  df
+#&gt; 240</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0.606, on 240 degrees of freedom, so this test does not reject a VAR(1) whose residuals the ES test rejects at every h. It pools 16 lags into one total and compares it with 240 degrees of freedom, so autocorrelation that sits mostly at lag 1 has little effect on it. That is why the test at several small values of h is the more useful check here.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A criterion ranks orders. It does not check whether an order is enough. The residual test does, and it settles p = 3.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: which order does the two-series system need?</h2>
+
+<p>Take a smaller system, <code>y2</code>, that holds only employment <code>e</code> and unemployment <code>U</code>. Read the orders VARselect selects for it, fit a VAR at the SC order and one at the AIC order, and run the Edgerton-Shukur test on each with 4 test lags. The function is <code>serial.test()</code>, and its <code>lags.bg</code> argument sets the number of residual lags tested. Then decide which order to keep.</p>
+<section class="exercise" data-exercise-id="Choosing-the-Lag-Order-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*VARselect[(]y2)(?=[\s\S]*lags[.]bg\s*=\s*4)(?=[\s\S]*type\s*=\s*.ES)(?=[\s\S]*\bVAR[(])(?=[\s\S]*serial[.]test[(])"><textarea class="lesson-tryit-input" spellcheck="false"># Choose the order for the two-series system of employment and unemployment.
+# 1. Run the order selection on y2 with lags up to 8 and a constant and trend,
+#    then read the SC order and the AIC order from the result.
+# 2. Fit a VAR at each of those two orders.
+# 3. Run the Edgerton-Shukur test on each fit with 4 test lags and compare the p-values.
+y2 &lt;- Canada[, c(&quot;e&quot;, &quot;U&quot;)]</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: SC selects 2 and AIC selects 3, the test rejects the order of 2 (p-value 0.0368) and passes the order of 3 (0.6127), so keep 3. The residuals, not the criterion, made the decision.</span><span class="lesson-tryit-fb lesson-tryit-no">Start with <code>VARselect(y2, lag.max = 8, type = &quot;both&quot;)</code> and read the selection it returns. Then fit <code>VAR(y2, p = ..., type = &quot;both&quot;)</code> at the SC order and at the AIC order, and call <code>serial.test(fit, lags.bg = 4, type = &quot;ES&quot;)</code> on each fit.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Select, fit and test the two candidate orders for the two-series system
+y2  &lt;- Canada[, c(&quot;e&quot;, &quot;U&quot;)]
+vs2 &lt;- VARselect(y2, lag.max = 8, type = &quot;both&quot;)
+vs2$selection
+#&gt; AIC(n)  HQ(n)  SC(n) FPE(n)
+#&gt;      3      3      2      3
+
+fit2 &lt;- VAR(y2, p = 2, type = &quot;both&quot;)    # the SC order
+fit3 &lt;- VAR(y2, p = 3, type = &quot;both&quot;)    # the AIC, HQ and FPE order
+
+round(serial.test(fit2, lags.bg = 4, type = &quot;ES&quot;)$serial$p.value, 4)
+#&gt; [1] 0.0368
+round(serial.test(fit3, lags.bg = 4, type = &quot;ES&quot;)$serial$p.value, 4)
+#&gt; [1] 0.6127</code></pre></details></div>
+</section>
+<p>For this system SC selects 2, and AIC, HQ and FPE select 3. The ES test at 4 lags rejects the order of 2 (0.0368) and passes the order of 3 (0.6127), so 3 is the order to keep.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<h2>Quick check: is the order SC selects enough?</h2>
+
+<p>A colleague fits the SC order, p = 1, on the four Canada series and does not test the residuals, because SC is consistent. Which reply is right?</p>
+<section class="exercise" data-exercise-id="Choosing-the-Lag-Order-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">SC is not valid for a VAR, so its order should never be used.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Consistency is a large-sample property. SC charges the highest price per added lag (0.912), so in 76 quarters it gives the smallest order, and the ES test rejects p = 1 at every test lag from 1 to 5.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">SC tends to select too many lags, so p = 1 is a safe minimum.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The test only matters when AIC and SC disagree.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. The same happened in the two-series system: SC gave 2, and the ES test rejected it (0.0368) while it passed the order of 3. The criterion supplies a candidate, and the residual test decides whether the candidate is enough.</div><div class="lesson-qfb lesson-qfb-no">SC is a valid criterion for a VAR, and it does not select too many lags: its price of 0.912 per added lag makes it select the smallest of the three orders. Consistency is a statement about very large samples, and here the residuals decide. The ES test rejects p = 1 at every h, with p-values below 0.001, and in the two-series system it rejects the SC order of 2 (0.0368). The test matters whichever criterion supplied the order.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1007/978-3-540-27752-1">New Introduction to Multiple Time Series Analysis</a> - Lütkepohl (2005), Springer. Chapter 4 covers order selection and checking the residuals of a VAR.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v027.i04">VAR, SVAR and SVEC Models: Implementation Within R Package vars</a> - Pfaff (2008), Journal of Statistical Software 27(4). The vars package used in this lesson, with <code>VARselect()</code> and <code>serial.test()</code>.</li>
+
+<li>Testing autocorrelation in a system perspective - Edgerton and Shukur (1999), Econometric Reviews 18(4), 343-386. The small-sample corrected test behind <code>serial.test(type = &quot;ES&quot;)</code>.</li>
+
+<li>The determination of the order of an autoregression - Hannan and Quinn (1979), Journal of the Royal Statistical Society B 41(2), 190-195. The source of the HQ criterion.</li>
+
+<li><a href="https://cran.r-project.org/package=vars">The vars package on CRAN</a> - the documentation for <code>VARselect()</code> and <code>serial.test()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You chose the lag order of a VAR on four Canadian series, and you saw why each way of getting it wrong shows up in a different place. To summarize:</p>
+
+<ul>
+
+<li>The lag order p is the number of past quarters of all four series in each equation. Each added lag adds 4 coefficients to every equation, 16 to the system.</li>
+
+<li>Too few lags leave residual autocorrelation: 0.58 for employment and 0.51 for unemployment at p = 1. R-squared does not detect it, and the 95% interval covers only about 72% of the time at phi = 0.55.</li>
+
+<li>Too many lags leave fewer observations per coefficient and raise forecast error: the unemployment RMSE goes from 0.378 at p = 2 to 0.561 at p = 6.</li>
+
+<li>An information criterion is ln det plus a price per coefficient. AIC, HQ and SC charge 0.421, 0.617 and 0.912 per added lag, and select 3, 2 and 1.</li>
+
+<li>The Edgerton-Shukur test rejects p = 1 and p = 2 and rejects nothing at p = 3. So the workflow is to take the candidates from <code>VARselect()</code>, then keep the smallest order whose residuals pass.</li>
+
+</ul>
+
+<p>The next part covers Granger causality, which asks whether one series improves the forecast of another.</p>
+</section>
+
+{% endraw %}
