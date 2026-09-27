@@ -37,6 +37,10 @@
     var body = document.body;
     var ds = body.dataset || {};
     var access = (body.getAttribute('data-lesson-access') || 'free').toLowerCase();
+    // Windowed = a daily-email lesson. Hoisted because the chrome below needs it.
+    // Every daily-lesson behaviour in this file is gated on it; a track lesson
+    // never reaches any of it.
+    var windowed = access === 'windowed';
     var courseTitle = ds.courseTitle || 'Course';
     // the lesson's own title is its cover-step H2 (this is what the roadmap row shows); the
     // course title stays as the exit target + rail header. Keeps chrome == roadmap == cover.
@@ -105,6 +109,7 @@
             return '<i' + ((st === 'quiz' || st === 'tryit') ? ' data-practice=""' : '') +
                    (tip ? ' data-tip="' + esc(tip) + '"' : '') + '></i>';
           }).join('') + '</div>' +
+          (windowed ? '<div class="lm-win" hidden></div>' : '') +
           '<div class="lm-stage"></div>' +
           '<div class="lm-stepper">' +
             '<button class="lm-back" disabled>&larr; Back</button>' +
@@ -190,7 +195,7 @@
     // Windowed nurture lessons: the SERVER is the only gate (the middleware
     // 302s expired windows to the expiry page before this code ever runs),
     // so the client never account-walls or pro-walls them.
-    var windowed = access === 'windowed';
+    // `windowed` is declared at the top of this closure, beside `access`.
     // Mini courses award badges, not certificates: the Get-certified button
     // is the wrong promise here, and the player has its own Pro moments.
     if (windowed) { var certBtn = app.querySelector('.lm-cert'); if (certBtn) certBtn.style.display = 'none'; }
@@ -833,6 +838,7 @@
       });
     }
     function buildRail() {
+      if (windowed) { buildWindowRail(); return; }   // daily lessons have their own
       if (!courseId) return;
       fetch('/courses.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
         if (!data || !data.courses) return;
@@ -849,6 +855,318 @@
         fillGateFreeLink();
         if (i === total - 1) showCompleteActions();   // refresh the card with progress if we're already on the end
       }).catch(function () {});
+    }
+
+
+    /* =====================================================================
+       THE DAILY LESSON RAIL
+       Windowed lessons only. Reached solely from buildRail()'s first line,
+       and every selector it writes lives under
+       body[data-lesson-access="windowed"] in lesson-mode.css.
+
+       One loud element, used where the action is: a ring on each lesson that
+       is still open, at most three, soonest first, so the first ring in the
+       list is always the nearest deadline. Closed lessons carry no geometry,
+       one label, and the way back in on hover.
+
+       Data is one authenticated call to /api/me/shelf. A reader who opened the
+       lesson from a signed email link on a device with no session has no
+       bearer token; the call 401s, the rail stays empty and CSS hides it, and
+       the lesson reads exactly as it does today. That is the intended
+       degradation, not an oversight.
+       ===================================================================== */
+    var winShelf = null;
+    var WIN_COLLAPSE_KEY = 'rsc-daily-rail-collapsed';
+
+    function winCollapsed() {
+      try { return localStorage.getItem(WIN_COLLAPSE_KEY) === '1'; } catch (e) { return false; }
+    }
+    function winSetCollapsed(v) {
+      try { localStorage.setItem(WIN_COLLAPSE_KEY, v ? '1' : '0'); } catch (e) {}
+    }
+
+    function winLeft(sec) {              // seconds remaining -> what the row says
+      if (sec < 3600) return Math.max(1, Math.round(sec / 60)) + ' min left';
+      if (sec < 86400) return Math.round(sec / 3600) + 'h left';
+      var d = new Date(sec * 1000 + Date.now());
+      return winDayShort(d) + ', ' + winTime(d);
+    }
+    var WIN_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var WIN_MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                   'August', 'September', 'October', 'November', 'December'];
+    function winDayShort(d) { return WIN_DOW[d.getDay()] + ' ' + d.getDate(); }
+    function winTime(d) {
+      var h = d.getHours(), ap = h < 12 ? 'am' : 'pm', m = d.getMinutes();
+      h = h % 12 || 12;
+      return h + (m ? ':' + (m < 10 ? '0' : '') + m : '') + ap;
+    }
+    function winUrgency(sec) {
+      if (sec < 3600) return 'is-urgent';
+      if (sec < 86400) return 'is-soon';
+      return '';
+    }
+    /* One label carrying both facts. Whether they read it and how long ago it
+       shut are two answers to the same question, and the pair is the
+       interesting answer. A lesson they finished needs no date, because
+       nothing was lost. */
+    function winLabel(r, now) {
+      if (r.finished) return 'finished';
+      var closed = new Date(r.closes_at * 1000), today = new Date(now * 1000);
+      var sameDay = closed.getDate() === today.getDate() &&
+                    closed.getMonth() === today.getMonth() &&
+                    closed.getFullYear() === today.getFullYear();
+      if (sameDay) return 'missed today';
+      if (now - r.closes_at < 172800) return 'missed yesterday';
+      return 'not opened';
+    }
+    /* The ring. 18px, 1.75px stroke, and an arc that never falls below a tenth
+       of the circle: a window with forty minutes left is 0.9 percent of 72
+       hours, and an arc that thin is an empty ring, which is the opposite of
+       what it has to say. */
+    function winRing(frac, cls, done) {
+      var S = 18, W = 1.75, R = (S - W) / 2, C = 2 * Math.PI * R;
+      if (done) {
+        return '<span class="lm-dial is-done"><svg width="' + S + '" height="' + S + '" viewBox="0 0 ' + S + ' ' + S + '" aria-hidden="true">' +
+          '<circle class="trk" cx="' + S / 2 + '" cy="' + S / 2 + '" r="' + R + '" fill="none" stroke-width="' + W + '"/>' +
+          '<path class="tick" d="M5.2 9.2 L7.7 11.7 L12.8 6.4"/></svg></span>';
+      }
+      frac = Math.max(0.1, Math.min(1, frac));
+      return '<span class="lm-dial ' + (cls || '') + '"><svg width="' + S + '" height="' + S + '" viewBox="0 0 ' + S + ' ' + S + '" aria-hidden="true">' +
+        '<circle class="trk" cx="' + S / 2 + '" cy="' + S / 2 + '" r="' + R + '" fill="none" stroke-width="' + W + '"/>' +
+        '<circle class="arc" cx="' + S / 2 + '" cy="' + S / 2 + '" r="' + R + '" fill="none" stroke-width="' + W + '"' +
+        ' stroke-linecap="round" stroke-dasharray="' + C.toFixed(2) + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(2) + '"/></svg></span>';
+    }
+    function winPlace(r) {
+      if (!r.course_title) return '';
+      return r.part ? r.course_title + ', part ' + r.part + ' of ' + r.parts : r.course_title;
+    }
+
+    function winRailHtml() {
+      var d = winShelf; if (!d) return '';
+      var pro = body.classList.contains('pro');
+      var now = Math.floor(Date.now() / 1000);
+      var win = (d.window_hours || 72) * 3600;
+      var open = d.open || [], closed = d.closed || [];
+      var h = '';
+
+      h += '<div class="lm-rail-head">' +
+        '<button type="button" class="lm-rail-collapse" data-rail-collapse aria-expanded="true"' +
+        ' title="Collapse your daily lessons" aria-label="Collapse your daily lessons">' +
+        '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"' +
+        ' stroke-linejoin="round" aria-hidden="true">' +
+        '<rect x="2.2" y="3.6" width="13.6" height="10.8" rx="2.4"/><path d="M7.2 3.6 V14.4"/>' +
+        '<path class="fill" d="M4.6 3.6 H7.2 V14.4 H4.6 A2.4 2.4 0 0 1 2.2 12 V6 A2.4 2.4 0 0 1 4.6 3.6 Z"' +
+        ' fill="currentColor" stroke="none"/></svg></button>' +
+        '<span class="lm-rail-h">Your daily lessons</span>' +
+        '<span class="lm-rail-sub">' +
+          (pro ? 'No windows on your account'
+               : (d.position ? 'Day ' + d.position + ' of the series' : 'Your series so far')) +
+        '</span></div>';
+
+      h += '<div class="lm-rail-scroll">';
+
+      if (open.length) {
+        h += '<div class="lm-rail-grp">' + (pro ? 'Reading now' : 'Open') +
+             ' <span>' + open.length + '</span></div><ol class="lm-rail-rows">';
+        open.forEach(function (r) {
+          var left = Math.max(0, r.closes_at - now);
+          var u = pro ? '' : winUrgency(left);
+          var cur = r.slug === curSlug;
+          var inner = winRing(pro ? 1 : left / win, u, r.finished) +
+            '<span class="lm-rail-tx"><span class="lm-rail-t">' + esc(r.subject) + '</span></span>' +
+            (pro ? '' : '<span class="lm-rail-when">' + esc(winLeft(left)) + '</span>');
+          var attr = ' title="' + esc(winPlace(r)) + '"';
+          h += '<li>' + (cur
+            ? '<span class="lm-rail-row is-current ' + u + '"' + attr + ' aria-current="step">' + inner + '</span>'
+            : '<a class="lm-rail-row ' + u + '" href="/' + esc(r.slug) + '.html"' + attr + '>' + inner + '</a>') + '</li>';
+        });
+        h += '</ol>';
+      }
+
+      if (closed.length) {
+        h += '<div class="lm-rail-grp">Earlier <span>' + closed.length + '</span></div><ol class="lm-rail-rows">';
+        closed.forEach(function (r) {
+          h += '<li><a class="lm-rail-row is-shut' + (r.finished ? ' is-read' : '') + '" href="/' + esc(r.slug) + '.html"' +
+            ' data-shut="' + esc(r.slug) + '">' +
+            '<span class="lm-rail-pad"></span>' +
+            '<span class="lm-rail-tx"><span class="lm-rail-t">' + esc(r.subject) + '</span></span>' +
+            '<span class="lm-rail-state">' + esc(winLabel(r, now)) + '</span>' +
+            (pro ? '' : '<span class="lm-rail-reopen">Reopen with Pro</span>') +
+            '</a></li>';
+        });
+        h += '</ol>';
+      }
+      h += '</div>';
+
+      h += '<div class="lm-rail-mini"><ol>' + open.map(function (r) {
+        var left = Math.max(0, r.closes_at - now);
+        return '<li><a href="/' + esc(r.slug) + '.html" title="' + esc(r.subject) +
+          (pro ? '' : ' \u00b7 ' + winLeft(left)) + '">' +
+          winRing(pro ? 1 : left / win, pro ? '' : winUrgency(left), r.finished) + '</a></li>';
+      }).join('') + '</ol></div>';
+
+      if (!pro && closed.length) {
+        h += '<div class="lm-rail-foot">' + closed.length +
+          (closed.length === 1 ? ' has' : ' have') + ' closed since you started. ' +
+          '<a href="#" data-win-all>Reopen with Pro</a></div>';
+      } else if (pro) {
+        h += '<div class="lm-rail-foot">Nothing in this list expires.</div>';
+      }
+      return h;
+    }
+
+    function winRender() {
+      var rail = app.querySelector('.lm-rail');
+      if (!rail || !winShelf) return;
+      if (!(winShelf.open || []).length && !(winShelf.closed || []).length) { rail.innerHTML = ''; return; }
+      app.classList.add('lm-has-rail');
+      rail.innerHTML = winRailHtml();
+      if (winCollapsed()) {
+        rail.classList.add('is-collapsed');
+        var t = rail.querySelector('[data-rail-collapse]');
+        if (t) {
+          t.setAttribute('aria-expanded', 'false');
+          t.setAttribute('title', 'Show your daily lessons');
+          t.setAttribute('aria-label', 'Show your daily lessons');
+        }
+      }
+      winRenderLine();
+    }
+
+    /* One line under the step dots: when THIS lesson closes, with a hairline
+       that empties across its window. It sits on the row the decision is made
+       on rather than floating, and it never appears for a member who has paid
+       the deadline away. */
+    function winRenderLine() {
+      var el = app.querySelector('.lm-win');
+      if (!el || !winShelf) return;
+      var pro = body.classList.contains('pro');
+      var here = (winShelf.open || []).filter(function (r) { return r.slug === curSlug; })[0];
+      if (pro || !here) { el.hidden = true; el.innerHTML = ''; return; }
+      var now = Math.floor(Date.now() / 1000);
+      var win = (winShelf.window_hours || 72) * 3600;
+      var left = Math.max(0, here.closes_at - now);
+      var closes = new Date(here.closes_at * 1000);
+      var u = winUrgency(left);
+      var says = left < 86400
+        ? 'This lesson <em>closes in ' + (left < 3600
+            ? Math.max(1, Math.round(left / 60)) + ' minutes'
+            : Math.round(left / 3600) + ' hours') + '</em>'
+        : 'This lesson is <em>open until ' + WIN_DOW_FULL[closes.getDay()] + ', ' + winTime(closes) + '</em>';
+      el.hidden = false;
+      el.className = 'lm-win ' + u;
+      el.innerHTML = '<div class="lm-win-bar"><b style="width:' +
+        (Math.min(1, left / win) * 100).toFixed(1) + '%"></b></div>' +
+        '<div class="lm-win-row">' + says + '</div>';
+    }
+    var WIN_DOW_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    /* The Pro moment. A closed lesson in the rail would otherwise navigate to
+       /lesson-locked.html, which throws away the lesson the reader is in the
+       middle of. The click is intercepted and answered in place. */
+    function winProScreen(r, all) {
+      var n = (winShelf.closed || []).length;
+      var others = n - 1;
+      var here = (winShelf.open || []).filter(function (x) { return x.slug === curSlug; })[0];
+      var courseParts = (here && here.parts) || 0;
+      var courseName = (here && here.course_title) || '';
+      // only when it is true: three closed against an eleven part course is not
+      // "more than the whole of" anything, and this is the one screen that
+      // cannot afford a false sentence
+      var bigger = (courseParts && n > courseParts && courseName)
+        ? ' ' + winWord(n) + ' lessons is more than the whole of ' + esc(courseName) + '.' : '';
+      var shut = r ? new Date(r.closes_at * 1000) : null;
+      var when = shut ? winSpoken(shut) : '';
+      return '<div class="lm-pro-card">' +
+        '<div class="lm-pro-top">' +
+          '<h3>' + (all ? winWord(n) + ' have gone this way' : 'Too late for this one') + '</h3>' +
+          (all ? '' : '<div class="lm-pro-what"><b>' + esc(r.subject) + '</b>' +
+            (winPlace(r) ? '<span>' + esc(winPlace(r)) + '</span>' : '') + '</div>') +
+          '<p>' + (all
+            ? 'Daily lessons stay open for three days and then they go, which is fine until it is one you actually wanted. ' +
+              winWord(n) + ' of yours have gone.' + bigger
+            : 'It closed on ' + esc(when) + '. Daily lessons stay open for three days and then they go, ' +
+              'which is fine until it is the one you actually wanted.') + '</p>' +
+          (all ? '' : '<p>' + (others > 0
+            ? winWord(others) + ' other' + (others === 1 ? ' has' : 's have') + ' gone the same way since you started.' + bigger
+            : 'That is the only one so far.') + '</p>') +
+          '<p>Pro takes the clock off all ' + winWord(n) + ', and off everything still to come. ' +
+          'It opens the full tracks as well, though the windows are probably the part you are running into.</p>' +
+        '</div>' +
+        '<div class="lm-pro-bot">' +
+          '<a class="lm-pro-cta" href="/pricing.html">Open every lesson with Pro</a>' +
+          '<p class="lm-pro-fine">14 days to change your mind, no questions.</p>' +
+          '<button type="button" class="lm-pro-skip">Back to your lesson</button>' +
+        '</div></div>';
+    }
+    var WIN_WORDS = ['no', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
+                     'Nine', 'Ten', 'Eleven', 'Twelve'];
+    function winWord(n) { return WIN_WORDS[n] || String(n); }
+    /* "the 21st" is how a date is said out loud; the full date once the month
+       has turned over and the day alone would be ambiguous. */
+    function winSpoken(d) {
+      var now = new Date();
+      if (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear()) {
+        return d.getDate() + ' ' + WIN_MON[d.getMonth()];
+      }
+      var day = d.getDate(), t = ['th', 'st', 'nd', 'rd'][(day % 100 - 20) % 10] ||
+        ['th', 'st', 'nd', 'rd'][day % 100] || 'th';
+      return 'the ' + day + t;
+    }
+    var winOverlay = null;
+    function winClosePro() { if (winOverlay) { winOverlay.remove(); winOverlay = null; } }
+    function winOpenPro(r, all) {
+      winClosePro();
+      var ov = document.createElement('div');
+      ov.className = 'lm-pro';
+      ov.innerHTML = winProScreen(r, all);
+      app.appendChild(ov);
+      winOverlay = ov;
+      try { if (typeof gtag === 'function') gtag('event', 'daily_rail_pro_view', { slug: curSlug }); } catch (e) {}
+      var skip = ov.querySelector('.lm-pro-skip');
+      if (skip) skip.addEventListener('click', winClosePro);
+      ov.addEventListener('click', function (e) { if (e.target === ov) winClosePro(); });
+    }
+
+    function winWire() {
+      var rail = app.querySelector('.lm-rail'); if (!rail) return;
+      rail.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-rail-collapse]');
+        if (t) {
+          e.preventDefault();
+          var now = rail.classList.toggle('is-collapsed');
+          winSetCollapsed(now);
+          t.setAttribute('aria-expanded', String(!now));
+          t.setAttribute('title', (now ? 'Show' : 'Collapse') + ' your daily lessons');
+          t.setAttribute('aria-label', (now ? 'Show' : 'Collapse') + ' your daily lessons');
+          return;
+        }
+        var all = e.target.closest('[data-win-all]');
+        if (all) { e.preventDefault(); winOpenPro(null, true); return; }
+        var row = e.target.closest('[data-shut]');
+        if (row) {
+          if (body.classList.contains('pro')) return;   // Pro follows the link
+          e.preventDefault();
+          var slug = row.getAttribute('data-shut');
+          var r = (winShelf.closed || []).filter(function (x) { return x.slug === slug; })[0];
+          if (r) winOpenPro(r, false);
+        }
+      });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') winClosePro(); });
+    }
+
+    function buildWindowRail() {
+      var tok = null;
+      try { tok = API && API.token && API.token(); } catch (e) {}
+      if (!tok) return;            // signed link on a fresh device: no rail, same as today
+      fetch('/api/me/shelf', { headers: { Authorization: 'Bearer ' + tok } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d) return;
+          winShelf = d;
+          winWire();
+          winRender();
+        }).catch(function () {});
     }
 
     /* ---- breadcrumb (Roadmap > Track > Section > Lesson) + exit target ----
@@ -1007,6 +1325,13 @@
     var fsBtn = app.querySelector('.lm-fs');
     if (fsBtn) fsBtn.addEventListener('click', toggleFs);
     buildRail();
+    // auth-hydrate stamps body.pro after its /api/me call returns, which can
+    // land after the rail has drawn. Repaint once so a Pro member never sees a
+    // countdown they have paid to be rid of. Windowed lessons only.
+    if (windowed) {
+      document.addEventListener('auth-hydrated', function () { if (winShelf) winRender(); });
+      setTimeout(function () { if (winShelf) winRender(); }, 1200);
+    }
 
     // If resuming into a locked region, clamp to the preview.
     if (locked && i >= PREVIEW_STEPS) i = PREVIEW_STEPS - 1;

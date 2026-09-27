@@ -1,16 +1,64 @@
 // GET /api/me/shelf - the signed-in user's windowed-lesson state: which
-// lessons are open right now (their recent seq sends inside the window),
-// their sequence position, and (Phase B) badges. Derived entirely from the
-// send ledger + registry; no stored unlock state exists anywhere.
+// lessons are open right now (their recent seq sends inside the window), which
+// ones have closed behind them, their sequence position, and (Phase B) badges.
+// Derived entirely from the send ledger + registry; no stored unlock state
+// exists anywhere.
+//
+// WINDOWED LESSONS ONLY. Everything here is keyed on the seq send ledger, which
+// exists for the daily emails and nothing else. Track lessons have no rows in
+// it and are not reachable from this endpoint.
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401 } from "../../_lib/errors";
 import { BADGE_DEFS, loadUserBadges, badgeArt, LADDER_MARKS } from "../../_lib/badges";
 import miniCoursesJson from "../../_data/mini-courses.json";
 
-interface Mini { window_hours: number; sequence: Array<{ seq: number; kind: string; subject: string; slug?: string | null; course?: string | null }> }
+import manifestJson from "../../_data/exercise-manifest.json";
+
+interface Mini {
+  window_hours: number;
+  sequence: Array<{ seq: number; kind: string; subject: string; slug?: string | null; course?: string | null }>;
+  courses: Record<string, { title: string; parts: Array<{ part: number; slug?: string | null }> }>;
+}
 const MINI = miniCoursesJson as unknown as Mini;
+
+/* slug -> which course it belongs to and where in it. Built once per isolate. */
+const PLACE: Record<string, { course_title: string; part: number; parts: number }> = {};
+for (const [, c] of Object.entries(MINI.courses || {})) {
+  for (const p of c.parts) {
+    if (p.slug) PLACE[p.slug] = { course_title: c.title, part: p.part, parts: c.parts.length };
+  }
+}
 const WINDOW_SEC = (MINI.window_hours || 72) * 3600;
+const HUBS = (manifestJson as unknown as { hubs: Record<string, Record<string, string>> }).hubs;
+
+/* Which of these lessons the reader actually finished.
+ *
+ * Same rule as the mini-course badge (functions/_lib/badges-mini.ts): every
+ * gated exercise in the lesson has a passing attempt. Deliberately the same, so
+ * the rail and the badge can never tell the reader two different stories. One
+ * grouped query rather than one per lesson.
+ *
+ * A lesson with no gated exercises reports NOT finished here. The badge code
+ * counts it as done because it is asking whether a course can be completed;
+ * this is asking what this reader did, and "they opened a page" is not an
+ * answer we hold. No built windowed lesson is ungated today, so the branch is
+ * a guard rather than a behaviour.
+ */
+async function finishedSlugs(DB: D1Database, userId: string, slugs: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!slugs.length) return out;
+  const rows = (await DB.prepare(
+    `SELECT hub_slug, COUNT(DISTINCT exercise_id) AS n FROM exercise_attempts
+     WHERE user_id = ?1 AND passed = 1 GROUP BY hub_slug`,
+  ).bind(userId).all<{ hub_slug: string; n: number }>()).results ?? [];
+  const passed = new Map(rows.map((r) => [r.hub_slug, Number(r.n || 0)]));
+  for (const slug of slugs) {
+    const need = Object.keys(HUBS[slug] || {}).length;
+    if (need > 0 && (passed.get(slug) ?? 0) >= need) out.add(slug);
+  }
+  return out;
+}
 
 
 /* The milestone ladder for the dashboard.
@@ -85,17 +133,31 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     if (Number.isFinite(n)) sent.set(n, r.sent_at);
   }
   const open = [];
+  const closed = [];
   for (const it of MINI.sequence) {
     if (it.kind !== "lesson") continue;
     const at = sent.get(it.seq);
-    if (at !== undefined && now - at < WINDOW_SEC) {
-      open.push({
-        seq: it.seq, subject: it.subject, slug: it.slug ?? null,
-        course: it.course ?? null, closes_at: at + WINDOW_SEC,
-      });
-    }
+    if (at === undefined) continue;                  // never sent to this reader
+    const place = it.slug ? PLACE[it.slug] : undefined;
+    const row = {
+      seq: it.seq, subject: it.subject, slug: it.slug ?? null,
+      course: it.course ?? null, closes_at: at + WINDOW_SEC, sent_at: at,
+      course_title: place?.course_title ?? null,
+      part: place?.part ?? null, parts: place?.parts ?? null,
+    };
+    if (now - at < WINDOW_SEC) open.push(row);
+    else closed.push(row);
   }
-  open.sort((a, b) => b.seq - a.seq);
+  open.sort((a, b) => a.closes_at - b.closes_at);    // soonest deadline first
+  closed.sort((a, b) => b.closes_at - a.closes_at);  // most recently shut first
+
+  // one query for both lists
+  const fin = await finishedSlugs(
+    context.env.DB, u.id,
+    [...open, ...closed].map((r) => r.slug).filter((x): x is string => !!x),
+  ).catch(() => new Set<string>());
+  const withFin = <T extends { slug: string | null }>(r: T) =>
+    ({ ...r, finished: !!(r.slug && fin.has(r.slug)) });
   const position = rows.length ? Math.max(...[...sent.keys()]) : null;
   const badges = (await context.env.DB.prepare(
     "SELECT badge, public_id, earned_at FROM badges_earned WHERE user_id = ?1 ORDER BY earned_at DESC",
@@ -106,5 +168,10 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   );
   const milestones = await ladderFor(context.env.DB, u.id, streakBest)
     .catch(() => null);   // the section disappears, the dashboard does not
-  return json({ open, position, badges, milestones });
+  return json({
+    open: open.map(withFin),
+    closed: closed.map(withFin),
+    window_hours: MINI.window_hours || 72,
+    position, badges, milestones,
+  });
 };
