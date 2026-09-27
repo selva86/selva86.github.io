@@ -1,0 +1,734 @@
+---
+title: "Machine Learning and Deep Forecasting Lesson 3: Boosted Trees for Forecasting"
+slug: "Boosted-Trees-for-Forecasting"
+description: "Forecast 24 months of airline passengers with gbm on lagged features, see why trees flatten a trend, and compare the result with seasonal naive and ETS."
+keywords: "boosted trees forecasting, gradient boosting time series, gbm, lag features, recursive forecast, seasonal difference, relative influence, seasonal naive, ETS, rolling origin, R"
+mathjax: false
+webr: true
+date: "2026-09-27"
+post_type: "LESSON"
+course_id: "ts-ml"
+course_title: "Machine Learning and Deep Forecasting"
+course_lesson: "3"
+course_total: "7"
+course_landing: "Machine-Learning-and-Deep-Forecasting-Course.html"
+course_prev: "Machine-Learning-Forecasting-with-modeltime"
+course_next: "Neural-Network-Forecasts-NNETAR"
+curriculum_id: "5.130.3"
+lesson_access: "pro"
+catalog_blurb: "How boosted trees forecast a trending series, and how to compare them fairly."
+---
+
+=== step === cover
+## Boosted Trees for Forecasting
+
+Today let's use boosted trees to forecast a monthly time series, and then check how they do against simpler forecasting methods.
+
+Say you plan capacity for an airline, and you need to know how many passengers to expect each month for the next two years. The data is international airline passengers, in thousands, one number per month from Jan 1949 to Dec 1960. That is 144 months.
+
+The line climbs from 112 in Jan 1949 to 622 in Jul 1960, and the swing within each year gets wider as it climbs.
+
+To test a forecast honestly, we hold back the last 24 months. We fit on the first 120 months, up to Dec 1958, forecast the 24 months of 1959 and 1960, and then score the forecast against what really happened.
+
+::widget chart-plotter {"data":[{"x":1949,"y":112,"fill":"train"},{"x":1949.083,"y":118,"fill":"train"},{"x":1949.167,"y":132,"fill":"train"},{"x":1949.25,"y":129,"fill":"train"},{"x":1949.333,"y":121,"fill":"train"},{"x":1949.417,"y":135,"fill":"train"},{"x":1949.5,"y":148,"fill":"train"},{"x":1949.583,"y":148,"fill":"train"},{"x":1949.667,"y":136,"fill":"train"},{"x":1949.75,"y":119,"fill":"train"},{"x":1949.833,"y":104,"fill":"train"},{"x":1949.917,"y":118,"fill":"train"},{"x":1950,"y":115,"fill":"train"},{"x":1950.083,"y":126,"fill":"train"},{"x":1950.167,"y":141,"fill":"train"},{"x":1950.25,"y":135,"fill":"train"},{"x":1950.333,"y":125,"fill":"train"},{"x":1950.417,"y":149,"fill":"train"},{"x":1950.5,"y":170,"fill":"train"},{"x":1950.583,"y":170,"fill":"train"},{"x":1950.667,"y":158,"fill":"train"},{"x":1950.75,"y":133,"fill":"train"},{"x":1950.833,"y":114,"fill":"train"},{"x":1950.917,"y":140,"fill":"train"},{"x":1951,"y":145,"fill":"train"},{"x":1951.083,"y":150,"fill":"train"},{"x":1951.167,"y":178,"fill":"train"},{"x":1951.25,"y":163,"fill":"train"},{"x":1951.333,"y":172,"fill":"train"},{"x":1951.417,"y":178,"fill":"train"},{"x":1951.5,"y":199,"fill":"train"},{"x":1951.583,"y":199,"fill":"train"},{"x":1951.667,"y":184,"fill":"train"},{"x":1951.75,"y":162,"fill":"train"},{"x":1951.833,"y":146,"fill":"train"},{"x":1951.917,"y":166,"fill":"train"},{"x":1952,"y":171,"fill":"train"},{"x":1952.083,"y":180,"fill":"train"},{"x":1952.167,"y":193,"fill":"train"},{"x":1952.25,"y":181,"fill":"train"},{"x":1952.333,"y":183,"fill":"train"},{"x":1952.417,"y":218,"fill":"train"},{"x":1952.5,"y":230,"fill":"train"},{"x":1952.583,"y":242,"fill":"train"},{"x":1952.667,"y":209,"fill":"train"},{"x":1952.75,"y":191,"fill":"train"},{"x":1952.833,"y":172,"fill":"train"},{"x":1952.917,"y":194,"fill":"train"},{"x":1953,"y":196,"fill":"train"},{"x":1953.083,"y":196,"fill":"train"},{"x":1953.167,"y":236,"fill":"train"},{"x":1953.25,"y":235,"fill":"train"},{"x":1953.333,"y":229,"fill":"train"},{"x":1953.417,"y":243,"fill":"train"},{"x":1953.5,"y":264,"fill":"train"},{"x":1953.583,"y":272,"fill":"train"},{"x":1953.667,"y":237,"fill":"train"},{"x":1953.75,"y":211,"fill":"train"},{"x":1953.833,"y":180,"fill":"train"},{"x":1953.917,"y":201,"fill":"train"},{"x":1954,"y":204,"fill":"train"},{"x":1954.083,"y":188,"fill":"train"},{"x":1954.167,"y":235,"fill":"train"},{"x":1954.25,"y":227,"fill":"train"},{"x":1954.333,"y":234,"fill":"train"},{"x":1954.417,"y":264,"fill":"train"},{"x":1954.5,"y":302,"fill":"train"},{"x":1954.583,"y":293,"fill":"train"},{"x":1954.667,"y":259,"fill":"train"},{"x":1954.75,"y":229,"fill":"train"},{"x":1954.833,"y":203,"fill":"train"},{"x":1954.917,"y":229,"fill":"train"},{"x":1955,"y":242,"fill":"train"},{"x":1955.083,"y":233,"fill":"train"},{"x":1955.167,"y":267,"fill":"train"},{"x":1955.25,"y":269,"fill":"train"},{"x":1955.333,"y":270,"fill":"train"},{"x":1955.417,"y":315,"fill":"train"},{"x":1955.5,"y":364,"fill":"train"},{"x":1955.583,"y":347,"fill":"train"},{"x":1955.667,"y":312,"fill":"train"},{"x":1955.75,"y":274,"fill":"train"},{"x":1955.833,"y":237,"fill":"train"},{"x":1955.917,"y":278,"fill":"train"},{"x":1956,"y":284,"fill":"train"},{"x":1956.083,"y":277,"fill":"train"},{"x":1956.167,"y":317,"fill":"train"},{"x":1956.25,"y":313,"fill":"train"},{"x":1956.333,"y":318,"fill":"train"},{"x":1956.417,"y":374,"fill":"train"},{"x":1956.5,"y":413,"fill":"train"},{"x":1956.583,"y":405,"fill":"train"},{"x":1956.667,"y":355,"fill":"train"},{"x":1956.75,"y":306,"fill":"train"},{"x":1956.833,"y":271,"fill":"train"},{"x":1956.917,"y":306,"fill":"train"},{"x":1957,"y":315,"fill":"train"},{"x":1957.083,"y":301,"fill":"train"},{"x":1957.167,"y":356,"fill":"train"},{"x":1957.25,"y":348,"fill":"train"},{"x":1957.333,"y":355,"fill":"train"},{"x":1957.417,"y":422,"fill":"train"},{"x":1957.5,"y":465,"fill":"train"},{"x":1957.583,"y":467,"fill":"train"},{"x":1957.667,"y":404,"fill":"train"},{"x":1957.75,"y":347,"fill":"train"},{"x":1957.833,"y":305,"fill":"train"},{"x":1957.917,"y":336,"fill":"train"},{"x":1958,"y":340,"fill":"train"},{"x":1958.083,"y":318,"fill":"train"},{"x":1958.167,"y":362,"fill":"train"},{"x":1958.25,"y":348,"fill":"train"},{"x":1958.333,"y":363,"fill":"train"},{"x":1958.417,"y":435,"fill":"train"},{"x":1958.5,"y":491,"fill":"train"},{"x":1958.583,"y":505,"fill":"train"},{"x":1958.667,"y":404,"fill":"train"},{"x":1958.75,"y":359,"fill":"train"},{"x":1958.833,"y":310,"fill":"train"},{"x":1958.917,"y":337,"fill":"train"},{"x":1959,"y":360,"fill":"test"},{"x":1959.083,"y":342,"fill":"test"},{"x":1959.167,"y":406,"fill":"test"},{"x":1959.25,"y":396,"fill":"test"},{"x":1959.333,"y":420,"fill":"test"},{"x":1959.417,"y":472,"fill":"test"},{"x":1959.5,"y":548,"fill":"test"},{"x":1959.583,"y":559,"fill":"test"},{"x":1959.667,"y":463,"fill":"test"},{"x":1959.75,"y":407,"fill":"test"},{"x":1959.833,"y":362,"fill":"test"},{"x":1959.917,"y":405,"fill":"test"},{"x":1960,"y":417,"fill":"test"},{"x":1960.083,"y":391,"fill":"test"},{"x":1960.167,"y":419,"fill":"test"},{"x":1960.25,"y":461,"fill":"test"},{"x":1960.333,"y":472,"fill":"test"},{"x":1960.417,"y":535,"fill":"test"},{"x":1960.5,"y":622,"fill":"test"},{"x":1960.583,"y":606,"fill":"test"},{"x":1960.667,"y":508,"fill":"test"},{"x":1960.75,"y":461,"fill":"test"},{"x":1960.833,"y":390,"fill":"test"},{"x":1960.917,"y":432,"fill":"test"}],"geoms":["line"],"x":"year","y":"passengers","code":{"line":"ggplot(df, aes(year, passengers, colour = group)) + geom_line()"}}
+
+The chart is the whole series. One colour is the 120 months we fit on, and the other is the 24 months we forecast.
+
+=== step === concept
+## Turning a monthly series into a table of lags
+
+Gradient boosting is a regression method. It takes a table where every row has feature columns and a target, and it learns to predict the target from the features. But a time series is one column of numbers, so the first job is to build the features out of the series itself.
+
+The features are earlier values of the series, called lags. `lag_1` is the passengers count one month earlier, `lag_2` two months earlier, `lag_3` three months earlier and `lag_12` the same month one year earlier. We also add `month`, from 1 for Jan to 12 for Dec, so the trees can pick up the yearly pattern. The target `y` is the passengers count of the row's own month.
+
+Recent months (lags 1 to 3) say where the series is heading, and `lag_12` and `month` say where in the year we are. Every feature is a value from an earlier month, so no row's features contain its own target.
+
+This block builds the table, one row per month, and prints the first 16 rows.
+
+```r
+# Build one row per month, with the months before it as columns
+passengers <- as.numeric(AirPassengers)
+
+lag_features <- function(series) {
+  n <- length(series)
+  data.frame(
+    y      = series,
+    month  = rep(1:12, length.out = n),
+    lag_1  = c(rep(NA, 1),  series[1:(n - 1)]),
+    lag_2  = c(rep(NA, 2),  series[1:(n - 2)]),
+    lag_3  = c(rep(NA, 3),  series[1:(n - 3)]),
+    lag_12 = c(rep(NA, 12), series[1:(n - 12)])
+  )
+}
+
+lag_table <- lag_features(passengers)
+lag_table[1:16, ]
+#>      y month lag_1 lag_2 lag_3 lag_12
+#> 1  112     1    NA    NA    NA     NA
+#> 2  118     2   112    NA    NA     NA
+#> 3  132     3   118   112    NA     NA
+#> 4  129     4   132   118   112     NA
+#> 5  121     5   129   132   118     NA
+#> 6  135     6   121   129   132     NA
+#> 7  148     7   135   121   129     NA
+#> 8  148     8   148   135   121     NA
+#> 9  136     9   148   148   135     NA
+#> 10 119    10   136   148   148     NA
+#> 11 104    11   119   136   148     NA
+#> 12 118    12   104   119   136     NA
+#> 13 115     1   118   104   119    112
+#> 14 126     2   115   118   104    118
+#> 15 141     3   126   115   118    132
+#> 16 135     4   141   126   115    129
+```
+
+Look at row 13, which is Jan 1950. Its target is 115, and its features are `lag_1` = 118 (Dec 1949), `lag_2` = 104 (Nov 1949), `lag_3` = 119 (Oct 1949) and `lag_12` = 112 (Jan 1949).
+
+The first 12 rows have NA in `lag_12`, because there is no month 12 months before Jan 1949. NA means the value is not available. We drop those rows so that every training row has all four lags, and the usable rows start at Jan 1950.
+
+Now we split the usable rows by date.
+
+```r
+# Keep the months that have all four lags, then split them by date
+train <- lag_table[13:120, ]
+test  <- lag_table[121:144, ]
+c(train = nrow(train), test = nrow(test))
+#> train  test
+#>   108    24
+```
+
+That gives 108 training rows (Jan 1950 to Dec 1958) and 24 test rows (Jan 1959 to Dec 1960). The test rows are the months we forecast and score at the end, so we fit and tune nothing on them. And `lag_features()` works on any series, so we can reuse it later.
+
+=== step === widget
+## How gradient boosting builds a model tree by tree
+
+Gradient boosting builds its model out of many small regression trees, added one at a time. A regression tree splits the rows into groups by asking yes or no questions about the features, like "is `lag_12` below 300?", and predicts the mean of the target in each group. Each group is called a leaf.
+
+Boosting then works like this:
+
+1. Start with one prediction for every row: the mean of the target.
+2. Compute the residuals, which are the actual values minus the current predictions.
+3. Fit a small tree to those residuals.
+4. Add the tree's output to the current predictions, after multiplying it by a small number called the shrinkage, also known as the learning rate.
+5. Repeat from the residuals until there are as many trees as you asked for, which is the `n.trees` setting.
+
+Each tree is fit to what the model still gets wrong, so the residuals shrink as trees are added. The shrinkage keeps every correction small, so the model improves in small steps. And `interaction.depth = 2` limits each tree to at most 2 splits.
+
+The widget below runs this recipe on its own 30 points, a wave on a rising line. Read its x-axis as the month index and its y-axis as passengers. Each round adds one tree with a single split, and the shrinkage is 0.3.
+
+::widget gradient-boosting {"rounds": 0}
+
+The readout gives the RMSE, the root mean squared error. It is the square root of the mean squared residual, so it is in the units of the target. At round 0 the line is just the mean and the RMSE is 0.879. Drag the slider to round 16 and it falls to 0.426.
+
+Every round lowers the error on the rows the trees are fit to. Let's now fit 300 trees to the lag table.
+
+```r
+# Fit 300 boosted trees on the 108 training rows and check the error on those rows
+library(gbm)
+set.seed(42)
+fit_300 <- gbm(y ~ ., data = train, distribution = "gaussian",
+               n.trees = 300, shrinkage = 0.1, interaction.depth = 2,
+               n.minobsinnode = 10, bag.fraction = 1)
+in_sample <- predict(fit_300, train, n.trees = 300)
+round(sqrt(mean((train$y - in_sample)^2)), 1)
+#> [1] 8.2
+round(c(mean_of_target = mean(train$y), starting_prediction = fit_300$initF), 1)
+#>      mean_of_target starting_prediction
+#>               259.2               259.2
+```
+
+The arguments of that call mean this:
+
+- `distribution = "gaussian"` uses squared error, so the residuals are actual minus predicted.
+- `n.trees = 300` and `shrinkage = 0.1` are the number of trees and the size of each correction.
+- `interaction.depth = 2` allows at most 2 splits per tree.
+- `n.minobsinnode = 10` means every leaf must hold at least 10 rows.
+- `bag.fraction = 1` gives every tree all the rows, so there is no random row sampling.
+
+`set.seed(42)` is there so your numbers match mine. The starting prediction `initF` is the mean of the target, 259.2, exactly as in the recipe. And the RMSE on the training rows is 8.2 thousand passengers.
+
+That 8.2 is an error on rows the trees were fit to. It says how closely the trees fit those months, and nothing yet about how they forecast.
+
+=== step === widget
+## Choosing the number of trees with the latest training months
+
+The next question is how many trees to fit, and the training error cannot answer it. Training error keeps falling as trees are added, because each tree is fit to the rows it is scored on. But the error on months the trees have not seen falls at first, bottoms out and then rises.
+
+The widget below draws both curves from its own built-in numbers. Read its x-axis, the boosting rounds, as the number of trees. Read its train curve as the error on the months the trees are fit to, and its validation curve as the error on months held back.
+
+::widget learning-curve {"rounds": 40}
+
+The slider starts at round 6. Move it to round 12 and the validation error is at its lowest, 0.65, while the training error is 0.37. Move it to round 40 and the training error keeps falling to 0.23, but the validation error climbs back to 0.90. Past round 12 the extra trees only fit the training months more tightly, and that does not help on months they have not seen.
+
+For a forecast, the held-back months must come after the months the trees are fit on. In `gbm`, `train.fraction = 96 / 108` fits the trees on the first 96 rows and scores the last 12 rows (Jan to Dec 1958) in time order. A shuffled split would fit trees on months that come after the months it scores, and a real forecast never has that.
+
+This block fits 300 trees that way. Then `gbm.perf(method = "test")` returns the number of trees with the lowest validation error.
+
+```r
+# Fit on the first 96 rows, score the last 12 in time order, and pick the tree count
+set.seed(42)
+fit_probe <- gbm(y ~ ., data = train, distribution = "gaussian",
+                 n.trees = 300, shrinkage = 0.1, interaction.depth = 2,
+                 n.minobsinnode = 10, bag.fraction = 1,
+                 train.fraction = 96 / 108)
+best_level <- gbm.perf(fit_probe, method = "test", plot.it = FALSE)
+best_level
+#> [1] 256
+```
+
+So 256 of the 300 trees give the lowest error on Jan to Dec 1958. Let's compare that with using all 300.
+
+```r
+# Compare training and validation RMSE at the chosen count and at 300 trees
+tree_counts <- c(best_level, 300)
+data.frame(
+  trees           = tree_counts,
+  train_rmse      = round(sqrt(fit_probe$train.error[tree_counts]), 1),
+  validation_rmse = round(sqrt(fit_probe$valid.error[tree_counts]), 1)
+)
+#>   trees train_rmse validation_rmse
+#> 1   256        8.6            39.5
+#> 2   300        8.1            39.6
+```
+
+The training RMSE keeps falling, from 8.6 to 8.1, while the validation RMSE hardly moves: 39.5 at 256 trees and 39.6 at 300. So past the minimum the extra trees add nothing on the validation months, and 256 is the number to use.
+
+The validation RMSE is far above the training RMSE for a simple reason. Those 12 months are ones the trees never saw, and 1958 sits higher than most of the months before it.
+
+Two sets of months are in play, and they do different jobs. The validation months (1958) choose the number of trees. The test months (1959 and 1960) stay out of that choice and are used only for the final score.
+
+The last block refits on all 108 training rows with 256 trees.
+
+```r
+# Refit on all 108 training rows with the chosen number of trees
+set.seed(42)
+fit_level <- gbm(y ~ ., data = train, distribution = "gaussian",
+                 n.trees = best_level, shrinkage = 0.1, interaction.depth = 2,
+                 n.minobsinnode = 10, bag.fraction = 1)
+fit_level$n.trees
+#> [1] 256
+```
+
+=== step === quiz
+## Quick check: how many trees should the final model have?
+
+In the boosting widget the RMSE fell at every round. In the learning curve widget the training error kept falling, but the validation error was lowest at round 12. A colleague says the model should get as many trees as possible. Which rule should pick the number of trees?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- The number of trees with the lowest error on the training months, because more trees always fit those months better. ::no
+- The number of trees with the lowest error on the 1959 and 1960 test months. ::no
+- The number of trees with the lowest error on validation months that come after the months the trees were fit on. ::ok Yes. The training error can only ever say to add more trees. Validation months that come after the training months copy the real situation, where the model is fit on the past and used on the future.
+- The number of trees with the lowest error on validation rows drawn at random from all the months. ::no The number of trees should be chosen on validation months that come after the months the trees were fit on. The training error keeps falling with every tree, so it always says to add more. The test months have to stay out of the choice so the final score is honest. And rows drawn at random would score some months with trees that were fit on later months, which a real forecast never has.
+
+=== step === concept
+## Recursive forecasts: predicting 24 months one month at a time
+
+Each row of the lag table predicts one month from the months before it. So the forecast for Jan 1959 can use real lags: Dec, Nov and Oct 1958 for `lag_1` to `lag_3`, and Jan 1958 for `lag_12`.
+
+But the forecast for Feb 1959 needs `lag_1`, the Jan 1959 count, and that has not happened at the time of the forecast. So we use our own Jan 1959 forecast in its place. The same goes for every later month, until we reach Dec 1960. This is called a **recursive multi-step forecast**, because each forecast is fed back in as a lag for the next one.
+
+This function does it. Its arguments are the fitted model, the number of trees to use, the known months, and how many months to forecast.
+
+```r
+# Write a helper that forecasts one month at a time and feeds each forecast back in as a lag
+boosted_forecast <- function(fit, n_trees, series, h = 24) {
+  values <- series
+  for (i in 1:h) {
+    next_index <- length(values) + 1
+    new_row <- data.frame(
+      month  = (next_index - 1) %% 12 + 1,
+      lag_1  = values[next_index - 1],
+      lag_2  = values[next_index - 2],
+      lag_3  = values[next_index - 3],
+      lag_12 = values[next_index - 12]
+    )
+    values <- c(values, predict(fit, new_row, n.trees = n_trees))
+  }
+  values[(length(series) + 1):(length(series) + h)]
+}
+```
+
+Let's use it on the 120 training months. Because the target is the passengers count itself, the level of the series, we call this the level model.
+
+We score the forecast with two metrics: the RMSE, and the MAE, the mean absolute error. The MAE is the average size of the misses. The RMSE squares the misses before averaging, so it weighs big misses more. Both are in thousands of passengers.
+
+```r
+# Forecast Jan 1959 to Dec 1960 from the 120 training months and score it
+rmse <- function(error) sqrt(mean(error^2))
+mae  <- function(error) mean(abs(error))
+
+actual         <- passengers[121:144]
+level_forecast <- boosted_forecast(fit_level, best_level, passengers[1:120])
+level_error    <- actual - level_forecast
+
+round(c(RMSE = rmse(level_error), MAE = mae(level_error)), 1)
+#> RMSE  MAE
+#> 74.1 53.9
+```
+
+The level model, with 256 trees, misses by 74.1 thousand passengers on the RMSE and by 53.9 on the MAE. To see where the misses come from, we compare the range of the forecast with the range of the actual months and of the training months.
+
+```r
+# Compare the range of the forecast with the range of the actual and training months
+ranges <- rbind(
+  forecast = range(level_forecast),
+  actual   = range(actual),
+  training = range(passengers[1:120])
+)
+colnames(ranges) <- c("min", "max")
+round(ranges, 1)
+#>            min   max
+#> forecast 352.3 462.7
+#> actual   342.0 622.0
+#> training 104.0 505.0
+```
+
+The forecast stays between 352.3 and 462.7. The actual months run from 342 up to 622, and the training months top out at 505.
+
+The chart draws the actual months and the level model's forecast.
+
+::widget chart-plotter {"data":[{"x":1949,"y":112,"fill":"actual"},{"x":1949.083,"y":118,"fill":"actual"},{"x":1949.167,"y":132,"fill":"actual"},{"x":1949.25,"y":129,"fill":"actual"},{"x":1949.333,"y":121,"fill":"actual"},{"x":1949.417,"y":135,"fill":"actual"},{"x":1949.5,"y":148,"fill":"actual"},{"x":1949.583,"y":148,"fill":"actual"},{"x":1949.667,"y":136,"fill":"actual"},{"x":1949.75,"y":119,"fill":"actual"},{"x":1949.833,"y":104,"fill":"actual"},{"x":1949.917,"y":118,"fill":"actual"},{"x":1950,"y":115,"fill":"actual"},{"x":1950.083,"y":126,"fill":"actual"},{"x":1950.167,"y":141,"fill":"actual"},{"x":1950.25,"y":135,"fill":"actual"},{"x":1950.333,"y":125,"fill":"actual"},{"x":1950.417,"y":149,"fill":"actual"},{"x":1950.5,"y":170,"fill":"actual"},{"x":1950.583,"y":170,"fill":"actual"},{"x":1950.667,"y":158,"fill":"actual"},{"x":1950.75,"y":133,"fill":"actual"},{"x":1950.833,"y":114,"fill":"actual"},{"x":1950.917,"y":140,"fill":"actual"},{"x":1951,"y":145,"fill":"actual"},{"x":1951.083,"y":150,"fill":"actual"},{"x":1951.167,"y":178,"fill":"actual"},{"x":1951.25,"y":163,"fill":"actual"},{"x":1951.333,"y":172,"fill":"actual"},{"x":1951.417,"y":178,"fill":"actual"},{"x":1951.5,"y":199,"fill":"actual"},{"x":1951.583,"y":199,"fill":"actual"},{"x":1951.667,"y":184,"fill":"actual"},{"x":1951.75,"y":162,"fill":"actual"},{"x":1951.833,"y":146,"fill":"actual"},{"x":1951.917,"y":166,"fill":"actual"},{"x":1952,"y":171,"fill":"actual"},{"x":1952.083,"y":180,"fill":"actual"},{"x":1952.167,"y":193,"fill":"actual"},{"x":1952.25,"y":181,"fill":"actual"},{"x":1952.333,"y":183,"fill":"actual"},{"x":1952.417,"y":218,"fill":"actual"},{"x":1952.5,"y":230,"fill":"actual"},{"x":1952.583,"y":242,"fill":"actual"},{"x":1952.667,"y":209,"fill":"actual"},{"x":1952.75,"y":191,"fill":"actual"},{"x":1952.833,"y":172,"fill":"actual"},{"x":1952.917,"y":194,"fill":"actual"},{"x":1953,"y":196,"fill":"actual"},{"x":1953.083,"y":196,"fill":"actual"},{"x":1953.167,"y":236,"fill":"actual"},{"x":1953.25,"y":235,"fill":"actual"},{"x":1953.333,"y":229,"fill":"actual"},{"x":1953.417,"y":243,"fill":"actual"},{"x":1953.5,"y":264,"fill":"actual"},{"x":1953.583,"y":272,"fill":"actual"},{"x":1953.667,"y":237,"fill":"actual"},{"x":1953.75,"y":211,"fill":"actual"},{"x":1953.833,"y":180,"fill":"actual"},{"x":1953.917,"y":201,"fill":"actual"},{"x":1954,"y":204,"fill":"actual"},{"x":1954.083,"y":188,"fill":"actual"},{"x":1954.167,"y":235,"fill":"actual"},{"x":1954.25,"y":227,"fill":"actual"},{"x":1954.333,"y":234,"fill":"actual"},{"x":1954.417,"y":264,"fill":"actual"},{"x":1954.5,"y":302,"fill":"actual"},{"x":1954.583,"y":293,"fill":"actual"},{"x":1954.667,"y":259,"fill":"actual"},{"x":1954.75,"y":229,"fill":"actual"},{"x":1954.833,"y":203,"fill":"actual"},{"x":1954.917,"y":229,"fill":"actual"},{"x":1955,"y":242,"fill":"actual"},{"x":1955.083,"y":233,"fill":"actual"},{"x":1955.167,"y":267,"fill":"actual"},{"x":1955.25,"y":269,"fill":"actual"},{"x":1955.333,"y":270,"fill":"actual"},{"x":1955.417,"y":315,"fill":"actual"},{"x":1955.5,"y":364,"fill":"actual"},{"x":1955.583,"y":347,"fill":"actual"},{"x":1955.667,"y":312,"fill":"actual"},{"x":1955.75,"y":274,"fill":"actual"},{"x":1955.833,"y":237,"fill":"actual"},{"x":1955.917,"y":278,"fill":"actual"},{"x":1956,"y":284,"fill":"actual"},{"x":1956.083,"y":277,"fill":"actual"},{"x":1956.167,"y":317,"fill":"actual"},{"x":1956.25,"y":313,"fill":"actual"},{"x":1956.333,"y":318,"fill":"actual"},{"x":1956.417,"y":374,"fill":"actual"},{"x":1956.5,"y":413,"fill":"actual"},{"x":1956.583,"y":405,"fill":"actual"},{"x":1956.667,"y":355,"fill":"actual"},{"x":1956.75,"y":306,"fill":"actual"},{"x":1956.833,"y":271,"fill":"actual"},{"x":1956.917,"y":306,"fill":"actual"},{"x":1957,"y":315,"fill":"actual"},{"x":1957.083,"y":301,"fill":"actual"},{"x":1957.167,"y":356,"fill":"actual"},{"x":1957.25,"y":348,"fill":"actual"},{"x":1957.333,"y":355,"fill":"actual"},{"x":1957.417,"y":422,"fill":"actual"},{"x":1957.5,"y":465,"fill":"actual"},{"x":1957.583,"y":467,"fill":"actual"},{"x":1957.667,"y":404,"fill":"actual"},{"x":1957.75,"y":347,"fill":"actual"},{"x":1957.833,"y":305,"fill":"actual"},{"x":1957.917,"y":336,"fill":"actual"},{"x":1958,"y":340,"fill":"actual"},{"x":1958.083,"y":318,"fill":"actual"},{"x":1958.167,"y":362,"fill":"actual"},{"x":1958.25,"y":348,"fill":"actual"},{"x":1958.333,"y":363,"fill":"actual"},{"x":1958.417,"y":435,"fill":"actual"},{"x":1958.5,"y":491,"fill":"actual"},{"x":1958.583,"y":505,"fill":"actual"},{"x":1958.667,"y":404,"fill":"actual"},{"x":1958.75,"y":359,"fill":"actual"},{"x":1958.833,"y":310,"fill":"actual"},{"x":1958.917,"y":337,"fill":"actual"},{"x":1959,"y":360,"fill":"actual"},{"x":1959.083,"y":342,"fill":"actual"},{"x":1959.167,"y":406,"fill":"actual"},{"x":1959.25,"y":396,"fill":"actual"},{"x":1959.333,"y":420,"fill":"actual"},{"x":1959.417,"y":472,"fill":"actual"},{"x":1959.5,"y":548,"fill":"actual"},{"x":1959.583,"y":559,"fill":"actual"},{"x":1959.667,"y":463,"fill":"actual"},{"x":1959.75,"y":407,"fill":"actual"},{"x":1959.833,"y":362,"fill":"actual"},{"x":1959.917,"y":405,"fill":"actual"},{"x":1960,"y":417,"fill":"actual"},{"x":1960.083,"y":391,"fill":"actual"},{"x":1960.167,"y":419,"fill":"actual"},{"x":1960.25,"y":461,"fill":"actual"},{"x":1960.333,"y":472,"fill":"actual"},{"x":1960.417,"y":535,"fill":"actual"},{"x":1960.5,"y":622,"fill":"actual"},{"x":1960.583,"y":606,"fill":"actual"},{"x":1960.667,"y":508,"fill":"actual"},{"x":1960.75,"y":461,"fill":"actual"},{"x":1960.833,"y":390,"fill":"actual"},{"x":1960.917,"y":432,"fill":"actual"},{"x":1959,"y":357.9,"fill":"boosted, level target"},{"x":1959.083,"y":352.3,"fill":"boosted, level target"},{"x":1959.167,"y":388.5,"fill":"boosted, level target"},{"x":1959.25,"y":396.7,"fill":"boosted, level target"},{"x":1959.333,"y":462.7,"fill":"boosted, level target"},{"x":1959.417,"y":434.3,"fill":"boosted, level target"},{"x":1959.5,"y":435.3,"fill":"boosted, level target"},{"x":1959.583,"y":435.4,"fill":"boosted, level target"},{"x":1959.667,"y":409.1,"fill":"boosted, level target"},{"x":1959.75,"y":409.1,"fill":"boosted, level target"},{"x":1959.833,"y":364.6,"fill":"boosted, level target"},{"x":1959.917,"y":354.8,"fill":"boosted, level target"},{"x":1960,"y":388,"fill":"boosted, level target"},{"x":1960.083,"y":426,"fill":"boosted, level target"},{"x":1960.167,"y":462.7,"fill":"boosted, level target"},{"x":1960.25,"y":426.8,"fill":"boosted, level target"},{"x":1960.333,"y":426.8,"fill":"boosted, level target"},{"x":1960.417,"y":434.3,"fill":"boosted, level target"},{"x":1960.5,"y":435.3,"fill":"boosted, level target"},{"x":1960.583,"y":435.4,"fill":"boosted, level target"},{"x":1960.667,"y":409.1,"fill":"boosted, level target"},{"x":1960.75,"y":409.1,"fill":"boosted, level target"},{"x":1960.833,"y":410.4,"fill":"boosted, level target"},{"x":1960.917,"y":410.4,"fill":"boosted, level target"}],"geoms":["line"],"x":"year","y":"passengers","code":{"line":"ggplot(df, aes(year, passengers, colour = group)) + geom_line()"}}
+
+The forecast line stops well short of the actual climb in 1960. To fix that, we first need to know why a boosted tree cannot follow a trend.
+
+=== step === concept
+## What a boosted tree predicts outside its training range
+
+A regression tree predicts the mean of the training targets that land in one leaf. In boosting, each leaf holds a mean of residuals instead, and the model's prediction is the starting mean plus the shrunken leaf values from every tree. So every number the model can output is built from leaf values that were fitted on the training rows.
+
+Now think about a feature that keeps growing, like the month index: 1 for Jan 1949, 120 for Dec 1958, 121 for Jan 1959 and so on. Each split is a threshold test on it, and every threshold sits inside the training range. A month beyond that range answers each test exactly as the last training month does, so it lands in the same leaves.
+
+Let's check that with the smallest model we can build: gbm with the month index as its only feature.
+
+```r
+# Fit gbm on the month index alone and forecast months 121 to 144
+index_table <- data.frame(y = passengers[1:120], month_index = 1:120)
+set.seed(42)
+index_fit <- gbm(y ~ month_index, data = index_table, distribution = "gaussian",
+                 n.trees = 300, shrinkage = 0.1, interaction.depth = 2,
+                 n.minobsinnode = 10, bag.fraction = 1)
+index_forecast <- predict(index_fit, data.frame(month_index = 121:144), n.trees = 300)
+round(unique(index_forecast), 1)
+#> [1] 389
+round(predict(index_fit, data.frame(month_index = c(120, 121, 144, 500)), n.trees = 300), 1)
+#> [1] 389 389 389 389
+```
+
+All 24 forecasts are one value, 389. Month 120, month 144 and even month 500 get the same 389, because the model has no leaf for anything beyond the last training month.
+
+The next block plots the actual series with the month-index fit over all 144 months. The dashed line marks the end of the training months.
+
+```r
+# Plot the actual series with the month-index fit and its forecast
+library(ggplot2)
+all_months <- data.frame(month_index = 1:144)
+plot_data <- rbind(
+  data.frame(month_index = 1:144, passengers = passengers, group = "actual"),
+  data.frame(month_index = 1:144,
+             passengers = predict(index_fit, all_months, n.trees = 300),
+             group = "gbm on month index")
+)
+ggplot(plot_data, aes(month_index, passengers, colour = group)) +
+  geom_line() +
+  geom_vline(xintercept = 120.5, linetype = "dashed")
+```
+
+The fitted line follows the series up to the dashed line, and then it stays flat at 389 while the actual series keeps climbing.
+
+The level model has the same limit. Its forecast is built from leaf values fitted on the training months, where the highest passengers count is 505. Its forecasts stay between 352.3 and 462.7, while the actual months go up to 622.
+
+You might expect more trees to fix that. Let's test it by refitting the level model with 300 and with 3000 trees.
+
+```r
+# Refit the level model with 300 and with 3000 trees and compare their forecasts
+more_trees <- sapply(c(300, 3000), function(k) {
+  set.seed(42)
+  fit <- gbm(y ~ ., data = train, distribution = "gaussian",
+             n.trees = k, shrinkage = 0.1, interaction.depth = 2,
+             n.minobsinnode = 10, bag.fraction = 1)
+  forecast_k <- boosted_forecast(fit, k, passengers[1:120])
+  c(RMSE = rmse(actual - forecast_k), max_forecast = max(forecast_k))
+})
+colnames(more_trees) <- c("300 trees", "3000 trees")
+round(more_trees, 1)
+#>              300 trees 3000 trees
+#> RMSE              74.6       85.0
+#> max_forecast     462.6      444.1
+```
+
+With 300 trees the RMSE is 74.6 and the largest forecast is 462.6. (This is a new fit, so it differs a little from the 256-tree model.) With 3000 trees the RMSE is 85.0 and the largest forecast is 444.1.
+
+More trees fit the training months more closely, but they do not create leaf values that the training months never had. Here the forecast even gets worse.
+
+[KEY INSIGHT]
+A boosted tree can only predict values built from what it saw in training, so adding trees does not make it follow a trend that goes beyond the training range. The fix has to be in the target: change it so that the trend is no longer something the trees must predict.
+
+=== step === concept
+## Two targets that reduce the trend: seasonal difference and fitted trend
+
+There are two common ways to take most of the trend out of the target. One is the seasonal difference: model the change from the same month one year earlier, not the level. The other is a fitted trend: fit a straight line to the level, and let the trees model what the line leaves behind.
+
+Let's start with the seasonal difference. For each month it is the passengers count minus the passengers count 12 months earlier. We call it `d`, and it starts in Jan 1950, the first month that has a year-earlier value.
+
+We build the same lag table, but from `d`. The lags are now earlier changes, so `lag_1` is last month's change, and `month` is still the calendar month. The first 12 rows of that table have no `lag_12`, which leaves 96 training rows.
+
+A forecast of `d` still has to be turned back into passengers. The forecast for a month is the value 12 months earlier plus the forecast change. For the first 12 forecast months that earlier value is an actual from 1958, and after that it is an earlier forecast.
+
+Two helpers come first. `choose_and_fit()` wraps the two fits used to choose the number of trees, so we can reuse them on any lag table. `add_back_last_year()` turns forecast changes back into passengers.
+
+```r
+# Write two helpers: the tree-count routine as one function, and the step that undoes a seasonal difference
+choose_and_fit <- function(train, n_valid = 12) {
+  n_rows <- nrow(train)
+  set.seed(42)
+  probe <- gbm(y ~ ., data = train, distribution = "gaussian",
+               n.trees = 300, shrinkage = 0.1, interaction.depth = 2,
+               n.minobsinnode = 10, bag.fraction = 1,
+               train.fraction = (n_rows - n_valid) / n_rows)
+  best <- gbm.perf(probe, method = "test", plot.it = FALSE)
+  set.seed(42)
+  fit <- gbm(y ~ ., data = train, distribution = "gaussian",
+             n.trees = best, shrinkage = 0.1, interaction.depth = 2,
+             n.minobsinnode = 10, bag.fraction = 1)
+  list(fit = fit, n_trees = best)
+}
+
+add_back_last_year <- function(change_forecast, history) {
+  h          <- length(change_forecast)
+  n_history  <- length(history)
+  passengers_forecast <- numeric(h)
+  for (i in 1:h) {
+    last_year <- if (i <= 12) history[n_history - 12 + i] else passengers_forecast[i - 12]
+    passengers_forecast[i] <- last_year + change_forecast[i]
+  }
+  passengers_forecast
+}
+```
+
+Now the seasonal-difference model itself. This block builds `d`, fits gbm to it, forecasts 24 months and converts the forecast back to passengers.
+
+```r
+# Fit gbm to the seasonal difference and turn its forecast back into passengers
+d <- diff(passengers, lag = 12)
+d_rows  <- lag_features(d[1:108])
+d_train <- d_rows[complete.cases(d_rows), ]
+nrow(d_train)
+#> [1] 96
+
+d_model <- choose_and_fit(d_train)
+d_model$n_trees
+#> [1] 116
+
+d_forecast  <- boosted_forecast(d_model$fit, d_model$n_trees, d[1:108])
+sd_forecast <- add_back_last_year(d_forecast, passengers[1:120])
+sd_error    <- actual - sd_forecast
+
+round(c(RMSE = rmse(sd_error), MAE = mae(sd_error), mean_error = mean(sd_forecast - actual)), 1)
+#>       RMSE        MAE mean_error
+#>       27.0       23.9      -23.9
+max(d_train$y)
+#> [1] 62
+```
+
+The model uses 116 trees. The RMSE falls from 74.1 to 27.0 and the MAE from 53.9 to 23.9.
+
+But look at the mean error, forecast minus actual. It is -23.9, the same size as the MAE, and that can only happen when every forecast is below its actual month. So the model errs in one direction, and its target has a limit: the largest change in the training rows is 62, and the trees are fit only to those rows.
+
+The second way is a fitted trend. We fit a straight line to the 120 training months with `lm()`, boost the remainder the line leaves, and add the line back to get the forecast.
+
+```r
+# Fit a straight line to the training months, boost what it leaves, and add the line back
+trend_fit <- lm(y ~ month_index, data = index_table)
+round(coef(trend_fit), 2)
+#> (Intercept) month_index
+#>       94.97        2.49
+
+remainder       <- as.numeric(residuals(trend_fit))
+remainder_train <- lag_features(remainder)[13:120, ]
+trend_model     <- choose_and_fit(remainder_train)
+trend_model$n_trees
+#> [1] 157
+
+remainder_forecast <- boosted_forecast(trend_model$fit, trend_model$n_trees, remainder)
+trend_line         <- as.numeric(predict(trend_fit, data.frame(month_index = 121:144)))
+trend_forecast     <- trend_line + remainder_forecast
+trend_error        <- actual - trend_forecast
+
+round(c(RMSE = rmse(trend_error), MAE = mae(trend_error)), 1)
+#> RMSE  MAE
+#> 35.2 29.0
+round(c(training_max = max(remainder_train$y), test_max = max(actual - trend_line)), 1)
+#> training_max     test_max
+#>        120.6        180.2
+```
+
+The line starts at 94.97 and adds 2.49 thousand passengers each month. The remainder has no straight-line trend left, and the trees are fit to it. The forecast, which is the line plus the forecast remainder, has an RMSE of 35.2 and an MAE of 29.0, with 157 trees.
+
+The line has a limit of its own. In the test months the actual passengers count sits up to 180.2 above the line, while the largest remainder in the training rows is 120.6. The trees have no training row with a remainder that large.
+
+The chart puts the actual months and all three forecasts on one plot.
+
+::widget chart-plotter {"data":[{"x":1949,"y":112,"fill":"actual"},{"x":1949.083,"y":118,"fill":"actual"},{"x":1949.167,"y":132,"fill":"actual"},{"x":1949.25,"y":129,"fill":"actual"},{"x":1949.333,"y":121,"fill":"actual"},{"x":1949.417,"y":135,"fill":"actual"},{"x":1949.5,"y":148,"fill":"actual"},{"x":1949.583,"y":148,"fill":"actual"},{"x":1949.667,"y":136,"fill":"actual"},{"x":1949.75,"y":119,"fill":"actual"},{"x":1949.833,"y":104,"fill":"actual"},{"x":1949.917,"y":118,"fill":"actual"},{"x":1950,"y":115,"fill":"actual"},{"x":1950.083,"y":126,"fill":"actual"},{"x":1950.167,"y":141,"fill":"actual"},{"x":1950.25,"y":135,"fill":"actual"},{"x":1950.333,"y":125,"fill":"actual"},{"x":1950.417,"y":149,"fill":"actual"},{"x":1950.5,"y":170,"fill":"actual"},{"x":1950.583,"y":170,"fill":"actual"},{"x":1950.667,"y":158,"fill":"actual"},{"x":1950.75,"y":133,"fill":"actual"},{"x":1950.833,"y":114,"fill":"actual"},{"x":1950.917,"y":140,"fill":"actual"},{"x":1951,"y":145,"fill":"actual"},{"x":1951.083,"y":150,"fill":"actual"},{"x":1951.167,"y":178,"fill":"actual"},{"x":1951.25,"y":163,"fill":"actual"},{"x":1951.333,"y":172,"fill":"actual"},{"x":1951.417,"y":178,"fill":"actual"},{"x":1951.5,"y":199,"fill":"actual"},{"x":1951.583,"y":199,"fill":"actual"},{"x":1951.667,"y":184,"fill":"actual"},{"x":1951.75,"y":162,"fill":"actual"},{"x":1951.833,"y":146,"fill":"actual"},{"x":1951.917,"y":166,"fill":"actual"},{"x":1952,"y":171,"fill":"actual"},{"x":1952.083,"y":180,"fill":"actual"},{"x":1952.167,"y":193,"fill":"actual"},{"x":1952.25,"y":181,"fill":"actual"},{"x":1952.333,"y":183,"fill":"actual"},{"x":1952.417,"y":218,"fill":"actual"},{"x":1952.5,"y":230,"fill":"actual"},{"x":1952.583,"y":242,"fill":"actual"},{"x":1952.667,"y":209,"fill":"actual"},{"x":1952.75,"y":191,"fill":"actual"},{"x":1952.833,"y":172,"fill":"actual"},{"x":1952.917,"y":194,"fill":"actual"},{"x":1953,"y":196,"fill":"actual"},{"x":1953.083,"y":196,"fill":"actual"},{"x":1953.167,"y":236,"fill":"actual"},{"x":1953.25,"y":235,"fill":"actual"},{"x":1953.333,"y":229,"fill":"actual"},{"x":1953.417,"y":243,"fill":"actual"},{"x":1953.5,"y":264,"fill":"actual"},{"x":1953.583,"y":272,"fill":"actual"},{"x":1953.667,"y":237,"fill":"actual"},{"x":1953.75,"y":211,"fill":"actual"},{"x":1953.833,"y":180,"fill":"actual"},{"x":1953.917,"y":201,"fill":"actual"},{"x":1954,"y":204,"fill":"actual"},{"x":1954.083,"y":188,"fill":"actual"},{"x":1954.167,"y":235,"fill":"actual"},{"x":1954.25,"y":227,"fill":"actual"},{"x":1954.333,"y":234,"fill":"actual"},{"x":1954.417,"y":264,"fill":"actual"},{"x":1954.5,"y":302,"fill":"actual"},{"x":1954.583,"y":293,"fill":"actual"},{"x":1954.667,"y":259,"fill":"actual"},{"x":1954.75,"y":229,"fill":"actual"},{"x":1954.833,"y":203,"fill":"actual"},{"x":1954.917,"y":229,"fill":"actual"},{"x":1955,"y":242,"fill":"actual"},{"x":1955.083,"y":233,"fill":"actual"},{"x":1955.167,"y":267,"fill":"actual"},{"x":1955.25,"y":269,"fill":"actual"},{"x":1955.333,"y":270,"fill":"actual"},{"x":1955.417,"y":315,"fill":"actual"},{"x":1955.5,"y":364,"fill":"actual"},{"x":1955.583,"y":347,"fill":"actual"},{"x":1955.667,"y":312,"fill":"actual"},{"x":1955.75,"y":274,"fill":"actual"},{"x":1955.833,"y":237,"fill":"actual"},{"x":1955.917,"y":278,"fill":"actual"},{"x":1956,"y":284,"fill":"actual"},{"x":1956.083,"y":277,"fill":"actual"},{"x":1956.167,"y":317,"fill":"actual"},{"x":1956.25,"y":313,"fill":"actual"},{"x":1956.333,"y":318,"fill":"actual"},{"x":1956.417,"y":374,"fill":"actual"},{"x":1956.5,"y":413,"fill":"actual"},{"x":1956.583,"y":405,"fill":"actual"},{"x":1956.667,"y":355,"fill":"actual"},{"x":1956.75,"y":306,"fill":"actual"},{"x":1956.833,"y":271,"fill":"actual"},{"x":1956.917,"y":306,"fill":"actual"},{"x":1957,"y":315,"fill":"actual"},{"x":1957.083,"y":301,"fill":"actual"},{"x":1957.167,"y":356,"fill":"actual"},{"x":1957.25,"y":348,"fill":"actual"},{"x":1957.333,"y":355,"fill":"actual"},{"x":1957.417,"y":422,"fill":"actual"},{"x":1957.5,"y":465,"fill":"actual"},{"x":1957.583,"y":467,"fill":"actual"},{"x":1957.667,"y":404,"fill":"actual"},{"x":1957.75,"y":347,"fill":"actual"},{"x":1957.833,"y":305,"fill":"actual"},{"x":1957.917,"y":336,"fill":"actual"},{"x":1958,"y":340,"fill":"actual"},{"x":1958.083,"y":318,"fill":"actual"},{"x":1958.167,"y":362,"fill":"actual"},{"x":1958.25,"y":348,"fill":"actual"},{"x":1958.333,"y":363,"fill":"actual"},{"x":1958.417,"y":435,"fill":"actual"},{"x":1958.5,"y":491,"fill":"actual"},{"x":1958.583,"y":505,"fill":"actual"},{"x":1958.667,"y":404,"fill":"actual"},{"x":1958.75,"y":359,"fill":"actual"},{"x":1958.833,"y":310,"fill":"actual"},{"x":1958.917,"y":337,"fill":"actual"},{"x":1959,"y":360,"fill":"actual"},{"x":1959.083,"y":342,"fill":"actual"},{"x":1959.167,"y":406,"fill":"actual"},{"x":1959.25,"y":396,"fill":"actual"},{"x":1959.333,"y":420,"fill":"actual"},{"x":1959.417,"y":472,"fill":"actual"},{"x":1959.5,"y":548,"fill":"actual"},{"x":1959.583,"y":559,"fill":"actual"},{"x":1959.667,"y":463,"fill":"actual"},{"x":1959.75,"y":407,"fill":"actual"},{"x":1959.833,"y":362,"fill":"actual"},{"x":1959.917,"y":405,"fill":"actual"},{"x":1960,"y":417,"fill":"actual"},{"x":1960.083,"y":391,"fill":"actual"},{"x":1960.167,"y":419,"fill":"actual"},{"x":1960.25,"y":461,"fill":"actual"},{"x":1960.333,"y":472,"fill":"actual"},{"x":1960.417,"y":535,"fill":"actual"},{"x":1960.5,"y":622,"fill":"actual"},{"x":1960.583,"y":606,"fill":"actual"},{"x":1960.667,"y":508,"fill":"actual"},{"x":1960.75,"y":461,"fill":"actual"},{"x":1960.833,"y":390,"fill":"actual"},{"x":1960.917,"y":432,"fill":"actual"},{"x":1959,"y":357.9,"fill":"boosted, level target"},{"x":1959.083,"y":352.3,"fill":"boosted, level target"},{"x":1959.167,"y":388.5,"fill":"boosted, level target"},{"x":1959.25,"y":396.7,"fill":"boosted, level target"},{"x":1959.333,"y":462.7,"fill":"boosted, level target"},{"x":1959.417,"y":434.3,"fill":"boosted, level target"},{"x":1959.5,"y":435.3,"fill":"boosted, level target"},{"x":1959.583,"y":435.4,"fill":"boosted, level target"},{"x":1959.667,"y":409.1,"fill":"boosted, level target"},{"x":1959.75,"y":409.1,"fill":"boosted, level target"},{"x":1959.833,"y":364.6,"fill":"boosted, level target"},{"x":1959.917,"y":354.8,"fill":"boosted, level target"},{"x":1960,"y":388,"fill":"boosted, level target"},{"x":1960.083,"y":426,"fill":"boosted, level target"},{"x":1960.167,"y":462.7,"fill":"boosted, level target"},{"x":1960.25,"y":426.8,"fill":"boosted, level target"},{"x":1960.333,"y":426.8,"fill":"boosted, level target"},{"x":1960.417,"y":434.3,"fill":"boosted, level target"},{"x":1960.5,"y":435.3,"fill":"boosted, level target"},{"x":1960.583,"y":435.4,"fill":"boosted, level target"},{"x":1960.667,"y":409.1,"fill":"boosted, level target"},{"x":1960.75,"y":409.1,"fill":"boosted, level target"},{"x":1960.833,"y":410.4,"fill":"boosted, level target"},{"x":1960.917,"y":410.4,"fill":"boosted, level target"},{"x":1959,"y":344.1,"fill":"boosted, seasonal difference"},{"x":1959.083,"y":324.3,"fill":"boosted, seasonal difference"},{"x":1959.167,"y":371.7,"fill":"boosted, seasonal difference"},{"x":1959.25,"y":371.4,"fill":"boosted, seasonal difference"},{"x":1959.333,"y":392,"fill":"boosted, seasonal difference"},{"x":1959.417,"y":469.7,"fill":"boosted, seasonal difference"},{"x":1959.5,"y":526.8,"fill":"boosted, seasonal difference"},{"x":1959.583,"y":547.2,"fill":"boosted, seasonal difference"},{"x":1959.667,"y":442,"fill":"boosted, seasonal difference"},{"x":1959.75,"y":394.2,"fill":"boosted, seasonal difference"},{"x":1959.833,"y":347.9,"fill":"boosted, seasonal difference"},{"x":1959.917,"y":372.2,"fill":"boosted, seasonal difference"},{"x":1960,"y":385.1,"fill":"boosted, seasonal difference"},{"x":1960.083,"y":366.4,"fill":"boosted, seasonal difference"},{"x":1960.167,"y":415.5,"fill":"boosted, seasonal difference"},{"x":1960.25,"y":412.9,"fill":"boosted, seasonal difference"},{"x":1960.333,"y":434.5,"fill":"boosted, seasonal difference"},{"x":1960.417,"y":515.9,"fill":"boosted, seasonal difference"},{"x":1960.5,"y":568.9,"fill":"boosted, seasonal difference"},{"x":1960.583,"y":590.1,"fill":"boosted, seasonal difference"},{"x":1960.667,"y":479.3,"fill":"boosted, seasonal difference"},{"x":1960.75,"y":428.1,"fill":"boosted, seasonal difference"},{"x":1960.833,"y":382.6,"fill":"boosted, seasonal difference"},{"x":1960.917,"y":398.2,"fill":"boosted, seasonal difference"},{"x":1959,"y":366.5,"fill":"boosted, trend plus remainder"},{"x":1959.083,"y":348.1,"fill":"boosted, trend plus remainder"},{"x":1959.167,"y":384.2,"fill":"boosted, trend plus remainder"},{"x":1959.25,"y":381,"fill":"boosted, trend plus remainder"},{"x":1959.333,"y":394,"fill":"boosted, trend plus remainder"},{"x":1959.417,"y":474.5,"fill":"boosted, trend plus remainder"},{"x":1959.5,"y":513.1,"fill":"boosted, trend plus remainder"},{"x":1959.583,"y":508.9,"fill":"boosted, trend plus remainder"},{"x":1959.667,"y":432.3,"fill":"boosted, trend plus remainder"},{"x":1959.75,"y":384.8,"fill":"boosted, trend plus remainder"},{"x":1959.833,"y":354.9,"fill":"boosted, trend plus remainder"},{"x":1959.917,"y":378.6,"fill":"boosted, trend plus remainder"},{"x":1960,"y":393.9,"fill":"boosted, trend plus remainder"},{"x":1960.083,"y":378,"fill":"boosted, trend plus remainder"},{"x":1960.167,"y":406,"fill":"boosted, trend plus remainder"},{"x":1960.25,"y":409.6,"fill":"boosted, trend plus remainder"},{"x":1960.333,"y":425.1,"fill":"boosted, trend plus remainder"},{"x":1960.417,"y":504.4,"fill":"boosted, trend plus remainder"},{"x":1960.5,"y":541.6,"fill":"boosted, trend plus remainder"},{"x":1960.583,"y":538.8,"fill":"boosted, trend plus remainder"},{"x":1960.667,"y":462.3,"fill":"boosted, trend plus remainder"},{"x":1960.75,"y":414.8,"fill":"boosted, trend plus remainder"},{"x":1960.833,"y":384.8,"fill":"boosted, trend plus remainder"},{"x":1960.917,"y":408.6,"fill":"boosted, trend plus remainder"}],"geoms":["line"],"x":"year","y":"passengers","code":{"line":"ggplot(df, aes(year, passengers, colour = group)) + geom_line()"}}
+
+The level model's forecast stays low, with an RMSE of 74.1. The seasonal-difference forecast, at 27.0, and the trend plus remainder forecast, at 35.2, are much closer to the actual months.
+
+=== step === concept
+## Reading relative influence for each lag and month
+
+A fitted gbm can tell you which features its trees used the most. This is called the **relative influence** of a feature. It is the feature's share of the squared-error reduction from all the splits on it, summed over all the trees. The shares add up to 100.
+
+`summary()` on a gbm fit returns it. This block prints it for the level model and for the seasonal-difference model.
+
+```r
+# Read the relative influence of each feature for the level and the seasonal-difference models
+influence_level <- summary(fit_level, n.trees = best_level, plotit = FALSE)
+influence_level$rel.inf <- round(influence_level$rel.inf, 1)
+influence_level
+#>           var rel.inf
+#> lag_12 lag_12    83.0
+#> lag_1   lag_1    14.6
+#> lag_3   lag_3     0.9
+#> lag_2   lag_2     0.9
+#> month   month     0.7
+
+influence_d <- summary(d_model$fit, n.trees = d_model$n_trees, plotit = FALSE)
+influence_d$rel.inf <- round(influence_d$rel.inf, 1)
+influence_d
+#>           var rel.inf
+#> lag_1   lag_1    65.8
+#> lag_2   lag_2    17.3
+#> month   month     7.2
+#> lag_12 lag_12     6.9
+#> lag_3   lag_3     2.8
+```
+
+In the level model, `lag_12` carries 83.0 of the 100 points and `lag_1` carries 14.6. The other three features together carry 2.5.
+
+A **seasonal naive** forecast repeats the value from the same month one year earlier. That is `lag_12` and nothing else, so the level model leans mostly on the one feature that a seasonal naive forecast uses.
+
+After the seasonal difference the picture changes. The widget draws the relative influence of the seasonal-difference model.
+
+::widget importance-bars {"items":[{"label":"lag_1","value":65.8},{"label":"lag_2","value":17.3},{"label":"month","value":7.2},{"label":"lag_12","value":6.9},{"label":"lag_3","value":2.8}]}
+
+Now `lag_1` carries 65.8 and `lag_2` carries 17.3, and `lag_12` drops to 6.9. In this model the target is a change, so its lags are the changes of the last few months. The trees now use the most recent changes to predict the next one.
+
+[WARNING]
+Relative influence describes the fitted trees, not causes. It says which features the trees split on, and nothing about what drives the passengers count. And when two lags are correlated, the trees can split on either one, so the credit between them is shared somewhat arbitrarily.
+
+=== step === concept
+## Comparing with seasonal naive and ETS on equal terms
+
+We now have three boosted forecasts. To judge them we need benchmarks that use only the series itself, and a fair way to compare.
+
+There are two benchmarks. The first is seasonal naive, the forecast that repeats the value from the same month one year earlier. The second is **ETS**, exponential smoothing, which models a level, a trend and a seasonal pattern and lets recent months count for more than old ones.
+
+`ets()` in the forecast package names the form it picks with three letters, for the error, the trend and the seasonal component. A is additive, M is multiplicative, N is none, and Ad is an additive trend that is damped, so it flattens out over the forecast horizon.
+
+We also fit ETS on the log scale, with `lambda = 0`. Taking logs turns a seasonal swing that grows with the level into one of about constant size, and the swing in this series grows with its level.
+
+A fair comparison follows four rules:
+
+1. Every method uses the same training months (Jan 1949 to Dec 1958) and is scored on the same 24 test months.
+2. Every forecast is made from Dec 1958, so no 1959 or 1960 actual is used as an input.
+3. The number of trees is chosen on training months only.
+4. Every method gets the same two metrics, RMSE and MAE.
+
+This block fits the three benchmarks on the 120 training months, and prints the form ETS picked each time.
+
+```r
+# Fit seasonal naive and two ETS models on the same 120 training months
+library(forecast)
+train_ts <- ts(passengers[1:120], start = c(1949, 1), frequency = 12)
+
+snaive_forecast  <- as.numeric(snaive(train_ts, h = 24)$mean)
+ets_fit          <- ets(train_ts)
+ets_forecast     <- as.numeric(forecast(ets_fit, h = 24)$mean)
+ets_log_fit      <- ets(train_ts, lambda = 0)
+ets_log_forecast <- as.numeric(forecast(ets_log_fit, h = 24)$mean)
+
+c(ets_fit$method, ets_log_fit$method)
+#> [1] "ETS(M,Ad,M)" "ETS(A,A,A)"
+```
+
+The first is a multiplicative error, a damped additive trend and a multiplicative seasonal pattern. The second, fit on the log scale, is additive in all three. Now the scores: this block puts all six forecasts through the same two metrics, and rounds once at the end.
+
+```r
+# Score all six forecasts of the 24 test months with the same two metrics
+forecasts <- list(
+  "Seasonal naive"                = snaive_forecast,
+  "ETS (M,Ad,M)"                  = ets_forecast,
+  "ETS on log scale (A,A,A)"      = ets_log_forecast,
+  "Boosted, level target"         = level_forecast,
+  "Boosted, seasonal difference"  = sd_forecast,
+  "Boosted, trend plus remainder" = trend_forecast
+)
+results <- data.frame(
+  method = names(forecasts),
+  rmse   = round(sapply(forecasts, function(f) rmse(actual - f)), 1),
+  mae    = round(sapply(forecasts, function(f) mae(actual - f)), 1)
+)
+rownames(results) <- NULL
+results
+#>                          method rmse  mae
+#> 1                Seasonal naive 77.0 71.2
+#> 2                  ETS (M,Ad,M) 72.5 63.2
+#> 3      ETS on log scale (A,A,A) 26.5 21.4
+#> 4         Boosted, level target 74.1 53.9
+#> 5  Boosted, seasonal difference 27.0 23.9
+#> 6 Boosted, trend plus remainder 35.2 29.0
+```
+
+The widget shows the same table, as a raw print or as a report table.
+
+::widget styled-table {"cols":["method","rmse","mae"],"rows":[["Seasonal naive",77.0,71.2],["ETS (M,Ad,M)",72.5,63.2],["ETS on log scale (A,A,A)",26.5,21.4],["Boosted, level target",74.1,53.9],["Boosted, seasonal difference",27.0,23.9],["Boosted, trend plus remainder",35.2,29.0]],"formats":{"rmse":"1dp","mae":"1dp"},"title":"Forecast error on the 24 test months","note":"Forecasts made from Dec 1958 and scored on Jan 1959 to Dec 1960, in thousands of passengers."}
+
+Three groups stand out in the table:
+
+- Seasonal naive (77.0), ETS (72.5) and the boosted level model (74.1) all have an RMSE in the 70s.
+- ETS on the log scale (26.5) and the boosted seasonal-difference model (27.0) are far lower, and the boosted trend plus remainder model (35.2) sits between the groups.
+- On the MAE the boosted level model (53.9) looks better than seasonal naive (71.2) and ETS (63.2), while on the RMSE the three are close.
+
+Now let's look at an error that is easy to make. Instead of forecasting recursively, you can score each test month by predicting it from the actual previous months. That is one-step scoring, and this block does it for the level model and the seasonal-difference model.
+
+```r
+# Score each test month from the actual previous months, which a real forecast would not have
+one_step_level  <- predict(fit_level, test, n.trees = best_level)
+one_step_change <- predict(d_model$fit, lag_features(d)[109:132, ], n.trees = d_model$n_trees)
+one_step_seasonal <- passengers[109:132] + one_step_change
+
+round(c(level = rmse(actual - one_step_level),
+        seasonal_difference = rmse(actual - one_step_seasonal)), 1)
+#>               level seasonal_difference
+#>                73.7                16.4
+```
+
+[WARNING]
+The one-step RMSE of the seasonal-difference model, 16.4, is not comparable with the 24-month scores in the table. A forecast made in Dec 1958 has none of the 1959 or 1960 actuals, and this score used them all. The comparable number is the recursive one, 27.0.
+
+Everything so far comes from a single split, and a single split gives one estimate of the error, which depends on which 24 months were held back. To see how much that matters, we refit at four forecast origins, Dec 1956, Dec 1957, Dec 1958 and Dec 1959, and score the next 12 months each time. This is a **rolling origin** evaluation, and the number of trees is chosen again from the training months at each origin.
+
+First a function that does one origin for all five methods. Its result has the RMSE of seasonal naive, ETS, ETS on the log scale, the boosted level model (`boost_level`) and the boosted seasonal-difference model (`boost_diff`), and then the number of trees the seasonal-difference model chose.
+
+```r
+# Write a function that refits every method at one origin and scores the next 12 months
+score_origin <- function(o) {
+  history    <- passengers[1:o]
+  truth      <- passengers[(o + 1):(o + 12)]
+  history_ts <- ts(history, start = c(1949, 1), frequency = 12)
+
+  snaive_f  <- as.numeric(snaive(history_ts, h = 12)$mean)
+  ets_f     <- as.numeric(forecast(ets(history_ts), h = 12)$mean)
+  ets_log_f <- as.numeric(forecast(ets(history_ts, lambda = 0), h = 12)$mean)
+
+  level_model <- choose_and_fit(lag_features(history)[13:o, ])
+  level_f     <- boosted_forecast(level_model$fit, level_model$n_trees, history, h = 12)
+
+  change       <- diff(history, lag = 12)
+  change_rows  <- lag_features(change)
+  change_model <- choose_and_fit(change_rows[complete.cases(change_rows), ])
+  change_f     <- boosted_forecast(change_model$fit, change_model$n_trees, change, h = 12)
+  seasonal_f   <- add_back_last_year(change_f, history)
+
+  c(snaive = rmse(truth - snaive_f), ets = rmse(truth - ets_f),
+    ets_log = rmse(truth - ets_log_f), boost_level = rmse(truth - level_f),
+    boost_diff = rmse(truth - seasonal_f), diff_trees = change_model$n_trees)
+}
+```
+
+Now we run it at the four origins and average each method's RMSE.
+
+```r
+# Run it at Dec 1956, Dec 1957, Dec 1958 and Dec 1959, then average each method
+origin_scores <- t(sapply(c(96, 108, 120, 132), score_origin))
+rownames(origin_scores) <- c("Dec 1956", "Dec 1957", "Dec 1958", "Dec 1959")
+
+round(origin_scores[, 1:5], 1)
+#>          snaive  ets ets_log boost_level boost_diff
+#> Dec 1956   41.5 24.4    14.9        42.2       21.7
+#> Dec 1957   17.0 21.3    29.0        45.6       17.9
+#> Dec 1958   49.3 50.8    25.4        55.6       21.6
+#> Dec 1959   50.7 27.4    23.5        59.9       14.6
+round(colMeans(origin_scores[, 1:5]), 1)
+#>      snaive         ets     ets_log boost_level  boost_diff
+#>        39.6        31.0        23.2        50.8        19.0
+origin_scores[, "diff_trees"]
+#> Dec 1956 Dec 1957 Dec 1958 Dec 1959
+#>       34       33      116       75
+```
+
+Compare the `ets_log` and `boost_diff` columns of the first table. The boosted seasonal-difference model has a lower RMSE than ETS on the log scale at 3 of the 4 origins (Dec 1957, 1958 and 1959), and its average is 19.0 against 23.2. On the single split it was the other way round, 27.0 against 26.5. And the number of trees it chose at the four origins was 34, 33, 116 and 75, so that choice moves a lot from one origin to the next.
+
+So what does this show? After the seasonal difference, the boosted model and ETS on the log scale make errors in the same range. The single split puts ETS a little ahead, and the four origins put the boosted model ahead on average. So the two are comparable, and the result does not show that boosting is more accurate.
+
+The level model tells a different story. It relies mainly on `lag_12`, the value that seasonal naive repeats, and on the 24-month split its RMSE is close to seasonal naive's (74.1 against 77.0). Over the four origins it is worse, 50.8 against 39.6.
+
+One thing the comparison leaves out: boosted trees can take extra features, such as price or holidays, and this comparison gave them none, while ETS uses only the series. So it says nothing about what those features would add.
+
+=== step === quiz
+## Quick check: comparing a one-step RMSE with a 24-month forecast RMSE
+
+A colleague reports an RMSE of 16.4 for the boosted seasonal-difference model against 26.5 for ETS on the log scale. They scored the boosted model by predicting each 1959 and 1960 month from the actual previous months. Which statement is right?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The two scores are comparable, because both use the same 24 test months. ::no
+- The scores are not comparable. The ETS forecast used no 1959 or 1960 actuals, so the boosted model has to be scored recursively too, and that gives 27.0. ::ok Yes. A forecast made in Dec 1958 does not have the 1959 and 1960 months. Scoring from actual previous months gives the model information that a real forecast would not have, so the recursive score of 27.0 is the fair one.
+- Boosted models always beat ETS, so 16.4 against 26.5 is what you would expect. ::no
+- Using the actual lags makes the model more accurate, so 16.4 is the better estimate of how useful it is. ::no Two forecasts are only comparable when neither uses information that the other does not have. The ETS forecast used no 1959 or 1960 actuals, while the 16.4 used all of them as lags. So the boosted model has to be scored recursively, which gives 27.0 against 26.5 for ETS. And nothing makes boosted models always beat ETS.
+
+=== step === tryit
+## Your turn: build the seasonal difference and compare it with the training range
+
+The seasonal-difference model can only learn from changes it saw in the training rows. Let's find the test months where the change is larger than any change in the training months.
+
+`passengers` still holds the 144 monthly values. Build `d`, the change of each month from Jan 1950 on against the same month a year earlier, which gives 132 values. Its first 108 values are the training months (Jan 1950 to Dec 1958), and its last 24 values are the test months. Then count the test months whose change is above the largest training change.
+
+```r
+# passengers holds the 144 monthly values.
+# Build d, the change of each month from Jan 1950 on against the same month a year earlier (132 values).
+# Then count the test months (the last 24 values of d) whose change is above the largest training change.
+# Two lines. Press Check when you have them.
+```
+::check {"regex": "(?=[\\s\\S]*(diff[(]\\s*passengers\\s*,\\s*(lag\\s*=\\s*)?12\\s*[)]|passengers[[]13:144[\\]]\\s*-\\s*passengers[[]1:132[\\]]))(?=[\\s\\S]*max[(]\\s*(d[[]1:108[\\]]|head[(]d,\\s*108[)])\\s*[)])", "gate": true, "difficulty": "intermediate", "ok": "Yes: 4 of the 24 test months. The biggest is Jul 1960, which went from 548 to 622, a change of 74, while the largest training change is 62.", "no": "Build the change with `diff(passengers, lag = 12)`. Then put the last 24 values, `d[109:132]`, against `max(d[1:108])` inside `sum()`."}
+::solution
+```r
+# Build d, then count the test months whose change is above the largest training change
+d <- diff(passengers, lag = 12)
+sum(d[109:132] > max(d[1:108]))
+#> [1] 4
+which(d[109:132] > max(d[1:108]))
+#> [1] 12 16 18 19
+d[127]
+#> [1] 74
+passengers[c(127, 139)]
+#> [1] 548 622
+max(d[1:108])
+#> [1] 62
+```
+
+So 4 of the 24 test months changed by more than any training month did. They are positions 12, 16, 18 and 19 of the test months, which are Dec 1959 and Apr, Jun and Jul 1960.
+
+The largest is Jul 1960, `d[127]`, which rose from 548 to 622, a change of 74 against a training maximum of 62. The model has no training row with a change that big, so its forecast for those months cannot follow it.
+
+=== step === concept
+## References
+
+- [Forecasting: Principles and Practice, 3rd edition](https://otexts.com/fpp3/) - Hyndman and Athanasopoulos (2021), OTexts. The chapters on seasonal differencing and time series cross-validation.
+- [Greedy function approximation: a gradient boosting machine](https://doi.org/10.1214/aos/1013203451) - Friedman (2001), Annals of Statistics 29(5), 1189 to 1232. The paper that introduced gradient boosting.
+- [Generalized Boosted Models: a guide to the gbm package](https://cran.r-project.org/web/packages/gbm/vignettes/gbm.pdf) - Ridgeway, the package vignette. The arguments used in this lesson, and the relative influence.
+- [Automatic time series forecasting: the forecast package for R](https://doi.org/10.18637/jss.v027.i03) - Hyndman and Khandakar (2008), Journal of Statistical Software 27(3). How `ets()` chooses a model.
+- [Forecasting with trees](https://doi.org/10.1016/j.ijforecast.2021.10.004) - Januschowski and colleagues (2022), International Journal of Forecasting 38(4). A review of tree-based models for forecasting.
+
+=== step === complete
+## Recap: boosted-tree forecasts of monthly passengers
+
+You turned a monthly series into a table of lags, fit boosted trees to it and forecast 24 months ahead. To summarize:
+
+- The lag table has 108 training rows (Jan 1950 to Dec 1958) and 24 test rows, and every feature is a value from an earlier month.
+- The number of trees is chosen on the last 12 training months, in time order. Here that gave 256 trees.
+- A recursive forecast feeds each forecast back in as the next lag. The level model's forecast stays between 352 and 463 while the actual months reach 622, because a boosted tree predicts only from leaf values fitted on the training months. Its RMSE is 74.1.
+- A seasonal-difference target, with each forecast change added to the value 12 months earlier, brings the RMSE down to 27.0. ETS on the log scale scores 26.5 on the same 24 months.
+- Over four forecast origins the boosted seasonal-difference model averages an RMSE of 19.0 and ETS on the log scale 23.2: comparable, not clearly better.
+
+So when someone shows a boosted-tree forecast, ask two things. Does the target have a trend beyond the training range, and was the forecast made from the same origin as the benchmarks it is compared with?
+
+Next, we fit a neural network to lagged values with `nnetar` and compare it on the same series.
