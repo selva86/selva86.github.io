@@ -42,6 +42,17 @@ export async function ensureIntentTable(DB: D1Database) {
   await DB.prepare(
     "CREATE INDEX IF NOT EXISTS idx_intent_at ON intent_signals (at)"
   ).run();
+  /* The contact centre filters by WHO and by WHICH SIGNAL, neither of which the
+     `at` index serves. At a few thousand rows that costs nothing, but this table
+     is the only one that grows with traffic (every pricing view, every wall hit),
+     so without these two a 100x growth turns every admin query into a full scan.
+     Composite on (user_id, at) so a per-user timeline is one range scan. */
+  await DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_intent_user_at ON intent_signals (user_id, at)"
+  ).run();
+  await DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_intent_signal_at ON intent_signals (signal, at)"
+  ).run();
   tableReady = true;
 }
 
