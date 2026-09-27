@@ -60,6 +60,39 @@
   .p-lost{background:var(--grey-w);color:var(--grey);opacity:.75}
   .p-new{background:#eef3fd;color:var(--blue)}
   .mut{color:var(--faint)}
+  .go{background:var(--blue);color:#fff;border:0;border-radius:7px;padding:5px 11px;
+      font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .go.soft{background:var(--bg);color:var(--blue);border:1px solid var(--blue)}
+  .go[disabled]{background:var(--hair2);color:var(--grey);cursor:default}
+
+  .scrim{position:fixed;inset:0;background:rgba(15,20,28,.34);z-index:40}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--bg);
+          z-index:41;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(15,20,28,.14)}
+  .dhead{padding:14px 18px;border-bottom:1px solid var(--hair);display:flex;
+         justify-content:space-between;align-items:flex-start;gap:12px}
+  .dhead h2{font-family:'Inter Tight',Arial,sans-serif;font-size:17px;font-weight:700;margin:0}
+  .dhead .x{background:none;border:0;font-size:20px;cursor:pointer;color:var(--faint);line-height:1}
+  .dbody{padding:16px 18px;overflow:auto;flex:1}
+  .dfoot{padding:12px 18px;border-top:1px solid var(--hair);display:flex;gap:10px;
+         align-items:center;flex-wrap:wrap;background:var(--wash)}
+  .warn{background:#fff8e6;border:1px solid #f0e2bd;border-radius:8px;padding:9px 12px;
+        font-size:13px;color:#6a5520;margin:0 0 12px}
+  .stop{background:var(--red-w);border:1px solid #f0c9c9;border-radius:8px;padding:9px 12px;
+        font-size:13px;color:var(--red);margin:0 0 12px}
+  .fld{margin:0 0 12px}
+  .fld label{display:block;font-size:11.5px;color:var(--faint);font-weight:600;margin:0 0 4px}
+  .fld input,.fld textarea{width:100%;border:1px solid var(--hair);border-radius:8px;
+    padding:8px 10px;font:inherit;font-size:13.5px;background:var(--bg);color:var(--ink)}
+  .fld textarea{min-height:230px;resize:vertical;line-height:1.55}
+  .tsel{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+  .tsel button{background:var(--bg);border:1px solid var(--hair);border-radius:99px;
+    padding:5px 11px;font-size:12.5px;cursor:pointer;color:var(--ink2);font-family:inherit}
+  .tsel button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .prev{border:1px solid var(--hair);border-radius:8px;padding:12px 14px;background:var(--wash);
+        font-size:13.5px;white-space:pre-wrap;line-height:1.6;margin:0}
+  .prevs{font-weight:700;margin:0 0 8px;font-size:14px}
+  .said{font-size:13px;color:var(--green);font-weight:600}
+  .facts{font-size:12.5px;color:var(--faint);margin:0 0 12px}
   footer{margin-top:16px;color:var(--faint);font-size:12.5px}
 </style>
 </head>
@@ -135,7 +168,8 @@
     {k:'pricing',t:'Pricing',     sort:'pricing', num:true},
     {k:'checkout',t:'Checkout',   sort:'checkout', num:true},
     {k:'opens',t:'Opens',         sort:'opens', num:true},
-    {k:'created',t:'Joined',      sort:'created', num:true}
+    {k:'created',t:'Joined',      sort:'created', num:true},
+    {k:'send', t:'',              sort:null}
   ];
   var STATES=['','customer','hot','engaged','cooling','dormant','new','lost'];
   var LABEL={'':'All','customer':'Customers','hot':'Hot','engaged':'Engaged',
@@ -201,13 +235,128 @@
         '<td class="num">'+(r.checkout?'<b>'+n(r.checkout)+'</b>':'<span class="mut">0</span>')+'</td>'+
         '<td class="num">'+n(r.opens)+'</td>'+
         '<td class="num">'+ago(r.created_at)+'</td>'+
+        '<td><button class="go" data-mail="'+esc(r.email)+'">Write</button></td>'+
         '</tr>';
-    }).join('') || '<tr><td colspan="14" class="mut">Nobody matches that.</td></tr>';
+    }).join('') || '<tr><td colspan="15" class="mut">Nobody matches that.</td></tr>';
 
     $('foot').textContent =
       'Score orders the list, it does not predict. Every figure is derived live '+
       'from the activity tables; nothing here is stored.';
   }
+
+  // ---- outreach drawer -------------------------------------------------
+  // The draft, the preview and the send all come from /api/admin/outreach, so
+  // what is shown here is exactly what leaves the server.
+  var D = null;
+
+  function closeDrawer(){
+    if (D) { D.remove(); D = null; }
+    var sc = document.querySelector('.scrim'); if (sc) sc.remove();
+  }
+
+  function openDrawer(email, tplKey, edits){
+    var qs = '?user=' + encodeURIComponent(email) + (tplKey ? '&template=' + encodeURIComponent(tplKey) : '');
+    fetch('/api/admin/outreach' + qs, { headers: { Authorization: 'Bearer ' + tok } })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(d){
+        if (edits) d.editable = edits;   // keep the owner's edits across a template refresh
+        drawDrawer(email, d);
+      })
+      .catch(function(e){ alert('Could not load the draft: ' + e.message); });
+  }
+
+  function drawDrawer(email, d){
+    closeDrawer();
+    var sc = document.createElement('div'); sc.className = 'scrim';
+    document.body.appendChild(sc);
+    sc.addEventListener('click', closeDrawer);
+
+    var c = d.context, blocked = d.safety.suppressed;
+    D = document.createElement('div'); D.className = 'drawer';
+    D.innerHTML =
+      '<div class="dhead"><div><h2>' + esc(d.user.name || email) + '</h2>' +
+        '<div class="mut" style="font-size:12.5px">' + esc(email) + '</div></div>' +
+        '<button class="x" data-close>&#215;</button></div>' +
+      '<div class="dbody">' +
+        (blocked ? '<div class="stop">' + esc(d.safety.note) + '</div>'
+                 : (d.safety.sent_last_24h.length ? '<div class="warn">' + esc(d.safety.note) + '</div>' : '')) +
+        '<p class="facts">' + n(c.lessons) + ' lessons &middot; ' + n(c.solved) + ' solved &middot; ' +
+          n(c.xp) + ' XP &middot; ' + n(c.wall) + ' wall hits &middot; ' + n(c.pricing) + ' pricing views &middot; ' +
+          (c.last_seen_days > 900 ? 'never active' : ('last seen ' + c.last_seen_days + 'd ago')) + '</p>' +
+        '<div class="tsel" id="tsel">' +
+          d.templates.map(function(t){
+            return '<button data-t="' + t.key + '"' + (t.key === d.template ? ' class="on"' : '') +
+                   ' title="' + esc(t.when) + '">' + esc(t.label) +
+                   (t.key === d.suggested ? ' &middot; suggested' : '') + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div class="fld"><label>Subject</label><input id="o-sub" value="' + esc(d.editable.subject) + '"></div>' +
+        '<div class="fld"><label>Preheader</label><input id="o-pre" value="' + esc(d.editable.preheader) + '"></div>' +
+        '<div class="fld"><label>Body. Tokens in braces fill from this person\'s own figures</label>' +
+          '<textarea id="o-body">' + esc(d.editable.body) + '</textarea></div>' +
+        '<div class="fld"><label>Preview, as they will receive it</label>' +
+          '<p class="prevs">' + esc(d.preview.subject) + '</p>' +
+          '<p class="prev">' + esc(d.preview.text) + '</p></div>' +
+      '</div>' +
+      '<div class="dfoot">' +
+        '<button class="go soft" data-act="refresh">Refresh preview</button>' +
+        '<button class="go soft" data-act="test">Send test to me</button>' +
+        '<button class="go" data-act="send"' + (blocked ? ' disabled' : '') + '>Send to ' +
+          esc(String(d.user.name || email).split(' ')[0]) + '</button>' +
+        '<label class="mut" style="font-size:12.5px"><input type="checkbox" id="o-save"> save edits as the default</label>' +
+        '<span id="o-said" class="said"></span>' +
+      '</div>';
+    document.body.appendChild(D);
+
+    function edits(){
+      return { subject: $('o-sub').value, preheader: $('o-pre').value, body: $('o-body').value };
+    }
+    function currentTpl(){ return D.querySelector('#tsel .on').getAttribute('data-t'); }
+
+    function post(mode){
+      var e = edits();
+      $('o-said').textContent = mode === 'test' ? 'sending test...' : 'sending...';
+      fetch('/api/admin/outreach', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user: email, template: currentTpl(), mode: mode,
+          subject: e.subject, preheader: e.preheader, body: e.body,
+          save: $('o-save').checked
+        })
+      })
+        .then(function(r){
+          return r.json().then(function(j){
+            if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+            return j;
+          });
+        })
+        .then(function(j){
+          $('o-said').textContent = mode === 'test' ? 'test sent to you' : 'sent to ' + j.to;
+        })
+        .catch(function(err){ $('o-said').textContent = ''; alert('Not sent: ' + err.message); });
+    }
+
+    D.addEventListener('click', function(ev){
+      if (ev.target.closest('[data-close]')) { closeDrawer(); return; }
+      var tb = ev.target.closest('#tsel button');
+      if (tb) { openDrawer(email, tb.getAttribute('data-t'), null); return; }  // new template, fresh copy
+      var a = ev.target.closest('[data-act]'); if (!a) return;
+      var act = a.getAttribute('data-act');
+      if (act === 'refresh') { openDrawer(email, currentTpl(), edits()); return; }
+      if (act === 'test') { post('test'); return; }
+      if (act === 'send') {
+        if (confirm('Send this to ' + email + ' now?')) post('send');
+      }
+    });
+  }
+
+  $('rows').addEventListener('click', function(e){
+    var b = e.target.closest('[data-mail]'); if (!b) return;
+    e.preventDefault();
+    openDrawer(b.getAttribute('data-mail'), null, null);
+  });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeDrawer(); });
 
   $('states').addEventListener('click', function(e){
     var b=e.target.closest('.sbtn'); if(!b) return;
