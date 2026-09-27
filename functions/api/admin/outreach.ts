@@ -55,6 +55,21 @@ interface Tpl {
 
 /* The templates.
  *
+ * THE RULE: quote ACHIEVEMENT, never SURVEILLANCE. Lessons finished and
+ * exercises solved are flattering, true, and only this sender could know them.
+ * Wall hits, pricing views and abandoned-checkout counts are never counted back
+ * at a person: "you hit the wall 9 times" says you have been watching, and
+ * frames them as repeatedly failing. The cart template is the one exception,
+ * because the abandoned checkout is its premise and the reader knows they did it.
+ *
+ * Every template that asks for money carries ONE link and the refund line. The
+ * probe template deliberately carries no link at all: it is a real question
+ * about why someone stopped, and a sales link would poison the only email whose
+ * whole value is an honest reply.
+ *
+ * No price anywhere. Parity pricing means the number belongs on the page, in
+ * their own currency.
+ *
  * Every one is a plain personal note from Akshay, because that is what every
  * other non-receipt email on this site is, and because a support-alias-shaped
  * pitch is exactly what people ignore. They lead with the person's own record
@@ -69,14 +84,18 @@ const TEMPLATES: Tpl[] = [
     key: "cart",
     label: "Checkout abandoned",
     when: "opened a checkout and did not finish",
-    subject: "You stopped at the checkout page",
-    preheader: "If something broke, I want to know about it.",
+    subject: "Did something go wrong at checkout?",
+    preheader: "If the page broke, I can usually fix it in minutes.",
     body: [
       "Hi {first_name},",
       "",
-      "You got as far as the checkout page and then stopped. I am not writing to push you, I am writing because if something on that page broke I would rather hear it from you than guess.",
+      "You started checking out and did not finish. If something on that page broke, a card that would not go through, a country or a currency it did not like, tell me and I can usually fix it in a few minutes.",
       "",
-      "If it was the price, say so and I will tell you plainly whether a discount is coming. If it was a card or a country problem, that I can usually fix in a few minutes.",
+      "If it was the price, say so plainly and I will tell you honestly whether anything is coming.",
+      "",
+      "[Pick up where you left off -> https://r-statistics.co/pricing.html?utm_source=email&utm_campaign=outreach]",
+      "",
+      "Fourteen days to change your mind either way, no form and no questions.",
       "",
       "And if you simply changed your mind, that is a perfectly good answer and you can ignore this.",
       "",
@@ -86,17 +105,21 @@ const TEMPLATES: Tpl[] = [
   {
     key: "wall",
     label: "Hit the Pro wall",
-    when: "hit a Pro lesson recently",
-    subject: "You ran into the wall a few times",
-    preheader: "What is behind it, and an honest answer about whether it is worth it.",
+    when: "keeps reaching Pro lessons",
+    subject: "You are further in than most people get",
+    preheader: "What the paid half opens, and what it costs where you are.",
     body: [
       "Hi {first_name},",
       "",
-      "You have hit the Pro wall {wall} times in the last little while, which usually means you went looking for something specific and kept finding a locked door.",
+      "You have finished {lessons} lessons here and solved {solved} exercises. That is further than almost anyone gets on the free material, and it means you have more or less run out of it.",
       "",
-      "You have finished {lessons} lessons here and solved {solved} exercises, so you already know what the material is like. The locked part is where the track stops explaining and starts making you build things, and it ends in a project you do yourself.",
+      "The paid half is the rest of every track: every lesson after the first section, unlimited graded exercises instead of twenty five a month, and the certificate at the end of the track.",
       "",
-      "If you are weighing it up and something does not add up, reply and ask me. I answer every one.",
+      "[See what it costs where you are -> https://r-statistics.co/pricing.html?utm_source=email&utm_campaign=outreach]",
+      "",
+      "Fourteen days to change your mind, no form and no questions.",
+      "",
+      "And if there is a reason you have not upgraded, I would genuinely like to hear it. Reply and tell me. I read every one.",
       "",
       "Akshay",
     ].join("\n"),
@@ -104,17 +127,17 @@ const TEMPLATES: Tpl[] = [
   {
     key: "probe",
     label: "Went quiet",
-    when: "was active and has gone quiet in the last month",
+    when: "was active and has gone quiet this month",
     subject: "Did you get stuck on something?",
     preheader: "No pitch. I am just curious what stopped you.",
     body: [
       "Hi {first_name},",
       "",
-      "You were going well, {solved} exercises solved and {lessons} lessons finished, and then it went quiet about {last_seen_days} days ago.",
+      "You were going well, {solved} exercises solved and {lessons} lessons finished, and then it went quiet.",
       "",
-      "That usually means one of two things: life got busy, or something here was harder or duller than it should have been. If it is the second one, I would genuinely like to know which bit.",
+      "That is usually one of two things: life got busy, or something here was harder or duller than it should have been. If it is the second one, I would really like to know which bit.",
       "",
-      "Reply with one line. It helps me more than you would think.",
+      "One line back is plenty. It helps me more than you would think.",
       "",
       "Akshay",
     ].join("\n"),
@@ -122,17 +145,19 @@ const TEMPLATES: Tpl[] = [
   {
     key: "revive",
     label: "Dormant, with a record",
-    when: "quiet for one to three months but has real history",
+    when: "quiet one to three months but has real history",
     subject: "Your work here is still where you left it",
     preheader: "Nothing expired, nothing lost.",
     body: [
       "Hi {first_name},",
       "",
-      "It has been a while, about {last_seen_days} days. Before you went quiet you had solved {solved} exercises and finished {lessons} lessons, which is further than most people get.",
+      "It has been a while. Before you stopped you had solved {solved} exercises and finished {lessons} lessons, which is a real body of work.",
       "",
-      "All of it is still there, exactly where you left it, along with your streak record and your XP. Nothing expired.",
+      "All of it is still there, exactly where you left it, along with your XP and your streak record. Nothing expired and nothing was lost.",
       "",
-      "If you want a place to restart, reply and tell me what you were working towards and I will point you at the right next thing.",
+      "[Pick up where you left off -> https://r-statistics.co/dashboard.html?utm_source=email&utm_campaign=outreach]",
+      "",
+      "If you would rather I just pointed you at the right next thing, reply and tell me what you were working towards.",
       "",
       "Akshay",
     ].join("\n"),
@@ -142,15 +167,15 @@ const TEMPLATES: Tpl[] = [
     label: "Happy customer, ask for a review",
     when: "a paying member who is actually using it",
     subject: "Would you tell me what you think?",
-    preheader: "Two lines is plenty.",
+    preheader: "Two lines is plenty, and the unflattering parts are the useful ones.",
     body: [
       "Hi {first_name},",
       "",
-      "You have solved {solved} exercises and worked through {lessons} lessons, which puts you among the people who actually use this rather than just buying it.",
+      "You have solved {solved} exercises and worked through {lessons} lessons, which puts you among the people who actually use this rather than just paying for it.",
       "",
-      "Would you tell me what you make of it? Two lines is plenty, and the unflattering parts are the useful parts. If there is something that annoys you every time you open it, that is exactly what I want to hear.",
+      "Would you tell me what you make of it? Two lines is plenty, and the unflattering parts are the useful parts. If something annoys you every single time you open it, that is exactly what I want to hear.",
       "",
-      "If you are happy for me to quote you on the site I will ask separately, and never without your say-so.",
+      "If I ever want to quote you on the site I will ask you first, and never without your say-so.",
       "",
       "Akshay",
     ].join("\n"),
@@ -160,15 +185,15 @@ const TEMPLATES: Tpl[] = [
     label: "Paid, has not started",
     when: "a paying member with little activity yet",
     subject: "Did you get started alright?",
-    preheader: "If something is in the way, tell me and I will clear it.",
+    preheader: "If something is in the way, I will clear it.",
     body: [
       "Hi {first_name},",
       "",
-      "You joined and then I have not seen much activity, which usually means either you have not had a free evening yet or something got in the way.",
+      "You joined and I have not seen much activity since. That is usually a free evening that has not arrived yet, or something getting in the way.",
       "",
       "If it is the second, reply and tell me what happened. A track that is hard to start is my problem to fix, not yours.",
       "",
-      "If you would rather I just pointed you at the first thing to do, say so and I will.",
+      "[Start where the track begins -> https://r-statistics.co/dashboard.html?utm_source=email&utm_campaign=outreach]",
       "",
       "Akshay",
     ].join("\n"),
