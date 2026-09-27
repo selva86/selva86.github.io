@@ -33,6 +33,15 @@ import { readCookie, verifyIdCookie, ID_COOKIE } from "../../_lib/idcookie";
 import { ensureIntentTable } from "../signal";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
+
+/* Constant-time compare, same as /api/admin/email-plan. A length-varying or
+   short-circuiting compare on a shared secret is a timing oracle. */
+function timingSafeEq(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let x = 0;
+  for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return x === 0;
+}
 const DAY = 86400;
 
 type State = "customer" | "hot" | "engaged" | "cooling" | "dormant" | "lost" | "new";
@@ -128,7 +137,7 @@ function nextAction(s: State, a: Agg): { do: string; why: string } {
   return { do: "Leave dormant", why: "no activity for over 90 days" };
 }
 
-export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
+export const onRequestGet: PagesFunction<Env & { CRON_SECRET?: string }, string, RequestData> = async (context) => {
   /* Same rsc-id cookie fallback as /api/admin/digest. /api/* resolves
      context.data.user from a bearer only, so without this an admin typing the
      URL into a browser gets a 401 while signed in. */
@@ -138,9 +147,17 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     const sub = secret ? await verifyIdCookie(secret, readCookie(context.request, ID_COOKIE)) : null;
     if (sub) u = await getUserById(context.env.DB, sub).catch(() => null);
   }
-  if (!u) return err401();
+  /* OR the CRON_SECRET bearer, as /api/admin/email-plan accepts. This is a
+     READ-ONLY endpoint, and the secret already grants the ability to run the
+     email brain, so it is not a widening of trust. It exists so the list can be
+     verified and later automated (the digest could carry a "who needs attention"
+     block) without a browser session. */
+  const auth = context.request.headers.get("Authorization") || "";
+  const bearer = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  const isCron = !!context.env.CRON_SECRET && timingSafeEq(bearer, context.env.CRON_SECRET);
   const admin = (context.env as { ADMIN_EMAIL?: string }).ADMIN_EMAIL || DEFAULT_ADMIN;
-  if ((u.email || "").toLowerCase() !== admin.toLowerCase()) return err403("Admins only");
+  const isAdmin = !!u && (u.email || "").toLowerCase() === admin.toLowerCase();
+  if (!isAdmin && !isCron) return u ? err403("Admins only") : err401();
 
   await ensureIntentTable(context.env.DB);
   const url = new URL(context.request.url);
