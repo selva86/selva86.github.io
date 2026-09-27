@@ -1,0 +1,680 @@
+---
+title: "Machine Learning and Deep Forecasting Lesson 2: Machine Learning Forecasting with modeltime"
+description: "Forecast 12 months of airline passengers with glmnet and a random forest in modeltime, and score them against a seasonal naive and an ARIMA on one table."
+keywords: "machine learning forecasting, modeltime, lag features, forecast horizon, time series split, glmnet, random forest, seasonal naive, ARIMA, forecast accuracy, R"
+mathjax: false
+webr: true
+curriculum_id: "5.130.2"
+post_type: "LESSON"
+course_id: "ts-ml"
+course_title: "Machine Learning and Deep Forecasting"
+course_lesson: "2"
+course_total: "7"
+course_landing: "Machine-Learning-and-Deep-Forecasting-Course.html"
+course_next: "Boosted-Trees-for-Forecasting"
+course_prev: "Global-Models-One-Model-Across-Many-Series"
+lesson_access: "pro"
+catalog_blurb: "How to check whether a machine learning forecast beats ARIMA and a naive baseline."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Machine Learning Forecasting with modeltime</h2>
+
+<p>Today let's use machine learning models to forecast a time series, and check whether they really do better than a seasonal naive forecast and an ARIMA.</p>
+
+<p>Say you plan capacity for an airline. You need the number of international passengers for each of the next 12 months, and you have 144 months of history behind you, from January 1949 to December 1960.</p>
+
+<p>A machine learning model does not read a series directly. It learns from a table with one row per month, where one column is the value to predict and the other columns are the predictors. So the first job is to turn the series into that kind of table.</p>
+
+<p>After that, we fit four models on the same rows and score all four on the same 12 months, in one accuracy table.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Turn the series into rows","sub":"passengers is the target, lags and month are predictors"},{"title":"Split by date","sub":"108 months to train, the last 12 months to test"},{"title":"Fit four models","sub":"seasonal naive and ARIMA, glmnet and random forest"},{"title":"Compare on one table","sub":"MAE, MAPE and RMSE over the 12 test months"},{"title":"Refit and forecast","sub":"all 120 months in, January to December 1961 out"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That is the whole flow, and we start at the first box.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The airline passengers series and what a model needs to learn from it</h2>
+
+<p>The series is the <code>AirPassengers</code> dataset that ships with base R. It holds the monthly totals of international airline passengers, in thousands, from January 1949 to December 1960.</p>
+
+<p>We put it in a table with one row per month: the date and the passengers. Then we add up each year, pick out its busiest month, and draw the whole series.</p>
+
+<p>Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the monthly passengers series, then total and peak it by year
+library(dplyr)
+library(ggplot2)
+
+air &lt;- tibble(
+  date = seq(as.Date(&quot;1949-01-01&quot;), by = &quot;month&quot;, length.out = 144),
+  passengers = as.numeric(AirPassengers)
+)
+
+dim(air)
+#&gt; [1] 144   2
+
+yearly &lt;- air |&gt;
+  mutate(year = format(date, &quot;%Y&quot;)) |&gt;
+  group_by(year) |&gt;
+  summarise(total = sum(passengers), peak = max(passengers))
+
+as.data.frame(yearly[c(1, 12), ])
+#&gt;   year total peak
+#&gt; 1 1949  1520  148
+#&gt; 2 1960  5714  622
+
+ggplot(air, aes(date, passengers)) +
+  geom_line(color = &quot;#1f7a55&quot;) +
+  labs(x = NULL, y = &quot;Passengers (thousands)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 144 rows. In 1949 the airline carried 1,520 thousand passengers, and its busiest month had 148 thousand. In 1960 it carried 5,714 thousand, and its busiest month had 622 thousand.</p>
+
+<p>The chart shows the same thing. The level of the series rises every year, and the peak in the middle of each year rises with it.</p>
+
+<p>Now think about what a machine learning model needs. It learns a mapping from predictor columns to one target column, and here the target is <code>passengers</code>. But this table has no predictors. A date is a single number that keeps growing, and it says nothing about what passengers were a year ago or which time of the year the row belongs to.</p>
+
+<p>So we derive the predictors from the series itself.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Lag, calendar and trend features</h2>
+
+<p>We build three kinds of predictor columns, also called features, and each one carries something a plain date does not.</p>
+
+<ul>
+
+<li>A <strong>lag</strong> column is the value of the series some number of rows earlier. <code>passengers_lag12</code> is the passengers of the same month a year before, and <code>passengers_lag24</code> is the same month two years before.</li>
+
+<li><code>month</code> is the calendar month, as a factor with 12 levels from Jan to Dec. It tells the model which time of the year a row belongs to.</li>
+
+<li><code>t</code> counts the months from 1 for January 1949. It gives the model a number that rises along with the level of the series.</li>
+
+</ul>
+
+<p>The lags are 12 and 24, not 1 and 2, because we forecast 12 months ahead. A lag of 12 is the smallest one that is still known for every month we forecast.</p>
+
+<p>The function <code>lag(passengers, 12)</code> from dplyr shifts the column down by 12 rows. The first 24 months have no value 24 months earlier, so <code>passengers_lag24</code> is empty there and <code>drop_na()</code> removes those rows.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add lag, month and month-counter columns, then drop the rows with no lag
+library(tidyr)
+library(lubridate)
+
+feat &lt;- air |&gt;
+  mutate(
+    passengers_lag12 = lag(passengers, 12),
+    passengers_lag24 = lag(passengers, 24),
+    month = factor(month.abb[month(date)], levels = month.abb),
+    t = row_number()
+  ) |&gt;
+  drop_na()
+
+head(as.data.frame(feat), 3)
+#&gt;         date passengers passengers_lag12 passengers_lag24 month  t
+#&gt; 1 1951-01-01        145              115              112   Jan 25
+#&gt; 2 1951-02-01        150              126              118   Feb 26
+#&gt; 3 1951-03-01        178              141              132   Mar 27
+
+dim(feat)
+#&gt; [1] 120   6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We call this the feature table. It has 120 rows, January 1951 to December 1960, because 24 of the 144 months were dropped.</p>
+
+<p>The first row is January 1951. It had 145 thousand passengers, 115 a year earlier (<code>passengers_lag12</code>) and 112 two years earlier (<code>passengers_lag24</code>), and its <code>t</code> is 25.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Why a lag has to be at least as long as the forecast horizon</h2>
+
+<p>The forecast horizon is how many months ahead we have to predict. Here it is 12: January to December 1961.</p>
+
+<p>To forecast those months, we need a value for every predictor in the 12 future rows. Passengers for 1961 do not exist yet, so a lag column can only be used if it points at a month that has already happened.</p>
+
+<p>We can check that. The function <code>future_frame()</code> adds the 12 future months to the table, with <code>passengers</code> set to NA. Then <code>lag()</code> computes the lags on the extended table. We try lags of 1 and 12 first and keep only the future rows.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Append the 12 months of 1961 and count the missing cells for two sets of lags
+library(timetk)
+
+lag_1_12 &lt;- air |&gt;
+  future_frame(.date_var = date, .length_out = 12, .bind_data = TRUE) |&gt;
+  mutate(
+    passengers_lag1 = lag(passengers, 1),
+    passengers_lag12 = lag(passengers, 12)
+  ) |&gt;
+  filter(date &gt;= as.Date(&quot;1961-01-01&quot;))
+
+as.data.frame(head(lag_1_12, 3))
+#&gt;         date passengers passengers_lag1 passengers_lag12
+#&gt; 1 1961-01-01         NA             432              417
+#&gt; 2 1961-02-01         NA              NA              391
+#&gt; 3 1961-03-01         NA              NA              419
+
+sum(is.na(lag_1_12$passengers_lag1))
+#&gt; [1] 11
+sum(is.na(lag_1_12$passengers_lag12))
+#&gt; [1] 0
+
+future_data &lt;- air |&gt;
+  future_frame(.date_var = date, .length_out = 12, .bind_data = TRUE) |&gt;
+  mutate(
+    passengers_lag12 = lag(passengers, 12),
+    passengers_lag24 = lag(passengers, 24),
+    month = factor(month.abb[month(date)], levels = month.abb),
+    t = row_number()
+  ) |&gt;
+  filter(date &gt;= as.Date(&quot;1961-01-01&quot;))
+
+sum(is.na(select(future_data, passengers_lag12, passengers_lag24)))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at January 1961. Its <code>passengers_lag12</code> is 417, the January 1960 value, and its <code>passengers_lag1</code> is 432, the December 1960 value. Both exist. For February 1961 the lag 12 is 391, but the lag 1 is NA, because it is the passengers of January 1961, which is the very number we are trying to forecast.</p>
+
+<p>Counting the empty cells, <code>passengers_lag1</code> is missing in 11 of the 12 future rows, and <code>passengers_lag12</code> in none.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The smallest lag has to be at least as long as the forecast horizon. Then every predictor in the future rows is a value that already exists when the forecast is made, so one model can predict all 12 months at once.</div></div>
+
+<p>Lags of 12 and 24 follow that rule. The second part of the code builds the 12 future rows for the real feature table, with the same lags, <code>month</code> and <code>t</code>, and <code>t</code> continues from 145 to 156. It finds 0 empty cells in the two lag columns, and we keep it as <code>future_data</code> for the final forecast.</p>
+
+<p>There is another way to use short lags, called recursive forecasting, which feeds each forecast back in as the next month's lag. We do not build it here.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Splitting by date: the last 12 months as the test set</h2>
+
+<p>To score a forecast, we need months whose passengers the models have not seen. So we hold out the last 12 months, 1960, as the test set. That is the same length as the horizon. The other 108 months are the training set.</p>
+
+<p>The function <code>time_series_split()</code> splits by date. <code>assess = &quot;12 months&quot;</code> sets the length of the test set, and <code>cumulative = TRUE</code> makes the training set every month before it. Then <code>training()</code> and <code>testing()</code> from rsample return the two parts.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Split the 120 rows by date: the last 12 months are the test set
+library(rsample)
+
+splits &lt;- time_series_split(feat, date_var = date, assess = &quot;12 months&quot;, cumulative = TRUE)
+tr &lt;- training(splits)
+te &lt;- testing(splits)
+
+c(train = nrow(tr), test = nrow(te))
+#&gt; train  test
+#&gt;   108    12
+range(tr$date)
+#&gt; [1] &quot;1951-01-01&quot; &quot;1959-12-01&quot;
+range(te$date)
+#&gt; [1] &quot;1960-01-01&quot; &quot;1960-12-01&quot;
+c(train_max = max(tr$passengers), test_max = max(te$passengers))
+#&gt; train_max  test_max
+#&gt;       559       622
+
+splits |&gt;
+  tk_time_series_cv_plan() |&gt;
+  plot_time_series_cv_plan(date, passengers, .interactive = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The training months run from January 1951 to December 1959, and the test months are all of 1960. The chart colours the two parts. The test months also go higher than any training month: 622 against 559.</p>
+
+<p>A random split would be a mistake here. A test month from March 1955 would be scored by a model that trained on rows from 1956 to 1960, so the model would have seen months after the one it forecasts. That is <strong>leakage</strong>: information from after the forecast date reaching the model.</p>
+
+<p>The date split avoids it. Every lag in a test row points at a month up to December 1959, so no test row uses a value from the test period.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Two benchmarks: seasonal naive and auto ARIMA</h2>
+
+<p>Before we fit a machine learning model, we need something to beat. A <strong>benchmark</strong> is a simple forecasting method. A machine learning model is worth its extra work only if its error on the test months is lower than the seasonal naive's.</p>
+
+<p>The seasonal naive forecast for a month is the value of the same month a year earlier. The second benchmark is an ARIMA, and the engine <code>auto_arima</code> searches for the ARIMA order with the lowest AICc, a score that trades fit against the number of terms.</p>
+
+<p>Both use the formula <code>passengers ~ date</code> on the 108 training months, so they work from the dates and the passengers only.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a seasonal naive and an auto ARIMA on the 108 training months
+library(modeltime)
+library(parsnip)
+
+m_snaive &lt;- naive_reg(seasonal_period = 12) |&gt;
+  set_engine(&quot;snaive&quot;) |&gt;
+  fit(passengers ~ date, data = tr)
+
+m_arima &lt;- arima_reg() |&gt;
+  set_engine(&quot;auto_arima&quot;) |&gt;
+  fit(passengers ~ date, data = tr)
+
+m_arima
+#&gt; parsnip model object
+#&gt;
+#&gt; Series: outcome
+#&gt; ARIMA(1,0,0)(0,1,0)[12] with drift
+#&gt;
+#&gt; Coefficients:
+#&gt;          ar1   drift
+#&gt;       0.7942  2.7806
+#&gt; s.e.  0.0631  0.4299
+#&gt;
+#&gt; sigma^2 = 118.8:  log likelihood = -365
+#&gt; AIC=736.01   AICc=736.27   BIC=743.7
+
+predict(m_snaive, new_data = te)$.pred[1:3]
+#&gt; [1] 360 342 406
+tail(tr$passengers, 12)[1:3]
+#&gt; [1] 360 342 406</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The seasonal naive forecasts for the first three test months are 360, 342 and 406. Those are the January to March 1959 values, one year back, so January 1960 gets 360.</p>
+
+<p><code>auto_arima</code> chose ARIMA(1,0,0)(0,1,0)[12] with drift, and the name has three parts:</p>
+
+<ul>
+
+<li>The (1,0,0) part is one autoregressive (AR) term. Each month's change from a year earlier depends on the previous month's change from a year earlier.</li>
+
+<li>The (0,1,0)[12] part takes one seasonal difference at period 12, so the model works with each month minus the same month a year before.</li>
+
+<li>The word drift means a constant trend term is included.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Two machine learning models: glmnet and random forest</h2>
+
+<p>Now the two machine learning models. Both learn from the same feature table, so both need the same preparation first, and a <strong>recipe</strong> describes it.</p>
+
+<p><code>recipe(passengers ~ ., data = tr)</code> says <code>passengers</code> is the target and every other column is a predictor. <code>update_role(date, new_role = &quot;id&quot;)</code> keeps <code>date</code> in the data as a row label, not a predictor, because <code>t</code> already carries the trend. And <code>step_dummy(month)</code> turns the month factor into 11 indicator columns of 0 and 1, one for each month except January, which is the baseline.</p>
+
+<p>A <strong>workflow</strong> bundles a recipe with a model specification, so one <code>fit()</code> call prepares the data and fits the model.</p>
+
+<p>The first model is glmnet, a linear regression with a penalty on its coefficients. <code>penalty = 0.5</code> sets how strongly the coefficients are shrunk, and <code>mixture = 0.5</code> blends the lasso and ridge penalties equally, which is called an elastic net. The lasso part can shrink a coefficient all the way to 0, while the ridge part only shrinks it. We set the penalty by hand and do not tune it.</p>
+
+<p>The second model is a random forest of 200 trees. Each tree splits a random sample of the training months into groups using the predictor columns, and it forecasts a month with the average passengers of the sampled months in its group. The forest then averages the 200 trees.</p>
+
+<p>The forest draws random samples, so <code>set.seed(2026)</code> comes before each fit and gives the same result every run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit an elastic net and a random forest through the same recipe
+library(recipes)
+library(workflows)
+library(randomForest)
+library(glmnet)
+
+rec &lt;- recipe(passengers ~ ., data = tr) |&gt;
+  update_role(date, new_role = &quot;id&quot;) |&gt;
+  step_dummy(month)
+
+glmnet_spec &lt;- linear_reg(penalty = 0.5, mixture = 0.5) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+rf_spec &lt;- rand_forest(trees = 200) |&gt;
+  set_engine(&quot;randomForest&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+set.seed(2026)
+wf_glmnet &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(glmnet_spec) |&gt;
+  fit(data = tr)
+
+set.seed(2026)
+wf_rf &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(rf_spec) |&gt;
+  fit(data = tr)
+
+wf_glmnet |&gt;
+  extract_fit_parsnip() |&gt;
+  tidy() |&gt;
+  select(term, estimate) |&gt;
+  mutate(estimate = round(estimate, 2)) |&gt;
+  as.data.frame()
+#&gt;                term estimate
+#&gt; 1       (Intercept)    31.50
+#&gt; 2  passengers_lag12     0.56
+#&gt; 3  passengers_lag24     0.34
+#&gt; 4                 t     0.41
+#&gt; 5         month_Feb    -6.83
+#&gt; 6         month_Mar     1.25
+#&gt; 7         month_Apr     0.00
+#&gt; 8         month_May     3.81
+#&gt; 9         month_Jun    12.63
+#&gt; 10        month_Jul    23.34
+#&gt; 11        month_Aug    24.70
+#&gt; 12        month_Sep     7.37
+#&gt; 13        month_Oct     0.00
+#&gt; 14        month_Nov    -7.05
+#&gt; 15        month_Dec    -2.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table lists the glmnet coefficients. With the other columns held fixed, an extra thousand passengers in the same month a year earlier adds 0.56 thousand to the forecast, and in the same month two years earlier it adds 0.34. Each month that passes adds 0.41 through <code>t</code>.</p>
+
+<p>July sits 23.3 above January and August sits 24.7 above it. <code>month_Apr</code> and <code>month_Oct</code> are 0, because the lasso part of the penalty removed them.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Comparing the four models on one modeltime accuracy table</h2>
+
+<p>Now the four fitted models go into one table. <code>modeltime_table()</code> holds models of different kinds together: the two benchmarks are parsnip fits and the other two are workflows. <code>update_model_description()</code> gives each one a short label.</p>
+
+<p>Then <code>modeltime_calibrate(new_data = te)</code> forecasts the 12 test months with every model and stores the actuals and the errors, called residuals. And <code>modeltime_accuracy()</code> scores each model on those errors. We keep three metrics:</p>
+
+<ul>
+
+<li><strong>MAE</strong>, the mean absolute error, is the average size of a miss, in thousands of passengers.</li>
+
+<li><strong>MAPE</strong>, the mean absolute percentage error, is the average miss as a percent of the actual value.</li>
+
+<li><strong>RMSE</strong>, the root mean squared error, squares the misses before averaging and takes the root afterwards, so one large miss counts for more than several small ones.</li>
+
+</ul>
+
+<p>The last column divides each model's MAE by the seasonal naive's MAE, as a percent.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Put the four fits in one table, forecast the 12 test months and score them
+tbl &lt;- modeltime_table(m_snaive, m_arima, wf_glmnet, wf_rf) |&gt;
+  update_model_description(1, &quot;seasonal naive&quot;) |&gt;
+  update_model_description(2, &quot;ARIMA&quot;) |&gt;
+  update_model_description(3, &quot;glmnet&quot;) |&gt;
+  update_model_description(4, &quot;random forest&quot;)
+
+cal &lt;- tbl |&gt;
+  modeltime_calibrate(new_data = te)
+
+acc &lt;- cal |&gt;
+  modeltime_accuracy()
+
+acc |&gt;
+  transmute(
+    model = .model_desc,
+    share_of_naive_mae = round(100 * mae / mae[1], 1),
+    mae = round(mae, 1),
+    mape = round(mape, 2),
+    rmse = round(rmse, 1)
+  ) |&gt;
+  select(model, mae, mape, rmse, share_of_naive_mae) |&gt;
+  as.data.frame()
+#&gt;            model  mae mape rmse share_of_naive_mae
+#&gt; 1 seasonal naive 47.8 9.99 50.7              100.0
+#&gt; 2          ARIMA 14.8 3.08 18.2               30.9
+#&gt; 3         glmnet 18.2 3.74 21.2               38.0
+#&gt; 4  random forest 39.1 7.43 52.3               81.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Start with the MAE column. The seasonal naive is off by 47.8 thousand passengers a month on average. ARIMA is off by 14.8, which is 30.9% of that, and glmnet by 18.2, which is 38.0%. The random forest is off by 39.1, which is 81.8%.</p>
+
+<p>Now the RMSE. The random forest's RMSE is 52.3, higher than the seasonal naive's 50.7, even though its MAE is lower. So a few large misses sit behind that MAE.</p>
+
+<p>All four scores come from one window of 12 months, so each is a single evaluation of that model.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Reading each model's forecast errors by month</h2>
+
+<p>The accuracy table averages the misses. To see where they fall, we list the error for each test month. The error is the actual passengers minus the forecast, so a positive error means the forecast was too low.</p>
+
+<p>The code below builds the errors for all four models. It prints each model's lowest error, highest error, and its errors in July and August, the two busiest months. The last lines print the random forest's forecasts for January and July 1960, and the highest 1960 forecast from the random forest and from glmnet.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Actual minus forecast, for each model and each of the 12 test months
+err &lt;- cal |&gt;
+  modeltime_residuals() |&gt;
+  transmute(
+    model = .model_desc,
+    month = month(.index),
+    error = round(.residuals, 1)
+  )
+
+err |&gt;
+  group_by(model) |&gt;
+  summarise(
+    lowest = min(error),
+    highest = max(error),
+    july = error[month == 7],
+    august = error[month == 8]
+  ) |&gt;
+  as.data.frame()
+#&gt;            model lowest highest  july august
+#&gt; 1          ARIMA  -37.7    33.7  33.7    8.2
+#&gt; 2         glmnet  -18.2    38.0  38.0    9.4
+#&gt; 3  random forest  -17.2   117.5 117.5  100.3
+#&gt; 4 seasonal naive   13.0    74.0  74.0   47.0
+
+# The random forest forecasts for January and July 1960, and each model's highest 1960 forecast
+forest_1960 &lt;- predict(wf_rf, new_data = te)$.pred
+glmnet_1960 &lt;- predict(wf_glmnet, new_data = te)$.pred
+
+round(forest_1960[c(1, 7)], 1)
+#&gt; [1] 415.2 504.5
+round(c(forest = max(forest_1960), glmnet = max(glmnet_1960)), 1)
+#&gt; forest glmnet
+#&gt;  505.7  596.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The widget plots all 48 errors in the <code>err</code> table, one point for each model and month. The x-axis is the month of 1960, from 1 to 12. Switch it to the <code>facet_wrap</code> view to get one panel per model.</p>
+<div class="lesson-widget" data-widget-type="facet-grid" data-widget-config='{"data":[{"x":1,"y":57,"facet":"seasonal naive"},{"x":2,"y":49,"facet":"seasonal naive"},{"x":3,"y":13,"facet":"seasonal naive"},{"x":4,"y":65,"facet":"seasonal naive"},{"x":5,"y":52,"facet":"seasonal naive"},{"x":6,"y":63,"facet":"seasonal naive"},{"x":7,"y":74,"facet":"seasonal naive"},{"x":8,"y":47,"facet":"seasonal naive"},{"x":9,"y":45,"facet":"seasonal naive"},{"x":10,"y":54,"facet":"seasonal naive"},{"x":11,"y":28,"facet":"seasonal naive"},{"x":12,"y":27,"facet":"seasonal naive"},{"x":1,"y":-3.9,"facet":"ARIMA"},{"x":2,"y":-6.2,"facet":"ARIMA"},{"x":3,"y":-37.7,"facet":"ARIMA"},{"x":4,"y":17.9,"facet":"ARIMA"},{"x":5,"y":7.7,"facet":"ARIMA"},{"x":6,"y":20.9,"facet":"ARIMA"},{"x":7,"y":33.7,"facet":"ARIMA"},{"x":8,"y":8.2,"facet":"ARIMA"},{"x":9,"y":7.3,"facet":"ARIMA"},{"x":10,"y":17.2,"facet":"ARIMA"},{"x":11,"y":-8.1,"facet":"ARIMA"},{"x":12,"y":-8.5,"facet":"ARIMA"},{"x":1,"y":15.1,"facet":"glmnet"},{"x":2,"y":13,"facet":"glmnet"},{"x":3,"y":-18.2,"facet":"glmnet"},{"x":4,"y":35,"facet":"glmnet"},{"x":5,"y":23.3,"facet":"glmnet"},{"x":6,"y":23.6,"facet":"glmnet"},{"x":7,"y":38,"facet":"glmnet"},{"x":8,"y":9.4,"facet":"glmnet"},{"x":9,"y":16.2,"facet":"glmnet"},{"x":10,"y":22.7,"facet":"glmnet"},{"x":11,"y":0.1,"facet":"glmnet"},{"x":12,"y":3.7,"facet":"glmnet"},{"x":1,"y":1.8,"facet":"random forest"},{"x":2,"y":24.6,"facet":"random forest"},{"x":3,"y":-17.2,"facet":"random forest"},{"x":4,"y":39.3,"facet":"random forest"},{"x":5,"y":30.1,"facet":"random forest"},{"x":6,"y":54.5,"facet":"random forest"},{"x":7,"y":117.5,"facet":"random forest"},{"x":8,"y":100.3,"facet":"random forest"},{"x":9,"y":40.2,"facet":"random forest"},{"x":10,"y":31.4,"facet":"random forest"},{"x":11,"y":8.2,"facet":"random forest"},{"x":12,"y":3.9,"facet":"random forest"}],"geom":"point","x":"month of 1960","y":"actual minus forecast","facetVar":"model"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>In the seasonal naive panel, every point sits above 0, from 13 to 74. The series rises every year, so the value from a year earlier is always too low. The ARIMA errors run from -37.7 to 33.7, on both sides of 0. The glmnet errors peak at 38.0 in July and 9.4 in August.</p>
+
+<p>The random forest has two points far above the rest: 117.5 in July and 100.3 in August.</p>
+
+<p>Here is the reason. A random forest forecast is an average of training passengers, so no forecast can go above 559, the highest value in the training months. But July 1960 was 622. The random forest's highest forecast for 1960 is 505.7, in August, and its July forecast is 504.5.</p>
+
+<p>The series keeps rising, so an average of past months falls below the months being forecast, and the summer months, where the actuals are highest, are missed by the most.</p>
+
+<p>glmnet is linear, so its forecasts are not limited to the range of the training passengers, and its highest 1960 forecast is 596.6. The random forest does use <code>month</code>: its July forecast is 504.5 against 415.2 for January.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<h2>Refit on all 120 months and forecast 1961</h2>
+
+<p>The test months have done their job, which was scoring the four models. For the real forecast we put them back. The function <code>modeltime_refit()</code> fits each of the four models again on all 120 rows of the feature table, with the same specifications.</p>
+
+<p>The ARIMA order is searched again, so it can change, and it does: the refitted ARIMA is (1,1,0)(0,1,0)[12]. Then <code>modeltime_forecast()</code> forecasts the 12 future rows in <code>future_data</code>, and <code>plot_modeltime_forecast()</code> draws the history with the four forecasts. The bands are 95% intervals built from the calibration residuals, the errors on the 12 test months.</p>
+
+<p>Press Run. The refit takes a moment.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit all four models on the 120 months and forecast January to December 1961
+set.seed(2026)
+refit &lt;- cal |&gt;
+  modeltime_refit(data = feat)
+
+fc &lt;- refit |&gt;
+  modeltime_forecast(new_data = future_data, actual_data = feat)
+
+p &lt;- plot_modeltime_forecast(fc, .interactive = FALSE)
+suppressWarnings(print(p))
+
+fc |&gt;
+  filter(.key == &quot;prediction&quot;) |&gt;
+  group_by(.model_desc) |&gt;
+  summarise(total_1961 = round(sum(.value))) |&gt;
+  as.data.frame()
+#&gt;                       .model_desc total_1961
+#&gt; 1 UPDATE: ARIMA(1,1,0)(0,1,0)[12]       6041
+#&gt; 2                          glmnet       6189
+#&gt; 3                   random forest       5884
+#&gt; 4                  seasonal naive       5714</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The last lines print the 12-month total for 1961 from each model, in thousands of passengers. modeltime marks the refitted ARIMA with UPDATE and the order it found this time.</p>
+
+<p>The seasonal naive total is 5,714, the 1960 total, because it repeats last year. ARIMA gives 6,041, glmnet 6,189 and the random forest 5,884.</p>
+
+<p>The table below shows the same forecasts month by month, with a total row. Toggle it to see the raw values and then the formatted table.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["month","seasonal naive","ARIMA","glmnet","random forest"],"rows":[["Jan",417.0,444.3,451.4,455.4],["Feb",391.0,418.2,423.6,416.9],["Mar",419.0,446.2,467.2,465.5],["Apr",461.0,488.2,491.8,489.6],["May",472.0,499.2,510.0,501.4],["Jun",535.0,562.2,573.1,536.7],["Jul",622.0,649.2,662.2,561.6],["Aug",606.0,633.2,655.0,554.5],["Sep",508.0,535.2,549.3,523.1],["Oct",461.0,488.2,497.1,486.3],["Nov",390.0,417.2,431.9,430.1],["Dec",432.0,459.2,476.0,463.1],["Total",5714.0,6040.8,6188.6,5884.3]],"formats":{"seasonal naive":"comma","ARIMA":"comma","glmnet":"comma","random forest":"comma"},"title":"Forecast of monthly passengers for 1961, in thousands","note":"All four models were refitted on 120 months. The total row adds the 12 monthly forecasts."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>July 1961 is 622 for the seasonal naive, 649 for ARIMA, 662 for glmnet and 562 for the random forest. So the random forest is the lowest in July again.</p>
+
+<p>No 1961 actuals exist yet, so this table cannot be scored. The evidence for how good each model is comes from the 12 test months of 1960.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why is the random forest's MAE close to the seasonal naive's?</h2>
+
+<p>In the accuracy table the random forest's MAE is 39.1, against 47.8 for the seasonal naive, and its July 1960 forecast is 117.5 below the actual. What explains that?</p>
+<section class="exercise" data-exercise-id="Machine-Learning-Forecasting-with-modeltime-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It ignores the <code>month</code> column, so it cannot tell July from January.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A random forest forecast is an average of training passengers, so on a rising series its forecasts stay below the actuals in the summer months.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">200 trees are too few, so the average has not settled.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Refitting on all 120 months removes the gap, so its 1961 forecast agrees with the other models.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. Its highest 1960 forecast is 505.7 and no forecast can pass 559, the highest training value, while July 1960 was 622. The July forecast of 504.5 sits 117.5 below the actual.</div><div class="lesson-qfb lesson-qfb-no">Each of these is contradicted by the numbers. The random forest's July forecast (504.5) is above its January forecast (415.2), so it uses <code>month</code>. With 1,000 trees the MAE is 39.3, so more trees do not help. And after the refit, its July 1961 forecast is 562 against 649 for ARIMA and 662 for glmnet. The cause is the averaging: a random forest forecast is an average of training passengers, so on a rising series it falls below the months being forecast.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: build the feature rows for a 6-month horizon</h2>
+
+<p>Suppose the planner only needs the next 6 months. The starter below builds the 6 future rows with a lag of 1 and counts the empty lag cells among them. With <code>lag(passengers, 1)</code> the count is 5, because only the first future month has a lag 1 that exists.</p>
+
+<p>Change the lag so the count is 0. Press Check when it is.</p>
+<section class="exercise" data-exercise-id="Machine-Learning-Forecasting-with-modeltime-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="lag[(]passengers,\s*(n\s*=\s*)?([6-9]|[1-9][0-9]+)\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Choose a lag that is known for every one of the 6 future months
+library(dplyr)
+library(timetk)
+
+future_6 &lt;- air |&gt;
+  future_frame(.date_var = date, .length_out = 6, .bind_data = TRUE) |&gt;
+  mutate(passengers_lag = lag(passengers, 1)) |&gt;
+  filter(is.na(passengers))
+
+sum(is.na(future_6$passengers_lag))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes: the count is 0. The lag is at least the 6-month horizon, so every lag cell in the future rows points at a month that has already happened.</span><span class="lesson-tryit-fb lesson-tryit-no">The count is still above 0. A lag cell in a future row is filled only if it points at a month up to the end of the data, so the lag has to be at least 6, the horizon. Try lag(passengers, 6).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># A lag of 6 equals the 6-month horizon, so no lag cell is empty
+library(dplyr)
+library(timetk)
+
+future_6 &lt;- air |&gt;
+  future_frame(.date_var = date, .length_out = 6, .bind_data = TRUE) |&gt;
+  mutate(passengers_lag = lag(passengers, 6)) |&gt;
+  filter(is.na(passengers))
+
+sum(is.na(future_6$passengers_lag))
+#&gt; [1] 0</code></pre></details></div>
+</section>
+<p>Any lag of at least 6 gives 0. A lag of 5 still leaves 1 empty cell, because the sixth future month would need the passengers of the first future month.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice, 3rd edition</a> - Hyndman and Athanasopoulos (2021), OTexts. The chapters on benchmark methods and on evaluating forecast accuracy.</li>
+
+<li><a href="https://business-science.github.io/modeltime/">modeltime documentation</a> - Dancho, Business Science. The functions for building a modeltime table, calibrating, scoring, refitting and forecasting.</li>
+
+<li><a href="https://business-science.github.io/timetk/">timetk documentation</a> - Dancho, Business Science. The reference for <code>future_frame()</code>, <code>time_series_split()</code> and the split plots.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v033.i01">Regularization Paths for Generalized Linear Models via Coordinate Descent</a> - Friedman, Hastie and Tibshirani (2010), Journal of Statistical Software 33(1). The paper behind glmnet and the elastic net.</li>
+
+<li>Time Series Analysis: Forecasting and Control - Box, Jenkins and Reinsel (1976), Holden-Day. The source of the airline passengers series.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You turned a monthly series into a feature table, fit four models on the same rows and scored them on the same 12 months. To summarize:</p>
+
+<ul>
+
+<li>A lag column is usable only if its smallest lag is at least the forecast horizon. With a horizon of 12, lags 12 and 24 are known for all 12 future months, while lag 1 was missing in 11 of them.</li>
+
+<li>The split follows the calendar: 108 months to train and the last 12 to test. A random split would train on months after the ones it scores.</li>
+
+<li>One modeltime table scored the benchmarks and the machine learning models the same way. The MAE on the 12 test months was 14.8 for ARIMA, 18.2 for glmnet, 39.1 for the random forest and 47.8 for the seasonal naive.</li>
+
+<li>glmnet's MAE is 38% of the seasonal naive's, so it beats that benchmark, but it stays behind ARIMA, 18.2 against 14.8. The random forest's MAE is 82% of the seasonal naive's.</li>
+
+<li>A random forest forecast is an average of training passengers, so on a rising series its forecasts fall below the actuals. In July 1960 it missed by 117.5.</li>
+
+</ul>
+
+<p>So for this series, ARIMA is the model to beat, and glmnet is the machine learning model that comes closest.</p>
+
+<p>In the next part, we fit gradient boosted trees on this kind of feature table and look at why trees cannot follow a trend.</p>
+</section>
+
+{% endraw %}
