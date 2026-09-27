@@ -1,0 +1,758 @@
+---
+title: "Hierarchical and Grouped Forecasting Lesson 1: Hierarchical and grouped time series"
+description: "Learn to tell a hierarchical time series from a grouped one, declare both with aggregate_key() in R, and see why forecasts made series by series do not add up."
+keywords: "hierarchical time series, grouped time series, aggregate_key, forecast reconciliation, hierarchical forecasting in R, fable, tsibble, tourism data"
+mathjax: false
+webr: true
+curriculum_id: "5.120.1"
+post_type: "LESSON"
+course_id: "ts-hierarchical"
+course_title: "Hierarchical and Grouped Forecasting"
+course_lesson: "1"
+course_total: "5"
+course_landing: "Hierarchical-and-Grouped-Forecasting-Course.html"
+course_next: "Bottom-Up-Top-Down-and-Middle-Out"
+course_prev: ""
+lesson_access: "pro"
+catalog_blurb: "How the structure of your series decides which forecasts can add up."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Hierarchical and grouped time series</h2>
+
+<p>Today let's understand how a set of related time series is organised, and why that organisation decides how you can forecast it.</p>
+
+<p>Let's say you plan tourism for two Australian states, Tasmania and Western Australia. Tourism Research Australia counts the overnight trips visitors make, every quarter, from 1998 Q1 to 2016 Q4. Tasmania has 5 tourism regions and Western Australia has 5.</p>
+
+<p>The planning team wants three kinds of forecast: one for the two states together, one for each state, and one for each region.</p>
+
+<p>So the team is not forecasting one series. It is forecasting a set of series where each higher one is the sum of the lower ones.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Total","sub":"1 series: all trips in the two states"},{"title":"State","sub":"2 series: Tasmania, Western Australia"},{"title":"Region","sub":"10 series: 5 regions in each state"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The widget shows the three levels, and together they hold 13 series: 1 + 2 + 10.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The bottom-level series in a tidy table</h2>
+
+<p>Let's start with the data, because everything in this lesson is built from it.</p>
+
+<p>The tourism table lives in the tsibble package. A tsibble is a data frame for time series with two extra ideas. The index is the column that holds the time, here <code>Quarter</code>. The keys are the columns that together identify one series, here <code>Region</code>, <code>State</code> and <code>Purpose</code>.</p>
+
+<p>We keep the two states and every quarter up to 2016 Q4. The call <code>filter_index(. ~ &quot;2016 Q4&quot;)</code> does the second part: the dot stands for the start of the data, so it keeps everything up to and including 2016 Q4. Press Run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load the packages and build the slice of 40 bottom-level series
+library(tsibble)
+library(fabletools)
+library(fable)
+library(dplyr)
+
+tourism &lt;- tsibble::tourism
+sl &lt;- tourism |&gt;
+  filter(State %in% c(&quot;Tasmania&quot;, &quot;Western Australia&quot;)) |&gt;
+  filter_index(. ~ &quot;2016 Q4&quot;)
+
+range(sl$Quarter)
+#&gt; &lt;yearquarter[2]&gt;
+#&gt; [1] &quot;1998 Q1&quot; &quot;2016 Q4&quot;
+#&gt; # Year starts on: January
+nrow(sl)
+#&gt; [1] 3040
+n_keys(sl)
+#&gt; [1] 40
+head(sl)
+#&gt; # A tsibble: 6 x 5 [1Q]
+#&gt; # Key:       Region, State, Purpose [1]
+#&gt;   Quarter Region                  State             Purpose  Trips
+#&gt;     &lt;qtr&gt; &lt;chr&gt;                   &lt;chr&gt;             &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 1998 Q1 Australia's Coral Coast Western Australia Business  26.2
+#&gt; 2 1998 Q2 Australia's Coral Coast Western Australia Business  27.2
+#&gt; 3 1998 Q3 Australia's Coral Coast Western Australia Business  33.7
+#&gt; 4 1998 Q4 Australia's Coral Coast Western Australia Business  31.0
+#&gt; 5 1999 Q1 Australia's Coral Coast Western Australia Business  28.0
+#&gt; 6 1999 Q2 Australia's Coral Coast Western Australia Business  32.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tsibble</code> gives the data structure, <code>fabletools</code> gives <code>aggregate_key()</code> and <code>fable</code> gives the forecasting models, so all three are loaded.</p>
+
+<p>The range confirms the window: 1998 Q1 to 2016 Q4, which is 76 quarters. There are 3,040 rows and 40 keys. Each row is one quarter of one series, and 40 series times 76 quarters gives 3,040.</p>
+
+<p>Each series is one region and one purpose of travel, which is Business, Holiday, Other or Visiting. The first one in the output is business trips in Australia's Coral Coast, and <code>Trips</code> is the number of overnight trips, in thousands. These 40 are the bottom-level series: the finest series the data gives us.</p>
+
+<p>Now let's list each region with the state it sits in.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># List each region with the state it sits in
+sl |&gt;
+  as_tibble() |&gt;
+  distinct(State, Region)
+#&gt; # A tibble: 10 × 2
+#&gt;    State             Region                         
+#&gt;    &lt;chr&gt;             &lt;chr&gt;                          
+#&gt;  1 Western Australia Australia's Coral Coast        
+#&gt;  2 Western Australia Australia's Golden Outback     
+#&gt;  3 Western Australia Australia's North West         
+#&gt;  4 Western Australia Australia's South West         
+#&gt;  5 Tasmania          East Coast                     
+#&gt;  6 Western Australia Experience Perth               
+#&gt;  7 Tasmania          Hobart and the South           
+#&gt;  8 Tasmania          Launceston, Tamar and the North
+#&gt;  9 Tasmania          North West                     
+#&gt; 10 Tasmania          Wilderness West</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are 10 regions, 5 in each state, so 10 regions times 4 purposes gives the 40 series. Every region appears under one state only. That one-state-per-region property is what a hierarchy is built on.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>What is a hierarchical time series?</h2>
+
+<p>Add up the four purposes in a region and you get a series for the region. Add up the regions in a state and you get a series for the state. Add up the two states and you get one series for all the trips in the slice. Each of these sums is called an <strong>aggregate series</strong>.</p>
+
+<p>Put the sums in order and they form a <strong>hierarchy</strong>: a structure where every series has exactly one parent. The parent of a region is its state, the parent of a state is the total, and the total has no parent. A series below another one is its child, and each layer of the structure (total, state, region) is a level.</p>
+
+<p><code>aggregate_key()</code> builds the structure. <code>State / Region</code> says that <code>Region</code> is nested inside <code>State</code>, and <code>Trips = sum(Trips)</code> says how to add the series up. <code>Purpose</code> is not named, so it is summed away. That makes the 10 region series the bottom level of this hierarchy: the finest level the structure keeps.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Nest Region inside State and sum Trips to build the 13-series hierarchy
+hier &lt;- sl |&gt;
+  aggregate_key(State / Region, Trips = sum(Trips))
+
+n_keys(hier)
+#&gt; [1] 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is 13 series: 1 total, 2 states and 10 regions. Let's print all 13 for one quarter. <code>yearquarter(&quot;2016 Q4&quot;)</code> writes a quarter in a form R can compare with the <code>Quarter</code> column.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Show all 13 series in 2016 Q4
+hier_q4 &lt;- hier |&gt;
+  filter(Quarter == yearquarter(&quot;2016 Q4&quot;))
+print(hier_q4, n = 13)
+#&gt; # A tsibble: 13 x 4 [1Q]
+#&gt; # Key:       State, Region [13]
+#&gt;    Quarter State             Region                           Trips
+#&gt;      &lt;qtr&gt; &lt;chr*&gt;            &lt;chr*&gt;                           &lt;dbl&gt;
+#&gt;  1 2016 Q4 &lt;aggregated&gt;      &lt;aggregated&gt;                    3489. 
+#&gt;  2 2016 Q4 Tasmania          &lt;aggregated&gt;                     833. 
+#&gt;  3 2016 Q4 Western Australia &lt;aggregated&gt;                    2656. 
+#&gt;  4 2016 Q4 Tasmania          East Coast                       106. 
+#&gt;  5 2016 Q4 Tasmania          Hobart and the South             331. 
+#&gt;  6 2016 Q4 Tasmania          Launceston, Tamar and the North  216. 
+#&gt;  7 2016 Q4 Tasmania          North West                       149. 
+#&gt;  8 2016 Q4 Tasmania          Wilderness West                   30.9
+#&gt;  9 2016 Q4 Western Australia Australia's Coral Coast          257. 
+#&gt; 10 2016 Q4 Western Australia Australia's Golden Outback       270. 
+#&gt; 11 2016 Q4 Western Australia Australia's North West           316. 
+#&gt; 12 2016 Q4 Western Australia Australia's South West          755. 
+#&gt; 13 2016 Q4 Western Australia Experience Perth                1058. </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The key columns now show <code>&lt;aggregated&gt;</code> wherever a series covers everything under that key. The total has it in both <code>State</code> and <code>Region</code>. Tasmania has it in <code>Region</code>, because Tasmania adds up all of its regions. The <code>chr*</code> type marks the key columns that can hold <code>&lt;aggregated&gt;</code>.</p>
+
+<p>Now read the <code>Trips</code> column. Tasmania's 833 thousand trips sit above its five regions: 106, 331, 216, 149 and 30.9. The total, 3,489, is Tasmania's 833 plus Western Australia's 2,656.</p>
+
+<p>Let's check that in code. <code>is_aggregated(Region)</code> is TRUE on a row where <code>Region</code> is <code>&lt;aggregated&gt;</code>, so it picks out Tasmania's own series, and <code>!is_aggregated(Region)</code> picks out its five regions.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check that Tasmania equals the sum of its five regions in 2016 Q4
+tas_total &lt;- hier_q4 |&gt;
+  filter(State == &quot;Tasmania&quot;, is_aggregated(Region)) |&gt;
+  pull(Trips)
+tas_regions &lt;- hier_q4 |&gt;
+  filter(State == &quot;Tasmania&quot;, !is_aggregated(Region)) |&gt;
+  pull(Trips)
+
+round(tas_regions, 1)
+#&gt; [1] 106.1 331.0 216.4 148.6  30.9
+sum(tas_regions)
+#&gt; [1] 832.99
+tas_total
+#&gt; [1] 832.99
+all.equal(tas_total, sum(tas_regions))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The five regions add up to 832.99, the same as the Tasmania series, so <code>all.equal()</code> returns TRUE. Series built with <code>aggregate_key()</code> add up exactly in every quarter, because each aggregate is defined as the sum of its children.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>What is a grouped time series?</h2>
+
+<p>Now let's cross the attributes instead of nesting them. <code>Purpose</code> does not sit inside <code>State</code>. Holiday trips exist in Tasmania and in Western Australia alike, and each state has all four purposes.</p>
+
+<p>When attributes cross like this, the structure is called a <strong>grouped time series</strong>. A bottom-level series then has two parents: one for its state and one for its purpose.</p>
+
+<p>We cross <code>State</code> with <code>Purpose</code> using <code>*</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Cross State with Purpose to build the 15-series grouped structure
+grp &lt;- sl |&gt;
+  aggregate_key(State * Purpose, Trips = sum(Trips))
+
+n_keys(grp)
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is 15 series: 1 total, 2 states, 4 purposes and 8 state and purpose series (2 states times 4 purposes). <code>Region</code> is summed away here, so those 8 are the bottom level. Let's count the series by which of the two keys is aggregated.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the series by which of the two keys is aggregated
+grp |&gt;
+  as_tibble() |&gt;
+  distinct(State, Purpose) |&gt;
+  count(State_aggregated = is_aggregated(State), Purpose_aggregated = is_aggregated(Purpose))
+#&gt; # A tibble: 4 × 3
+#&gt;   State_aggregated Purpose_aggregated     n
+#&gt;   &lt;lgl&gt;            &lt;lgl&gt;              &lt;int&gt;
+#&gt; 1 FALSE            FALSE                  8
+#&gt; 2 FALSE            TRUE                   2
+#&gt; 3 TRUE             FALSE                  4
+#&gt; 4 TRUE             TRUE                   1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the rows:</p>
+
+<ul>
+
+<li>Neither key aggregated: 8 bottom-level series.</li>
+
+<li>Only <code>Purpose</code> aggregated: 2 series, one per state.</li>
+
+<li>Only <code>State</code> aggregated: 4 series, one per purpose.</li>
+
+<li>Both keys aggregated: 1 series, the total.</li>
+
+</ul>
+
+<p>Here is the difference from a hierarchy. In a grouped structure the total can be reached two ways: by adding the 2 state series, or by adding the 4 purpose series. Let's add up the 2016 trips both ways.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add up the 2016 trips from the state series, then from the purpose series
+trips_2016 &lt;- grp |&gt;
+  filter_index(&quot;2016 Q1&quot; ~ &quot;2016 Q4&quot;) |&gt;
+  as_tibble()
+
+state_series &lt;- trips_2016 |&gt;
+  filter(!is_aggregated(State), is_aggregated(Purpose))
+purpose_series &lt;- trips_2016 |&gt;
+  filter(is_aggregated(State), !is_aggregated(Purpose))
+
+round(sum(state_series$Trips))
+#&gt; [1] 13376
+round(sum(purpose_series$Trips))
+#&gt; [1] 13376</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both routes reach 13,376 thousand trips for 2016. So the total series has two ways to be built.</p>
+
+<p>The same is true one level down. Let's take the Tasmania holiday series and find which series it is added into.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Find the two parents of the Tasmania holiday series in 2016
+tas_holiday &lt;- trips_2016 |&gt;
+  filter(State == &quot;Tasmania&quot;, Purpose == &quot;Holiday&quot;) |&gt;
+  pull(Trips) |&gt;
+  sum()
+tas_all_purposes &lt;- trips_2016 |&gt;
+  filter(State == &quot;Tasmania&quot;, is_aggregated(Purpose)) |&gt;
+  pull(Trips) |&gt;
+  sum()
+all_states_holiday &lt;- trips_2016 |&gt;
+  filter(is_aggregated(State), Purpose == &quot;Holiday&quot;) |&gt;
+  pull(Trips) |&gt;
+  sum()
+
+round(c(
+  tasmania_holiday = tas_holiday,
+  tasmania_all_purposes = tas_all_purposes,
+  all_states_holiday = all_states_holiday
+))
+#&gt;      tasmania_holiday tasmania_all_purposes    all_states_holiday 
+#&gt;                  1752                  3062                  5758</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Tasmania holiday trips, 1,752 thousand, are added into two series. One is Tasmania across all purposes, at 3,062. The other is Holiday across all states, at 5,758. Those are its two parents: the Tasmania total and the Holiday total.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Count the parents of a bottom-level series. One parent means a hierarchy. Two parents means a grouped structure, because the attributes cross instead of nesting. Region nests inside State, since each region belongs to one state. Purpose nests inside nothing.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Reading a state by purpose table and its totals</h2>
+
+<p>A two-way table lays the grouped structure out flat. The widget shows the 2016 trips, in thousands, with state down the side and purpose across the top. Press Report table to switch from the raw print to the formatted table.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["State","Business","Holiday","Other","Visiting","All purposes"],"rows":[["Tasmania","457.4","1752.4","119.4","732.5","3061.7"],["Western Australia","2816.9","4005.8","514.9","2976.4","10313.9"],["All states","3274.3","5758.2","634.2","3709.0","13375.6"]],"formats":{"Business":"comma","Holiday":"comma","Other":"comma","Visiting":"comma","All purposes":"comma"},"title":"Trips by state and purpose, 2016, thousands","note":"Source: Tourism Research Australia, tourism data in the tsibble package. Each total is the sum of the unrounded values, so it can differ by 1 from the rounded cells."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The numbers come from adding up the four quarters of 2016 in the grouped structure. Each of the 8 cells inside the table is a bottom-level series. Tasmania Holiday is 1,752.</p>
+
+<p>The last column adds across a row, so it holds the two state series: Tasmania at 3,062 and Western Australia at 10,314. The last row adds down a column, so it holds the four purpose series: Business at 3,274, Holiday at 5,758, Other at 634 and Visiting at 3,709. The corner, 13,376, is the total series.</p>
+
+<p>So the margins of the table are series too: 8 cells, 2 row totals, 4 column totals and 1 corner make the 15 series. Add up the last column or add up the last row and you reach the same corner.</p>
+
+<p>One thing to notice in the report table. The four rounded Tasmania cells add up to 3,061, but the total says 3,062. Each total is the sum of the unrounded values, so it can differ by 1 from the rounded cells.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: how many parents does a Tasmania holiday series have?</h2>
+
+<p>The Tasmania, Holiday cell in the table holds 1,752 thousand trips. How many series is it added into?</p>
+<section class="exercise" data-exercise-id="Hierarchical-and-Grouped-Time-Series-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">One, the Tasmania series, because the trips belong to a state.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Two, the Tasmania series and the Holiday series.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Three, the Tasmania series, the Holiday series and the total.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. The cell sits in the Tasmania row and in the Holiday column, so it is added into a row total and into a column total. Two parents is what makes the structure grouped.</div><div class="lesson-qfb lesson-qfb-no">The cell sits in one row and one column, so it is added into exactly two series: the row total and the column total. The grand total is not a parent. It is the parent of those two, one level further up. And stopping at the state, the way a hierarchy would, misses the Holiday column.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>How to combine nesting and crossing in one structure</h2>
+
+<p>Real data usually has both. <code>Region</code> nests inside <code>State</code>, and <code>Purpose</code> crosses with all of that.</p>
+
+<p><code>aggregate_key()</code> uses two operators for this. The <code>/</code> nests, so <code>State / Region</code> puts each region under its state. The <code>*</code> crosses, so <code>Purpose * (State / Region)</code> crosses <code>Purpose</code> with the whole State and Region hierarchy. The parentheses keep the nested part together.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Nest Region in State, cross with Purpose, and count the series
+both &lt;- sl |&gt;
+  aggregate_key(Purpose * (State / Region), Trips = sum(Trips))
+
+n_keys(both)
+#&gt; [1] 65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is 65 series. You can predict the count before running anything. Each part of the structure has a number of nodes, where a node is one series in that part, and crossing multiplies the parts' node counts.</p>
+
+<p><code>State / Region</code> has 1 total, 2 states and 10 regions, so 13 nodes. <code>Purpose</code> has 1 total and 4 purposes, so 5 nodes. Crossing gives 13 times 5, which is 65.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Predict the series counts from the node counts of each part
+state_region_nodes &lt;- 1 + 2 + 10
+state_nodes &lt;- 1 + 2
+purpose_nodes &lt;- 1 + 4
+
+state_region_nodes * purpose_nodes
+#&gt; [1] 65
+state_nodes * purpose_nodes
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same rule gives 3 times 5, which is 15, for <code>State * Purpose</code>. Both match what <code>n_keys()</code> returned.</p>
+
+<p>In the 65-series structure the bottom level is the 40 series we started with: 10 regions times 4 purposes. Everything else, 25 series, is a sum of them.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Why forecasts made series by series do not add up</h2>
+
+<p>The data we built adds up exactly. Forecasts made one series at a time usually do not, and we can see it in the 13-series hierarchy.</p>
+
+<p>We will forecast with ETS, which is exponential smoothing. It forecasts from a smoothed level and, when the series has them, a trend and a seasonal pattern. The three letters in a name like ETS(M,N,M) stand for the error, trend and seasonal parts: A is additive, M is multiplicative and N is none. <code>ETS()</code> picks the form for each series automatically.</p>
+
+<p>The code below fits one ETS model to each of the 13 series, and prints the ones for Tasmania.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a separate ETS model to each of the 13 series
+fit &lt;- hier |&gt;
+  model(ets = ETS(Trips))
+
+fit |&gt;
+  filter(State == &quot;Tasmania&quot;)
+#&gt; # A mable: 6 x 3
+#&gt; # Key:     State, Region [6]
+#&gt;   State    Region                                   ets
+#&gt;   &lt;chr*&gt;   &lt;chr*&gt;                               &lt;model&gt;
+#&gt; 1 Tasmania East Coast                      &lt;ETS(A,N,A)&gt;
+#&gt; 2 Tasmania Hobart and the South            &lt;ETS(M,N,M)&gt;
+#&gt; 3 Tasmania Launceston, Tamar and the North &lt;ETS(M,N,A)&gt;
+#&gt; 4 Tasmania North West                      &lt;ETS(A,N,A)&gt;
+#&gt; 5 Tasmania Wilderness West                 &lt;ETS(A,N,A)&gt;
+#&gt; 6 Tasmania &lt;aggregated&gt;                    &lt;ETS(M,N,M)&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Tasmania series itself gets ETS(M,N,M). East Coast gets ETS(A,N,A), and Launceston, Tamar and the North gets ETS(M,N,A). Different series get different forms, each with its own smoothing parameters, and nothing in the 13 fits links one series to another.</p>
+
+<p>Now let's forecast 4 quarters ahead, which is 2017 Q1 to 2017 Q4. The column <code>.mean</code> holds the point forecast. We add up the five regional forecasts, then round both numbers to whole thousands so each gap is the difference of the two printed numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast 4 quarters ahead and compare Tasmania with the sum of its five regions
+fc &lt;- fit |&gt;
+  forecast(h = 4) |&gt;
+  as_tibble()
+
+tas_gap &lt;- fc |&gt;
+  filter(State == &quot;Tasmania&quot;) |&gt;
+  group_by(Quarter) |&gt;
+  summarise(
+    tasmania = round(.mean[is_aggregated(Region)]),
+    regions_sum = round(sum(.mean[!is_aggregated(Region)]))
+  ) |&gt;
+  mutate(gap = tasmania - regions_sum)
+
+tas_gap
+#&gt; # A tibble: 4 × 4
+#&gt;   Quarter tasmania regions_sum   gap
+#&gt;     &lt;qtr&gt;    &lt;dbl&gt;       &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2017 Q1     1032         999    33
+#&gt; 2 2017 Q2      732         715    17
+#&gt; 3 2017 Q3      512         515    -3
+#&gt; 4 2017 Q4      725         709    16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In 2017 Q1 the Tasmania forecast is 1,032 thousand trips, and its five regional forecasts add up to 999. The gap is 33 thousand trips. In 2017 Q3 the gap turns to -3, so there the regions add up to more than Tasmania.</p>
+
+<p>The same thing happens one level up. Here is the slice total against the sum of the two state forecasts in 2017 Q1.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the slice total with the sum of the two state forecasts in 2017 Q1
+slice_gap &lt;- fc |&gt;
+  filter(Quarter == yearquarter(&quot;2017 Q1&quot;)) |&gt;
+  summarise(
+    slice_total = round(.mean[is_aggregated(State)]),
+    states_sum = round(sum(.mean[!is_aggregated(State) &amp; is_aggregated(Region)]))
+  ) |&gt;
+  mutate(gap = slice_total - states_sum)
+
+slice_gap
+#&gt; # A tibble: 1 × 3
+#&gt;   slice_total states_sum   gap
+#&gt;         &lt;dbl&gt;      &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1        3908       3760   148</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slice total is 3,908 and the two states add up to 3,760, a gap of 148.</p>
+
+<p>A set of forecasts is <strong>coherent</strong> when every aggregate forecast equals the sum of its children's forecasts. When it does not, the forecasts are <strong>incoherent</strong>, and these are. A planner who needs the state plan and the regional plans to agree cannot use them as they are.</p>
+
+<p>Adjusting the forecasts so that they add up is called <strong>forecast reconciliation</strong>.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>How Tasmania's five regions differ</h2>
+
+<p>Each of the five regions was fitted with its own model. The widget plots Tasmania's five regions for 16 quarters, 2013 Q1 to 2016 Q4, one dot per quarter. Switch to the facet_wrap view and press Run to get one panel per region.</p>
+<div class="lesson-widget" data-widget-type="facet-grid" data-widget-config='{"data":[{"x":2013.0,"y":125.9,"facet":"East Coast"},{"x":2013.25,"y":57.0,"facet":"East Coast"},{"x":2013.5,"y":53.8,"facet":"East Coast"},{"x":2013.75,"y":75.7,"facet":"East Coast"},{"x":2014.0,"y":119.2,"facet":"East Coast"},{"x":2014.25,"y":121.2,"facet":"East Coast"},{"x":2014.5,"y":42.5,"facet":"East Coast"},{"x":2014.75,"y":82.1,"facet":"East Coast"},{"x":2015.0,"y":135.7,"facet":"East Coast"},{"x":2015.25,"y":71.8,"facet":"East Coast"},{"x":2015.5,"y":58.0,"facet":"East Coast"},{"x":2015.75,"y":106.4,"facet":"East Coast"},{"x":2016.0,"y":172.6,"facet":"East Coast"},{"x":2016.25,"y":51.2,"facet":"East Coast"},{"x":2016.5,"y":43.9,"facet":"East Coast"},{"x":2016.75,"y":106.1,"facet":"East Coast"},{"x":2013.0,"y":384.3,"facet":"Hobart and the South"},{"x":2013.25,"y":287.8,"facet":"Hobart and the South"},{"x":2013.5,"y":183.0,"facet":"Hobart and the South"},{"x":2013.75,"y":238.5,"facet":"Hobart and the South"},{"x":2014.0,"y":364.9,"facet":"Hobart and the South"},{"x":2014.25,"y":369.9,"facet":"Hobart and the South"},{"x":2014.5,"y":183.0,"facet":"Hobart and the South"},{"x":2014.75,"y":313.8,"facet":"Hobart and the South"},{"x":2015.0,"y":445.6,"facet":"Hobart and the South"},{"x":2015.25,"y":240.7,"facet":"Hobart and the South"},{"x":2015.5,"y":179.1,"facet":"Hobart and the South"},{"x":2015.75,"y":342.7,"facet":"Hobart and the South"},{"x":2016.0,"y":406.4,"facet":"Hobart and the South"},{"x":2016.25,"y":280.5,"facet":"Hobart and the South"},{"x":2016.5,"y":270.2,"facet":"Hobart and the South"},{"x":2016.75,"y":331.0,"facet":"Hobart and the South"},{"x":2013.0,"y":254.9,"facet":"Launceston, Tamar and the North"},{"x":2013.25,"y":169.7,"facet":"Launceston, Tamar and the North"},{"x":2013.5,"y":105.8,"facet":"Launceston, Tamar and the North"},{"x":2013.75,"y":113.4,"facet":"Launceston, Tamar and the North"},{"x":2014.0,"y":217.5,"facet":"Launceston, Tamar and the North"},{"x":2014.25,"y":186.0,"facet":"Launceston, Tamar and the North"},{"x":2014.5,"y":105.0,"facet":"Launceston, Tamar and the North"},{"x":2014.75,"y":195.3,"facet":"Launceston, Tamar and the North"},{"x":2015.0,"y":236.9,"facet":"Launceston, Tamar and the North"},{"x":2015.25,"y":157.7,"facet":"Launceston, Tamar and the North"},{"x":2015.5,"y":114.5,"facet":"Launceston, Tamar and the North"},{"x":2015.75,"y":205.5,"facet":"Launceston, Tamar and the North"},{"x":2016.0,"y":199.4,"facet":"Launceston, Tamar and the North"},{"x":2016.25,"y":145.8,"facet":"Launceston, Tamar and the North"},{"x":2016.5,"y":154.8,"facet":"Launceston, Tamar and the North"},{"x":2016.75,"y":216.4,"facet":"Launceston, Tamar and the North"},{"x":2013.0,"y":144.8,"facet":"North West"},{"x":2013.25,"y":104.5,"facet":"North West"},{"x":2013.5,"y":89.0,"facet":"North West"},{"x":2013.75,"y":87.7,"facet":"North West"},{"x":2014.0,"y":131.8,"facet":"North West"},{"x":2014.25,"y":156.1,"facet":"North West"},{"x":2014.5,"y":91.0,"facet":"North West"},{"x":2014.75,"y":106.2,"facet":"North West"},{"x":2015.0,"y":167.1,"facet":"North West"},{"x":2015.25,"y":95.4,"facet":"North West"},{"x":2015.5,"y":92.6,"facet":"North West"},{"x":2015.75,"y":137.5,"facet":"North West"},{"x":2016.0,"y":174.1,"facet":"North West"},{"x":2016.25,"y":135.9,"facet":"North West"},{"x":2016.5,"y":75.4,"facet":"North West"},{"x":2016.75,"y":148.6,"facet":"North West"},{"x":2013.0,"y":53.1,"facet":"Wilderness West"},{"x":2013.25,"y":38.6,"facet":"Wilderness West"},{"x":2013.5,"y":16.7,"facet":"Wilderness West"},{"x":2013.75,"y":33.6,"facet":"Wilderness West"},{"x":2014.0,"y":63.7,"facet":"Wilderness West"},{"x":2014.25,"y":44.4,"facet":"Wilderness West"},{"x":2014.5,"y":23.3,"facet":"Wilderness West"},{"x":2014.75,"y":34.0,"facet":"Wilderness West"},{"x":2015.0,"y":75.4,"facet":"Wilderness West"},{"x":2015.25,"y":12.3,"facet":"Wilderness West"},{"x":2015.5,"y":11.3,"facet":"Wilderness West"},{"x":2015.75,"y":40.7,"facet":"Wilderness West"},{"x":2016.0,"y":58.6,"facet":"Wilderness West"},{"x":2016.25,"y":38.0,"facet":"Wilderness West"},{"x":2016.5,"y":22.0,"facet":"Wilderness West"},{"x":2016.75,"y":30.9,"facet":"Wilderness West"}],"geom":"point","x":"year","y":"trips","facetVar":"region"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The widget carries these 80 values, 16 quarters for each of the five Tasmania regions, taken from the same tourism data. The x axis is the year, so 2013.25 is 2013 Q2.</p>
+
+<p>In the Run output all five panels share one y axis, so the levels can be compared. Hobart and the South sits high, between 179 and 446 thousand trips. East Coast runs from 42.5 to 173, Launceston, Tamar and the North from 105 to 255, and North West from 75.4 to 174. Wilderness West sits at the bottom, between 11.3 and 75.4.</p>
+
+<p>The size of the seasonal swing differs too. East Coast's busiest quarter is about 4 times its quietest, 173 against 42.5. Hobart and the South's busiest is about 2.5 times its quietest, 446 against 179.</p>
+
+<p>So the five regions differ in level and in swing, and each gets its own model. Every model is fitted to its own series alone, and nothing makes the five regional forecasts add up to the Tasmania forecast.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Which methods can each structure use to make forecasts add up?</h2>
+
+<p>Reconciliation methods differ in where they start. Four are worth knowing:</p>
+
+<ol>
+
+<li><strong>Bottom-up</strong> forecasts the bottom-level series, then adds them up the structure. Every aggregate is a sum by construction, so the forecasts are coherent.</li>
+
+<li><strong>Top-down</strong> forecasts the total, then splits it down the structure using shares, such as each region's share of its state.</li>
+
+<li><strong>Middle-out</strong> starts at a middle level, such as the states. It forecasts that level, adds up for the levels above and splits down for the levels below.</li>
+
+<li><strong>Optimal combination</strong> forecasts every series in the structure, then adjusts all the forecasts together so that they add up.</li>
+
+</ol>
+
+<p>Top-down needs shares, so let's compute some. This block finds each region's share of Tasmania's 2016 trips in the hierarchy.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute each region's share of Tasmania's 2016 trips
+tas_shares &lt;- hier |&gt;
+  filter_index(&quot;2016 Q1&quot; ~ &quot;2016 Q4&quot;) |&gt;
+  as_tibble() |&gt;
+  filter(State == &quot;Tasmania&quot;, !is_aggregated(Region)) |&gt;
+  group_by(Region = as.character(Region)) |&gt;
+  summarise(trips = round(sum(Trips))) |&gt;
+  mutate(share_pct = round(100 * trips / sum(trips), 1)) |&gt;
+  arrange(desc(share_pct))
+
+tas_shares
+#&gt; # A tibble: 5 × 3
+#&gt;   Region                          trips share_pct
+#&gt;   &lt;chr&gt;                           &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 Hobart and the South             1288      42.1
+#&gt; 2 Launceston, Tamar and the North   716      23.4
+#&gt; 3 North West                        534      17.4
+#&gt; 4 East Coast                        374      12.2
+#&gt; 5 Wilderness West                   149       4.9
+sum(tas_shares$share_pct)
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The five shares add up to 100%. A top-down split of a Tasmania forecast gives each region its share and nothing is left over. That works because each region has one parent, Tasmania, so its share of that parent is the only split there is.</p>
+
+<p>Now the Tasmania holiday series. It has two parents, so it has two shares: one of Tasmania's trips and one of all Holiday trips. The block below uses <code>tas_holiday</code>, <code>tas_all_purposes</code> and <code>all_states_holiday</code> from the grouped structure.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the two shares of the Tasmania holiday series
+round(100 * tas_holiday / tas_all_purposes, 1)
+#&gt; [1] 57.2
+round(100 * tas_holiday / all_states_holiday, 1)
+#&gt; [1] 30.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Holiday trips are 57.2% of Tasmania and 30.4% of all Holiday trips. Both are valid shares, but they split different totals, so there is no single split. A top-down method needs a unique parent to divide.</p>
+
+<p>The 65-series structure is grouped as well. A bottom series such as Tasmania East Coast holiday has two parents: the East Coast series across all purposes, and the Tasmania holiday series. So top-down does not apply there either.</p>
+
+<p>Here is the answer in one table, with the structure on the left and the method across the top.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Structure</th>
+<th>Bottom-up</th>
+<th>Top-down</th>
+<th>Middle-out</th>
+<th>Optimal combination</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hierarchy, <code>State / Region</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Grouped, <code>State * Purpose</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Both, <code>Purpose * (State / Region)</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>A No means the split needs a unique parent, and the structure does not supply one. Bottom-up and optimal combination need no split, so they work on either structure. Top-down and middle-out split a total by shares, so they need one parent per series.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why do the forecasts not add up, and what can fix them?</h2>
+
+<p>The Tasmania forecast for 2017 Q1 is 1,032 thousand trips, and its five regional forecasts add up to 999. Which explanation and fix is right?</p>
+<section class="exercise" data-exercise-id="Hierarchical-and-Grouped-Time-Series-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Some quarters are missing from the regional series, so their forecasts add up to less. Filling the gaps fixes it.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">An aggregate forecast always runs above the sum of its parts, so the total should be lowered by the average gap.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The 13 series were fitted separately, each with its own ETS form and smoothing parameters, so nothing forces the forecasts to add up. Bottom-up or optimal combination can reconcile them, even for a series with two parents.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 13 series were fitted separately, so nothing forces the forecasts to add up. A top-down split fixes it on any structure, including a series with two parents.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. Each fit uses its own series only, so the Tasmania forecast and its five regional forecasts are separate results. Bottom-up and optimal combination need no split, so a series with two parents is no obstacle.</div><div class="lesson-qfb lesson-qfb-no">Two separate ideas are mixed here. The gap does not come from missing data or from aggregates running high: the 2016 Q4 data add up exactly, and the 2017 Q3 gap is -3, the wrong sign for that. It comes from fitting 13 models with nothing shared between them. And a top-down split needs one parent per series, so it cannot handle Tasmania holiday, which has two.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: declare a structure and count its series</h2>
+
+<p>Suppose the planners drop the State level and want <code>Region</code> crossed with <code>Purpose</code> instead. First work out how many series that structure has. Then declare it on <code>sl</code> and confirm the count with <code>n_keys()</code>.</p>
+<section class="exercise" data-exercise-id="Hierarchical-and-Grouped-Time-Series-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="aggregate_key[(][^)]*(Region\s*[*]\s*Purpose|Purpose\s*[*]\s*Region)"><textarea class="lesson-tryit-input" spellcheck="false"># Declare Region crossed with Purpose on sl and count the series
+# Work out the count first: a total plus 10 regions, times a total plus 4 purposes
+# Replace the line below with your aggregate_key call, then print n_keys()
+regional &lt;- sl</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 55 series. The Region part has a total plus 10 regions, the Purpose part has a total plus 4 purposes, and crossing multiplies them: 11 times 5.</span><span class="lesson-tryit-fb lesson-tryit-no">Cross the two keys with <em> inside aggregate_key(), as in aggregate_key(Region </em> Purpose, Trips = sum(Trips)), then call n_keys() on the result.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Cross Region with Purpose and count the series
+regional &lt;- sl |&gt;
+  aggregate_key(Region * Purpose, Trips = sum(Trips))
+
+n_keys(regional)
+#&gt; [1] 55</code></pre></details></div>
+</section>
+<p>The count comes from the node-count rule. Region has 1 + 10 = 11 nodes, Purpose has 1 + 4 = 5 nodes, and 11 times 5 is 55. There is no State level, so the 10 regions all sit directly under the total.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/hierarchical.html">Forecasting: Principles and Practice, 3rd edition, chapter 11</a> - Hyndman and Athanasopoulos (2021), OTexts. The chapter on hierarchical and grouped time series.</li>
+
+<li><a href="https://doi.org/10.1016/j.ijforecast.2008.07.004">Hierarchical forecasts for Australian domestic tourism</a> - Athanasopoulos, Ahmed and Hyndman (2009), International Journal of Forecasting 25(1), 146-166. A hierarchical forecasting study of Australian domestic tourism.</li>
+
+<li><a href="https://doi.org/10.1016/j.csda.2011.03.006">Optimal combination forecasts for hierarchical time series</a> - Hyndman, Ahmed, Athanasopoulos and Shang (2011), Computational Statistics and Data Analysis 55(9), 2579-2589.</li>
+
+<li><a href="https://doi.org/10.1080/01621459.2018.1448825">Optimal forecast reconciliation for hierarchical and grouped time series through trace minimization</a> - Wickramasuriya, Athanasopoulos and Hyndman (2019), Journal of the American Statistical Association 114(526), 804-819.</li>
+
+<li><a href="https://fabletools.tidyverts.org/reference/aggregate_key.html">aggregate_key() reference page</a> - the fabletools documentation.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You started from 40 bottom-level series, built a hierarchy, a grouped structure and a combination of both from them, and then saw what forecasting does to a hierarchy. To summarize:</p>
+
+<ul>
+
+<li>Count the parents of a bottom-level series. One parent means a hierarchy. Two parents means a grouped structure, where the attributes cross instead of nesting.</li>
+
+<li><code>aggregate_key()</code> declares the structure. The <code>/</code> nests and the <code>*</code> crosses, and the series count is the product of each part's node count: 13 for <code>State / Region</code>, 5 for <code>Purpose</code>, so 65 series together.</li>
+
+<li>Series built by aggregation add up exactly: Tasmania's 833 thousand trips in 2016 Q4 equal the sum of its five regions.</li>
+
+<li>Forecasts made series by series do not. ETS fitted to each of the 13 series gave 1,032 for Tasmania in 2017 Q1 and 999 for its regions, a gap of 33, so the forecasts are incoherent. Adjusting them to add up is forecast reconciliation.</li>
+
+<li>The structure decides the method. Bottom-up and optimal combination work on a hierarchy and on a grouped structure. Top-down and middle-out split a total by shares, so they need one parent per series.</li>
+
+</ul>
+
+<p>So with any set of related series, count the parents of a bottom series first: that count tells you which reconciliation methods you can use.</p>
+</section>
+
+{% endraw %}

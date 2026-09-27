@@ -1,0 +1,771 @@
+---
+title: "Multivariate Time Series Lesson 3: Testing Granger causality between two series"
+description: "Test whether one time series helps forecast another with the Granger F test: compute it by hand, run it both ways, and see what a rejection does not prove."
+keywords: "Granger causality, Granger causality test in R, grangertest, causality function, vector autoregression, VAR, time series forecasting, F test, lag order"
+mathjax: true
+webr: true
+curriculum_id: "5.110.3"
+post_type: "LESSON"
+course_id: "ts-multivariate"
+course_title: "Multivariate Time Series"
+course_lesson: "3"
+course_total: "6"
+course_landing: "Multivariate-Time-Series-Course.html"
+course_next: "Impulse-Response-Functions"
+course_prev: "Choosing-the-Lag-Order"
+lesson_access: "pro"
+catalog_blurb: "Test whether one series helps forecast another, and what the result does not prove."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Testing Granger causality between two series</h2>
+
+<p>Today let's find out whether one time series can help forecast another, and what it does and does not mean when it can.</p>
+
+<p>Our data is Canada's quarterly labour statistics from the OECD: 84 quarters, from 1980 Q1 to 2000 Q4. Two of the series are employment and the unemployment rate. We want to know whether last quarter's employment growth helps forecast this quarter's change in the unemployment rate.</p>
+
+<p>The Granger test answers that with two forecasts of the change in the unemployment rate, and it compares their errors. We measure a forecast's error with SSE, the sum of squared errors: the squared gap between each actual value and its forecast, added up over all quarters. A smaller SSE means a better forecast.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Forecast from its own past","sub":"regress the unemployment change on its own lag, SSE 10.51"},{"title":"Add the employment change","sub":"same regression plus the employment change lag, SSE 8.73"},{"title":"Test the drop in SSE","sub":"F = 16.14, p = 0.0001"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Those three boxes are the whole test, with the numbers Canada's data gives.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What does it mean for one series to Granger-cause another?</h2>
+
+<p>A series X <strong>Granger-causes</strong> a series Y if the past values of X lower the forecast error of Y, beyond what the past values of Y itself already achieve. The idea comes from the economist Clive Granger.</p>
+
+<p>In our data, X is the change in employment and Y is the change in the unemployment rate. So the question becomes: given the unemployment change's own last quarter, does last quarter's employment change lower the forecast error of this quarter's unemployment change?</p>
+
+<p>Two things follow from that definition.</p>
+
+<ul>
+
+<li>Only past values of X enter the test. Whatever X does in the same quarter as Y is left out.</li>
+
+<li>The claim is about forecast error. It does not say that X makes Y happen, and it is made given the series we include in the test.</li>
+
+</ul>
+
+<p>Now let's set up the data. The Canada data has four series: <code>e</code> is 100 times the log of civil employment, <code>prod</code> is a measure of labour productivity, <code>rw</code> is the real wage and <code>U</code> is the unemployment rate in percent.</p>
+
+<p>We work with first differences, which means this quarter's value minus last quarter's. So <code>d_e</code>, the difference of <code>e</code>, is about the quarterly employment growth in percent, and <code>d_U</code> is the change in the unemployment rate in percentage points. Differencing 84 quarters leaves 83 changes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load the Canada data and build the quarterly changes of each series
+library(vars)
+library(forecast)
+data(Canada)
+changes &lt;- as.data.frame(diff(Canada))
+names(changes) &lt;- c(&quot;d_e&quot;, &quot;d_prod&quot;, &quot;d_rw&quot;, &quot;d_U&quot;)
+head(changes, 4)
+#&gt;         d_e     d_prod     d_rw   d_U
+#&gt; 1 0.1934707 -0.7266325 1.999650  0.17
+#&gt; 2 0.5144030 -0.8249509 2.404354 -0.23
+#&gt; 3 1.1092999  0.4008901 3.423704 -0.20
+#&gt; 4 1.2343182  0.8309404 2.800874  0.10
+nrow(changes)
+#&gt; [1] 83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We difference <code>e</code> because it trends upward, and the F test we will run assumes each series has a stable mean. Roughly speaking, a series whose mean stays put over time, instead of drifting, is called stationary. The function <code>ndiffs()</code> from the forecast package returns the number of first differences a series needs to become stationary.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the first differences each series needs to have a stable mean
+ndiffs(Canada[, &quot;e&quot;])
+#&gt; [1] 1
+ndiffs(changes$d_e)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So <code>e</code> needs 1 difference, and <code>d_e</code> needs none. We difference <code>U</code> as well, so that both regressions in the test describe quarterly changes.</p>
+
+<p>Let's plot the two changes and measure how closely they move within the same quarter.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the two quarterly changes and measure how closely they move together
+changes_ts &lt;- ts(changes[, c(&quot;d_e&quot;, &quot;d_U&quot;)], start = c(1980, 2), frequency = 4)
+plot(changes_ts, main = &quot;Canada: quarterly changes, 1980 Q2 to 2000 Q4&quot;, xlab = &quot;Year&quot;)
+round(cor(changes$d_e, changes$d_U), 3)
+#&gt; [1] -0.856</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Within the same quarter the two changes have a correlation of -0.856: quarters of strong employment growth are quarters where the unemployment rate falls. The Granger test does not use that link. It uses only what earlier quarters tell us about the current one.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>How is the Granger test calculated by hand?</h2>
+
+<p>The test is two regressions and one comparison. Each regression forecasts the unemployment change in a quarter from the quarter before, so we first pair every quarter's changes with the previous quarter's.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pair each quarter's changes with the previous quarter's changes
+n &lt;- nrow(changes)
+lagged &lt;- data.frame(
+  d_U     = changes$d_U[2:n],
+  d_e     = changes$d_e[2:n],
+  d_U_lag = changes$d_U[1:(n - 1)],
+  d_e_lag = changes$d_e[1:(n - 1)]
+)
+nrow(lagged)
+#&gt; [1] 82
+head(lagged, 3)
+#&gt;     d_U      d_e d_U_lag   d_e_lag
+#&gt; 1 -0.23 0.514403    0.17 0.1934707
+#&gt; 2 -0.20 1.109300   -0.23 0.5144030
+#&gt; 3  0.10 1.234318   -0.20 1.1092999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first row pairs the second quarter's <code>d_U</code> of -0.23 with the first quarter's <code>d_U</code> of 0.17. Losing the first quarter to the lag leaves 82 pairs.</p>
+
+<p>The first regression forecasts <code>d_U</code> from its own lag alone. It is called the <strong>restricted</strong> regression, because it forces the coefficient on the <code>d_e</code> lag to be 0. The second regression adds the <code>d_e</code> lag, and it is called the <strong>unrestricted</strong> regression.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit d_U on its own lag, then again with the d_e lag added, and compare the SSEs
+restricted   &lt;- lm(d_U ~ d_U_lag, data = lagged)
+unrestricted &lt;- lm(d_U ~ d_U_lag + d_e_lag, data = lagged)
+sse_r &lt;- sum(resid(restricted)^2)
+sse_u &lt;- sum(resid(unrestricted)^2)
+round(c(restricted = sse_r, unrestricted = sse_u), 3)
+#&gt;   restricted unrestricted
+#&gt;       10.514        8.731</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The SSE is 10.514 for the restricted regression and 8.731 for the unrestricted one. An extra term can never raise the SSE, so some drop is guaranteed. The real question is whether this drop of 1.783 is larger than what a useless extra term would give by chance.</p>
+
+<p>The F statistic answers that by comparing the drop with the typical size of a squared error.</p>
+
+<p>\[ F = \frac{(\text{SSE}\ \text{restricted} - \text{SSE}\ \text{unrestricted}) / q}{\text{SSE}\ \text{unrestricted} / (N - k)} \]</p>
+
+<p>Here q = 1 is the number of terms we added, N = 82 is the number of pairs, and k = 3 is the number of coefficients in the unrestricted regression: an intercept, the <code>d_U</code> lag and the <code>d_e</code> lag. So N - k = 79, the number of pairs left after estimating those 3 coefficients. These two counts, q = 1 and N - k = 79, are the degrees of freedom of the F test.</p>
+
+<p>The top of the fraction is the drop in SSE per added term. The bottom is the unrestricted regression's SSE divided by 79, its typical squared error. If the added lag does nothing, the drop should be about one typical squared error, and F lands near 1.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the F statistic and its p-value from the two SSEs
+df_num  &lt;- 1                              # one term added: the d_e lag
+df_den  &lt;- df.residual(unrestricted)      # 82 rows minus 3 coefficients
+F_stat  &lt;- ((sse_r - sse_u) / df_num) / (sse_u / df_den)
+p_value &lt;- pf(F_stat, df_num, df_den, lower.tail = FALSE)
+df_den
+#&gt; [1] 79
+round(F_stat, 3)
+#&gt; [1] 16.136
+signif(p_value, 4)
+#&gt; [1] 0.0001335</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So F is 16.136: the drop in SSE is about 16 times a typical squared error.</p>
+
+<p>The p-value is the probability, if the added lag has no effect, of getting an F at least this large. That assumption of no effect is the <strong>null hypothesis</strong>, written H0. Here <code>pf()</code> gives it from the F distribution with 1 and 79 degrees of freedom: 0.0001335. If the <code>d_e</code> lag did nothing, an F this large would turn up in about 1.3 of every 10,000 datasets.</p>
+
+<p>With one added lag, F is also the square of the t statistic on that lag. The t statistic is the coefficient divided by its standard error, and both come from the summary of the unrestricted regression.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># With one added lag, F is the square of the t statistic on that lag
+lag_row &lt;- coef(summary(unrestricted))[&quot;d_e_lag&quot;, ]
+round(lag_row, 4)
+#&gt;   Estimate Std. Error    t value   Pr(&gt;|t|)
+#&gt;    -0.4905     0.1221    -4.0170     0.0001
+t_stat &lt;- lag_row[[&quot;t value&quot;]]
+round(t_stat^2, 3)
+#&gt; [1] 16.136</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficient on the <code>d_e</code> lag is -0.4905 and its standard error is 0.1221, so t = -0.4905 / 0.1221 = -4.017. Squared, that is 16.136, the F we computed by hand.</p>
+
+<p>Finally, <code>anova()</code> compares the two fitted regressions and prints the same F and p-value.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># anova() compares the two fitted regressions and prints the same F and p-value
+anova(restricted, unrestricted)
+#&gt; Analysis of Variance Table
+#&gt;
+#&gt; Model 1: d_U ~ d_U_lag
+#&gt; Model 2: d_U ~ d_U_lag + d_e_lag
+#&gt;   Res.Df     RSS Df Sum of Sq      F    Pr(&gt;F)
+#&gt; 1     80 10.5144
+#&gt; 2     79  8.7311  1    1.7833 16.136 0.0001335 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Sum of Sq column, 1.7833, is the drop in SSE: 10.5144 minus 8.7311.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The Granger test is an F test on the drop in SSE when the other series' lags are added to a regression of the outcome on its own lags. Every Granger result in this lesson is this calculation with different variables or more lags.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>How is the p-value read from the null distribution?</h2>
+
+<p>The null distribution shows how a t statistic would vary if the added lag had no effect. It is a bell curve centred at 0, and the area under it is 1.</p>
+
+<p>The widget draws the standard normal curve. With 79 residual degrees of freedom, the t distribution is close to it, so the p-values on the widget land close to the ones R prints. The curve is built into the widget rather than taken from our data, and it maps onto the example through the <code>d_e</code> lag's t statistic of -4.02, whose square is the F of 16.14.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":5,"start":1.0,"label":"t statistic on the added lag"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The p-value is the shaded area: the share of t values at least as far from 0 as the slider's value. Both tails count, because the coefficient could have come out negative or positive.</p>
+
+<p>Drag the slider to 4.00, close to the <code>d_e</code> lag's t statistic. The shaded tails have almost vanished and the p-value shows 0.000. R's exact t distribution gives 0.00013 for the <code>d_e</code> lag, which is also 0.000 to three decimals.</p>
+
+<p>Now look for the usual 0.05 line. At 1.95 the p-value shows 0.051 and at 2.00 it shows 0.046, so p falls below 0.05 at a t statistic of about 1.96 on either side.</p>
+
+<p>So a p-value is the share of t values at least this extreme if the lag adds nothing. A t of 4.02 sits far out in the tail, and that is why the p-value for the <code>d_e</code> lag is so small.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>How to run the test in both directions</h2>
+
+<p>You do not have to build the two regressions yourself. The function <code>grangertest()</code>, from the lmtest package that vars loads, runs the whole test in one call.</p>
+
+<p>The formula puts the response on the left of the <code>~</code>, and the series whose past you are testing on the right. The argument <code>order</code> sets the number of lags. So <code>d_U ~ d_e</code> asks whether the <code>d_e</code> lags help forecast <code>d_U</code>, and swapping the two sides asks the opposite question.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Read <code>~</code> as "is forecast by", not as "causes". The variable on the left of the <code>~</code> is the one being forecast, and putting the two variables in the wrong order tests the wrong direction.</div></div>
+
+<p>The code runs the test in both directions on the quarterly changes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Test both directions: does the d_e lag help forecast d_U, and the d_U lag d_e?
+grangertest(d_U ~ d_e, order = 1, data = changes)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: d_U ~ Lags(d_U, 1:1) + Lags(d_e, 1:1)
+#&gt; Model 2: d_U ~ Lags(d_U, 1:1)
+#&gt;   Res.Df Df      F    Pr(&gt;F)
+#&gt; 1     79
+#&gt; 2     80 -1 16.136 0.0001335 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+grangertest(d_e ~ d_U, order = 1, data = changes)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: d_e ~ Lags(d_e, 1:1) + Lags(d_U, 1:1)
+#&gt; Model 2: d_e ~ Lags(d_e, 1:1)
+#&gt;   Res.Df Df      F Pr(&gt;F)
+#&gt; 1     79
+#&gt; 2     80 -1 0.0042 0.9487</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Model 1 is the regression with both series' lags, and Model 2 keeps only the outcome's own lag. The last row compares them.</p>
+
+<p>The first call gives F = 16.136 and p = 0.0001335, the same values we computed by hand. The second gives F = 0.0042 and p = 0.9487. So the <code>d_e</code> lag improves the forecast of <code>d_U</code>, but the <code>d_U</code> lag does not improve the forecast of <code>d_e</code>. In these data the result runs in one direction only.</p>
+
+<p>The second F is small for the same reason the first was large. In the reverse regression, the t statistic on the <code>d_U</code> lag is 0.0645, and its square is 0.0042.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Read the t statistic on the d_U lag in the reverse regression
+reverse_unrestricted &lt;- lm(d_e ~ d_e_lag + d_U_lag, data = lagged)
+round(coef(summary(reverse_unrestricted))[&quot;d_U_lag&quot;, ], 4)
+#&gt;   Estimate Std. Error    t value   Pr(&gt;|t|)
+#&gt;     0.0130     0.2019     0.0645     0.9487</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On the null distribution, a t statistic of 0.06 sits almost at the centre, so nearly all of the curve lies further out. That is why the p-value is about 0.95.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<h2>How much does adding the employment lag reduce the squared error?</h2>
+
+<p>The two directions differ, but raw correlations do not show it. Let's correlate each lag with the outcome it would forecast.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Correlate each lag with the outcome, without removing anything
+raw_cors &lt;- c(d_e_lag_with_d_U = cor(lagged$d_e_lag, lagged$d_U),
+              d_U_lag_with_d_e = cor(lagged$d_U_lag, lagged$d_e))
+round(raw_cors, 3)
+#&gt; d_e_lag_with_d_U d_U_lag_with_d_e
+#&gt;           -0.660           -0.618</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>d_e</code> lag correlates with <code>d_U</code> at -0.660, and the <code>d_U</code> lag correlates with <code>d_e</code> at -0.618. Those are close, so raw correlations cannot tell the two directions apart.</p>
+
+<p>What matters is what a lag adds beyond the outcome's own lag. The partial correlation measures exactly that: it is the correlation of two residual series, each with the outcome's own lag removed by a regression.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Correlate each lag with the outcome after removing the outcome's own lag
+x_e_to_U &lt;- resid(lm(d_e_lag ~ d_U_lag, data = lagged))   # d_e lag, d_U lag removed
+y_e_to_U &lt;- resid(lm(d_U ~ d_U_lag, data = lagged))       # d_U, its own lag removed
+x_U_to_e &lt;- resid(lm(d_U_lag ~ d_e_lag, data = lagged))   # d_U lag, d_e lag removed
+y_U_to_e &lt;- resid(lm(d_e ~ d_e_lag, data = lagged))       # d_e, its own lag removed
+partial_cors &lt;- c(d_e_to_d_U = cor(x_e_to_U, y_e_to_U),
+                  d_U_to_d_e = cor(x_U_to_e, y_U_to_e))
+round(partial_cors, 3)
+#&gt; d_e_to_d_U d_U_to_d_e
+#&gt;     -0.412      0.007</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After removing the outcome's own lag, the <code>d_e</code> lag still correlates with <code>d_U</code> at -0.412. The <code>d_U</code> lag correlates with <code>d_e</code> at 0.007, which is almost nothing.</p>
+
+<p>Next, the SSE of each regression without and with the other series' lag.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare each regression's SSE without and with the other series' lag
+reverse_restricted &lt;- lm(d_e ~ d_e_lag, data = lagged)
+sse_table &lt;- data.frame(
+  outcome        = c(&quot;d_U&quot;, &quot;d_e&quot;),
+  own_lag_only   = c(sse_r, sum(resid(reverse_restricted)^2)),
+  with_other_lag = c(sse_u, sum(resid(reverse_unrestricted)^2))
+)
+sse_table$drop &lt;- sse_table$own_lag_only - sse_table$with_other_lag
+sse_table[, 2:4] &lt;- round(sse_table[, 2:4], 3)
+sse_table
+#&gt;   outcome own_lag_only with_other_lag  drop
+#&gt; 1     d_U       10.514          8.731 1.783
+#&gt; 2     d_e       13.273         13.272 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For <code>d_U</code>, the SSE drops by 1.783, from 10.514 to 8.731. For <code>d_e</code>, it drops by 0.001, from 13.273 to 13.272.</p>
+
+<p>The widget plots the 82 residual pairs from the <code>d_U</code> direction, which are the <code>x_e_to_U</code> and <code>y_e_to_U</code> residuals above, rounded to 3 decimals. The x axis is the <code>d_e</code> lag with the <code>d_U</code> lag removed, and the y axis is <code>d_U</code> with its own lag removed. The vertical gap from each point to the line is that quarter's forecast error, and each square has an area equal to its squared error.</p>
+<div class="lesson-widget" data-widget-type="ols-fit" data-widget-config='{"points":[{"x":0.014,"y":-0.32},{"x":-0.125,"y":-0.064},{"x":0.505,"y":0.219},{"x":0.974,"y":-0.291},{"x":0.238,"y":0.412},{"x":-0.084,"y":0.783},{"x":0.239,"y":-0.019},{"x":-0.753,"y":1.323},{"x":-0.024,"y":0.872},{"x":0.12,"y":-0.424},{"x":-0.253,"y":-0.656},{"x":-0.259,"y":-0.002},{"x":0.592,"y":-0.411},{"x":0.428,"y":-0.195},{"x":-0.487,"y":0.359},{"x":-0.157,"y":0.166},{"x":0.411,"y":-0.277},{"x":0.331,"y":-0.028},{"x":-0.08,"y":-0.091},{"x":-0.154,"y":-0.268},{"x":0.214,"y":-0.145},{"x":0.116,"y":0.139},{"x":0.454,"y":-0.484},{"x":0.012,"y":0.235},{"x":0.128,"y":0.046},{"x":-0.139,"y":-0.094},{"x":-0.046,"y":0.062},{"x":0.195,"y":-0.464},{"x":0.271,"y":-0.058},{"x":0.108,"y":-0.378},{"x":0.204,"y":0.068},{"x":0.143,"y":-0.047},{"x":-0.132,"y":0.249},{"x":0.02,"y":-0.137},{"x":0.284,"y":-0.114},{"x":0.504,"y":0.096},{"x":-0.368,"y":-0.234},{"x":-0.277,"y":0.382},{"x":0.303,"y":-0.07},{"x":0.227,"y":-0.058},{"x":-0.244,"y":0.593},{"x":-0.037,"y":0.714},{"x":-0.117,"y":0.394},{"x":-0.287,"y":-0.382},{"x":-0.087,"y":-0.014},{"x":-0.252,"y":-0.064},{"x":-0.637,"y":0.253},{"x":-0.59,"y":0.276},{"x":-0.082,"y":0.18},{"x":0.025,"y":0.11},{"x":0.113,"y":-0.84},{"x":-0.628,"y":0.979},{"x":0.312,"y":-0.533},{"x":-0.189,"y":-0.051},{"x":-0.31,"y":-0.228},{"x":-0.554,"y":-0.148},{"x":0.083,"y":-0.332},{"x":0.01,"y":-0.125},{"x":-0.092,"y":0.109},{"x":0.013,"y":0.025},{"x":-0.597,"y":0.07},{"x":-0.181,"y":-0.241},{"x":-0.342,"y":0.366},{"x":0.177,"y":-0.194},{"x":-0.206,"y":0.316},{"x":0.018,"y":0.053},{"x":-0.086,"y":-0.577},{"x":0.003,"y":0.142},{"x":0.231,"y":-0.351},{"x":0.128,"y":0.149},{"x":0.056,"y":-0.108},{"x":-0.171,"y":-0.168},{"x":0.036,"y":-0.001},{"x":0.234,"y":-0.044},{"x":0.205,"y":-0.045},{"x":0.066,"y":0.049},{"x":0.268,"y":-0.317},{"x":-0.112,"y":-0.402},{"x":-0.293,"y":0.215},{"x":0.35,"y":-0.021},{"x":-0.069,"y":0.292},{"x":0.135,"y":-0.184}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Set the slope to 0 and the intercept to 0. A flat line at zero ignores the <code>d_e</code> lag, and the SSE shows 10.51, the SSE of the restricted regression. Then press Snap to least squares: the slope becomes -0.49 and the SSE falls to 8.73, the SSE of the unrestricted regression.</p>
+
+<p>That slope is the coefficient on the <code>d_e</code> lag in the regression we ran by hand, -0.4905. The widget's points are rounded to 3 decimals, so the <code>lm()</code> line in its own code block prints a slope of about -0.4907, which differs from it only in the fourth decimal. The drop from 10.51 to 8.73 is the numerator of F.</p>
+
+<p>In the other direction, the partial correlation is 0.007, so a line through those residual pairs is flat and cannot lower the SSE. That is why its SSE only moves from 13.273 to 13.272.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does the reverse direction show?</h2>
+
+<p>Adding the <code>d_U</code> lag to the regression of <code>d_e</code> on its own lag moved the SSE from 13.273 to 13.272, with F = 0.004 and p = 0.95. What does that show?</p>
+<section class="exercise" data-exercise-id="Granger-Causality-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Unemployment has no effect on employment.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The two series are unrelated.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The d_U lag adds nothing to a forecast of d_e that already uses d_e's own past.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The test is unreliable because the two series are correlated.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. The SSE barely moved, so the extra lag did not lower the forecast error. That is all the test says: it is about forecast error, and it says nothing about what unemployment does to employment.</div><div class="lesson-qfb lesson-qfb-no">Each of these reads more into F = 0.004 than it says. The test compares forecast errors, so it cannot say what unemployment does to employment. It cannot say the series are unrelated either, because their same-quarter correlation is -0.856. And that correlation does not make the test unreliable, since the same test gave F = 16.14 in the other direction.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>How to run the test on a fitted VAR, and does the lag order matter?</h2>
+
+<p>The function <code>grangertest()</code> works on one pair of series at a time. When the series sit in a vector autoregression (VAR), the function <code>causality()</code> from the vars package runs the test on the fitted system.</p>
+
+<p>A VAR is one regression per series, each on p lags of every series in the system. With <code>d_e</code> and <code>d_U</code> and p = 2, there are two equations, and each one has 2 lags of <code>d_e</code>, 2 lags of <code>d_U</code> and an intercept.</p>
+
+<p>First we choose p. The function <code>VARselect()</code> scores lag orders 1 to 4 with four information criteria: Akaike (AIC), Hannan-Quinn (HQ), Schwarz (SC) and final prediction error (FPE). Each criterion scores how well the regressions fit, with a penalty for every extra coefficient, and the lowest score wins.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a two-series VAR and see which lag order the criteria pick
+two_series &lt;- changes[, c(&quot;d_e&quot;, &quot;d_U&quot;)]
+VARselect(two_series, lag.max = 4, type = &quot;const&quot;)$selection
+#&gt; AIC(n)  HQ(n)  SC(n) FPE(n)
+#&gt;      2      1      1      2
+var2 &lt;- VAR(two_series, p = 2, type = &quot;const&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>AIC and FPE pick 2 lags, while HQ and SC pick 1. So we fit a VAR with p = 2, where <code>type = &quot;const&quot;</code> adds the intercept to each equation, and we will check the other orders afterwards.</p>
+
+<p>Now let's test each direction. The argument <code>cause = &quot;d_e&quot;</code> tests whether the <code>d_e</code> lags in the <code>d_U</code> equation are jointly zero.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Test the d_e lags in the d_U equation, and the d_U lags in the d_e equation
+causality(var2, cause = &quot;d_e&quot;)$Granger
+#&gt;
+#&gt; 	Granger causality H0: d_e do not Granger-cause d_U
+#&gt;
+#&gt; data:  VAR object var2
+#&gt; F-Test = 9.732, df1 = 2, df2 = 152, p-value = 0.0001054
+#&gt;
+causality(var2, cause = &quot;d_U&quot;)$Granger
+#&gt;
+#&gt; 	Granger causality H0: d_U do not Granger-cause d_e
+#&gt;
+#&gt; data:  VAR object var2
+#&gt; F-Test = 1.5581, df1 = 2, df2 = 152, p-value = 0.2139
+#&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For the first test, F = 9.732 with 2 and 152 degrees of freedom and p = 0.0001054, so the <code>d_e</code> lags lower the <code>d_U</code> forecast error. For the reverse, F = 1.5581 and p = 0.2139, which is no rejection.</p>
+
+<p>The function <code>grangertest()</code> at 2 lags gives the same F, but a slightly different p-value.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># grangertest() at 2 lags gives the same F, with the d_U equation's own degrees of freedom
+grangertest(d_U ~ d_e, order = 2, data = changes)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: d_U ~ Lags(d_U, 1:2) + Lags(d_e, 1:2)
+#&gt; Model 2: d_U ~ Lags(d_U, 1:2)
+#&gt;   Res.Df Df     F    Pr(&gt;F)
+#&gt; 1     76
+#&gt; 2     78 -2 9.732 0.0001726 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>F is 9.732 in both. The p-values differ, 0.00017 here against 0.0001054 above, because <code>causality()</code> uses 2 x 76 = 152 denominator degrees of freedom, 76 for each of the 2 equations, while <code>grangertest()</code> uses the 76 of the <code>d_U</code> equation alone.</p>
+
+<p>Last, we repeat both tests at lag orders 1 to 4. In the table, <code>F_e_to_U</code> tests the <code>d_e</code> lags in the <code>d_U</code> forecast, and <code>F_U_to_e</code> tests the reverse.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the test in both directions at lag orders 1 to 4
+orders  &lt;- 1:4
+results &lt;- data.frame(order = orders, F_e_to_U = NA, p_e_to_U = NA,
+                      F_U_to_e = NA, p_U_to_e = NA)
+for (k in orders) {
+  e_to_U &lt;- grangertest(d_U ~ d_e, order = k, data = changes)
+  U_to_e &lt;- grangertest(d_e ~ d_U, order = k, data = changes)
+  results$F_e_to_U[k] &lt;- round(e_to_U$F[2], 3)
+  results$p_e_to_U[k] &lt;- sprintf(&quot;%.4f&quot;, e_to_U[[&quot;Pr(&gt;F)&quot;]][2])
+  results$F_U_to_e[k] &lt;- round(U_to_e$F[2], 3)
+  results$p_U_to_e[k] &lt;- sprintf(&quot;%.4f&quot;, U_to_e[[&quot;Pr(&gt;F)&quot;]][2])
+}
+results
+#&gt;   order F_e_to_U p_e_to_U F_U_to_e p_U_to_e
+#&gt; 1     1   16.136   0.0001    0.004   0.9487
+#&gt; 2     2    9.732   0.0002    1.558   0.2172
+#&gt; 3     3    6.927   0.0004    1.112   0.3499
+#&gt; 4     4    5.739   0.0005    0.814   0.5205</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>From the <code>d_e</code> lags to <code>d_U</code>, F is 16.14, 9.73, 6.93 and 5.74, and p stays below 0.001 at every order. In the other direction F is 0.004, 1.56, 1.11 and 0.81, and p stays above 0.2 at every order. So the rejection does not depend on which lag order between 1 and 4 we pick.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>How does a third series change a Granger result?</h2>
+
+<p>So far the answer has come from real data, where we cannot check it against the truth. So let's simulate beach data where we do know the truth.</p>
+
+<p>Over 200 days, the temperature follows an AR(1) process: each day's value is 0.7 times the previous day's value plus random noise. Ice cream sales are 0.8 times the temperature one day back, plus noise with a standard deviation of 0.6. Lifeguard rescues are 0.8 times the temperature two days back, plus the same kind of noise.</p>
+
+<p>By construction, ice cream sales have no effect on rescues, because rescues are built from temperature alone. All three series are deviations from their usual levels, so they can be negative.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 200 days: temperature drives ice cream sales and rescues, ice cream does nothing
+set.seed(2026)
+n_days    &lt;- 200
+temp_full &lt;- as.numeric(arima.sim(list(ar = 0.7), n = n_days + 2))
+day       &lt;- 3:(n_days + 2)
+ice       &lt;- 0.8 * temp_full[day - 1] + rnorm(n_days, sd = 0.6)   # temperature 1 day back
+rescues   &lt;- 0.8 * temp_full[day - 2] + rnorm(n_days, sd = 0.6)   # temperature 2 days back
+beach &lt;- data.frame(temp = temp_full[day], ice = ice, rescues = rescues)
+round(head(beach, 3), 3)
+#&gt;     temp    ice rescues
+#&gt; 1 -0.201  0.188  -0.017
+#&gt; 2 -0.305 -1.682   0.267
+#&gt; 3 -1.606 -0.569   0.708</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We simulate 202 temperatures so that the first of the 200 days has two earlier days to draw on. Now let's test ice cream sales and rescues on their own, in both directions, at 2 lags.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># With only ice cream sales and rescues, test both directions at 2 lags
+grangertest(rescues ~ ice, order = 2, data = beach)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: rescues ~ Lags(rescues, 1:2) + Lags(ice, 1:2)
+#&gt; Model 2: rescues ~ Lags(rescues, 1:2)
+#&gt;   Res.Df Df      F    Pr(&gt;F)
+#&gt; 1    193
+#&gt; 2    195 -2 79.268 &lt; 2.2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+grangertest(ice ~ rescues, order = 2, data = beach)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: ice ~ Lags(ice, 1:2) + Lags(rescues, 1:2)
+#&gt; Model 2: ice ~ Lags(ice, 1:2)
+#&gt;   Res.Df Df      F Pr(&gt;F)
+#&gt; 1    193
+#&gt; 2    195 -2 0.2371 0.7892</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ice cream sales Granger-cause rescues: F = 79.27 and p is below 2.2e-16. The reverse gives F = 0.237 and p = 0.789. Yet ice cream sales have no effect on rescues in these data.</p>
+
+<p>The test is not wrong. Ice cream sales one day back are a noisy measure of the temperature two days back, and that temperature is what drives rescues. So the past of ice cream sales does lower the forecast error of rescues, even though ice cream has no effect.</p>
+
+<p>Now let's add temperature to the system. In a VAR with three series, <code>causality()</code> tests the named series against all the other series at once. So <code>cause = &quot;ice&quot;</code> tests the ice cream lags in the equations for temperature and rescues together, which is 2 lags x 2 equations = 4 degrees of freedom.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add temperature to the system and test ice cream sales and temperature
+beach_var &lt;- VAR(beach, p = 2, type = &quot;const&quot;)
+causality(beach_var, cause = &quot;ice&quot;)$Granger
+#&gt;
+#&gt; 	Granger causality H0: ice do not Granger-cause temp rescues
+#&gt;
+#&gt; data:  VAR object beach_var
+#&gt; F-Test = 0.89887, df1 = 4, df2 = 573, p-value = 0.4643
+#&gt;
+causality(beach_var, cause = &quot;temp&quot;)$Granger
+#&gt;
+#&gt; 	Granger causality H0: temp do not Granger-cause ice rescues
+#&gt;
+#&gt; data:  VAR object beach_var
+#&gt; F-Test = 118.22, df1 = 4, df2 = 573, p-value &lt; 2.2e-16
+#&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With temperature in the system, the test of ice cream sales gives F = 0.899 and p = 0.464, so there is no rejection. The test of temperature gives F = 118.2 and p below 2.2e-16. The rejection for ice cream sales has disappeared, and temperature is the series that rejects.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A Granger result is relative to the series included: given these series and this lag order, the past of X lowers the forecast error of Y. Add or remove a series and the result can change, as it did here for ice cream sales.</div></div>
+
+<p>That is why the definition says the claim is made given the series we include. Three limits follow from it.</p>
+
+<ul>
+
+<li><strong>Omitted series.</strong> A series that drives both X and Y, and that we leave out, can produce a rejection like the one for ice cream sales.</li>
+
+<li><strong>Lag order.</strong> The result comes from a regression with a chosen number of lags, which is why we checked orders 1 to 4 on the Canada data.</li>
+
+<li><strong>Non-stationarity.</strong> The F test assumes stationary series, which is why we worked with quarterly changes.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: does productivity help forecast employment?</h2>
+
+<p>The <code>changes</code> data frame also holds <code>d_prod</code>, the quarterly change in productivity. Test whether the <code>d_prod</code> lags help forecast <code>d_e</code> at 2 lags. The call below runs the test in the wrong direction, so change it to test <code>d_prod</code> as the predictor of <code>d_e</code>.</p>
+<section class="exercise" data-exercise-id="Granger-Causality-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="^(?=[\s\S]*d_e\s*~\s*d_prod)(?=[\s\S]*order\s*=\s*2)"><textarea class="lesson-tryit-input" spellcheck="false"># Test whether the d_prod lags help forecast d_e, using 2 lags
+grangertest(d_prod ~ d_e, order = 2, data = changes)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes. With d_e on the left of the ~, the test asks whether the d_prod lags lower the d_e forecast error: F = 6.22 and p = 0.0032 at 2 lags, so they do.</span><span class="lesson-tryit-fb lesson-tryit-no">The response goes on the left of the ~. The starter call tests whether the d_e lags help forecast d_prod, which gives F = 2.00 and p = 0.142. Put d_e on the left, d_prod on the right, and keep order = 2.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># The response d_e goes on the left of the ~, the d_prod lags on the right
+grangertest(d_e ~ d_prod, order = 2, data = changes)
+#&gt; Granger causality test
+#&gt;
+#&gt; Model 1: d_e ~ Lags(d_e, 1:2) + Lags(d_prod, 1:2)
+#&gt; Model 2: d_e ~ Lags(d_e, 1:2)
+#&gt;   Res.Df Df      F   Pr(&gt;F)
+#&gt; 1     76
+#&gt; 2     78 -2 6.2195 0.003151 **
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre></details></div>
+</section>
+<p>The <code>d_prod</code> lags lower the <code>d_e</code> forecast error: F = 6.2195 and p = 0.003151. The starter tested the other direction, where the <code>d_e</code> lags did not lower the <code>d_prod</code> forecast error (F = 2.00, p = 0.142).</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does a Granger result support?</h2>
+
+<p>For Canada, adding the <code>d_e</code> lag to the <code>d_U</code> regression gave F = 16.14 and p = 0.0001, and the reverse direction showed no rejection. Which statement does that support?</p>
+<section class="exercise" data-exercise-id="Granger-Causality-step11" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Employment growth causes the fall in unemployment.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Given d_U's own past and only these two series, the d_e lag lowers the d_U forecast error.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A p-value of 0.0001 means the d_e lag has a large effect on d_U.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Adding a third series, such as productivity, could not change the result.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. That is what the test measures: a lower forecast error, given the series and the lag order included. Nothing in it says how employment growth acts on unemployment.</div><div class="lesson-qfb lesson-qfb-no">Each of these goes beyond what the test measures. A rejection is about forecast error, not about mechanism. A p-value is a probability under the null hypothesis, not the size of an effect. And the result is relative to the series included: on the beach data, adding temperature removed the rejection for ice cream sales.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.2307/1912791">Investigating causal relations by econometric models and cross-spectral methods</a> - Granger (1969), Econometrica 37(3), 424-438. The paper that defines Granger causality.</li>
+
+<li>Hamilton, J. D. (1994). Time Series Analysis. Princeton University Press. Chapter 11 covers vector autoregressions and Granger causality tests.</li>
+
+<li>Lutkepohl, H. (2005). New Introduction to Multiple Time Series Analysis. Springer. A full treatment of VAR models and the tests run on them.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v027.i04">VAR, SVAR and SVEC Models: Implementation Within R Package vars</a> - Pfaff (2008), Journal of Statistical Software 27(4). Documents the vars package, including <code>causality()</code>.</li>
+
+<li><a href="https://CRAN.R-project.org/doc/Rnews/Rnews_2002-3.pdf">Diagnostic Checking in Regression Relationships</a> - Zeileis and Hothorn (2002), R News 2(3), 7-10. Describes the lmtest package, which supplies <code>grangertest()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You computed the Granger test by hand, ran it in both directions and tested what changes when a third series joins the system. To summarize:</p>
+
+<ul>
+
+<li>Granger causality means the past of X lowers the forecast error of Y, beyond Y's own past. It is a claim about forecast error, not about mechanism.</li>
+
+<li>The test is two regressions and an F statistic. For Canada, adding the <code>d_e</code> lag cut the SSE of <code>d_U</code> from 10.514 to 8.731, which gives F = 16.136 and p = 0.0001335.</li>
+
+<li>The answer depends on the direction. The <code>d_e</code> lag improved the <code>d_U</code> forecast, while the <code>d_U</code> lag barely changed the <code>d_e</code> SSE, from 13.273 to 13.272.</li>
+
+<li>A result belongs to the series included and the lag order. The rejection held at lags 1 to 4 on the Canada data, but on the beach data ice cream sales went from F = 79.27 to p = 0.464 once temperature joined the system.</li>
+
+</ul>
+
+<p>So, whenever someone says that X Granger-causes Y, you can ask: given which series, and at how many lags?</p>
+
+<p>The next lesson traces what one shock to a series does to the system over the following quarters.</p>
+</section>
+
+{% endraw %}

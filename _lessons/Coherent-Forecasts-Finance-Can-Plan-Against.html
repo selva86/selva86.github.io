@@ -1,0 +1,817 @@
+---
+title: "Hierarchical and Grouped Forecasting Lesson 5: Coherent forecasts finance can plan against"
+description: "Measure the dollar gap between regional and national revenue forecasts, close it with top-down, bottom-up and MinT, then score each plan on the 2024 actuals."
+keywords: "coherent forecasts, forecast reconciliation, hierarchical forecasting, MinT, top-down forecasting, bottom-up forecasting, reconcile, min_trace, ETS, fable, revenue planning, R"
+mathjax: false
+webr: true
+curriculum_id: "5.120.5"
+post_type: "LESSON"
+course_id: "ts-hierarchical"
+course_title: "Hierarchical and Grouped Forecasting"
+course_lesson: "5"
+course_total: "5"
+course_landing: "Hierarchical-and-Grouped-Forecasting-Course.html"
+course_next: ""
+course_prev: "Reconciliation-with-fabletools"
+lesson_access: "pro"
+catalog_blurb: "How to make regional and national forecasts add up in one plan."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Coherent forecasts finance can plan against</h2>
+
+<p>Today let's learn how to make a set of forecasts add up, so that finance has one set of numbers to plan against.</p>
+
+<p>Maya is a planning analyst at an outdoor-gear retailer. The company sells in four regions: North, South, East and West. Maya has to prepare the 2024 monthly revenue plan, in dollars.</p>
+
+<p>She fits one forecasting model to each region and one more to the national total. That makes five models, and each one forecasts revenue for 2024. The table below shows the annual plan from each of them.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["line","annual_plan"],"rows":[["North",8367348],["South",5284572],["East",5826996],["West",2752651],["Sum of the four regions",22231567],["National",21932408],["Gap (regions minus national)",299159]],"formats":{"annual_plan":"dollar"},"title":"The 2024 revenue plan from five forecasts","note":"North, South, East, West and National each come from their own forecasting model. The other two lines are worked out from those five."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Add up the four regional plans and you get $22,231,567. But the national plan says $21,932,408. So the same revenue for the same year is planned at two different totals, and they are $299,159 apart.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>How four regions and a national total form a hierarchy</h2>
+
+<p>Let's start with the structure of Maya's data.</p>
+
+<p>Revenue is recorded for each of the four regions, and the national revenue is the sum of the four in every month. A set of series where some are the sum of others is called a <strong>hierarchy</strong>. This one has two levels: the national total at the top and the four regions below it.</p>
+
+<p>The rule that a total equals the sum of its parts is the <strong>aggregation constraint</strong>. Here it says that in every month, National = North + South + East + West.</p>
+
+<p>A set of forecasts is <strong>coherent</strong> when it obeys the same rule: in every month, the four regional forecasts add up to the national forecast. So in a coherent plan, the regional lines and the national line can never disagree.</p>
+
+<p>First we need the data. We simulate 72 months of revenue in dollars, from January 2019 to December 2024, for the four regions. Each region gets its own starting level, growth rate and seasonal peak month, and one demand shock is shared by all four regions.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load the packages and simulate 72 months of revenue for four regions
+library(fable)
+library(fabletools)
+library(tsibble)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+options(width = 100)
+
+set.seed(3)
+month_index &lt;- yearmonth(&quot;2019 Jan&quot;) + 0:71
+month_no &lt;- 1:72
+
+# One demand shock is shared by all four regions; each region adds its own noise
+shock &lt;- as.numeric(arima.sim(list(ar = 0.6), n = 72, sd = 0.03))
+
+simulate_region &lt;- function(level, growth, amp, phase) {
+  trend &lt;- 1 + growth * month_no / 12
+  season &lt;- 1 + amp * sin(2 * pi * (month_no - phase) / 12)
+  noise &lt;- exp(shock + rnorm(72, 0, 0.02))
+  round(level * trend * season * noise, -2)
+}
+
+sales &lt;- tibble(
+  month = rep(month_index, 4),
+  region = rep(c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;), each = 72),
+  revenue = c(
+    simulate_region(520000, 0.06, 0.16, 0),
+    simulate_region(380000, 0.03, 0.10, 3),
+    simulate_region(310000, 0.09, 0.10, 6),
+    simulate_region(190000, 0.02, 0.05, 9)
+  )
+) |&gt;
+  as_tsibble(key = region, index = month)
+
+head(sales)
+#&gt; # A tsibble: 6 x 3 [1M]
+#&gt; # Key:       region [1]
+#&gt;      month region revenue
+#&gt;      &lt;mth&gt; &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 2019 Jan East    294600
+#&gt; 2 2019 Feb East    278700
+#&gt; 3 2019 Mar East    279800
+#&gt; 4 2019 Apr East    283400
+#&gt; 5 2019 May East    283400
+#&gt; 6 2019 Jun East    323200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>simulate_region()</code> builds one region's revenue as its level, times a growth trend, times a seasonal wave, times noise. The shared <code>shock</code> goes into all four regions, so they tend to rise and fall together. The result is stored as a <strong>tsibble</strong>, a data frame with a time index (<code>month</code>) and a key (<code>region</code>) that says which series each row belongs to.</p>
+
+<p>Next, <code>aggregate_key(region, revenue = sum(revenue))</code> adds the national series. It creates one new series, shown as <code>&lt;aggregated&gt;</code>, that is the sum of the four regions in each month.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add the national series with aggregate_key() and show the five series for December 2023
+hier &lt;- sales |&gt;
+  aggregate_key(region, revenue = sum(revenue))
+
+hier |&gt;
+  filter(month == yearmonth(&quot;2023 Dec&quot;))
+#&gt; # A tsibble: 5 x 3 [1M]
+#&gt; # Key:       region [5]
+#&gt;      month region       revenue
+#&gt;      &lt;mth&gt; &lt;chr*&gt;         &lt;dbl&gt;
+#&gt; 1 2023 Dec &lt;aggregated&gt; 1836400
+#&gt; 2 2023 Dec East          479600
+#&gt; 3 2023 Dec North         714500
+#&gt; 4 2023 Dec South         411000
+#&gt; 5 2023 Dec West          231300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are now five series with 72 months each. In December 2023 the <code>&lt;aggregated&gt;</code> row is the national revenue, $1,836,400, and the four regions add up to exactly that.</p>
+
+<p>Let's check that this holds in all 72 months. The block takes the largest absolute difference between the national series and the sum of the regions.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check that the national series equals the sum of the four regions in every month
+check &lt;- hier |&gt;
+  as_tibble() |&gt;
+  mutate(level = if_else(is_aggregated(region), &quot;national&quot;, &quot;regions&quot;)) |&gt;
+  group_by(month, level) |&gt;
+  summarise(revenue = sum(revenue), .groups = &quot;drop&quot;) |&gt;
+  pivot_wider(names_from = level, values_from = revenue)
+
+max(abs(check$national - check$regions))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So the history obeys the aggregation constraint exactly. The forecasts, as we are about to see, do not have to.</p>
+
+<p>Last, we split the time. The 60 months from 2019 to 2023 are the history the models are fitted on. The 12 months of 2024 are held back as the actuals, the revenue that was really recorded, and they are used only to score the plans once they are made.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Keep 2019 to 2023 as the history and hold 2024 back as the actuals
+train &lt;- hier |&gt;
+  filter(month &lt;= yearmonth(&quot;2023 Dec&quot;))
+test &lt;- hier |&gt;
+  filter(month &gt;= yearmonth(&quot;2024 Jan&quot;))
+
+c(train_months = n_distinct(train$month), test_months = n_distinct(test$month))
+#&gt; train_months  test_months
+#&gt;           60           12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Base forecasts: one model fitted to each series</h2>
+
+<p>A <strong>base forecast</strong> is a forecast from a model that was fitted to one series alone. Maya fits one model to each of the five series, so she has five base forecasts, and each model is fitted to its own series only.</p>
+
+<p>The model is ETS, exponential smoothing. <code>ETS(revenue)</code> chooses the form of the model for each series automatically. The form is written as three letters, for the error term, the trend term and the seasonal term. For each term, N means none, A means additive and M means multiplicative, and for the trend Ad means a damped additive trend. So ETS(M,Ad,M) has a multiplicative error, a damped additive trend and a multiplicative seasonal term.</p>
+
+<p>The line <code>model(base = ETS(revenue))</code> fits all five series at once and names the models <code>base</code>. The output is a mable, a table of models with one row per series.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit one ETS model to each of the five series in the history
+fit &lt;- train |&gt;
+  model(base = ETS(revenue))
+
+fit
+#&gt; # A mable: 5 x 2
+#&gt; # Key:     region [5]
+#&gt;   region                base
+#&gt;   &lt;chr*&gt;             &lt;model&gt;
+#&gt; 1 East          &lt;ETS(M,A,M)&gt;
+#&gt; 2 North        &lt;ETS(M,Ad,M)&gt;
+#&gt; 3 South         &lt;ETS(A,N,A)&gt;
+#&gt; 4 West          &lt;ETS(A,N,N)&gt;
+#&gt; 5 &lt;aggregated&gt;  &lt;ETS(M,N,N)&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The five series got five different models. East is ETS(M,A,M), North is ETS(M,Ad,M), South is ETS(A,N,A), West is ETS(A,N,N) and the national series is ETS(M,N,N).</p>
+
+<p>The national model has no trend and no seasonal term. The four regions peak in different months, so their seasonal patterns partly cancel in the national total, and the national model finds no seasonal term to fit. A model with no trend and no seasonal term forecasts the same value in every month, so the national forecast is a flat line.</p>
+
+<p>The next block forecasts 12 months ahead from every model and puts the five forecasts side by side, one row per month of 2024.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast 2024 from each model and lay the five forecasts side by side
+plan_wide &lt;- fit |&gt;
+  forecast(h = 12) |&gt;
+  as_tibble() |&gt;
+  mutate(node = if_else(is_aggregated(region), &quot;National&quot;, as.character(region))) |&gt;
+  select(month, node, .mean) |&gt;
+  pivot_wider(names_from = node, values_from = .mean) |&gt;
+  select(month, National, North, South, East, West) |&gt;
+  mutate(
+    sum_regions = North + South + East + West,
+    gap = sum_regions - National
+  )
+
+plan_wide |&gt;
+  mutate(across(-month, round)) |&gt;
+  print(n = 12)
+#&gt; # A tibble: 12 × 8
+#&gt;       month National  North  South   East   West sum_regions    gap
+#&gt;       &lt;mth&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;       &lt;dbl&gt;  &lt;dbl&gt;
+#&gt;  1 2024 Jan  1827701 741561 400323 444543 229388     1815814 -11886
+#&gt;  2 2024 Feb  1827701 800577 425506 436162 229388     1891631  63931
+#&gt;  3 2024 Mar  1827701 806337 446477 433392 229388     1915594  87893
+#&gt;  4 2024 Apr  1827701 813203 468025 441972 229388     1952587 124886
+#&gt;  5 2024 May  1827701 737405 464741 448031 229388     1879564  51864
+#&gt;  6 2024 Jun  1827701 692709 473108 477803 229388     1873008  45307
+#&gt;  7 2024 Jul  1827701 639367 482061 508498 229388     1859314  31613
+#&gt;  8 2024 Aug  1827701 598156 469863 532873 229388     1830280   2579
+#&gt;  9 2024 Sep  1827701 589714 434008 543624 229388     1796734 -30967
+#&gt; 10 2024 Oct  1827701 604386 417135 533788 229388     1784696 -43004
+#&gt; 11 2024 Nov  1827701 636980 396192 519723 229388     1782282 -45419
+#&gt; 12 2024 Dec  1827701 706952 407133 506589 229388     1850062  22361</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every column from <code>National</code> to <code>West</code> is a base forecast. <code>sum_regions</code> adds the four regional forecasts, and <code>gap</code> is <code>sum_regions</code> minus <code>National</code>. The gap is positive when the regions add up to more than the national forecast and negative when they add up to less.</p>
+
+<p>The National column is $1,827,701 in every month. West is flat too, but North, South and East move through the year. So in April the regions add up to $1,952,587, which is $124,886 more than the national forecast, and in November they add up to $45,419 less.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>How large is the gap between the regional forecasts and the national forecast?</h2>
+
+<p>The chart below plots the size of the gap in each month of 2024. The widget holds the <code>gap</code> column of <code>plan_wide</code> with the signs removed, so it shows how big each gap is, not which way it points. The signs are still in the <code>gap</code> column of <code>plan_wide</code>.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":11886.3,"fill":"gap"},{"x":2,"y":63930.6,"fill":"gap"},{"x":3,"y":87893.3,"fill":"gap"},{"x":4,"y":124886.4,"fill":"gap"},{"x":5,"y":51863.7,"fill":"gap"},{"x":6,"y":45307.3,"fill":"gap"},{"x":7,"y":31613.1,"fill":"gap"},{"x":8,"y":2579.4,"fill":"gap"},{"x":9,"y":30967,"fill":"gap"},{"x":10,"y":43004.2,"fill":"gap"},{"x":11,"y":45418.8,"fill":"gap"},{"x":12,"y":22361.3,"fill":"gap"}],"geoms":["bar","line"],"x":"month","y":"gap_size","code":{"bar":"ggplot(df, aes(factor(month), gap_size)) +\n  geom_col() +\n  labs(x = \"Month of 2024\", y = \"Size of the gap, dollars\")","line":"ggplot(df, aes(month, gap_size)) +\n  geom_line() +\n  geom_point() +\n  scale_x_continuous(breaks = 1:12) +\n  labs(x = \"Month of 2024\", y = \"Size of the gap, dollars\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The gap is largest in April at $124,886, which is 6.8% of that month's national forecast. It is smallest in August at $2,579. The regions add up to more than the national forecast in 8 months (February to August, and December) and to less in the other 4.</p>
+
+<p>For the year, the gap is $299,159, which is 1.4% of the national forecast for the year. But that is the net of gaps with opposite signs. Add up the 12 monthly gaps with the signs removed and the total is about $562,000, so netting hides about $263,000 of disagreement.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A small gap for the year does not mean the monthly plans agree. Positive and negative monthly gaps cancel in the annual total, and the plan is written month by month.</div></div>
+
+<p>So why do the forecasts disagree at all? Because nothing ties the five models to each other. Each one was fitted to its own series, and the national model has no seasonal term while three of the regional models have one.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>How top-down scaling and bottom-up make the forecasts add up</h2>
+
+<p>There are two simple ways to make the five forecasts add up. Both start from <code>plan_wide</code>.</p>
+
+<p>The first is <strong>top-down</strong>. It keeps the national forecast and splits it across the regions in proportion to that month's regional forecasts, so the four regions add up to the national forecast. Finance teams call this pro rata scaling.</p>
+
+<p>For each month, the scale factor is <code>National / sum_regions</code>, and every regional forecast in that month is multiplied by it. Because the shares come from the month's regional forecasts, this version is called top-down with forecast proportions.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Top-down: multiply each month's regional forecasts by National / sum_regions
+top_down &lt;- plan_wide |&gt;
+  mutate(scale = National / sum_regions) |&gt;
+  mutate(across(c(North, South, East, West), ~ .x * scale))
+
+top_down |&gt;
+  select(month, scale) |&gt;
+  mutate(scale = sprintf(&quot;%.3f&quot;, scale)) |&gt;
+  print(n = 12)
+#&gt; # A tibble: 12 × 2
+#&gt;       month scale
+#&gt;       &lt;mth&gt; &lt;chr&gt;
+#&gt;  1 2024 Jan 1.007
+#&gt;  2 2024 Feb 0.966
+#&gt;  3 2024 Mar 0.954
+#&gt;  4 2024 Apr 0.936
+#&gt;  5 2024 May 0.972
+#&gt;  6 2024 Jun 0.976
+#&gt;  7 2024 Jul 0.983
+#&gt;  8 2024 Aug 0.999
+#&gt;  9 2024 Sep 1.017
+#&gt; 10 2024 Oct 1.024
+#&gt; 11 2024 Nov 1.025
+#&gt; 12 2024 Dec 0.988</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A factor below 1 means the regions add up to more than the national forecast, so top-down cuts them. In April the factor is 0.936. A factor above 1 means the regions add up to less, so top-down raises them, as it does in November with 1.025.</p>
+
+<p>The second way is <strong>bottom-up</strong>. It keeps the four regional forecasts and defines the national forecast as their sum.</p>
+
+<p>The next block computes the annual total of each node under the base plan, top-down and bottom-up.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Annual totals per node for the base plan, top-down and bottom-up
+node_cols &lt;- c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;, &quot;National&quot;)
+
+base_totals &lt;- plan_wide |&gt;
+  summarise(across(all_of(node_cols), sum))
+top_down_totals &lt;- top_down |&gt;
+  summarise(across(all_of(node_cols), sum))
+bottom_up_totals &lt;- base_totals |&gt;
+  mutate(National = North + South + East + West)
+
+by_hand &lt;- bind_rows(
+  base = base_totals,
+  top_down = top_down_totals,
+  bottom_up = bottom_up_totals,
+  .id = &quot;plan&quot;
+)
+
+by_hand |&gt;
+  mutate(
+    sum_regions = North + South + East + West,
+    gap = sum_regions - National,
+    across(-plan, round)
+  )
+#&gt; # A tibble: 3 × 8
+#&gt;   plan        North   South    East    West National sum_regions    gap
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;       &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 base      8367348 5284572 5826996 2752651 21932408    22231567 299159
+#&gt; 2 top_down  8239733 5211972 5763048 2717655 21932408    21932408      0
+#&gt; 3 bottom_up 8367348 5284572 5826996 2752651 22231567    22231567      0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In the base row the regions add up to $22,231,567 and the national forecast is $21,932,408, a gap of $299,159. Both fixes bring the gap to 0. Top-down does it with National at $21,932,408, and bottom-up does it with National at $22,231,567.</p>
+
+<p>Now let's see how far each plan moves each node away from the base plan.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># How far each plan moves each node away from the base plan, in dollars for the year
+by_hand |&gt;
+  mutate(across(all_of(node_cols), ~ round(.x - .x[plan == &quot;base&quot;])))
+#&gt; # A tibble: 3 × 6
+#&gt;   plan        North  South   East   West National
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 base            0      0      0      0        0
+#&gt; 2 top_down  -127615 -72600 -63949 -34995        0
+#&gt; 3 bottom_up       0      0      0      0   299159</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Top-down cuts the four regions by $299,159 in total: North by $127,615, South by $72,600, East by $63,949 and West by $34,995. Bottom-up leaves the regions alone and raises the national forecast by the same $299,159.</p>
+
+<p>So top-down keeps the national forecast and uses the regional forecasts only for their monthly shares, while bottom-up keeps the regional forecasts and drops the national forecast. Both make the plan add up. But each one throws away the forecasts from one set of models.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: how much does top-down scaling change each region in April?</h2>
+
+<p>In April the four regional forecasts add up to $1,952,587 and the national forecast is $1,827,701. Top-down scaling multiplies every regional forecast by one factor so that the regions add up to the national forecast. What happens to each region's April forecast?</p>
+<section class="exercise" data-exercise-id="Coherent-Forecasts-Finance-Can-Plan-Against-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Each region falls by 6.8%, which is the gap of $124,886 divided by the national forecast.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Each region falls by the same $31,222, which is the gap split four ways.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Each region falls by 6.4%, because every regional forecast is multiplied by 1,827,701 / 1,952,587 = 0.936.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">No region changes, because the national forecast moves up to $1,952,587 instead.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The factor is the national forecast over the sum of the regions, and 0.936 is a 6.4% cut for every region. North falls by about $52,012 and West by about $14,672, because the same percentage is taken from forecasts of different sizes.</div><div class="lesson-qfb lesson-qfb-no">The factor is National / sum_regions = 1,827,701 / 1,952,587 = 0.936, so every region is multiplied by 0.936, a cut of 6.4%. Dividing the gap by the national forecast gives 6.8%, which uses the wrong denominator. An equal $31,222 from each region ignores region size and would be a 13.6% cut for West. Leaving the regions alone and moving the national forecast is bottom-up.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>How MinT reconciliation changes all five forecasts at once</h2>
+
+<p>Top-down changes the four regions and leaves the national forecast alone. Bottom-up does the opposite. <strong>MinT</strong> changes all five forecasts at once.</p>
+
+<p>Turning base forecasts into coherent ones is called <strong>reconciliation</strong>, and top-down and bottom-up are two ways to do it. MinT is short for minimum trace. It chooses the reconciliation that minimises the sum of the variances of the five reconciled forecast errors. That sum is the trace of the covariance matrix of the errors, which is where the name comes from.</p>
+
+<p>A covariance matrix holds the variance of each series' forecast errors on the diagonal and, off the diagonal, how the errors of two series move together. MinT estimates it from the in-sample residuals of the five models, which are the errors each model made on the history it was fitted to. The version called <code>mint_shrink</code> shrinks the covariances between series toward zero, which keeps the estimate stable when each series has only 60 residuals.</p>
+
+<p>The effect is that the forecasts with the largest errors are moved the most.</p>
+
+<p>In fable, <code>reconcile()</code> sets up the adjustment on the five base models and <code>forecast()</code> then applies it. The call below sets up three methods at once: <code>bottom_up()</code>, <code>top_down()</code> with forecast proportions, and <code>min_trace()</code> with <code>mint_shrink</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reconcile the five base models three ways, then forecast 2024 from each
+fc &lt;- fit |&gt;
+  reconcile(
+    bu = bottom_up(base),
+    td = top_down(base, method = &quot;forecast_proportions&quot;),
+    mint = min_trace(base, method = &quot;mint_shrink&quot;)
+  ) |&gt;
+  forecast(h = 12)
+
+unique(fc$.model)
+#&gt; [1] &quot;base&quot; &quot;bu&quot;   &quot;td&quot;   &quot;mint&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table <code>fc</code> now holds four sets of forecasts: <code>base</code>, <code>bu</code> for bottom-up, <code>td</code> for top-down and <code>mint</code>.</p>
+
+<p>The next block puts the four plans side by side and finds the largest monthly gap in each.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Lay the four plans side by side and find the largest monthly gap in each
+fc_wide &lt;- fc |&gt;
+  as_tibble() |&gt;
+  mutate(node = if_else(is_aggregated(region), &quot;National&quot;, as.character(region))) |&gt;
+  select(month, plan = .model, node, .mean) |&gt;
+  pivot_wider(names_from = node, values_from = .mean) |&gt;
+  mutate(gap = North + South + East + West - National)
+
+fc_wide |&gt;
+  group_by(plan) |&gt;
+  summarise(max_abs_gap = round(max(abs(gap)), 2))
+#&gt; # A tibble: 4 × 2
+#&gt;   plan  max_abs_gap
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 base      124886.
+#&gt; 2 bu             0
+#&gt; 3 mint           0
+#&gt; 4 td             0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The base forecasts have a largest gap of $124,886. In <code>bu</code>, <code>td</code> and <code>mint</code> it is 0 to the cent, so all three plans are coherent.</p>
+
+<p>To see which forecasts MinT moves most, look at the standard deviation of each model's in-sample residuals, in dollars.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Standard deviation of each series' in-sample residuals, in dollars
+fit |&gt;
+  augment() |&gt;
+  as_tibble() |&gt;
+  group_by(region) |&gt;
+  summarise(residual_sd = round(sd(.resid)))
+#&gt; # A tibble: 5 × 2
+#&gt;   region       residual_sd
+#&gt;   &lt;chr*&gt;             &lt;dbl&gt;
+#&gt; 1 East               14279
+#&gt; 2 North              21210
+#&gt; 3 South              16961
+#&gt; 4 West                9579
+#&gt; 5 &lt;aggregated&gt;       64153</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The national model has the largest residuals, $64,153, against $9,579 to $21,210 for the regions. So most of the adjustment falls on the national forecast.</p>
+
+<p>The last comparison is the national forecast by month in the base plan and in MinT, with the share of each month's gap that the change takes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># National forecast by month: base plan against MinT, the change, and its share of the gap
+fc_wide |&gt;
+  filter(plan %in% c(&quot;base&quot;, &quot;mint&quot;)) |&gt;
+  select(month, plan, National) |&gt;
+  pivot_wider(names_from = plan, values_from = National) |&gt;
+  mutate(
+    gap = plan_wide$gap,
+    change = mint - base,
+    share_of_gap = round(change / gap, 3),
+    across(c(base, mint, gap, change), round)
+  ) |&gt;
+  print(n = 12)
+#&gt; # A tibble: 12 × 6
+#&gt;       month    base    mint    gap change share_of_gap
+#&gt;       &lt;mth&gt;   &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;        &lt;dbl&gt;
+#&gt;  1 2024 Jan 1827701 1817173 -11886 -10528        0.886
+#&gt;  2 2024 Feb 1827701 1884324  63931  56623        0.886
+#&gt;  3 2024 Mar 1827701 1905548  87893  77847        0.886
+#&gt;  4 2024 Apr 1827701 1938313 124886 110612        0.886
+#&gt;  5 2024 May 1827701 1873636  51864  45936        0.886
+#&gt;  6 2024 Jun 1827701 1867829  45307  40129        0.886
+#&gt;  7 2024 Jul 1827701 1855700  31613  28000        0.886
+#&gt;  8 2024 Aug 1827701 1829985   2579   2285        0.886
+#&gt;  9 2024 Sep 1827701 1800273 -30967 -27427        0.886
+#&gt; 10 2024 Oct 1827701 1789612 -43004 -38089        0.886
+#&gt; 11 2024 Nov 1827701 1787473 -45419 -40227        0.886
+#&gt; 12 2024 Dec 1827701 1847506  22361  19805        0.886</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In April the national forecast rises by $110,612 to $1,938,313, and the four regions fall by $14,274 in total. <code>share_of_gap</code> is 0.886 in every month, so the national forecast takes 88.6% of each month's gap and the four regions take the other 11.4%. The shares are the same in all 12 months because they come from one covariance matrix, estimated once from the residuals.</p>
+
+<p>The national forecast is also no longer flat. It follows the regional forecasts: $1,817,173 in January and $1,787,473 in November, instead of $1,827,701 in both.</p>
+
+<p>Finally, <code>annual</code> holds each plan's total for the year by node. The check compares the <code>bu</code> and <code>td</code> rows with the <code>by_hand</code> totals.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Annual totals per node for each plan, and a check against the hand computation
+annual &lt;- fc_wide |&gt;
+  group_by(plan) |&gt;
+  summarise(across(c(National, North, South, East, West), sum))
+
+annual |&gt;
+  mutate(across(-plan, round))
+
+hand_td &lt;- by_hand |&gt; filter(plan == &quot;top_down&quot;) |&gt; select(all_of(node_cols))
+fable_td &lt;- annual |&gt; filter(plan == &quot;td&quot;) |&gt; select(all_of(node_cols))
+hand_bu &lt;- by_hand |&gt; filter(plan == &quot;bottom_up&quot;) |&gt; select(all_of(node_cols))
+fable_bu &lt;- annual |&gt; filter(plan == &quot;bu&quot;) |&gt; select(all_of(node_cols))
+
+round(c(
+  top_down = max(abs(hand_td - fable_td)),
+  bottom_up = max(abs(hand_bu - fable_bu))
+), 4)
+#&gt; # A tibble: 4 × 6
+#&gt;   plan  National   North   South    East    West
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 base  21932408 8367348 5284572 5826996 2752651
+#&gt; 2 bu    22231567 8367348 5284572 5826996 2752651
+#&gt; 3 mint  22197373 8356824 5272470 5817181 2750898
+#&gt; 4 td    21932408 8239733 5211972 5763048 2717655
+#&gt;  top_down bottom_up
+#&gt;         0         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both differences are 0 to four decimals of a dollar, so <code>reconcile()</code> gives the same top-down and bottom-up totals as the hand computation. The <code>mint</code> row is the new plan.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>What changed between the base plan and the reconciled plan?</h2>
+
+<p>This is the table Maya takes to the planning meeting: the annual plan before and after reconciliation, and what changed on each line. The widget holds the <code>base</code> and <code>mint</code> rows of <code>annual</code>, with the sum of the regions and the gap added as lines. Switch it to the report table to read it with dollar signs and percent.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["line","base_plan","reconciled_plan","change","change_pct"],"rows":[["North",8367348,8356824,-10524,-0.001258],["South",5284572,5272470,-12102,-0.00229],["East",5826996,5817181,-9815,-0.001684],["West",2752651,2750898,-1753,-0.000637],["Sum of the four regions",22231567,22197373,-34194,-0.001538],["National",21932408,22197373,264965,0.012081],["Gap (regions minus national)",299159,0,-299159,null]],"formats":{"base_plan":"dollar","reconciled_plan":"dollar","change":"comma","change_pct":"pct"},"title":"What changed from the base plan to the MinT plan","note":"Annual revenue plan for 2024, in dollars. Change is the MinT plan minus the base plan."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The national plan rises by $264,965, or 1.2%, to $22,197,373. The four regions fall by $34,194 in total, and South moves the most, down $12,102 or 0.2%. The gap goes from $299,159 to 0.</p>
+
+<p>Compare that with top-down, which cut each region by between 1.1% and 1.5% of its base plan: East by 1.1% ($63,949) and North by 1.5% ($127,615) are the two ends. Under MinT no region moves by more than 0.3%, because the national forecast takes most of the change.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Do the reconciled forecasts score better against the 2024 actuals?</h2>
+
+<p>So far we have checked that the plans add up. We have not checked how close they are to the revenue that was really recorded, and the 2024 actuals we held back let us do that.</p>
+
+<p>The score is the <strong>mean absolute error (MAE)</strong>: the average of the absolute forecast errors over the 12 months, in dollars per month. <code>accuracy()</code> takes the forecasts and the actuals, and <code>measures = list(MAE = MAE)</code> asks for MAE only.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score each plan on the 12 months of 2024 with the mean absolute error (MAE)
+acc &lt;- accuracy(fc, test, measures = list(MAE = MAE))
+
+mae_by_node &lt;- acc |&gt;
+  mutate(
+    node = if_else(is_aggregated(region), &quot;National&quot;, as.character(region)),
+    node = factor(node, levels = c(&quot;National&quot;, &quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;)),
+    plan = factor(.model, levels = c(&quot;base&quot;, &quot;td&quot;, &quot;bu&quot;, &quot;mint&quot;))
+  ) |&gt;
+  select(node, plan, MAE) |&gt;
+  as_tibble()
+
+mae_wide &lt;- mae_by_node |&gt;
+  pivot_wider(names_from = plan, values_from = MAE) |&gt;
+  select(node, base, td, bu, mint) |&gt;
+  arrange(node)
+
+mae_wide |&gt;
+  mutate(across(-node, round))
+
+colSums(mae_wide[, -1]) |&gt;
+  round()
+#&gt; # A tibble: 5 × 5
+#&gt;   node      base    td    bu  mint
+#&gt;   &lt;fct&gt;    &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 National 59824 59824 51102 50053
+#&gt; 2 North    32027 35739 32027 32264
+#&gt; 3 South    23594 29644 23594 24603
+#&gt; 4 East      9174 12286  9174  8496
+#&gt; 5 West     11385  9524 11385 11175
+#&gt;   base     td     bu   mint
+#&gt; 136005 147018 127283 126590</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Start with the National row. The base plan and top-down have the same MAE, $59,824, because top-down keeps the national forecast. Bottom-up brings it down to $51,102 and MinT to $50,053, which is 16.3% lower than the base plan.</p>
+
+<p>Now the regions. MinT stays close to the base plan: North is $237 worse, South is $1,009 worse, East is $678 better and West is $211 better. Top-down is worse than the base plan in three regions: North by $3,712, South by $6,050 and East by $3,111. Only West improves, by $1,861.</p>
+
+<p>The named vector at the bottom adds the MAE of the five nodes for each plan: 136,005 for the base plan, 147,018 for top-down, 127,283 for bottom-up and 126,590 for MinT. Bottom-up and MinT differ by 0.5%, and one test set of 12 months is too short to separate them.</p>
+
+<p>The chart below shows the same MAE values, one group of bars per node.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Chart the MAE by node and plan
+ggplot(mae_by_node, aes(node, MAE, fill = plan)) +
+  geom_col(position = &quot;dodge&quot;) +
+  labs(x = NULL, y = &quot;MAE, dollars per month&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at National first: the <code>bu</code> and <code>mint</code> bars are shorter than the <code>base</code> bar. Then look at North, South and East: in each of the three, the <code>td</code> bar is the tallest.</p>
+
+<p>The last block compares each plan's national total for 2024 with the actual national revenue.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare each plan's national total for 2024 with the actual national revenue
+actual_national &lt;- test |&gt;
+  filter(is_aggregated(region)) |&gt;
+  as_tibble() |&gt;
+  summarise(actual = sum(revenue)) |&gt;
+  pull(actual)
+
+annual |&gt;
+  transmute(plan, national_total = round(National), below_actual_by = round(actual_national - National))
+
+actual_national
+#&gt; # A tibble: 4 × 3
+#&gt;   plan  national_total below_actual_by
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1 base        21932408          708492
+#&gt; 2 bu          22231567          409333
+#&gt; 3 mint        22197373          443527
+#&gt; 4 td          21932408          708492
+#&gt; [1] 22640900</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Actual national revenue for 2024 was $22,640,900, and every plan is below it. The base plan and top-down fall short by $708,492, which is 3.1%. MinT falls short by $443,527, which is 2.0%.</p>
+
+<p>So reconciliation closed the gap between the forecasts, but it did not close the gap to the actuals. All five models were fitted to the same history from 2019 to 2023, and 2024 revenue came in above what every one of them projected. Coherence removes the disagreement between the forecasts. It cannot remove an error that all five forecasts share.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what does reconciliation fix, and what does it not fix?</h2>
+
+<p>Use the table for the planning meeting and the scores on the 2024 actuals. Which statement about the MinT plan is correct?</p>
+<section class="exercise" data-exercise-id="Coherent-Forecasts-Finance-Can-Plan-Against-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Every node is more accurate than in the base plan, because the forecasts now add up.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The forecasts add up in every month, no region's annual plan moves by more than 0.3%, national MAE falls from $59,824 to $50,053, and the national total is still $443,527 below actual revenue.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The plan now matches actual revenue, because the regional and national forecasts agree with each other.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Top-down is the safest fix, because it keeps the national forecast unchanged.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Yes. Reconciliation fixes the disagreement between the forecasts, and here it also lowers the national error. It does not remove a shortfall that all five models share.</div><div class="lesson-qfb lesson-qfb-no">Reconciliation makes the forecasts add up. It does not make every forecast more accurate: North and South MAE rose slightly under MinT, by $237 and $1,009 a month. It cannot close a shortfall that all five models share, so the MinT national total is still $443,527 below actual. And top-down keeps the national MAE at $59,824 while it raises regional MAE in North, South and East.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: which way does top-down scaling move the regions in October?</h2>
+
+<p><code>plan_wide</code> still holds the base forecasts for 2024. In April the scale factor was below 1, so top-down cut the regions. Work out the scale factor for October 2024, then print the percent change it makes to each region, rounded to 1 decimal place.</p>
+<section class="exercise" data-exercise-id="Coherent-Forecasts-Finance-Can-Plan-Against-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="National[^\n]*/[^\n]*sum_regions"><textarea class="lesson-tryit-input" spellcheck="false"># plan_wide holds the base forecasts, one row per month of 2024.
+# Filter it to October 2024, divide National by sum_regions to get the scale factor,
+# then print the percent change that factor makes to each region, rounded to 1 decimal.
+# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes: 1,827,701 / 1,784,696 = 1.024, so top-down raises every region by 2.4% in October. The regions add up to less than the national forecast that month, so the factor is above 1.</span><span class="lesson-tryit-fb lesson-tryit-no">The scale factor is the national forecast divided by the sum of the regional forecasts for that month: National / sum_regions. Filter plan_wide to October first, then print round(100 * (scale - 1), 1).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Top-down scale factor for October 2024 and the percent change it makes to each region
+oct &lt;- plan_wide |&gt;
+  filter(month == yearmonth(&quot;2024 Oct&quot;))
+
+scale_oct &lt;- oct$National / oct$sum_regions
+round(100 * (scale_oct - 1), 1)
+#&gt; [1] 2.4</code></pre></details></div>
+</section>
+<p>A factor above 1 raises the regions, and a factor below 1 cuts them. The sign of the gap tells you which: when the regions add up to less than the national forecast, as in October, top-down scales them up.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li>Hyndman and Athanasopoulos, <a href="https://otexts.com/fpp3/hierarchical.html">Forecasting: Principles and Practice, 3rd edition</a>, chapter 11, "Forecasting hierarchical and grouped time series". The chapter behind this lesson, with the same fable workflow.</li>
+
+<li>Wickramasuriya, Athanasopoulos and Hyndman (2019), <a href="https://doi.org/10.1080/01621459.2018.1448825">Optimal forecast reconciliation for hierarchical and grouped time series through trace minimization</a>, Journal of the American Statistical Association 114(526), 804 to 819. The paper that introduced MinT.</li>
+
+<li>Hyndman, Ahmed, Athanasopoulos and Shang (2011), <a href="https://doi.org/10.1016/j.csda.2011.03.006">Optimal combination forecasts for hierarchical time series</a>, Computational Statistics and Data Analysis 55(9), 2579 to 2589.</li>
+
+<li>Athanasopoulos, Gamakumara, Panagiotelis, Hyndman and Affan (2020), Hierarchical forecasting, in Macroeconomic Forecasting in the Era of Big Data, Springer.</li>
+
+<li><a href="https://fabletools.tidyverts.org/">fabletools reference</a> for <code>reconcile()</code> and <code>min_trace()</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<p>You started with five forecasts that did not add up, measured the gap in dollars, and reconciled them three ways. To summarize:</p>
+
+<ul>
+
+<li>A set of forecasts is coherent when the regional forecasts add up to the national forecast in every month. Five separately fitted models were not: the gap was $299,159 for the year, up to $124,886 in April, and it changed sign across months.</li>
+
+<li>Top-down keeps the national forecast and uses the regional forecasts only for their monthly shares. Bottom-up keeps the regional forecasts and drops the national forecast.</li>
+
+<li>MinT changes all five forecasts. The national forecast rose by $264,965, the four regions fell by $34,194 in total, and the gap went to 0.</li>
+
+<li>Scored on the 2024 actuals, national MAE fell 16.3%, from $59,824 to $50,053. Regional MAE moved by at most $1,009 a month under MinT, while top-down raised it in North, South and East.</li>
+
+<li>Every plan's national total is still below the actual $22,640,900. Coherence removes the gap between the forecasts, not a shortfall that all five models share.</li>
+
+</ul>
+
+<p>So when the planning meeting asks what changed, Maya can say:</p>
+
+<p>"The forecasts now add up in every month. The national plan rose 1.2%, and no region's plan moved by more than 0.3%."</p>
+
+<p>The next section moves from a separate model for each series to one model across many series.</p>
+</section>
+
+{% endraw %}
