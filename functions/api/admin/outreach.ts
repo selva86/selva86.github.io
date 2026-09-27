@@ -70,6 +70,14 @@ interface Tpl {
  * No price anywhere. Parity pricing means the number belongs on the page, in
  * their own currency.
  *
+ * TWO THINGS NEVER TO WRITE HERE, both of which v2 did:
+ *   Never flatter the reader by comparing them against other members. A
+ *   compliment paid with someone else's money is not a compliment.
+ *   Never describe the free side as thin, used up or run out. It is about
+ *   1,900 tutorials, the tools, the first section of every track and 25 graded
+ *   exercises a month, and talking it down is a poor advertisement for the
+ *   thing being sold.
+ *
  * Every one is a plain personal note from Akshay, because that is what every
  * other non-receipt email on this site is, and because a support-alias-shaped
  * pitch is exactly what people ignore. They lead with the person's own record
@@ -106,14 +114,14 @@ const TEMPLATES: Tpl[] = [
     key: "wall",
     label: "Hit the Pro wall",
     when: "keeps reaching Pro lessons",
-    subject: "You are further in than most people get",
+    subject: "What the paid side actually adds",
     preheader: "What the paid half opens, and what it costs where you are.",
     body: [
       "Hi {first_name},",
       "",
-      "You have finished {lessons} lessons here and solved {solved} exercises. That is further than almost anyone gets on the free material, and it means you have more or less run out of it.",
+      "{lessons} lessons and {solved} exercises. You are clearly working at this properly, so it seems only fair to tell you plainly what the paid side adds, rather than letting you discover it one locked door at a time.",
       "",
-      "The paid half is the rest of every track: every lesson after the first section, unlimited graded exercises instead of twenty five a month, and the certificate at the end of the track.",
+      "It opens every lesson in every track, graded exercises without the monthly limit, and the certificate when you finish a track. The free side stays exactly as it is; this sits on top of it.",
       "",
       "[See what it costs where you are -> https://r-statistics.co/pricing.html?utm_source=email&utm_campaign=outreach]",
       "",
@@ -171,7 +179,7 @@ const TEMPLATES: Tpl[] = [
     body: [
       "Hi {first_name},",
       "",
-      "You have solved {solved} exercises and worked through {lessons} lessons, which puts you among the people who actually use this rather than just paying for it.",
+      "You have solved {solved} exercises and worked through {lessons} lessons, so you have seen enough of this to have a real opinion about it.",
       "",
       "Would you tell me what you make of it? Two lines is plenty, and the unflattering parts are the useful parts. If something annoys you every single time you open it, that is exactly what I want to hear.",
       "",
