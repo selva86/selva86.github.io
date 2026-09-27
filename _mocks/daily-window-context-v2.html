@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en" class="lm-mock">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Daily window context, in the real player</title>
+
+<!-- The REAL stylesheets, by relative path so this works over file://.
+     The point of v2 is that nothing here is an imitation of the site: the
+     chrome is the player's own markup (copied from lesson-mode.js) wearing the
+     player's own CSS, so what you see is what it will look like. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600;700&display=swap">
+<link rel="stylesheet" href="../css/main.css">
+<link rel="stylesheet" href="../www/lesson-mode.css">
+
+<style>
+  /* Mock scaffolding only. Nothing here styles the options themselves; they are
+     built from the player's own classes plus the few new ones each option needs. */
+  body{margin:0;background:#eceef1;font-family:Inter,-apple-system,'Segoe UI',Arial,sans-serif}
+  .mk-wrap{max-width:1180px;margin:0 auto;padding:28px 18px 90px}
+  .mk-h1{font-family:'Inter Tight',Arial,sans-serif;font-size:27px;font-weight:700;margin:0 0 6px;color:#0f1a2b}
+  .mk-lede{color:#454c58;font-size:15.5px;max-width:70ch;margin:0 0 6px}
+  .mk-note{background:#fff;border:1px solid #e1e5ea;border-radius:10px;padding:12px 15px;
+           font-size:13.5px;color:#454c58;margin:16px 0 30px}
+  .mk-opt{margin:0 0 42px}
+  .mk-cap{display:flex;align-items:baseline;gap:10px;margin:0 0 4px}
+  .mk-cap h2{font-family:'Inter Tight',Arial,sans-serif;font-size:19px;font-weight:700;margin:0;color:#0f1a2b}
+  .mk-cap span{font-size:12.5px;color:#6b7480}
+  .mk-sub{font-size:13.5px;color:#6b7480;margin:0 0 12px;max-width:74ch}
+  /* The player is normally fixed/fullscreen. Pin it into a box so several can
+     sit on one page for comparison. */
+  .mk-frame{position:relative;height:520px;border:1px solid #d7dce2;border-radius:12px;
+            overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(15,26,43,.06)}
+  .mk-frame .lm-app{position:absolute !important;inset:0 !important;top:0 !important;height:100% !important}
+  .mk-frame .lm-rail{display:none}            /* the course rail is not what we are judging */
+  .mk-why{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:12px 0 0}
+  .mk-why div{font-size:13px;color:#454c58}
+  .mk-why b{display:block;font-size:11.5px;color:#6b7480;margin-bottom:2px}
+  @media(max-width:820px){.mk-why{grid-template-columns:1fr}}
+
+  /* ---------- shared state vocabulary for the options ---------- */
+  .w-chip{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px;white-space:nowrap}
+  .w-open{background:#eaf6f0;color:#1f7a55}
+  .w-soon{background:#fdf4e3;color:#9a6a00}
+  .w-shut{background:#f2f3f5;color:#8a9099}
+  .w-done{background:#eef1f4;color:#3d4552}
+  .w-next{background:#eef3fd;color:#2056d2}
+
+  /* A: path panel that slides over the stage */
+  .w-panel{position:absolute;inset:auto 0 0 0;background:#fff;border-top:1px solid #e1e5ea;
+           max-height:74%;overflow:auto;padding:14px 18px 16px;z-index:5}
+  .w-panel h3{font-family:'Inter Tight',Arial,sans-serif;font-size:15px;margin:0 0 10px;color:#0f1a2b}
+  .w-list{list-style:none;margin:0;padding:0}
+  .w-list li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+             padding:7px 0;border-bottom:1px solid #f1f3f6;font-size:13.5px;color:#0f1a2b}
+  .w-list li:last-child{border-bottom:0}
+  .w-list .sh{color:#8a9099}
+  .w-foot{margin:12px 0 0;padding:10px 12px;background:#f6f8fa;border-radius:8px;font-size:13px;color:#454c58}
+  .w-foot a{color:#1f7a55;font-weight:600}
+
+  /* C: the rail strip, sits under lm-segs */
+  .w-strip{display:flex;align-items:center;gap:9px;padding:7px 14px;background:#f7f8fa;
+           border-bottom:1px solid #eceef1;font-size:12.5px;flex-wrap:wrap}
+  .w-strip .p{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #e1e5ea;
+              border-radius:99px;padding:2px 9px}
+  .w-strip a{color:#1f7a55;font-weight:600;text-decoration:none}
+  .w-mut{color:#8a9099}
+
+  /* D: ledger */
+  .w-led{width:100%;border-collapse:collapse;font-size:13.5px}
+  .w-led td{padding:7px 0;border-bottom:1px solid #f1f3f6;color:#0f1a2b}
+  .w-led td.n{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;width:60px}
+  .w-led tr.lost td{color:#9a6a00}
+  .w-led tr:last-child td{border-bottom:0;background:#f8f9fb;font-weight:700}
+
+  /* E: reopen */
+  .w-re li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+  .w-btn{background:#1f7a55;color:#fff;border:0;border-radius:7px;padding:5px 11px;
+         font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer}
+  .w-btn.g{background:#fff;color:#1f7a55;border:1px solid #1f7a55}
+  .w-btn[disabled]{background:#eef1f4;color:#8a9099;border:0}
+</style>
+</head>
+<body>
+<div class="mk-wrap">
+
+  <h1 class="mk-h1">Daily window context, in the real player</h1>
+  <p class="mk-lede">Same five options as v1, but drawn inside the step player's own
+  chrome, using the player's own markup and stylesheets rather than a sketch of them.
+  The course rail is hidden in each frame because it is not what is being judged.</p>
+  <div class="mk-note">
+    <b>One scenario throughout.</b> A free reader on day 15. Eleven lessons sent,
+    five finished, two open, four closed unread, sixty seven still to come. Lessons
+    stay open 72 hours from the email that sends them. Real titles from the live
+    sequence.
+  </div>
+
+  <!-- =================================================== A -->
+  <section class="mk-opt">
+    <div class="mk-cap"><h2>A. The path</h2><span>a panel over the stage, opened from the strip</span></div>
+    <p class="mk-sub">The whole walk as one list. Its argument is the pile of closed
+    rows, which grows on its own without anything being pitched.</p>
+    <div class="mk-frame">
+      <div class="lm-app">
+        <div class="lm-top">
+          <a class="lm-exit" href="#">Inference from zero</a>
+          <span class="lm-title">Hypothesis testing: the framework, explained <span>&middot; Lesson 5 of 5</span></span>
+          <div class="lm-top-right"><span class="lm-stepn">Step <b class="lm-cur">4</b> / 14</span></div>
+        </div>
+        <div class="lm-body">
+          <nav class="lm-rail"></nav>
+          <div class="lm-main">
+            <div class="lm-segs"><i></i><i></i><i></i><i class="on"></i><i data-practice=""></i><i></i><i></i><i></i><i data-practice=""></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="lm-stage"></div>
+            <div class="w-panel">
+              <h3>Your daily lessons</h3>
+              <ul class="w-list">
+                <li><span>How statistical inference works, no formulas yet</span><span class="w-chip w-done">finished</span></li>
+                <li><span>What p-values mean (and what they never meant)</span><span class="w-chip w-done">finished</span></li>
+                <li><span class="sh">Confidence intervals: what they really mean</span><span class="w-chip w-shut">closed</span></li>
+                <li><span class="sh">ARIMA: what AR, I, and MA actually mean</span><span class="w-chip w-shut">closed</span></li>
+                <li><span>Interaction effects: test and interpret them</span><span class="w-chip w-done">finished</span></li>
+                <li><span class="sh">Power analysis: find the sample size you need</span><span class="w-chip w-shut">closed</span></li>
+                <li><span>Which statistical test to use? A 5-question flowchart</span><span class="w-chip w-done">finished</span></li>
+                <li><span class="sh">Conditional probability: P(A given B), made concrete</span><span class="w-chip w-shut">closed</span></li>
+                <li><span>ACF and PACF: how to read the plots for ARIMA orders</span><span class="w-chip w-done">finished</span></li>
+                <li><span>Multicollinearity: why your coefficients look wrong</span><span class="w-chip w-soon">closes in 6h</span></li>
+                <li><span><b>Hypothesis testing: the framework, explained</b></span><span class="w-chip w-open">open 2 days</span></li>
+                <li><span>Welch's ANOVA: the test for unequal group variances</span><span class="w-chip w-next">arrives tomorrow</span></li>
+              </ul>
+              <p class="w-foot">Four lessons have closed since you started.
+                <a href="#">Pro keeps every one of them open.</a></p>
+            </div>
+            <div class="lm-stepper">
+              <button class="lm-back">&larr; Back</button>
+              <span class="lm-mid"></span>
+              <button class="lm-cont">Continue &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mk-why">
+      <div><b>Lever</b>Cumulative visible loss, with no pitch attached to it.</div>
+      <div><b>Tone</b>A map. Factual, not selling.</div>
+      <div><b>Cost</b>Covers the stage while open, and gets long after a few weeks.</div>
+    </div>
+  </section>
+
+  <!-- =================================================== C -->
+  <section class="mk-opt">
+    <div class="mk-cap"><h2>C. The rail</h2><span>always visible, under the step dots</span></div>
+    <p class="mk-sub">Minimal and permanent. Only what is open, with a real countdown,
+    and one quiet count of what closed.</p>
+    <div class="mk-frame">
+      <div class="lm-app">
+        <div class="lm-top">
+          <a class="lm-exit" href="#">Inference from zero</a>
+          <span class="lm-title">Hypothesis testing: the framework, explained <span>&middot; Lesson 5 of 5</span></span>
+          <div class="lm-top-right"><span class="lm-stepn">Step <b class="lm-cur">4</b> / 14</span></div>
+        </div>
+        <div class="lm-body">
+          <nav class="lm-rail"></nav>
+          <div class="lm-main">
+            <div class="lm-segs"><i></i><i></i><i></i><i class="on"></i><i data-practice=""></i><i></i><i></i><i></i><i data-practice=""></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="w-strip">
+              <span class="p"><span class="w-chip w-open">open</span> this lesson, 2 days left</span>
+              <span class="p"><span class="w-chip w-soon">6h</span> Multicollinearity</span>
+              <span class="w-mut">4 closed</span>
+              <a href="#">see all &rarr;</a>
+            </div>
+            <div class="lm-stage"></div>
+            <div class="lm-stepper">
+              <button class="lm-back">&larr; Back</button>
+              <span class="lm-mid"></span>
+              <button class="lm-cont">Continue &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mk-why">
+      <div><b>Lever</b>Real time pressure, and a count that invites a click.</div>
+      <div><b>Tone</b>Quiet utility. The least salesy of the five.</div>
+      <div><b>Cost</b>Persuades least. Easy to stop noticing.</div>
+    </div>
+  </section>
+
+  <!-- =================================================== D -->
+  <section class="mk-opt">
+    <div class="mk-cap"><h2>D. The ledger</h2><span>the panel behind "see all"</span></div>
+    <p class="mk-sub">A statement of account. What you were sent, what you did with
+    it, and what that pace implies for what is left.</p>
+    <div class="mk-frame">
+      <div class="lm-app">
+        <div class="lm-top">
+          <a class="lm-exit" href="#">Inference from zero</a>
+          <span class="lm-title">Hypothesis testing: the framework, explained <span>&middot; Lesson 5 of 5</span></span>
+          <div class="lm-top-right"><span class="lm-stepn">Step <b class="lm-cur">4</b> / 14</span></div>
+        </div>
+        <div class="lm-body">
+          <nav class="lm-rail"></nav>
+          <div class="lm-main">
+            <div class="lm-segs"><i></i><i></i><i></i><i class="on"></i><i data-practice=""></i><i></i><i></i><i></i><i data-practice=""></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="w-strip">
+              <span class="p"><span class="w-chip w-open">open</span> this lesson, 2 days left</span>
+              <span class="w-mut">4 closed</span>
+              <a href="#">see all &rarr;</a>
+            </div>
+            <div class="lm-stage"></div>
+            <div class="w-panel">
+              <h3>Your daily lessons so far</h3>
+              <table class="w-led">
+                <tr><td>Sent to you</td><td class="n">11</td></tr>
+                <tr><td>Finished</td><td class="n">5</td></tr>
+                <tr><td>Open right now</td><td class="n">2</td></tr>
+                <tr class="lost"><td>Closed before you read them</td><td class="n">4</td></tr>
+                <tr><td>Still to come</td><td class="n">67</td></tr>
+              </table>
+              <p class="w-foot">About one in three has closed before you got to it.
+                Over the remaining 67 that is roughly 22 lessons.
+                <a href="#">Pro keeps all of them open.</a></p>
+            </div>
+            <div class="lm-stepper">
+              <button class="lm-back">&larr; Back</button>
+              <span class="lm-mid"></span>
+              <button class="lm-cont">Continue &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mk-why">
+      <div><b>Lever</b>Loss quantified and extrapolated from their own rate. Arithmetic, not persuasion.</div>
+      <div><b>Tone</b>Candid. Closest to the owner's voice.</div>
+      <div><b>Cost</b>The extrapolation must come from their real history or it becomes the manipulation it is avoiding.</div>
+    </div>
+  </section>
+
+  <!-- =================================================== B -->
+  <section class="mk-opt">
+    <div class="mk-cap"><h2>B. The shelf</h2><span>grouped by mini course</span></div>
+    <p class="mk-sub">The tension is the unfinishable set rather than the single
+    missed lesson, which ties it to the badge.</p>
+    <div class="mk-frame">
+      <div class="lm-app">
+        <div class="lm-top">
+          <a class="lm-exit" href="#">Inference from zero</a>
+          <span class="lm-title">Hypothesis testing: the framework, explained <span>&middot; Lesson 5 of 5</span></span>
+          <div class="lm-top-right"><span class="lm-stepn">Step <b class="lm-cur">4</b> / 14</span></div>
+        </div>
+        <div class="lm-body">
+          <nav class="lm-rail"></nav>
+          <div class="lm-main">
+            <div class="lm-segs"><i></i><i></i><i></i><i class="on"></i><i data-practice=""></i><i></i><i></i><i></i><i data-practice=""></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="lm-stage"></div>
+            <div class="w-panel">
+              <h3>Your mini courses</h3>
+              <ul class="w-list">
+                <li><span><b>Inference from zero</b> &middot; 3 of 5 parts finished<br>
+                  <span class="w-mut" style="font-size:12.5px">parts 3 and 4 closed</span></span>
+                  <span class="w-chip w-soon">2 closed</span></li>
+                <li><span><b>ARIMA from zero</b> &middot; 1 of 5 parts finished<br>
+                  <span class="w-mut" style="font-size:12.5px">part 1 closed, so the set cannot be completed free</span></span>
+                  <span class="w-chip w-shut">blocked</span></li>
+                <li><span><b>Which test</b> &middot; 1 of 3 parts finished<br>
+                  <span class="w-mut" style="font-size:12.5px">nothing closed yet</span></span>
+                  <span class="w-chip w-open">on track</span></li>
+              </ul>
+              <p class="w-foot">One set can no longer be completed on the free walk.
+                <a href="#">Pro reopens it and keeps the rest open.</a></p>
+            </div>
+            <div class="lm-stepper">
+              <button class="lm-back">&larr; Back</button>
+              <span class="lm-mid"></span>
+              <button class="lm-cont">Continue &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mk-why">
+      <div><b>Lever</b>Completionism, tied to the badge.</div>
+      <div><b>Tone</b>A collection. Progress rather than pressure.</div>
+      <div><b>Cost</b>Leans on badges, and badges_earned has zero rows today, so its strongest line is a promise the site does not currently keep.</div>
+    </div>
+  </section>
+
+  <!-- =================================================== E -->
+  <section class="mk-opt">
+    <div class="mk-cap"><h2>E. Reopen one</h2><span>gives before it asks</span></div>
+    <p class="mk-sub">One closed lesson reopened each month, free, no conditions. The
+    second request is the upsell moment.</p>
+    <div class="mk-frame">
+      <div class="lm-app">
+        <div class="lm-top">
+          <a class="lm-exit" href="#">Inference from zero</a>
+          <span class="lm-title">Hypothesis testing: the framework, explained <span>&middot; Lesson 5 of 5</span></span>
+          <div class="lm-top-right"><span class="lm-stepn">Step <b class="lm-cur">4</b> / 14</span></div>
+        </div>
+        <div class="lm-body">
+          <nav class="lm-rail"></nav>
+          <div class="lm-main">
+            <div class="lm-segs"><i></i><i></i><i></i><i class="on"></i><i data-practice=""></i><i></i><i></i><i></i><i data-practice=""></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="lm-stage"></div>
+            <div class="w-panel">
+              <h3>Four lessons closed before you read them</h3>
+              <p class="w-mut" style="font-size:13px;margin:0 0 8px">You can reopen one
+                this month. It stays open for 72 hours.</p>
+              <ul class="w-list w-re">
+                <li><span>Confidence intervals: what they really mean<br>
+                  <span class="w-mut" style="font-size:12.5px">closed 9 days ago</span></span>
+                  <button class="w-btn">Reopen this</button></li>
+                <li><span>ARIMA: what AR, I, and MA actually mean<br>
+                  <span class="w-mut" style="font-size:12.5px">closed 7 days ago</span></span>
+                  <button class="w-btn g">Reopen this</button></li>
+                <li><span>Power analysis: find the sample size you need<br>
+                  <span class="w-mut" style="font-size:12.5px">closed 4 days ago</span></span>
+                  <button class="w-btn g">Reopen this</button></li>
+                <li><span>Conditional probability: P(A given B), made concrete<br>
+                  <span class="w-mut" style="font-size:12.5px">closed 2 days ago</span></span>
+                  <button class="w-btn g">Reopen this</button></li>
+              </ul>
+              <p class="w-foot">Reopened one already this month.
+                <a href="#">Pro opens all four now, and everything after.</a></p>
+            </div>
+            <div class="lm-stepper">
+              <button class="lm-back">&larr; Back</button>
+              <span class="lm-mid"></span>
+              <button class="lm-cont">Continue &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mk-why">
+      <div><b>Lever</b>Reciprocity. The free reopen costs nothing; whoever asks twice has told you they want it.</div>
+      <div><b>Tone</b>Generous. The only option that gives first.</div>
+      <div><b>Cost</b>The only one needing new state: one reopen per person per month has to be recorded and enforced.</div>
+    </div>
+  </section>
+
+  <div class="mk-note">
+    <b>What each needs to be built.</b> A, B, C and D need no new data:
+    <code>/api/me/shelf</code> already returns the open lessons with a
+    <code>closes_at</code> timestamp, and only has to stop discarding the sends that
+    fall outside the window. E is the exception and needs a reopen record.
+    C and D are complementary rather than rival: the strip lives in the player, the
+    ledger lives behind its "see all".
+  </div>
+</div>
+</body>
+</html>
