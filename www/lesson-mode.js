@@ -876,8 +876,54 @@
        degradation, not an oversight.
        ===================================================================== */
     var winShelf = null;
+    var winLink = null;          // 'u=..&t=..' when the page was opened from an email
+    var winUsedLink = false;     // and true only once it is what identified them
     var WIN_COLLAPSE_KEY = 'rsc-daily-rail-collapsed';
+    var WIN_HAS_KEY = 'rsc-daily-rail-has';   // did this reader have one last time
 
+    /* The signed pair the email put in the address bar. The middleware already
+       trusts it to serve this lesson; the rail uses it to ask who the reader is
+       when there is no session, and carries it on to the next lesson so the
+       links it draws actually open. */
+    function winLinkParams() {
+      try {
+        var p = new URLSearchParams(location.search);
+        var u = p.get('u'), t = p.get('t');
+        return (u && t) ? ('u=' + encodeURIComponent(u) + '&t=' + encodeURIComponent(t)) : null;
+      } catch (e) { return null; }
+    }
+    /* The token rides along only for a reader the link actually identified.
+       Without it the next lesson would 302 them to the expiry page, so the rail
+       would list lessons and then refuse every one. A signed-in reader needs
+       none of that, and their links stay clean. */
+    function winHref(slug) {
+      return '/' + slug + '.html' + (winUsedLink && winLink ? '?' + winLink : '');
+    }
+    /* Does this browser hold a session at all? The same probe auth-hydrate
+       uses. If it does, the reader has an account and the rail must be read as
+       theirs, however long the token takes to arrive: falling back to a link
+       that happens to be in the address bar would answer for the wrong person
+       and then drag that link through every row. */
+    function winHasSession() {
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf('sb-') === 0 && k.slice(-11) === '-auth-token' &&
+              (localStorage.getItem(k) || '').length) return true;
+        }
+      } catch (e) {}
+      return false;
+    }
+    function winIsPro() {
+      return body.classList.contains('pro') || !!(winShelf && winShelf.pro);
+    }
+
+    function winHasRemembered() {
+      try { return localStorage.getItem(WIN_HAS_KEY); } catch (e) { return null; }
+    }
+    function winRemember(has) {
+      try { localStorage.setItem(WIN_HAS_KEY, has ? '1' : '0'); } catch (e) {}
+    }
     function winCollapsed() {
       try { return localStorage.getItem(WIN_COLLAPSE_KEY) === '1'; } catch (e) { return false; }
     }
@@ -944,7 +990,7 @@
 
     function winRailHtml() {
       var d = winShelf; if (!d) return '';
-      var pro = body.classList.contains('pro');
+      var pro = winIsPro();
       var now = Math.floor(Date.now() / 1000);
       var win = (d.window_hours || 72) * 3600;
       var open = d.open || [], closed = d.closed || [];
@@ -979,7 +1025,7 @@
           var attr = ' title="' + esc(winPlace(r)) + '"';
           h += '<li>' + (cur
             ? '<span class="lm-rail-row is-current ' + u + '"' + attr + ' aria-current="step">' + inner + '</span>'
-            : '<a class="lm-rail-row ' + u + '" href="/' + esc(r.slug) + '.html"' + attr + '>' + inner + '</a>') + '</li>';
+            : '<a class="lm-rail-row ' + u + '" href="' + esc(winHref(r.slug)) + '"' + attr + '>' + inner + '</a>') + '</li>';
         });
         h += '</ol>';
       }
@@ -992,7 +1038,7 @@
           // earlier. Dimming them to the disabled ink says the opposite of what
           // is true: every one of them opens on a click.
           h += '<li><a class="lm-rail-row is-shut' + (pro ? ' is-available' : '') +
-            (r.finished ? ' is-read' : '') + '" href="/' + esc(r.slug) + '.html"' +
+            (r.finished ? ' is-read' : '') + '" href="' + esc(winHref(r.slug)) + '"' +
             ' data-shut="' + esc(r.slug) + '">' +
             '<span class="lm-rail-pad"></span>' +
             '<span class="lm-rail-tx"><span class="lm-rail-t">' + esc(r.subject) + '</span></span>' +
@@ -1006,7 +1052,7 @@
 
       h += '<div class="lm-rail-mini"><ol>' + open.map(function (r) {
         var left = Math.max(0, r.closes_at - now);
-        return '<li><a href="/' + esc(r.slug) + '.html" title="' + esc(r.subject) +
+        return '<li><a href="' + esc(winHref(r.slug)) + '" title="' + esc(r.subject) +
           (pro ? '' : ' \u00b7 ' + winLeft(left)) + '">' +
           winRing(pro ? 1 : left / win, pro ? '' : winUrgency(left), r.finished) + '</a></li>';
       }).join('') + '</ol></div>';
@@ -1024,7 +1070,17 @@
     function winRender() {
       var rail = app.querySelector('.lm-rail');
       if (!rail || !winShelf) return;
-      if (!(winShelf.open || []).length && !(winShelf.closed || []).length) { rail.innerHTML = ''; return; }
+      var any = (winShelf.open || []).length || (winShelf.closed || []).length;
+      winRemember(!!any);
+      if (!any) {
+        // nothing to show: drop the held space rather than leave a bare column
+        rail.classList.remove('is-reserved');
+        rail.innerHTML = '';
+        var w0 = app.querySelector('.lm-win');
+        if (w0) { w0.hidden = true; w0.innerHTML = ''; }
+        return;
+      }
+      rail.classList.remove('is-reserved');
       app.classList.add('lm-has-rail');
       rail.innerHTML = winRailHtml();
       if (winCollapsed()) {
@@ -1046,7 +1102,8 @@
     function winRenderLine() {
       var el = app.querySelector('.lm-win');
       if (!el || !winShelf) return;
-      var pro = body.classList.contains('pro');
+      el.classList.remove('is-reserved');
+      var pro = winIsPro();
       var here = (winShelf.open || []).filter(function (r) { return r.slug === curSlug; })[0];
       if (pro || !here) { el.hidden = true; el.innerHTML = ''; return; }
       var now = Math.floor(Date.now() / 1000);
@@ -1151,7 +1208,7 @@
         if (all) { e.preventDefault(); winOpenPro(null, true); return; }
         var row = e.target.closest('[data-shut]');
         if (row) {
-          if (body.classList.contains('pro')) return;   // Pro follows the link
+          if (winIsPro()) return;                      // Pro follows the link
           e.preventDefault();
           var slug = row.getAttribute('data-shut');
           var r = (winShelf.closed || []).filter(function (x) { return x.slug === slug; })[0];
@@ -1170,14 +1227,47 @@
        A reader with no session never gets a token at all, so the rail stays
        empty and CSS hides it. That path is unchanged. */
     var winAsked = false;
+    /* Hold the space before the answer arrives, so the lesson never moves under
+       the reader. Only for somebody who plausibly has a rail: no session and no
+       link means there will never be one, and a remembered "none" means we have
+       already asked and been told. */
+    function winReserve() {
+      var rail = app.querySelector('.lm-rail');
+      if (!rail) return;
+      if (!winHasSession() && !winLinkParams()) return;
+      if (winHasRemembered() === '0') return;
+      rail.classList.add('is-reserved');
+      if (winCollapsed()) rail.classList.add('is-collapsed');
+      var el = app.querySelector('.lm-win');
+      if (el && !body.classList.contains('pro')) {
+        el.hidden = false;
+        el.className = 'lm-win is-reserved';
+        // the real structure, invisible, so the height it holds is the exact
+        // height the real line will need
+        el.innerHTML = '<div class="lm-win-bar"><b style="width:0"></b></div>' +
+          '<div class="lm-win-row">&nbsp;</div>';
+      }
+    }
+
     function buildWindowRail() {
-      function attempt() {
+      winLink = winLinkParams();
+      function attempt(allowLink, lastChance) {
         if (winAsked) return;
         var tok = null;
         try { tok = API && API.token && API.token(); } catch (e) {}
-        if (!tok) return;
+        var url = null, opts = {};
+        if (tok) {
+          url = '/api/me/shelf';
+          opts = { headers: { Authorization: 'Bearer ' + tok } };
+        } else if (allowLink && winLink && !(winHasSession() && !lastChance)) {
+          // no session, but the email named them: same pair the middleware
+          // already accepted to serve this page
+          url = '/api/me/shelf?' + winLink;
+          winUsedLink = true;
+        }
+        if (!url) return;
         winAsked = true;
-        fetch('/api/me/shelf', { headers: { Authorization: 'Bearer ' + tok } })
+        fetch(url, opts)
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (d) {
             if (!d) { winAsked = false; return; }   // let a later attempt retry
@@ -1186,10 +1276,28 @@
             winRender();
           }).catch(function () { winAsked = false; });
       }
-      attempt();
-      document.addEventListener('auth-hydrated', attempt);
-      setTimeout(attempt, 1500);
-      setTimeout(attempt, 4000);
+      /* Give the session a chance first: a signed-in reader should be read as
+         themselves even if an old link is still in the address bar. Only once
+         auth has had its say do we fall back to the link. */
+      attempt(false);
+      document.addEventListener('auth-hydrated', function () { attempt(true); });
+      setTimeout(function () { attempt(false); }, 1200);
+      setTimeout(function () { attempt(true); }, 2500);
+      // last chance: a session token that is present but expired would otherwise
+      // block the link for ever, and that reader is signed out in every way that
+      // matters here
+      setTimeout(function () { attempt(true, true); }, 6000);
+      /* If nothing ever answers, give the space back. A stale session token
+         with no live bearer, or an endpoint that simply fails, would otherwise
+         leave a reserved column and a blank window line sitting there for the
+         rest of the visit. Late enough that it never races a slow answer. */
+      setTimeout(function () {
+        if (winShelf) return;
+        var rail = app.querySelector('.lm-rail');
+        if (rail) { rail.classList.remove('is-reserved'); }
+        var w = app.querySelector('.lm-win');
+        if (w && w.classList.contains('is-reserved')) { w.hidden = true; w.innerHTML = ''; }
+      }, 9000);
     }
 
     /* ---- breadcrumb (Roadmap > Track > Section > Lesson) + exit target ----
@@ -1347,6 +1455,7 @@
     if (railToggle) railToggle.addEventListener('click', function () { app.classList.toggle('rail-open'); });
     var fsBtn = app.querySelector('.lm-fs');
     if (fsBtn) fsBtn.addEventListener('click', toggleFs);
+    if (windowed) winReserve();      // before anything is fetched, so nothing moves
     buildRail();
     // auth-hydrate stamps body.pro after its /api/me call returns, which can
     // land after the rail has drawn. Repaint once so a Pro member never sees a

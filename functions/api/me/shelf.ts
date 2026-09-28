@@ -10,6 +10,8 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401 } from "../../_lib/errors";
+import { getUserById } from "../../_lib/db";
+import { resolvePro } from "../../_lib/entitlement";
 import { BADGE_DEFS, loadUserBadges, badgeArt, LADDER_MARKS } from "../../_lib/badges";
 import miniCoursesJson from "../../_data/mini-courses.json";
 
@@ -119,13 +121,43 @@ async function ladderFor(DB: D1Database, userId: string, streakBest: number) {
   return { earned, next, total: BADGE_DEFS.length, solved };
 }
 
+/* The same per-user HMAC every email endpoint uses. Same secret, same shape,
+ * constant-time compare. No new trust boundary, only the existing one reused
+ * in the one place the daily rail needed it. */
+async function hmacHex(secret: string, msg: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function timingSafeEq(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let x = 0;
+  for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return x === 0;
+}
+
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
-  const u = context.data.user;
-  if (!u) return err401();
+  /* A session always wins. The signed link is consulted only when nobody is
+   * signed in, so a link can never be used to read one account's shelf from
+   * inside another's session. */
+  let uid = context.data.user?.id ?? null;
+  let viaLink = false;
+  if (!uid) {
+    const url = new URL(context.request.url);
+    const lu = url.searchParams.get("u") || "";
+    const lt = (url.searchParams.get("t") || "").toLowerCase();
+    const secret = (context.env as { EMAIL_UNSUB_SECRET?: string }).EMAIL_UNSUB_SECRET || "";
+    if (secret && lu && lt && timingSafeEq(await hmacHex(secret, lu), lt)) {
+      uid = lu;
+      viaLink = true;
+    }
+  }
+  if (!uid) return err401();
   const now = Math.floor(Date.now() / 1000);
   const rows = (await context.env.DB.prepare(
     "SELECT email_key, sent_at FROM sent_emails WHERE user_id = ?1 AND email_key LIKE 'seq:%'",
-  ).bind(u.id).all<{ email_key: string; sent_at: number }>()).results ?? [];
+  ).bind(uid).all<{ email_key: string; sent_at: number }>()).results ?? [];
 
   const sent = new Map<number, number>();
   for (const r of rows) {
@@ -153,25 +185,41 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
 
   // one query for both lists
   const fin = await finishedSlugs(
-    context.env.DB, u.id,
+    context.env.DB, uid,
     [...open, ...closed].map((r) => r.slug).filter((x): x is string => !!x),
   ).catch(() => new Set<string>());
   const withFin = <T extends { slug: string | null }>(r: T) =>
     ({ ...r, finished: !!(r.slug && fin.has(r.slug)) });
   const position = rows.length ? Math.max(...[...sent.keys()]) : null;
-  const badges = (await context.env.DB.prepare(
-    "SELECT badge, public_id, earned_at FROM badges_earned WHERE user_id = ?1 ORDER BY earned_at DESC",
-  ).bind(u.id).all<{ badge: string; public_id: string; earned_at: number }>()).results ?? [];
-  const streakBest = Math.max(
-    Number((u as { longest_streak_days?: number }).longest_streak_days || 0),
-    Number((u as { current_streak_days?: number }).current_streak_days || 0),
-  );
-  const milestones = await ladderFor(context.env.DB, u.id, streakBest)
-    .catch(() => null);   // the section disappears, the dashboard does not
-  return json({
+  /* Whether they are Pro. With no session body.pro is never stamped, so a
+   * paying member arriving from an email link would otherwise be shown
+   * countdowns and a pitch for something they already have. The server knows;
+   * it should say so. */
+  const user = context.data.user ?? await getUserById(context.env.DB, uid).catch(() => null);
+  const ent = await resolvePro(context.env.DB, user).catch(() => null);
+  const pro = !!ent?.pro;
+
+  const base = {
     open: open.map(withFin),
     closed: closed.map(withFin),
     window_hours: MINI.window_hours || 72,
-    position, badges, milestones,
-  });
+    position, pro,
+  };
+
+  /* A link gets less than a session. It already grants read access to this
+   * user's windowed lessons, so listing them adds little. Their badge and
+   * streak record is a different kind of data and an emailed link was never
+   * meant to carry it. */
+  if (viaLink) return json(base);
+
+  const badges = (await context.env.DB.prepare(
+    "SELECT badge, public_id, earned_at FROM badges_earned WHERE user_id = ?1 ORDER BY earned_at DESC",
+  ).bind(uid).all<{ badge: string; public_id: string; earned_at: number }>()).results ?? [];
+  const streakBest = Math.max(
+    Number((user as { longest_streak_days?: number } | null)?.longest_streak_days || 0),
+    Number((user as { current_streak_days?: number } | null)?.current_streak_days || 0),
+  );
+  const milestones = await ladderFor(context.env.DB, uid, streakBest)
+    .catch(() => null);   // the section disappears, the dashboard does not
+  return json({ ...base, badges, milestones });
 };
