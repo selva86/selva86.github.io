@@ -229,12 +229,15 @@ export async function sweepPriceAlerts(
       await env.KV.put(lock, "1", { expirationTtl: 300 });
     }
     const live = (await env.KV.get("flag:email-live")) === "on";
-    const rows = (await env.DB.prepare(
+    // bind() is only called when there is a placeholder to fill, rather than
+    // relying on a zero-argument bind being a no-op
+    const stmt = env.DB.prepare(
       `SELECT p.*, u.display_name, u.pro_until FROM price_alerts p LEFT JOIN users u ON u.id = p.user_id
        WHERE p.unsubscribed_at IS NULL AND p.purchased_at IS NULL AND p.closed_sent_at IS NULL
          ${targeted ? "AND p.id = ?1" : ""}
        ORDER BY p.created_at LIMIT 300`,
-    ).bind(...(targeted ? [opts.onlyId] : [])).all<AlertRow>()).results ?? [];
+    );
+    const rows = (await (targeted ? stmt.bind(opts.onlyId) : stmt).all<AlertRow>()).results ?? [];
 
     let sends = 0;
     for (const row of rows) {
