@@ -1155,18 +1155,35 @@
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') winClosePro(); });
     }
 
+    /* The token arrives when auth-hydrate's /api/me call lands, which is
+       usually after this runs. Asking once at DOM ready and giving up was the
+       reason the rail stayed empty on a real session: the answer was simply
+       not there yet. Ask again when auth-hydrate says so, with two timed
+       fallbacks in case the event is missed, and stop at the first success.
+
+       A reader with no session never gets a token at all, so the rail stays
+       empty and CSS hides it. That path is unchanged. */
+    var winAsked = false;
     function buildWindowRail() {
-      var tok = null;
-      try { tok = API && API.token && API.token(); } catch (e) {}
-      if (!tok) return;            // signed link on a fresh device: no rail, same as today
-      fetch('/api/me/shelf', { headers: { Authorization: 'Bearer ' + tok } })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (d) {
-          if (!d) return;
-          winShelf = d;
-          winWire();
-          winRender();
-        }).catch(function () {});
+      function attempt() {
+        if (winAsked) return;
+        var tok = null;
+        try { tok = API && API.token && API.token(); } catch (e) {}
+        if (!tok) return;
+        winAsked = true;
+        fetch('/api/me/shelf', { headers: { Authorization: 'Bearer ' + tok } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) {
+            if (!d) { winAsked = false; return; }   // let a later attempt retry
+            winShelf = d;
+            winWire();
+            winRender();
+          }).catch(function () { winAsked = false; });
+      }
+      attempt();
+      document.addEventListener('auth-hydrated', attempt);
+      setTimeout(attempt, 1500);
+      setTimeout(attempt, 4000);
     }
 
     /* ---- breadcrumb (Roadmap > Track > Section > Lesson) + exit target ----
