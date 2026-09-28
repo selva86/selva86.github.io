@@ -909,8 +909,9 @@
        shut are two answers to the same question, and the pair is the
        interesting answer. A lesson they finished needs no date, because
        nothing was lost. */
-    function winLabel(r, now) {
+    function winLabel(r, now, pro) {
       if (r.finished) return 'finished';
+      if (pro) return 'not started';
       var closed = new Date(r.closes_at * 1000), today = new Date(now * 1000);
       var sameDay = closed.getDate() === today.getDate() &&
                     closed.getMonth() === today.getMonth() &&
@@ -984,13 +985,14 @@
       }
 
       if (closed.length) {
-        h += '<div class="lm-rail-grp">Earlier <span>' + closed.length + '</span></div><ol class="lm-rail-rows">';
+        h += '<div class="lm-rail-grp">Earlier <span>' +
+             (pro ? 'progress' : closed.length) + '</span></div><ol class="lm-rail-rows">';
         closed.forEach(function (r) {
           h += '<li><a class="lm-rail-row is-shut' + (r.finished ? ' is-read' : '') + '" href="/' + esc(r.slug) + '.html"' +
             ' data-shut="' + esc(r.slug) + '">' +
             '<span class="lm-rail-pad"></span>' +
             '<span class="lm-rail-tx"><span class="lm-rail-t">' + esc(r.subject) + '</span></span>' +
-            '<span class="lm-rail-state">' + esc(winLabel(r, now)) + '</span>' +
+            '<span class="lm-rail-state">' + esc(winLabel(r, now, pro)) + '</span>' +
             (pro ? '' : '<span class="lm-rail-reopen">Reopen with Pro</span>') +
             '</a></li>';
         });
