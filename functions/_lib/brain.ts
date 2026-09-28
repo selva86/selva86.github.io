@@ -178,6 +178,7 @@ export async function runBrain(
     seq: (await env.KV.get("flag:nurture-sequence")) === "on",
     wall: (await env.KV.get("flag:wall-email")) === "on",
     flip: (await env.KV.get("flag:flip-broadcast")) === "on",
+    closedShelf: (await env.KV.get("flag:closed-shelf")) === "on",
   };
 
   const candidates: Candidate[] = [];
@@ -330,6 +331,77 @@ export async function runBrain(
         lesson_url: `${SITE}/${slug}.html?utm_source=email&utm_campaign=wall`,
         offer_url: `${SITE}/pricing.html?utm_source=email&utm_campaign=wall`,
       }, why: `pro wall on ${slug} ${Math.round((now - r.at) / 60)}min ago` });
+    }
+  }
+
+  /* ---- the closed shelf (offers). Daily lessons shut 72 hours after they
+     arrive, so an engaged reader quietly accumulates lessons they worked
+     through and can no longer reopen. Nothing has ever told them that, and it
+     is the one argument for Pro that is both entirely true and impossible for
+     anyone else to make.
+
+     CLOSED_MIN is the pile worth mentioning. ENGAGED_MIN is what makes the
+     email honest: of the 151 accounts with nine or more closed lessons, only
+     34 have ever finished one. Mailing the other 117 would tell people who
+     never opened anything that they had "missed" a great deal, which is both
+     untrue in spirit and the fastest way to get marked as spam. Once per
+     person, ever. ---------------------------------------------------------- */
+  if (flags.closedShelf && dailyRun) {
+    const CLOSED_MIN = 9;
+    const ENGAGED_MIN = 2;
+    const WINDOW_SEC = 72 * 3600;
+    const rows = await env.DB.prepare(
+      `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
+              u.signup_gate, u.signup_slug, u.email_status, u.email_progress,
+              COUNT(*) AS closed_n,
+              (SELECT COUNT(*) FROM intent_signals i
+                WHERE i.user_id = u.id AND i.signal = 'lesson_complete') AS engaged
+         FROM sent_emails s JOIN users u ON u.id = s.user_id
+        WHERE s.email_key LIKE 'seq:%' AND s.sent_at < ?1
+          AND u.deleted_at IS NULL
+          AND (u.pro_until IS NULL OR (u.pro_until <> -1 AND u.pro_until < ?2))
+        GROUP BY u.id
+       HAVING closed_n >= ?3 AND engaged >= ?4
+        LIMIT 200`,
+    ).bind(now - WINDOW_SEC, now, CLOSED_MIN, ENGAGED_MIN)
+      .all<UserRow & { closed_n: number; engaged: number }>();
+
+    const eligible = (rows.results ?? []).filter((r) => !ledger.get(r.id)?.has("closed-shelf"));
+    if (eligible.length) {
+      /* One query for every closed lesson belonging to the whole cohort, rather
+         than one per person: this runs hourly and the row count is small. */
+      const ids = eligible.map((r) => r.id);
+      const marks = ids.map(() => "?").join(",");
+      const seqRows = (await env.DB.prepare(
+        `SELECT user_id, email_key, sent_at FROM sent_emails
+          WHERE email_key LIKE 'seq:%' AND sent_at < ? AND user_id IN (${marks})`,
+      ).bind(now - WINDOW_SEC, ...ids).all<{ user_id: string; email_key: string; sent_at: number }>()).results ?? [];
+      const byUser = new Map<string, { seq: number; at: number }[]>();
+      for (const r of seqRows) {
+        const n = parseInt(String(r.email_key).split(":")[1] || "", 10);
+        if (!Number.isFinite(n)) continue;
+        const list = byUser.get(r.user_id) || [];
+        list.push({ seq: n, at: r.sent_at });
+        byUser.set(r.user_id, list);
+      }
+      for (const r of eligible) {
+        const mine = (byUser.get(r.id) || []).sort((a, b) => b.at - a.at);
+        const titles = mine
+          .map((x) => SEQ_ITEMS[x.seq] && SEQ_ITEMS[x.seq].subject)
+          .filter((t): t is string => !!t)
+          .slice(0, 3);
+        if (titles.length < 1) continue;   // nothing honest to name
+        candidates.push({
+          u: r, key: "closed-shelf", template: "closed-shelf", category: "offers", priority: 4,
+          data: {
+            first_name: r.display_name,
+            closed_count: r.closed_n,
+            lesson_list: titles.map((t) => "  " + t).join("\n"),
+            offer_url: `${SITE}/pricing.html?utm_source=email&utm_campaign=closed-shelf`,
+          },
+          why: `${r.closed_n} closed, ${r.engaged} finished`,
+        });
+      }
     }
   }
 

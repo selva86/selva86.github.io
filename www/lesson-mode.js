@@ -84,8 +84,15 @@
     app.className = 'lm-app';
     app.innerHTML =
       '<div class="lm-top">' +
+        /* A sidebar-panel glyph, not a hamburger. Below 860px this button sits
+           a hundred-odd pixels under the site navbar's own hamburger, and two
+           identical three-line icons stacked read as one duplicated control.
+           This is the same panel icon the tutorial sidebar already uses, so it
+           says "open the lesson list" rather than "open a second menu". */
         '<button class="lm-rail-toggle" type="button" aria-label="Show lessons in this course">' +
-          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+          '<rect x="3" y="4" width="18" height="16" rx="2.5"/><line x1="9.5" y1="4" x2="9.5" y2="20"/>' +
+          '<path d="m14 9.5 2.5 2.5-2.5 2.5"/></svg></button>' +
         '<a class="lm-exit" href="' + esc(landing) + '">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
           esc(courseTitle) + '</a>' +
@@ -1443,6 +1450,48 @@
       step.appendChild(card);
       var rv = card.querySelector('.lm-ca-review');
       if (rv) rv.addEventListener('click', function () { i = 0; render(); });
+      completionOffer(card);
+    }
+
+    /* The one moment in the product where the reader has just succeeded at
+       something, and until now the only moment nothing was asked of them. The
+       line names what they actually just did; it does not sell. Never shown to
+       anyone who already pays, and never a modal. */
+    function completionOffer(card) {
+      if (body.classList.contains('pro')) return;
+      if (windowed && winShelf && winShelf.pro) return;
+      if (card.querySelector('.lm-ca-pro')) return;
+
+      var line = '', cta = 'See what Pro opens';
+      if (windowed) {
+        line = 'Daily lessons stay open for three days. Pro keeps every one of them open.';
+        cta = 'Reopen with Pro';
+      } else if (railCourse && railCourse.lessons) {
+        var st2 = courseState(), dn2 = railCourse.lessons.filter(function (l) {
+          return (st2.completed || {})[l.slug]; }).length;
+        var left = railCourse.lessons.length - dn2;
+        if (left > 0) {
+          line = dn2 + ' of ' + railCourse.lessons.length + ' done in ' +
+            (railCourse.title || 'this course') + '. ' +
+            (left === 1 ? 'The last one is' : 'The remaining ' + left + ' are') + ' open with Pro.';
+        } else {
+          line = 'That is all of ' + (railCourse.title || 'this course') +
+            '. The rest of the track is open with Pro.';
+        }
+      } else {
+        line = 'The rest of this track is open with Pro.';
+      }
+
+      var el = document.createElement('div');
+      el.className = 'lm-ca-pro';
+      el.innerHTML = '<span>' + esc(line) + '</span>' +
+        '<a href="/pricing.html" data-lm-ca-pro>' + esc(cta) + ' &rarr;</a>';
+      card.appendChild(el);
+      try { rsSignal('offer_view', 'lesson-complete:shown'); } catch (e) {}
+      var a = el.querySelector('[data-lm-ca-pro]');
+      if (a) a.addEventListener('click', function () {
+        try { rsSignal('offer_view', 'lesson-complete:click'); } catch (e) {}
+      });
     }
 
     function toggleFs() {

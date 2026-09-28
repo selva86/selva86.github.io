@@ -78,6 +78,9 @@ export interface TemplateData {
   // and every link routes through /api/email/click so opens/clicks attribute
   // to the exact email_key. Text bodies keep direct links.
   track?: { uid: string; sig: string; key: string };
+  free_url?: string;           // alert-unsure: the free way to judge it
+  closed_count?: number | string;  // closed-shelf: how many shut on them
+  lesson_list?: string;        // closed-shelf: a few of their titles
 }
 
 const SITE = "https://r-statistics.co";
@@ -296,6 +299,30 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
 // probe (brain.ts). Same shape, same editable-copy layer; the URL tokens are
 // signed per recipient and are answer links (never click-tracked).
 Object.assign(LIFECYCLE, {
+  /* Answered "not sure it is for me" on the pricing box. Not a discount
+     request, so this carries no offer link and the sweep never follows it. */
+  "alert-unsure": {
+    key: "alert-unsure", category: "offers", reason: "you asked about this on the pricing page",
+    linkTokens: ["free_url"],
+    required: ["free_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      free_url: d.free_url || SITE + "/roadmap/",
+    }),
+  },
+  /* The closed shelf: daily lessons that shut behind a reader who was using
+     them. Every number in it is that person's own. */
+  "closed-shelf": {
+    key: "closed-shelf", category: "offers", reason: "you are on the daily lessons",
+    linkTokens: ["offer_url"],
+    required: ["offer_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      closed_count: String(d.closed_count ?? ""),
+      lesson_list: String(d.lesson_list ?? ""),
+      offer_url: d.offer_url || SITE + "/pricing.html",
+    }),
+  },
   "alert-confirm": {
     key: "alert-confirm", category: "offers", reason: "you asked to hear about discounts",
     linkTokens: ["today_url", "week_url", "month_url", "someday_url"],
