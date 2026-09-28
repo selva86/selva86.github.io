@@ -204,6 +204,9 @@ export interface Env {
   COURSE_MEDIA: R2Bucket;
   SUPABASE_JWT_SECRET?: string;   // optional; only needed for legacy HS256 tokens
   EDGE_ID_SECRET?: string;        // signs the rsc-id identity cookie (functions/_lib/idcookie.ts)
+  // Price-lock prices: the annual plans with the first charge 60 days out.
+  PADDLE_PRICE_SINGLE_YEAR_LOCK?: string;
+  PADDLE_PRICE_AA_YEAR_LOCK?: string;
   SUPABASE_URL: string;           // used to fetch JWKS for ES256 verification
   SUPABASE_WEBHOOK_SECRET: string; // shared secret for /api/webhooks/supabase
   SUPABASE_ANON_KEY: string;

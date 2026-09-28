@@ -91,15 +91,35 @@ function individualPlan(data: PaddleSubscriptionData, env: Env): string | null {
     allaccess_month: env.PADDLE_PRICE_AA_MONTH,
     allaccess_year: env.PADDLE_PRICE_AA_YEAR,
     lifetime: env.PADDLE_PRICE_LIFETIME,
+    /* The price-lock prices are the same plans with the first charge pushed
+       out 60 days, so they resolve to the same plan keys. What differs is only
+       WHEN entitlement starts, which isPriceLock decides. */
+    single_year_lock: env.PADDLE_PRICE_SINGLE_YEAR_LOCK,
+    allaccess_year_lock: env.PADDLE_PRICE_AA_YEAR_LOCK,
   };
   for (const item of data.items || []) {
     const pid = item.price?.id;
     if (!pid) continue;
     for (const [key, envId] of Object.entries(byPrice)) {
-      if (envId && envId === pid) return key;
+      if (envId && envId === pid) return key.replace(/_lock$/, "");
     }
   }
   return null;
+}
+
+/* Is this subscription a price lock, i.e. bought now to start later? Two
+   independent signals, because the answer decides whether somebody reads paid
+   lessons for free: what checkout stamped into custom_data, and the price id
+   itself. Either is sufficient; neither is trusted alone. */
+function isPriceLock(data: PaddleSubscriptionData, env: Env): boolean {
+  if (data.custom_data?.price_lock === true || data.custom_data?.price_lock === "true") return true;
+  const locks = [env.PADDLE_PRICE_SINGLE_YEAR_LOCK, env.PADDLE_PRICE_AA_YEAR_LOCK].filter(Boolean);
+  if (!locks.length) return false;
+  for (const item of data.items || []) {
+    const pid = item.price?.id;
+    if (pid && locks.includes(pid)) return true;
+  }
+  return false;
 }
 
 function isoToUnix(iso?: string | null): number | null {
@@ -221,6 +241,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             status: data.status || "unknown",
             customerId: data.customer_id || null,
             periodEnd: isoToUnix(data.current_billing_period?.ends_at),
+            priceLock: isPriceLock(data, context.env),
             cancelAtPeriodEnd: data.scheduled_change?.action === "cancel",
             plan,
             userId: (data.custom_data?.user_id as string | undefined) || "",

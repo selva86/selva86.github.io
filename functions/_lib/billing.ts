@@ -116,15 +116,27 @@ export async function mirrorSubscription(
 export async function applyIndividualEntitlement(
   db: D1Database,
   user: User,
-  input: { status: string; periodEnd: number | null },
+  input: { status: string; periodEnd: number | null; priceLock?: boolean },
 ): Promise<string> {
   if (user.pro_until === -1) return "kept_lifetime";
 
   let next: number | null | undefined; // undefined = leave as-is
   switch (input.status) {
     case "active":
-    case "trialing":
       // Latest event wins (ordering handled by the stale guard upstream).
+      if (input.periodEnd) next = input.periodEnd;
+      break;
+    case "trialing":
+      /* A price lock is a subscription that has not started. The customer
+         locked today's price and gave a card; Paddle holds it in "trialing"
+         until the first charge 60 days out, and during a trial periodEnd is
+         the END OF THE TRIAL. Granting it here would hand every price-lock
+         customer 60 days of free Pro and then bill them for a year, which is
+         the opposite of the offer they accepted. Access arrives on day 60
+         through the ordinary "active" event, or sooner if they choose to
+         start early (which bills them immediately). An ordinary trial, where
+         access during the trial IS the point, still grants normally. */
+      if (input.priceLock) { next = undefined; break; }
       if (input.periodEnd) next = input.periodEnd;
       break;
     case "past_due":
