@@ -988,7 +988,11 @@
         h += '<div class="lm-rail-grp">Earlier <span>' +
              (pro ? 'progress' : closed.length) + '</span></div><ol class="lm-rail-rows">';
         closed.forEach(function (r) {
-          h += '<li><a class="lm-rail-row is-shut' + (r.finished ? ' is-read' : '') + '" href="/' + esc(r.slug) + '.html"' +
+          // For a paying member these are not shut at all, they are simply
+          // earlier. Dimming them to the disabled ink says the opposite of what
+          // is true: every one of them opens on a click.
+          h += '<li><a class="lm-rail-row is-shut' + (pro ? ' is-available' : '') +
+            (r.finished ? ' is-read' : '') + '" href="/' + esc(r.slug) + '.html"' +
             ' data-shut="' + esc(r.slug) + '">' +
             '<span class="lm-rail-pad"></span>' +
             '<span class="lm-rail-tx"><span class="lm-rail-t">' + esc(r.subject) + '</span></span>' +
