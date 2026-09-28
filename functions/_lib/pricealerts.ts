@@ -51,7 +51,8 @@ export type AlertEnv = Env & {
 
 export interface AlertRow {
   id: number; user_id: string | null; email: string; surface: string | null; country: string | null;
-  created_at: number; intent: string | null; intent_at: number | null; offer_due_at: number | null;
+  created_at: number; reason: string | null;
+  intent: string | null; intent_at: number | null; offer_due_at: number | null;
   offer_sent_at: number | null; offer_code: string | null; offer_expires_at: number | null;
   reminder_sent_at: number | null; last30_sent_at: number | null; closed_sent_at: number | null;
   purchased_at: number | null; unsubscribed_at: number | null;
@@ -168,7 +169,18 @@ export { fmtExpiry as formatOfferExpiry };
 // ---- the confirmation, sent synchronously by /api/price-alert ------------
 export async function sendAlertConfirmation(env: AlertEnv, row: AlertRow): Promise<boolean> {
   const live = (await env.KV.get("flag:email-live")) === "on";
-  if (!allowedTo(env, live, row.email)) { await logEvent(env, row, "alert-confirm", "would_send", "dev mode"); return false; }
+  const template = row.reason === "unsure" ? "alert-unsure" : "alert-confirm";
+  if (!allowedTo(env, live, row.email)) { await logEvent(env, row, template, "would_send", "dev mode"); return false; }
+  /* "Not sure it is for me" is not "too expensive". Asking that person when
+     they hope to start makes no sense, and the four intent links would drag
+     them into the discount flow they did not ask for. They get one email that
+     answers the objection they actually raised, with nothing to click through
+     to an offer. */
+  if (template === "alert-unsure") {
+    return sendTemplate(env, row, "alert-unsure", "alert-unsure", {
+      free_url: `${SITE}/roadmap/`,
+    }, `unsure, from ${row.surface || "pricing"}`);
+  }
   const t = await alertSig(env, row.id);
   if (!t) return false;
   const link = (w: string) => `${SITE}/api/email/intent?a=${row.id}&t=${t}&w=${w}`;
@@ -243,6 +255,12 @@ export async function sweepPriceAlerts(
     for (const row of rows) {
       if (sends >= MAX_SENDS_PER_SWEEP) break;
       if (!allowedTo(env, live, row.email)) continue;
+      /* Somebody who said "not sure it is for me" never asked about price.
+         offerDueAt's default would mail them 23% off after three days, which
+         answers a question they did not ask and spends margin on the segment
+         least moved by it. They had their one email at sign-up; the flow ends
+         there unless they come back and say price themselves. */
+      if (row.reason === "unsure") continue;
       const due = row.offer_due_at ?? offerDueAt(row.intent, row.intent_at ?? row.created_at);
 
       // 1) the offer

@@ -29,6 +29,14 @@ const SIGNALS = new Set([
      discards a signal the client is already sending is a trap; if another
      joins the client, add it here in the same commit. */
   "pro_wall_hit",
+  /* 2026-09-29: which objection the reader picked on the pricing box. Worth its
+     own signal because one of the three answers ("no time right now") goes
+     straight to the price-lock checkout and never writes a price_alerts row, so
+     without this the box's own conversion is unmeasurable. meta carries the
+     answer. Read the note above before adding another: an allowlist that
+     silently drops a signal the client already sends is how pro_wall_hit lost
+     months of data. */
+  "objection",
 ]);
 
 let tableReady = false;

@@ -2,7 +2,7 @@
 //
 // Returns the PUBLIC Supabase config (URL + anon key) so the frontend
 // signin.html and account.html can initialize the Supabase JS client without
-// hardcoding the values in HTML. Both values are public-safe — the anon key
+// hardcoding the values in HTML. Both values are public-safe: the anon key
 // is intentionally exposed to browsers; only service_role + JWT secret are
 // privileged. Saves us from manual-paste-on-deploy drift.
 //
@@ -12,7 +12,7 @@
 import type { Env } from "../_middleware";
 import { json, jsonError } from "../_lib/errors";
 
-// Public Google OAuth web client id (not a secret — it's embedded in every
+// Public Google OAuth web client id (not a secret, it is embedded in every
 // OAuth/One-Tap flow). Exposing it enables the white-label Google sign-in
 // (GIS + signInWithIdToken) in www/google-onetap.js. The client must have the
 // page origin in its "Authorized JavaScript origins" (Google Cloud Console) or
@@ -30,7 +30,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // design; null until provisioned, in which case the pricing tiles keep their
   // waitlist fallback instead of opening a checkout. The environment is derived
   // from the token itself (Paddle scopes tokens per environment: test_ =
-  // sandbox, live_ = production) — an unrecognized prefix disables checkout
+  // sandbox, live_ = production); an unrecognized prefix disables checkout
   // entirely rather than guessing, so we can never point Paddle.js at the
   // wrong account.
   const tok = context.env.PADDLE_CLIENT_TOKEN;
@@ -55,6 +55,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
             year: context.env.PADDLE_PRICE_AA_YEAR || null,
           },
           lifetime: context.env.PADDLE_PRICE_LIFETIME || null,
+          /* Price lock: the same annual plans with the first charge 60 days
+             out. Same "null until provisioned" contract as the rest, so if
+             these are not set the box simply does not offer the option. */
+          lock: {
+            single: context.env.PADDLE_PRICE_SINGLE_YEAR_LOCK || null,
+            allaccess: context.env.PADDLE_PRICE_AA_YEAR_LOCK || null,
+            days: 60,
+          },
         },
       }
     : null;

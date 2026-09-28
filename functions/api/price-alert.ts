@@ -15,16 +15,25 @@ import { ensureIntentTable } from "./signal";
 import { notifyAdminEvent } from "../_lib/notify";
 
 const SURFACES = new Set(["pricing", "pricing-bar", "lesson-locked", "why-pro", "dashboard"]);
+/* Which answer to "Still deciding?" produced this row. "price" is the original
+   behaviour and stays the default, so older callers that send no reason keep
+   working unchanged. "no_time" never reaches here: that answer goes straight to
+   the price-lock checkout and writes no alert row. */
+const REASONS = new Set(["price", "unsure"]);
 
 function looksLikeEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 200;
 }
 
 export const onRequestPost: PagesFunction<Env & AlertEnv, string, RequestData> = async (context) => {
-  let b: { surface?: unknown; email?: unknown };
+  let b: { surface?: unknown; email?: unknown; reason?: unknown; a?: unknown };
   try { b = await context.request.json(); } catch { return jsonError(400, "bad_body", "Invalid JSON"); }
   const u = context.data.user;
   const surface = typeof b.surface === "string" && SURFACES.has(b.surface) ? b.surface : "pricing";
+  const reason = typeof b.reason === "string" && REASONS.has(b.reason) ? b.reason : "price";
+  /* Anonymous readers were all collapsed into one null bucket here, which is
+     why the admin panel reported 17 alerts as "5 people". */
+  const anonId = typeof b.a === "string" && b.a.length <= 40 ? b.a : null;
   const typed = typeof b.email === "string" ? b.email.trim().toLowerCase() : "";
   const email = (u?.email || typed || "").toLowerCase();
   if (!looksLikeEmail(email)) return jsonError(400, "bad_email", "Please enter a valid email address.");
@@ -56,8 +65,8 @@ export const onRequestPost: PagesFunction<Env & AlertEnv, string, RequestData> =
       reminder_sent_at: null, last30_sent_at: null, closed_sent_at: null, purchased_at: null, unsubscribed_at: null };
   } else {
     const ins = await DB.prepare(
-      "INSERT INTO price_alerts (user_id, email, surface, country, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-    ).bind(u?.id ?? null, email, surface, country, now).run();
+      "INSERT INTO price_alerts (user_id, email, surface, country, created_at, reason) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    ).bind(u?.id ?? null, email, surface, country, now, reason).run();
     const id = Number(ins.meta?.last_row_id ?? 0);
     row = { id, user_id: u?.id ?? null, email, surface, country, created_at: now,
       intent: null, intent_at: null, offer_due_at: null, offer_sent_at: null, offer_code: null, offer_expires_at: null,
@@ -76,8 +85,8 @@ export const onRequestPost: PagesFunction<Env & AlertEnv, string, RequestData> =
   try {
     await ensureIntentTable(DB);
     await DB.prepare(
-      "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?1, ?2, NULL, 'price_alert', ?3, ?4)",
-    ).bind(now, u?.id ?? null, surface, email).run();
+      "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?1, ?2, ?3, 'price_alert', ?4, ?5)",
+    ).bind(now, u?.id ?? null, anonId, surface, email).run();
   } catch { /* best effort */ }
 
   const sent = await sendAlertConfirmation(context.env, row);
