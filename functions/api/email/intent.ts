@@ -2,13 +2,13 @@
 //
 // The one-click answer to "when were you hoping to start?" in the price-alert
 // confirmation email, and the "tell me next time" link in the close. Records
-// the intent and derives offer_due_at (today = the next hourly run, week =
+// the intent and derives offer_due_at (today = at once, week =
 // +24h, month = +21d, someday = +45d, renew = +60d). A first answer wins;
 // later clicks on a different option only re-time an offer that has not
 // gone out yet. 302s to /email-thanks.html.
 
 import type { Env, RequestData } from "../../_middleware";
-import { verifyAlertSig, offerDueAt, type AlertEnv } from "../../_lib/pricealerts";
+import { sweepPriceAlerts, verifyAlertSig, offerDueAt, type AlertEnv } from "../../_lib/pricealerts";
 import { notifyAdminEvent } from "../../_lib/notify";
 
 const WHEN = new Set(["today", "week", "month", "someday", "renew"]);
@@ -37,6 +37,17 @@ export const onRequestGet: PagesFunction<Env & AlertEnv, string, RequestData> = 
           await DB.prepare(
             "UPDATE price_alerts SET intent = ?1, intent_at = ?2, offer_due_at = ?3 WHERE id = ?4",
           ).bind(w, now, offerDueAt(w, now), id).run();
+          /* "Today" means today. Every other answer is due hours or weeks out
+             and the hourly sweep is the right pace for them, but this one is
+             the warmest signal the funnel produces and it was being left to sit
+             for whatever was left of the hour. Sent after the response, so the
+             redirect is not held up, and through the same sweep so there is
+             only ever one implementation of it. */
+          if (w === "today") {
+            context.waitUntil(
+              sweepPriceAlerts(context.env, { onlyId: id }).catch(() => {}),
+            );
+          }
         }
         await DB.prepare(
           "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, ?2, 'alert-confirm', 'intent', ?3, ?4)",

@@ -149,6 +149,22 @@ async function sendTemplate(env: AlertEnv, row: AlertRow, template: string, key:
   return res.ok;
 }
 
+/* Render an alert email without sending or logging it, so a test send can show
+ * the real thing without inventing a row, writing to email_events or minting a
+ * discount in Paddle. */
+export async function previewAlertEmail(
+  env: AlertEnv, template: string, extra: Record<string, unknown>,
+): Promise<{ subject: string; html: string; text: string } | null> {
+  const data = Object.assign(
+    { first_name: "Selva", unsubscribe_url: `${SITE}/api/price-alert/stop?a=0&t=preview` },
+    extra,
+  ) as TemplateData;
+  const r = renderEmail(template, data, await copyFor(env, template));
+  return r ? { subject: r.subject, html: r.html, text: r.text } : null;
+}
+
+export { fmtExpiry as formatOfferExpiry };
+
 // ---- the confirmation, sent synchronously by /api/price-alert ------------
 export async function sendAlertConfirmation(env: AlertEnv, row: AlertRow): Promise<boolean> {
   const live = (await env.KV.get("flag:email-live")) === "on";
@@ -185,21 +201,40 @@ async function engaged(env: AlertEnv, row: AlertRow): Promise<boolean> {
 }
 
 // ---- the hourly sweep -----------------------------------------------------
-export async function sweepPriceAlerts(env: AlertEnv, opts: { force?: boolean } = {}): Promise<void> {
+/* opts.onlyId runs the sweep against a single alert, which is how a reader who
+ * has just said "today" gets their offer in seconds rather than at the next
+ * hourly tick. It is the same code path on purpose: one implementation of "mint
+ * the code and send the offer", so the instant send and the hourly send cannot
+ * drift apart. A targeted run skips the sweep throttle and never writes
+ * alert-sweep:last, so it can neither be blocked by the last sweep nor delay
+ * the next one. */
+export async function sweepPriceAlerts(
+  env: AlertEnv, opts: { force?: boolean; onlyId?: number } = {},
+): Promise<void> {
   try {
     if ((await env.KV.get("flag:price-alerts")) !== "on") return;
     const now = Math.floor(Date.now() / 1000);
-    if (!opts.force) {
+    const targeted = typeof opts.onlyId === "number";
+    if (!opts.force && !targeted) {
       const last = Number((await env.KV.get("alert-sweep:last")) || 0);
       if (now - last < SWEEP_INTERVAL) return;
       await env.KV.put("alert-sweep:last", String(now));
+    }
+    /* Two clicks arriving together would each see offer_sent_at still null and
+     * each send. Cheap lock, short enough to be forgotten long before the
+     * hourly sweep would retry a genuine failure. */
+    if (targeted) {
+      const lock = `alert-instant:${opts.onlyId}`;
+      if (await env.KV.get(lock)) return;
+      await env.KV.put(lock, "1", { expirationTtl: 300 });
     }
     const live = (await env.KV.get("flag:email-live")) === "on";
     const rows = (await env.DB.prepare(
       `SELECT p.*, u.display_name, u.pro_until FROM price_alerts p LEFT JOIN users u ON u.id = p.user_id
        WHERE p.unsubscribed_at IS NULL AND p.purchased_at IS NULL AND p.closed_sent_at IS NULL
+         ${targeted ? "AND p.id = ?1" : ""}
        ORDER BY p.created_at LIMIT 300`,
-    ).all<AlertRow>()).results ?? [];
+    ).bind(...(targeted ? [opts.onlyId] : [])).all<AlertRow>()).results ?? [];
 
     let sends = 0;
     for (const row of rows) {
