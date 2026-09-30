@@ -26,8 +26,8 @@
      each, because the answer they tapped already told us what they care about
      and repeating it back is the only thing that makes the field make sense. */
   var PROMPT = {
-    price: 'Fair enough. One email, only if there is ever a discount. Where should I send it?',
-    unsure: 'Fair enough. Where should I send it? I will show you the quickest way to find out, free.'
+    price: 'One email, only if there is ever a discount. Where should I send it?',
+    unsure: 'Then the quickest way to know is to do one. Where should I send it?'
   };
   function ga(name, params) { try { if (typeof gtag === 'function') gtag('event', name, params || {}); } catch (e) {} }
   /* The same anon id every other beacon on the page uses. Passed to
@@ -70,10 +70,10 @@
         done.hidden = false;
         if (chosen === 'unsure') {
           done.textContent = res && res.sent
-            ? 'Sent. One email, with the fastest way to find out. Nothing else.'
-            : 'Noted. I will send you the fastest way to find out, and nothing else.';
+            ? 'Sent. One lesson to try, and nothing after it.'
+            : 'Noted. I will send you one lesson to try, and nothing after it.';
         } else if (res && res.already) done.textContent = 'You are already on the list. You will hear from me the moment there is a discount.';
-        else if (res && res.sent) done.textContent = 'Sent. I have asked you one quick question in that email, pls check.';
+        else if (res && res.sent) done.textContent = 'Sent. There is one question in it, which tells me when to send the code.';
         else done.textContent = 'Noted. You will hear from me the moment there is a discount.';
       }
       ga('price_alert_optin', { surface: surface, sent: !!(res && res.sent) });

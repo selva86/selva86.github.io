@@ -178,7 +178,7 @@ export async function sendAlertConfirmation(env: AlertEnv, row: AlertRow): Promi
      to an offer. */
   if (template === "alert-unsure") {
     return sendTemplate(env, row, "alert-unsure", "alert-unsure", {
-      free_url: `${SITE}/roadmap/`,
+      free_url: `${SITE}/R-Syntax-101.html`,
     }, `unsure, from ${row.surface || "pricing"}`);
   }
   const t = await alertSig(env, row.id);

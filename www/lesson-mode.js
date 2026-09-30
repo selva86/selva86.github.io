@@ -1010,7 +1010,10 @@
         ' stroke-linejoin="round" aria-hidden="true">' +
         '<rect x="2.2" y="3.6" width="13.6" height="10.8" rx="2.4"/><path d="M7.2 3.6 V14.4"/>' +
         '<path class="fill" d="M4.6 3.6 H7.2 V14.4 H4.6 A2.4 2.4 0 0 1 2.2 12 V6 A2.4 2.4 0 0 1 4.6 3.6 Z"' +
-        ' fill="currentColor" stroke="none"/></svg></button>' +
+        ' fill="currentColor" stroke="none"/>' +
+        /* which way it will move, so the press is predictable */
+        '<path class="dir" d="M12.7 7.1 L10.6 9 L12.7 10.9" stroke-linecap="round"/>' +
+        '</svg></button>' +
         '<span class="lm-rail-h">Your daily lessons</span>' +
         '<span class="lm-rail-sub">' +
           (pro ? 'No windows on your account'
@@ -1050,7 +1053,6 @@
             '<span class="lm-rail-pad"></span>' +
             '<span class="lm-rail-tx"><span class="lm-rail-t">' + esc(r.subject) + '</span></span>' +
             '<span class="lm-rail-state">' + esc(winLabel(r, now, pro)) + '</span>' +
-            (pro ? '' : '<span class="lm-rail-reopen">Reopen with Pro</span>') +
             '</a></li>';
         });
         h += '</ol>';
@@ -1065,9 +1067,11 @@
       }).join('') + '</ol></div>';
 
       if (!pro && closed.length) {
-        h += '<div class="lm-rail-foot">' + closed.length +
-          (closed.length === 1 ? ' has' : ' have') + ' closed since you started. ' +
-          '<a href="#" data-win-all>Reopen with Pro</a></div>';
+        /* The one place on this rail that mentions Pro. It used to lead with a
+           running count of what had shut, which turns a sidebar into a tally
+           kept against the reader. The count still gets said once, in the
+           closed-shelf email, to people who were actually using the lessons. */
+        h += '<div class="lm-rail-foot"><a href="#" data-win-all>Reopen with Pro</a></div>';
       } else if (pro) {
         h += '<div class="lm-rail-foot">Nothing in this list expires.</div>';
       }
@@ -1136,7 +1140,6 @@
        middle of. The click is intercepted and answered in place. */
     function winProScreen(r, all) {
       var n = (winShelf.closed || []).length;
-      var others = n - 1;
       var here = (winShelf.open || []).filter(function (x) { return x.slug === curSlug; })[0];
       var courseParts = (here && here.parts) || 0;
       var courseName = (here && here.course_title) || '';
@@ -1147,19 +1150,31 @@
         ? ' ' + winWord(n) + ' lessons is more than the whole of ' + esc(courseName) + '.' : '';
       var shut = r ? new Date(r.closes_at * 1000) : null;
       var when = shut ? winSpoken(shut) : '';
+      /* Clicking one closed lesson states a fact and stops. No price, no tally
+         of the others, no comparison to a course they are part way through. A
+         reader who wants the way out has one link in the rail footer, and that
+         is where the case gets made. */
+      if (!all) {
+        return '<div class="lm-pro-card is-plain">' +
+          '<div class="lm-pro-top">' +
+            '<h3>This one has closed</h3>' +
+            '<div class="lm-pro-what"><b>' + esc(r.subject) + '</b>' +
+              (winPlace(r) ? '<span>' + esc(winPlace(r)) + '</span>' : '') + '</div>' +
+            '<p>It closed on ' + esc(when) + '. Daily lessons stay open for three days.</p>' +
+          '</div>' +
+          '<div class="lm-pro-bot">' +
+            '<button type="button" class="lm-pro-skip">Back to your lesson</button>' +
+          '</div></div>';
+      }
+      /* The single Pro link in the rail lands here, and this is the only screen
+         that argues for it. It says the number once, because someone who has
+         just asked how to reopen things is owed the size of what they would get
+         back. */
       return '<div class="lm-pro-card">' +
         '<div class="lm-pro-top">' +
-          '<h3>' + (all ? winWord(n) + ' have gone this way' : 'Too late for this one') + '</h3>' +
-          (all ? '' : '<div class="lm-pro-what"><b>' + esc(r.subject) + '</b>' +
-            (winPlace(r) ? '<span>' + esc(winPlace(r)) + '</span>' : '') + '</div>') +
-          '<p>' + (all
-            ? 'Daily lessons stay open for three days and then they go, which is fine until it is one you actually wanted. ' +
-              winWord(n) + ' of yours have gone.' + bigger
-            : 'It closed on ' + esc(when) + '. Daily lessons stay open for three days and then they go, ' +
-              'which is fine until it is the one you actually wanted.') + '</p>' +
-          (all ? '' : '<p>' + (others > 0
-            ? winWord(others) + ' other' + (others === 1 ? ' has' : 's have') + ' gone the same way since you started.' + bigger
-            : 'That is the only one so far.') + '</p>') +
+          '<h3>Reopen every one of them</h3>' +
+          '<p>Daily lessons stay open for three days and then they go. ' +
+          winWord(n) + ' of yours have.' + bigger + '</p>' +
           '<p>Pro takes the clock off all ' + winWord(n) + ', and off everything still to come. ' +
           'It opens the full tracks as well, though the windows are probably the part you are running into.</p>' +
         '</div>' +
