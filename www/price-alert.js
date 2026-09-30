@@ -22,6 +22,13 @@
     } catch (e) {}
     return null;
   }
+  /* What the email field is actually for, in the reader's own terms. One line
+     each, because the answer they tapped already told us what they care about
+     and repeating it back is the only thing that makes the field make sense. */
+  var PROMPT = {
+    price: 'Fair enough. One email, only if there is ever a discount. Where should I send it?',
+    unsure: 'Fair enough. Where should I send it? I will show you the quickest way to find out, free.'
+  };
   function ga(name, params) { try { if (typeof gtag === 'function') gtag('event', name, params || {}); } catch (e) {} }
   /* The same anon id every other beacon on the page uses. Passed to
      /api/price-alert because that endpoint used to hardcode anon_id NULL,
@@ -118,8 +125,14 @@
           }, 400);
           return;
         }
-        if (lead) lead.hidden = true;
-        if (readToken()) { submit(null); return; }
+        /* Signed in, so the address is already known: no field, no typing,
+           straight to the confirmation. */
+        if (readToken()) { if (lead) lead.hidden = true; submit(null); return; }
+        /* Signed out, so one line has to say what the address is for. Leaving
+           a bare input with no sentence was the whole complaint: the reader
+           has committed to an answer and is then asked for an email with no
+           reason given. */
+        if (lead) lead.textContent = PROMPT[chosen] || PROMPT.price;
         if (form) { form.hidden = false; form.style.display = 'flex'; if (email) email.focus(); }
       });
     }
