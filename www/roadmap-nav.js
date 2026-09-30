@@ -9,15 +9,6 @@
   /* per-track data-graphic marks - one shared stroke grammar, each track wears
      the chart it teaches (prompt, bar chart, bell curve, forecast, tree, code,
      gauge). Rendered inside the tinted .rn-mkc chip. */
-  var MK = {
-    found:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,4 11,11 4,18"/><line x1="15" y1="18" x2="23" y2="18"/></svg>',
-    da:'<svg width="24" height="20" viewBox="0 0 26 22" fill="currentColor" stroke="none"><rect x="3" y="9" width="3.6" height="11" rx="1"/><rect x="9" y="3" width="3.6" height="17" rx="1"/><rect x="15" y="13" width="3.6" height="7" rx="1"/><rect x="21" y="6" width="3.6" height="14" rx="1"/><line x1="2" y1="20.6" x2="24.6" y2="20.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
-    res:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M2,19 C8,19 8.5,3 13,3 C17.5,3 18,19 24,19"/></svg>',
-    fc:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,17 5,12.5 8,15 11,9.5 14,12 17,6.5"/><line x1="17" y1="6.5" x2="24" y2="3.5" stroke-dasharray="2.6 2.4"/></svg>',
-    ds:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13" cy="4" r="2.4" fill="currentColor" stroke="none"/><path d="M13,6.4 L13,9.5 M5,9.5 L21,9.5 M5,9.5 L5,12.8 M21,9.5 L21,12.8"/><circle cx="5" cy="15.4" r="2.4"/><circle cx="21" cy="15.4" r="2.4"/></svg>',
-    dev:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="16,5 23,11 16,17"/><polyline points="10,5 3,11 10,17"/></svg>',
-    mle:'<svg width="24" height="20" viewBox="0 0 26 22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5,17.5 A9.5,9.5 0 0 1 22.5,17.5"/><line x1="13" y1="17.5" x2="18.2" y2="10.2"/><circle cx="13" cy="17.5" r="1.6" fill="currentColor" stroke="none"/></svg>'
-  };
 
   /* cert names mirror what each track page hero advertises (roadmap-data.js
      LEVELS) - the dropdown must promise the same credential the page does */
@@ -43,7 +34,7 @@
   function nodeHTML(n){
     var inner = '<span class="rn-row1"><span class="rn-mono">'+n.mono+'</span><b>'+n.name+'</b>'+
       (n.start ? '<span class="rn-tag">Start here</span>' : '')+
-      '<span class="rn-mkc">'+MK[n.mk]+'</span></span>'+
+      '</span>'+
       '<p>'+n.p+'</p><span class="rn-m" data-rn-m></span>'+
       '<span class="rn-cert">Certificate: <b>'+n.cert+'</b></span>'+
       (n.sf ? '<span class="rn-go rn-sf" role="link" tabindex="0" data-sf="'+n.href+'" data-track="'+(n.track||'')+'">Start free '+ARR+'</span>'
@@ -53,7 +44,7 @@
   }
   function panelHTML(){
     var cols = STAGES.map(function(sg){
-      return '<div class="rn-col"><div class="rn-sl"><span class="rn-msdot"></span>'+sg[0]+'</div>'+
+      return '<div class="rn-col"><div class="rn-sl">'+sg[0]+'</div>'+
         sg[1].map(nodeHTML).join('')+'</div>';
     }).join('');
     return '<div class="rn-hd"><b>Seven roadmaps, one path</b><a href="/roadmap/">Compare all seven '+ARR+'</a></div>'+
@@ -80,7 +71,7 @@
     var link = document.querySelector('.sitenav .snav-links a[href="/roadmap/"]') || document.querySelector('.nav a[href="/roadmap/"]');
     if (!link || link.closest('.rn-wrap')) return;
     if (!document.querySelector('link[data-rn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=7';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/roadmap-nav.css?v=8';
       l.setAttribute('data-rn-css', ''); document.head.appendChild(l);
     }
     var wrap = document.createElement('div'); wrap.className = 'rn-wrap';

@@ -46,7 +46,10 @@ window.XN_HUBS=[
   // the 8th, special "Mastery Quizzes" rail item (timed, cert-bearing - not hubs)
   var QUIZ = ["Mastery Quizzes","MEDAL","/certifications",null];
 
-  function dot(name){ return '<span class="xn-dt" style="background:'+(XN_COLOR[name]||'#475569')+'"></span>'; }
+  /* The category dots are gone. Nine categories in nine colours, where the
+     colour mapped to nothing a reader could use: it was decoration wearing the
+     costume of a legend. The category names are the information. */
+  function dot(){ return ''; }
   function railHTML(){
     var items = window.XN_HUBS.map(function(cat,i){
       return '<button class="xn-cat" role="tab" data-i="'+i+'" aria-selected="'+(i===0?'true':'false')+'">'+

@@ -16,7 +16,7 @@
     scope.querySelectorAll('a.lsn.pro').forEach(function(a){
       var lt=a.querySelector('.lt'),span=document.createElement('span');
       span.className='lsn soon';
-      span.innerHTML='<span class="dot"></span><span class="ltwrap"><span class="lt">'+(lt?lt.innerHTML:'')+'</span></span><span class="go">Soon</span>';
+      span.innerHTML='<span class="ltwrap"><span class="lt">'+(lt?lt.innerHTML:'')+'</span></span><span class="go">Soon</span>';
       a.parentNode.replaceChild(span,a);
     });
   }
@@ -152,18 +152,24 @@
   function conceptRow(t,free){
     if(free){
       var h=postHref(t);
-      if(h) return '<a class="lsn free" href="'+h+'"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span>'+ARR+'</a>';
-      return '<span class="lsn soon"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Soon</span></span>';
+      if(h) return '<a class="lsn free" href="'+h+'"><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span>'+ARR+'</a>';
+      return '<span class="lsn soon"><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Soon</span></span>';
     }
-    return '<a class="lsn pro" href="/pricing.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Pro</span></a>';
+    return '<a class="lsn pro" href="/pricing.html"><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Pro</span></a>';
   }
   // interactive step-player lesson row (dot + title + outcome subtitle + tag + arrow)
   function interRow(l){
     var isQ=l.kind==='quiz', sub=(l.subtitle||'').trim();
     var subHtml=sub?'<span class="lsub">'+esc(sub)+'</span>':'';
-    var chip=(String(l.access||'').toLowerCase()==='pro')?'<span class="ltag pro">Pro</span>':'<span class="ltag free">Free</span>';
-    var tag=chip+'<span class="itag'+(isQ?' quiz':'')+'">'+(isQ?'Quiz':'Interactive')+'</span>';
-    return '<a class="lsn inter" href="/'+l.slug+'.html"><span class="dot"></span><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+subHtml+'</span>'+tag+ARR+'</a>';
+    /* Mark the exception, not the rule. Every row in this renderer IS an
+       interactive lesson, so stamping "Interactive" on each one is a tautology
+       repeated down the whole page; "Quiz" stays because it actually varies.
+       "Free" goes the same way: the section heading already says the section is
+       free to read, so an unmarked row means free and only Pro is worth a
+       word. */
+    var chip=(String(l.access||'').toLowerCase()==='pro')?'<span class="ltag pro">Pro</span>':'';
+    var tag=chip+(isQ?'<span class="itag quiz">Quiz</span>':'');
+    return '<a class="lsn inter" href="/'+l.slug+'.html"><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+subHtml+'</span>'+tag+ARR+'</a>';
   }
   // B6 section block: numbered chip + title + outcome + Free/Pro badge, then a
   // hairline-ruled table of rows. Open by default (collapsible), concept rows are

@@ -307,7 +307,7 @@ Object.assign(LIFECYCLE, {
     required: ["free_url"],
     fills: (d: TemplateData) => ({
       first_name: firstName(d),
-      free_url: d.free_url || SITE + "/R-Syntax-101.html",
+      free_url: d.free_url || SITE + "/Importing-and-Tidy-Data-in-R.html",
     }),
   },
   /* The closed shelf: daily lessons that shut behind a reader who was using
