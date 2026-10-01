@@ -50,6 +50,25 @@ window.XN_HUBS=[
      colour mapped to nothing a reader could use: it was decoration wearing the
      costume of a legend. The category names are the information. */
   function dot(){ return ''; }
+
+  /* Is there more of the pane below the fold? Drives the fade, and is recomputed
+     on scroll, on category change and on resize, so the fade is never left on at
+     the end of a short list. */
+  function xnPaneMore(root){
+    var pane = (root || document).querySelector('.xn-pane');
+    var body = (root || document).querySelector('.xn-body2');
+    if (!pane || !body) return;
+    var more = pane.scrollHeight - pane.clientHeight - pane.scrollTop > 4;
+    body.classList.toggle('xn-more', more);
+  }
+  function xnWatchPane(root){
+    var pane = (root || document).querySelector('.xn-pane');
+    if (!pane || pane.dataset.xnWatched) return;
+    pane.dataset.xnWatched = '1';
+    pane.addEventListener('scroll', function(){ xnPaneMore(root); }, { passive: true });
+    window.addEventListener('resize', function(){ xnPaneMore(root); });
+    xnPaneMore(root);
+  }
   function railHTML(){
     var items = window.XN_HUBS.map(function(cat,i){
       return '<button class="xn-cat" role="tab" data-i="'+i+'" aria-selected="'+(i===0?'true':'false')+'">'+
@@ -121,7 +140,7 @@ window.XN_HUBS=[
     if (!link || link.closest('.xn-wrap')) return;
 
     if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=11';
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=12';
       l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
     }
 
@@ -147,6 +166,10 @@ window.XN_HUBS=[
       cats.forEach(function(c){ c.setAttribute('aria-selected', c===el ? 'true':'false'); });
       var i = el.getAttribute('data-i');
       pane.innerHTML = paneHTML(i === 'quiz' ? 'quiz' : parseInt(i,10));
+      /* New category, new length: reset to the top and recompute whether there
+         is anything below, or a short list inherits the previous one's fade. */
+      pane.scrollTop = 0;
+      xnPaneMore(drop);
     }
     cats.forEach(function(c){
       c.addEventListener('mouseenter', function(){ activate(c); });
@@ -156,7 +179,9 @@ window.XN_HUBS=[
     activate(cats[0]);
 
     var open = false, closeT;
-    function setOpen(o){ open = o; wrap.classList.toggle('xn-open', o); link.setAttribute('aria-expanded', o ? 'true' : 'false'); }
+    function setOpen(o){ open = o; wrap.classList.toggle('xn-open', o); link.setAttribute('aria-expanded', o ? 'true' : 'false');
+      /* Heights are only measurable once the panel is actually visible. */
+      if (o) xnWatchPane(drop); }
     function canPanel(){ return window.innerWidth > 980 && window.matchMedia('(hover:hover)').matches; }
     wrap.addEventListener('mouseenter', function(){ if (canPanel()){ clearTimeout(closeT); setOpen(true); } });
     wrap.addEventListener('mouseleave', function(){ if (canPanel()){ closeT = setTimeout(function(){ setOpen(false); }, 140); } });

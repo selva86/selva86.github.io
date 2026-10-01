@@ -73,8 +73,8 @@
         done.hidden = false;
         if (chosen === 'unsure') {
           done.textContent = res && res.sent
-            ? 'Sent. One lesson to try, and nothing after it.'
-            : 'Noted. I will send you one lesson to try, and nothing after it.';
+            ? 'Check your inbox. The lesson is on its way, and it is the only email you will get.'
+            : 'Noted. I will send that lesson over, and nothing after it.';
         } else if (res && res.already) done.textContent = 'You are already on the list. You will hear from me the moment there is a discount.';
         else if (res && res.sent) done.textContent = 'Sent. There is one question in it, which tells me when to send the code.';
         else done.textContent = 'Noted. You will hear from me the moment there is a discount.';

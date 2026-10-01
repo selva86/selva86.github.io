@@ -55,12 +55,14 @@ export const onRequestPost: PagesFunction<Env & AlertEnv, string, RequestData> =
     // A closed / expired / unsubscribed row asked again: reopen it fresh.
     await DB.prepare(
       `UPDATE price_alerts SET user_id = COALESCE(?1, user_id), surface = ?2, country = ?3, created_at = ?4,
+         reason = ?5,
          intent = NULL, intent_at = NULL, offer_due_at = NULL, offer_sent_at = NULL, offer_code = NULL,
          offer_expires_at = NULL, reminder_sent_at = NULL, last30_sent_at = NULL, closed_sent_at = NULL,
          purchased_at = NULL, unsubscribed_at = NULL
-       WHERE id = ?5`,
-    ).bind(u?.id ?? null, surface, country, now, existing.id).run();
+       WHERE id = ?6`,
+    ).bind(u?.id ?? null, surface, country, now, reason, existing.id).run();
     row = { ...existing, user_id: u?.id ?? existing.user_id, surface, country, created_at: now,
+      reason,
       intent: null, intent_at: null, offer_due_at: null, offer_sent_at: null, offer_code: null, offer_expires_at: null,
       reminder_sent_at: null, last30_sent_at: null, closed_sent_at: null, purchased_at: null, unsubscribed_at: null };
   } else {
@@ -68,7 +70,10 @@ export const onRequestPost: PagesFunction<Env & AlertEnv, string, RequestData> =
       "INSERT INTO price_alerts (user_id, email, surface, country, created_at, reason) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
     ).bind(u?.id ?? null, email, surface, country, now, reason).run();
     const id = Number(ins.meta?.last_row_id ?? 0);
+    /* reason belongs here as much as in the INSERT: this object, not the
+       database row, is what sendAlertConfirmation reads to pick the template. */
     row = { id, user_id: u?.id ?? null, email, surface, country, created_at: now,
+      reason,
       intent: null, intent_at: null, offer_due_at: null, offer_sent_at: null, offer_code: null, offer_expires_at: null,
       reminder_sent_at: null, last30_sent_at: null, closed_sent_at: null, purchased_at: null, unsubscribed_at: null };
   }
