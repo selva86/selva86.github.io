@@ -26,8 +26,11 @@
      each, because the answer they tapped already told us what they care about
      and repeating it back is the only thing that makes the field make sense. */
   var PROMPT = {
-    price: 'One email, only if there is ever a discount. Where should I send it?',
-    unsure: 'Then the quickest way to know is to do one. Where should I send it?'
+    price: 'Leave your email and I will write to you the moment there is a discount on Pro. '
+         + 'That is the only thing I will ever use it for: no newsletter, no sequence, and you can '
+         + 'stop it from that one email.',
+    unsure: 'Leave your email and I will send you one complete lesson, free and with no card. '
+          + 'You will know inside fifteen minutes whether the way it teaches suits you.'
   };
   function ga(name, params) { try { if (typeof gtag === 'function') gtag('event', name, params || {}); } catch (e) {} }
   /* The same anon id every other beacon on the page uses. Passed to
