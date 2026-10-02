@@ -30,7 +30,7 @@
          + 'That is the only thing I will ever use it for: no newsletter, no sequence, and you can '
          + 'stop it from that one email.',
     unsure: 'Leave your email and I will send you one complete lesson, free and with no card. '
-          + 'You will know inside fifteen minutes whether the way it teaches suits you.'
+          + 'It takes about fifteen minutes, which is enough to judge it on.'
   };
   function ga(name, params) { try { if (typeof gtag === 'function') gtag('event', name, params || {}); } catch (e) {} }
   /* The same anon id every other beacon on the page uses. Passed to
