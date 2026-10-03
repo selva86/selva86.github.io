@@ -100,7 +100,7 @@
           (showCounter ? ' <span>&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '') +
         '</span>' +
         '<div class="lm-top-right">' +
-          '<span class="lm-stepn">Step <b class="lm-cur">1</b> / ' + total + '</span>' +
+          '<span class="lm-stepn"><span class="lm-stepw">Step </span><b class="lm-cur">1</b> / ' + total + '</span>' +
           '<button class="lm-fs" type="button" aria-label="Toggle fullscreen">' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>' +
           '<a class="lm-cert" href="/pricing.html">Get certified</a>' +

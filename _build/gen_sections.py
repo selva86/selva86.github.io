@@ -108,6 +108,7 @@ def render_scripts(page_js=None):
              '  <script defer src="/www/signin-modal.js?v=1"></script>',
              '  <script defer src="/www/sections-v3.js?v=2"></script>',
              '  <script defer src="/www/site-nav.js?v=9"></script>',
+             '  <script defer src="/www/feedback-widget.js?v=4"></script>',
              '  <script defer src="/www/practice-nav.js?v=15"></script>',
              '  <script defer src="/www/roadmap-nav.js?v=10"></script>',
              '  <script defer src="/www/tutorials-nav.js?v=9"></script>',
@@ -152,7 +153,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 {FOUC}
 {FONTS}
 <link rel="stylesheet" href="/www/sections-v3.css?v=3">
-<link rel="stylesheet" href="/www/site-nav.css?v=17">
+<link rel="stylesheet" href="/www/site-nav.css?v=18">
 <style>html,body{{overflow-x:clip;max-width:100vw}}</style>
 <style>
 {page_css}
