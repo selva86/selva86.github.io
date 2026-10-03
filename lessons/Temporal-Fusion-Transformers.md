@@ -1,5 +1,5 @@
 ---
-title: "Machine Learning and Deep Forecasting Lesson 6: A Temporal Fusion Transformer's three inputs, and what it pays attention to"
+title: "Machine Learning and Deep Forecasting Lesson 6: How a Temporal Fusion Transformer forecasts"
 slug: "Temporal-Fusion-Transformers"
 description: "See the three inputs a Temporal Fusion Transformer separates, compute a softmax attention weight by hand on real liquor sales, and judge if it earns its cost."
 keywords: "Temporal Fusion Transformer, TFT forecasting, attention mechanism forecasting, static covariate, known future input, observed past input, softmax attention weights, multi-horizon forecasting, R time series"
@@ -20,7 +20,7 @@ catalog_blurb: "What a Temporal Fusion Transformer actually attends to, and whet
 ---
 
 === step === cover
-## A Temporal Fusion Transformer's three inputs, and what it pays attention to
+## How a Temporal Fusion Transformer forecasts
 
 Today let's see what a Temporal Fusion Transformer actually looks at before it makes a forecast, and why it can end up paying more attention to a month from a year ago than to last month.
 
