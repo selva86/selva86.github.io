@@ -38,11 +38,11 @@
   }
 
   var ROUTES = [
-    { id: 'bug',     label: 'Report a bug',      sub: 'Something is wrong or broken' },
-    { id: 'idea',    label: 'Request a feature', sub: 'Something you wish existed' },
-    { id: 'content', label: 'Content feedback',  sub: 'A lesson, tutorial or exercise' },
-    { id: 'sales',   label: 'Sales enquiry',     sub: 'Teams, invoicing, or a question about Pro' },
-    { id: 'general', label: 'Something else',    sub: 'Anything that does not fit above' },
+    { id: 'bug',     label: 'Report a bug' },
+    { id: 'idea',    label: 'Request a feature' },
+    { id: 'content', label: 'Content feedback' },
+    { id: 'sales',   label: 'Sales enquiry' },
+    { id: 'general', label: 'Something else' },
   ];
   /* Placeholders ask for the one thing that makes each kind actionable. A bug
      with no steps and a feature request with no use case both cost a round
@@ -85,13 +85,17 @@
     '.rsfb-x{font-size:19px}.rsfb-x:hover,.rsfb-back:hover{color:#14161b;background:#f1f3f6}',
     '.rsfb-back svg{width:15px;height:15px}',
     /* routes */
-    '.rsfb-list{padding:5px}',
-    '.rsfb-item{display:block;width:100%;text-align:left;border:0;background:none;cursor:pointer;',
-    'padding:9px 10px;border-radius:9px;font:inherit}',
+    '.rsfb-list{padding:6px}',
+    '.rsfb-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;',
+    'background:none;cursor:pointer;padding:11px 11px;border-radius:9px;font:inherit;',
+    'font-size:14px;font-weight:600;color:#14161b;line-height:1.3}',
     '.rsfb-item:hover{background:#f1f3f6}',
     '.rsfb-item:focus-visible{outline:2px solid #2056d2;outline-offset:-2px}',
-    '.rsfb-il{display:block;font-size:13.5px;font-weight:600;color:#14161b}',
-    '.rsfb-is{display:block;font-size:11.5px;color:#868b94;margin-top:1px;line-height:1.4}',
+    '.rsfb-il{flex:1;min-width:0}',
+    /* the chevron is the whole affordance now that the gloss is gone: it says
+       the row goes somewhere rather than toggling something */
+    '.rsfb-ic{width:15px;height:15px;flex:none;color:#c3cad9;transition:transform .14s ease,color .14s ease}',
+    '.rsfb-item:hover .rsfb-ic{color:#14161b;transform:translateX(2px)}',
     /* composer */
     '.rsfb-form{padding:13px 15px 15px}',
     '.rsfb-form label{display:block;font-size:11.5px;font-weight:600;color:#14161b;margin:0 0 5px}',
@@ -175,7 +179,8 @@
         (withBack ? '<button type="button" class="rsfb-back" aria-label="Back to the list">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
           'stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>' : '') +
-        '<b>' + esc(title) + '<span class="rsfb-sub">Real people reply</span></b>' +
+        '<b>' + esc(title) +
+          (withBack ? '' : '<span class="rsfb-sub">Real people reply</span>') + '</b>' +
         '<button type="button" class="rsfb-x" aria-label="Close">&times;</button></div>';
     }
 
@@ -184,7 +189,9 @@
         ROUTES.map(function (r) {
           return '<button type="button" class="rsfb-item" data-route="' + r.id + '">' +
             '<span class="rsfb-il">' + esc(r.label) + '</span>' +
-            '<span class="rsfb-is">' + esc(r.sub) + '</span></button>';
+            '<svg class="rsfb-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+            'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<polyline points="9 6 15 12 9 18"/></svg></button>';
         }).join('') + '</div>';
     }
 
@@ -195,8 +202,8 @@
       var where = location.pathname.length > 34 ? location.pathname.slice(0, 33) + '...' : location.pathname;
       panel.innerHTML = head(r.label, true) +
         '<div class="rsfb-form">' +
-          '<label for="rsfb-msg">' + esc(r.sub) + '</label>' +
-          '<textarea id="rsfb-msg" data-msg placeholder="' + esc(PROMPT[r.id] || '') + '"></textarea>' +
+          '<textarea id="rsfb-msg" aria-label="' + esc(r.label) + '" data-msg ' +
+          'placeholder="' + esc(PROMPT[r.id] || '') + '"></textarea>' +
           '<div class="rsfb-meta">' +
             '<span class="rsfb-where" title="' + esc(location.pathname) + '">Sent from ' + esc(where) + '</span>' +
             '<span class="rsfb-count" data-count>0</span>' +
@@ -205,10 +212,7 @@
             '<div class="rsfb-field"><label for="rsfb-em">Email, if you would like a reply</label>' +
             '<input id="rsfb-em" type="email" data-email placeholder="you@email.com" autocomplete="email"></div>') +
           '<button type="button" class="rsfb-send" data-send disabled>Send</button>' +
-          '<p class="rsfb-note">' +
-            (signedIn ? 'Sent from your account, so I can write back.'
-                      : 'The email is optional. Without it I have no way to reply.') +
-          '</p>' +
+          (signedIn ? '<p class="rsfb-note">Sent from your account, so I can write back.</p>' : '') +
           '<p class="rsfb-err" data-err hidden></p>' +
         '</div>';
       var ta = panel.querySelector('[data-msg]');
