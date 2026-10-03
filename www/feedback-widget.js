@@ -1,4 +1,4 @@
-// feedback-widget.js v1 -- the standing "Feedback" launcher, bottom right.
+// feedback-widget.js v2 -- the standing "Feedback" launcher, bottom right.
 //
 // A page that only takes feedback through /feedback.html collects it from the
 // small number of people who go looking. A launcher that is always there
@@ -11,9 +11,12 @@
 // only "sales" is new, and a sales enquiry is a lead rather than feedback, so
 // the endpoint marks it differently in the owner's inbox.
 //
-// It stays out of the way of the lesson player: a floating pill in the bottom
-// right would sit on top of "Continue" and the rail, and the player is the one
-// place on the site where the reader is mid-task.
+// v2 fixes a bug that made the composer unusable: the outside-click handler
+// tested root.contains(e.target) while bubbling, but by then choosing a route
+// had already replaced the panel's contents, so the clicked button was
+// detached, containment read false, and the panel shut itself a frame after
+// opening the form. The test now runs in the capture phase, before any
+// handler has had the chance to rewrite the DOM underneath it.
 (function () {
   'use strict';
 
@@ -21,8 +24,8 @@
   window.__rsFeedbackWidget = true;
 
   /* The player owns the whole viewport and its own bottom-right controls.
-     lesson-locked and the checkout return are decision moments where a second
-     floating thing competes with the only action that matters. */
+     lesson-locked and welcome are decision moments where a second floating
+     thing competes with the only action that matters. */
   function suppressed() {
     try {
       var b = document.body;
@@ -41,13 +44,17 @@
     { id: 'sales',   label: 'Sales enquiry',     sub: 'Teams, invoicing, or a question about Pro' },
     { id: 'general', label: 'Something else',    sub: 'Anything that does not fit above' },
   ];
+  /* Placeholders ask for the one thing that makes each kind actionable. A bug
+     with no steps and a feature request with no use case both cost a round
+     trip to answer. */
   var PROMPT = {
-    bug:     'What went wrong, and where?',
-    idea:    'What would you like to be able to do?',
-    content: 'Which lesson or page, and what is off about it?',
-    sales:   'What do you need? Seats, invoicing, or something about a plan.',
-    general: 'Go ahead.',
+    bug:     'What did you do, and what happened instead?',
+    idea:    'What would you like to be able to do, and what are you doing today instead?',
+    content: 'Which lesson or page, and what is wrong with it?',
+    sales:   'How many people, and what do you need? Seats, invoicing, procurement.',
+    general: 'Go ahead, I am reading.',
   };
+  var MIN = 10;
 
   var CSS = [
     '.rsfb{position:fixed;right:18px;bottom:18px;z-index:2147483000;',
@@ -64,20 +71,18 @@
     ".rsfb-t1{font-family:'Inter Tight',Inter,sans-serif;font-weight:700;font-size:13.5px}",
     '.rsfb-t2{font-size:10.5px;color:#c3cad9;font-weight:500;margin-top:1px}',
     /* panel */
-    '.rsfb-panel{position:absolute;right:0;bottom:calc(100% + 10px);width:320px;max-width:calc(100vw - 32px);',
+    '.rsfb-panel{position:absolute;right:0;bottom:calc(100% + 10px);width:372px;',
+    'max-width:calc(100vw - 32px);max-height:calc(100vh - 120px);overflow:auto;',
     'background:#fff;border:1px solid #e8eaee;border-radius:14px;box-shadow:0 24px 60px -18px rgba(9,14,26,.32);',
-    'overflow:hidden;opacity:0;visibility:hidden;transform:translateY(6px);pointer-events:none;',
+    'opacity:0;visibility:hidden;transform:translateY(6px);pointer-events:none;',
     'transition:opacity .16s ease,transform .16s ease,visibility .16s}',
     '.rsfb.is-open .rsfb-panel{opacity:1;visibility:visible;transform:none;pointer-events:auto}',
     '.rsfb-hd{padding:13px 15px 11px;border-bottom:1px solid #f1f3f6;display:flex;align-items:center;gap:8px}',
-    ".rsfb-hd b{font-family:'Inter Tight',Inter,sans-serif;font-size:14.5px;color:#14161b;flex:1}",
+    ".rsfb-hd b{font-family:'Inter Tight',Inter,sans-serif;font-size:14.5px;color:#14161b;flex:1;font-weight:700}",
     '.rsfb-hd .rsfb-sub{display:block;font-size:11px;color:#868b94;font-weight:500;margin-top:1px}',
-    '.rsfb-x{appearance:none;border:0;background:none;color:#868b94;font-size:19px;line-height:1;',
-    'cursor:pointer;padding:2px 4px;border-radius:6px}',
-    '.rsfb-x:hover{color:#14161b;background:#f1f3f6}',
-    '.rsfb-back{appearance:none;border:0;background:none;color:#868b94;cursor:pointer;padding:2px 4px;',
-    'border-radius:6px;display:flex;align-items:center}',
-    '.rsfb-back:hover{color:#14161b;background:#f1f3f6}',
+    '.rsfb-x,.rsfb-back{appearance:none;border:0;background:none;color:#868b94;cursor:pointer;',
+    'padding:3px 5px;border-radius:6px;display:flex;align-items:center;line-height:1}',
+    '.rsfb-x{font-size:19px}.rsfb-x:hover,.rsfb-back:hover{color:#14161b;background:#f1f3f6}',
     '.rsfb-back svg{width:15px;height:15px}',
     /* routes */
     '.rsfb-list{padding:5px}',
@@ -87,25 +92,38 @@
     '.rsfb-item:focus-visible{outline:2px solid #2056d2;outline-offset:-2px}',
     '.rsfb-il{display:block;font-size:13.5px;font-weight:600;color:#14161b}',
     '.rsfb-is{display:block;font-size:11.5px;color:#868b94;margin-top:1px;line-height:1.4}',
-    /* compose */
-    '.rsfb-form{padding:12px 15px 14px}',
-    '.rsfb-form textarea{width:100%;min-height:92px;resize:vertical;font:inherit;font-size:13.5px;',
-    'padding:9px 10px;border:1px solid #e8eaee;border-radius:9px;color:#14161b;background:#fff}',
-    '.rsfb-form textarea:focus{outline:0;border-color:#2056d2}',
-    '.rsfb-form input{width:100%;font:inherit;font-size:13px;padding:8px 10px;margin-top:8px;',
+    /* composer */
+    '.rsfb-form{padding:13px 15px 15px}',
+    '.rsfb-form label{display:block;font-size:11.5px;font-weight:600;color:#14161b;margin:0 0 5px}',
+    '.rsfb-form textarea{width:100%;min-height:148px;resize:vertical;font:inherit;font-size:13.5px;',
+    'line-height:1.55;padding:10px 11px;border:1px solid #e8eaee;border-radius:9px;color:#14161b;background:#fff}',
+    '.rsfb-form textarea:focus{outline:0;border-color:#2056d2;box-shadow:0 0 0 3px rgba(32,86,210,.12)}',
+    '.rsfb-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}',
+    '.rsfb-count{font-size:11px;color:#868b94;font-variant-numeric:tabular-nums}',
+    '.rsfb-where{font-size:11px;color:#868b94;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}',
+    '.rsfb-form input{width:100%;font:inherit;font-size:13px;padding:9px 11px;margin-top:4px;',
     'border:1px solid #e8eaee;border-radius:9px;color:#14161b;background:#fff}',
-    '.rsfb-form input:focus{outline:0;border-color:#2056d2}',
-    '.rsfb-send{margin-top:10px;width:100%;appearance:none;border:0;background:#14161b;color:#fff;',
-    "font-family:'Inter Tight',Inter,sans-serif;font-weight:700;font-size:13.5px;padding:10px;",
-    'border-radius:9px;cursor:pointer}',
-    '.rsfb-send:hover{background:#262a31}',
-    '.rsfb-send[disabled]{opacity:.55;cursor:default}',
-    '.rsfb-note{margin:8px 0 0;font-size:11px;color:#868b94;line-height:1.5}',
-    '.rsfb-err{margin:8px 0 0;font-size:12px;color:#a3261b}',
-    '.rsfb-done{padding:22px 16px;text-align:center}',
+    '.rsfb-form input:focus{outline:0;border-color:#2056d2;box-shadow:0 0 0 3px rgba(32,86,210,.12)}',
+    '.rsfb-field{margin-top:12px}',
+    '.rsfb-send{margin-top:12px;width:100%;appearance:none;border:0;background:#14161b;color:#fff;',
+    "font-family:'Inter Tight',Inter,sans-serif;font-weight:700;font-size:13.5px;padding:11px;",
+    'border-radius:9px;cursor:pointer;transition:background .14s}',
+    '.rsfb-send:hover:not([disabled]){background:#262a31}',
+    '.rsfb-send[disabled]{background:#c3cad9;cursor:default}',
+    '.rsfb-note{margin:9px 0 0;font-size:11px;color:#868b94;line-height:1.5}',
+    '.rsfb-err{margin:9px 0 0;font-size:12px;color:#a3261b;line-height:1.5}',
+    /* done */
+    '.rsfb-done{padding:26px 18px;text-align:center}',
+    '.rsfb-done .rsfb-tick{width:38px;height:38px;border-radius:50%;background:#e7f6ec;color:#166534;',
+    'display:flex;align-items:center;justify-content:center;margin:0 auto 11px}',
+    '.rsfb-done .rsfb-tick svg{width:19px;height:19px}',
     ".rsfb-done b{display:block;font-family:'Inter Tight',Inter,sans-serif;font-size:15px;color:#14161b}",
-    '.rsfb-done p{margin:6px 0 0;font-size:12.5px;color:#868b94;line-height:1.5}',
-    '@media(max-width:560px){.rsfb{right:12px;bottom:12px}.rsfb-t2{display:none}}',
+    '.rsfb-done p{margin:6px 0 0;font-size:12.5px;color:#868b94;line-height:1.55}',
+    '.rsfb-again{margin-top:13px;appearance:none;border:1px solid #e8eaee;background:#fff;color:#14161b;',
+    'font:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;cursor:pointer}',
+    '.rsfb-again:hover{background:#f1f3f6}',
+    '@media(max-width:560px){.rsfb{right:12px;bottom:12px}.rsfb-t2{display:none}',
+    '.rsfb-panel{width:calc(100vw - 24px)}}',
     '@media(prefers-reduced-motion:reduce){.rsfb-btn,.rsfb-panel{transition:none}}',
   ].join('');
 
@@ -137,7 +155,7 @@
     var root = document.createElement('div');
     root.className = 'rsfb';
     root.innerHTML =
-      '<div class="rsfb-panel" role="dialog" aria-label="Send feedback" aria-modal="false"></div>' +
+      '<div class="rsfb-panel" role="dialog" aria-label="Send feedback"></div>' +
       '<button type="button" class="rsfb-btn" aria-expanded="false" aria-haspopup="dialog">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -150,10 +168,11 @@
     var panel = root.querySelector('.rsfb-panel');
     var btn = root.querySelector('.rsfb-btn');
     var open = false;
+    var route = 'general';
 
     function head(title, withBack) {
       return '<div class="rsfb-hd">' +
-        (withBack ? '<button type="button" class="rsfb-back" aria-label="Back">' +
+        (withBack ? '<button type="button" class="rsfb-back" aria-label="Back to the list">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
           'stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>' : '') +
         '<b>' + esc(title) + '<span class="rsfb-sub">Real people reply</span></b>' +
@@ -169,43 +188,71 @@
         }).join('') + '</div>';
     }
 
-    function showForm(route) {
-      var r = ROUTES.filter(function (x) { return x.id === route; })[0] || ROUTES[4];
+    function showForm(id) {
+      route = id;
+      var r = ROUTES.filter(function (x) { return x.id === id; })[0] || ROUTES[4];
       var signedIn = !!readToken();
+      var where = location.pathname.length > 34 ? location.pathname.slice(0, 33) + '...' : location.pathname;
       panel.innerHTML = head(r.label, true) +
         '<div class="rsfb-form">' +
-          '<textarea data-msg placeholder="' + esc(PROMPT[r.id] || '') + '"></textarea>' +
-          (signedIn ? '' : '<input type="email" data-email placeholder="Email, if you would like a reply">') +
-          '<button type="button" class="rsfb-send" data-send>Send</button>' +
+          '<label for="rsfb-msg">' + esc(r.sub) + '</label>' +
+          '<textarea id="rsfb-msg" data-msg placeholder="' + esc(PROMPT[r.id] || '') + '"></textarea>' +
+          '<div class="rsfb-meta">' +
+            '<span class="rsfb-where" title="' + esc(location.pathname) + '">Sent from ' + esc(where) + '</span>' +
+            '<span class="rsfb-count" data-count>0</span>' +
+          '</div>' +
+          (signedIn ? '' :
+            '<div class="rsfb-field"><label for="rsfb-em">Email, if you would like a reply</label>' +
+            '<input id="rsfb-em" type="email" data-email placeholder="you@email.com" autocomplete="email"></div>') +
+          '<button type="button" class="rsfb-send" data-send disabled>Send</button>' +
           '<p class="rsfb-note">' +
-            (signedIn ? 'Sent from your account, so I can reply.'
-                      : 'The email is optional. Without it I cannot write back.') +
+            (signedIn ? 'Sent from your account, so I can write back.'
+                      : 'The email is optional. Without it I have no way to reply.') +
           '</p>' +
           '<p class="rsfb-err" data-err hidden></p>' +
         '</div>';
       var ta = panel.querySelector('[data-msg]');
-      if (ta) ta.focus();
+      if (ta) { ta.focus(); gauge(); }
     }
 
-    function showDone(route) {
-      panel.innerHTML = '<div class="rsfb-done"><b>Thank you, that is with me.</b>' +
-        '<p>' + (route === 'sales'
-          ? 'Sales enquiries get a reply the same day, usually sooner.'
-          : 'I read every one of these myself.') + '</p></div>';
-      setTimeout(function () { if (open) setOpen(false); }, 2600);
+    /* Send stays disabled until there is enough to act on, and the count says
+       how far off they are rather than rejecting them after the fact. */
+    function gauge() {
+      var ta = panel.querySelector('[data-msg]');
+      var c = panel.querySelector('[data-count]');
+      var go = panel.querySelector('[data-send]');
+      if (!ta || !go) return;
+      var n = ta.value.trim().length;
+      go.disabled = n < MIN;
+      if (c) c.textContent = n < MIN ? (MIN - n) + ' more' : String(n);
     }
 
-    function send(route) {
+    function showDone() {
+      panel.innerHTML =
+        '<div class="rsfb-done">' +
+          '<span class="rsfb-tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+          'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' +
+          '<b>Thank you, that is with me.</b>' +
+          '<p>' + (route === 'sales'
+            ? 'Sales enquiries get a reply the same day, usually sooner.'
+            : 'I read every one of these myself.') + '</p>' +
+          '<button type="button" class="rsfb-again" data-again>Send another</button>' +
+        '</div>';
+    }
+
+    function send() {
       var ta = panel.querySelector('[data-msg]');
       var em = panel.querySelector('[data-email]');
       var err = panel.querySelector('[data-err]');
       var go = panel.querySelector('[data-send]');
       var msg = (ta && ta.value || '').trim();
-      if (msg.length < 3) { if (err) { err.hidden = false; err.textContent = 'A little more detail, and I can act on it.'; } if (ta) ta.focus(); return; }
+      if (msg.length < MIN) { if (ta) ta.focus(); return; }
       var addr = (em && em.value || '').trim();
       if (addr && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(addr)) {
-        if (err) { err.hidden = false; err.textContent = 'That email does not look right.'; } if (em) em.focus(); return;
+        if (err) { err.hidden = false; err.textContent = 'That email does not look right.'; }
+        if (em) em.focus(); return;
       }
+      if (err) err.hidden = true;
       if (go) { go.disabled = true; go.textContent = 'Sending'; }
       var h = { 'Content-Type': 'application/json' };
       var tok = readToken(); if (tok) h.Authorization = 'Bearer ' + tok;
@@ -220,7 +267,7 @@
             return;
           }
           try { if (typeof gtag === 'function') gtag('event', 'feedback_sent', { category: route }); } catch (e) {}
-          showDone(route);
+          showDone();
         })
         .catch(function () {
           if (go) { go.disabled = false; go.textContent = 'Send'; }
@@ -235,24 +282,28 @@
       if (o) showRoutes();
     }
 
-    btn.addEventListener('click', function () { setOpen(!open); });
+    btn.addEventListener('click', function (e) { e.stopPropagation(); setOpen(!open); });
+
     panel.addEventListener('click', function (e) {
       var item = e.target.closest('[data-route]');
       if (item) { showForm(item.getAttribute('data-route')); return; }
       if (e.target.closest('.rsfb-x')) { setOpen(false); return; }
       if (e.target.closest('.rsfb-back')) { showRoutes(); return; }
-      var go = e.target.closest('[data-send]');
-      if (go) {
-        var t = panel.querySelector('.rsfb-hd b');
-        var label = t ? t.firstChild.nodeValue : '';
-        var r = ROUTES.filter(function (x) { return x.label === label; })[0];
-        send(r ? r.id : 'general');
-      }
+      if (e.target.closest('[data-again]')) { showForm(route); return; }
+      if (e.target.closest('[data-send]')) { send(); }
     });
+    panel.addEventListener('input', function (e) { if (e.target.matches('[data-msg]')) gauge(); });
+    panel.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && e.target.matches('[data-msg]')) { e.preventDefault(); send(); }
+    });
+
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) setOpen(false); });
+    /* Capture, not bubble. Choosing a route rewrites the panel, so by the time
+       a bubbling listener runs, the element that was clicked is detached and
+       every containment test reads false. */
     document.addEventListener('click', function (e) {
       if (open && !root.contains(e.target)) setOpen(false);
-    });
+    }, true);
   }
 
   function init() { if (!suppressed()) build(); }
