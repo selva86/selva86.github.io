@@ -11,7 +11,10 @@ import { sendMail, emailShell, type SendMailResult } from "../_lib/email";
 
 const ADMIN_EMAIL = "selva86@gmail.com";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
-const CATEGORIES = new Set(["general", "bug", "content", "idea"]);
+/* "sales" is the one route that is not feedback at all: it is a lead, and it
+   is marked differently in the owner's inbox so it does not sit in a pile of
+   bug reports waiting to be triaged. */
+const CATEGORIES = new Set(["general", "bug", "content", "idea", "sales"]);
 const RATE_MAX = 8;          // submissions per IP per hour
 const RATE_WINDOW = 3600;    // seconds
 
@@ -44,7 +47,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
     const n = parseInt((await env.KV.get(rlKey)) || "0", 10);
     if (n >= RATE_MAX) return jsonError(429, "rate_limited", "Too many submissions. Try again later.");
     await env.KV.put(rlKey, String(n + 1), { expirationTtl: RATE_WINDOW });
-  } catch { /* KV hiccup — don't block genuine feedback */ }
+  } catch { /* KV hiccup, so do not block genuine feedback */ }
 
   let body: { message?: string; email?: string; category?: string; page?: string };
   try { body = await request.json(); } catch { return jsonError(400, "bad_json", "Invalid request body."); }
@@ -76,7 +79,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
     return jsonError(500, "db_error", "Could not save your feedback. Please try again.");
   }
 
-  // Best-effort admin notice — never block or fail the response.
+  // Best-effort admin notice: never block or fail the response.
   context.waitUntil(notifyAdmin(env, { message, email, category, page, country }, userId).catch((e) =>
     console.warn(`[feedback] admin email failed: ${e}`)));
 
@@ -100,7 +103,9 @@ async function notifyAdmin(
   });
   const res = await sendMail(env, {
     to: { email: ADMIN_EMAIL, name: "Selva" },
-    subject: `Feedback (${info.category}): ${info.message.slice(0, 60)}`,
+    subject: info.category === "sales"
+      ? `SALES ENQUIRY: ${info.message.slice(0, 60)}`
+      : `Feedback (${info.category}): ${info.message.slice(0, 60)}`,
     htmlBody: html,
     textBody: `New feedback [${info.category}] from ${info.email || "anonymous"} on ${info.page || "?"}:\n\n${info.message}`,
   });
