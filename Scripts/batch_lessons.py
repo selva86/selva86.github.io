@@ -119,9 +119,31 @@ _WD = ("Work from {root}, which is THE repo for this run. Every repo path "
        "other branches; never read or write any of them, even if a path looks "
        "familiar. ").format(root=ROOTP)
 
+def curriculum_title(slug):
+    """The owner-approved catalog title from the slug's curriculum line
+    (`N. <slug> - title: "<title>" - <focus> ...`), or '' when none is set.
+    Passed to every writing and reviewing stage, the way batch_windowed.py
+    passes the brief's title, so no stage invents or 'improves' it."""
+    import re
+    try:
+        with open(os.path.join(ROOT, 'Plans', 'lessons-curriculum.md'), encoding='utf-8') as f:
+            for line in f:
+                m = re.match(r'\s*\d+\.\s+' + re.escape(slug) + r'\s+-\s+title:\s+"([^"]+)"', line)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return ''
+
+def _title_rule(slug):
+    t = curriculum_title(slug)
+    return ('The catalog title is fixed by the owner: "%s". Use it verbatim as the text '
+            'after the colon in the frontmatter `title` and as the cover step H2; never '
+            'retitle it. ' % t) if t else ''
+
 def plan_prompt(slug):
     return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --plan-only mode "
-            "for the lesson `{slug}`. " + _WD +
+            "for the lesson `{slug}`. " + _WD + _title_rule(slug) +
             "The lesson's course arc is its entry in {root}/Plans/lessons-curriculum.md; "
             "derive its metadata per {root}/_build/lessons-derive.md. Produce ONLY "
             "{root}/post_plans/{slug}_lesson-plan.md. Do not write lesson prose. Do not run "
@@ -129,14 +151,14 @@ def plan_prompt(slug):
 
 def plan_check_prompt(slug):
     return ("Follow the skill at .claude/skills/check-lesson-plan/SKILL.md for the plan "
-            "{root}/post_plans/{slug}_lesson-plan.md. " + _WD +
+            "{root}/post_plans/{slug}_lesson-plan.md. " + _WD + _title_rule(slug) +
             "Fix flow directly in the plan, then set `status: approved`. Do not approve an "
             "unfixable plan. Do not write lesson prose. Do not touch git."
             ).format(slug=slug, root=ROOTP)
 
 def build_prompt(slug):
     return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --build mode for the "
-            "lesson `{slug}`. " + _WD +
+            "lesson `{slug}`. " + _WD + _title_rule(slug) +
             "The plan at {root}/post_plans/{slug}_lesson-plan.md is stamped approved: build "
             "strictly from it (floor, not ceiling; never reorder or re-plan). Write "
             "{root}/lessons/{slug}.md, run both gates until green, and finish with the short "
@@ -146,7 +168,7 @@ def build_prompt(slug):
 def check_prompt(slug):
     return ("Follow the skill at .claude/skills/check-lesson/SKILL.md for the lesson "
             "{root}/lessons/{slug}.md (its approved plan is at "
-            "{root}/post_plans/{slug}_lesson-plan.md). " + _WD +
+            "{root}/post_plans/{slug}_lesson-plan.md). " + _WD + _title_rule(slug) +
             "Apply bounded fixes, re-run both gates, and give the verdict the skill defines. "
             "Do not publish, build the site, or touch git.").format(slug=slug, root=ROOTP)
 
@@ -214,9 +236,27 @@ def run_claude(cli, prompt, timeout=None):
         return 124
 
 
+CATALOG_FILES = ['courses.json', 'functions/_data/pro-lessons.json',
+                 'functions/_data/exercise-manifest.json']
+
 def sync():
+    """Refresh the catalog, the Pro list and the grading manifest, then COMMIT
+    and push them. Publishing runs with --skip-sync, so this is the only place
+    they reach git: before 2026-10-03 sync() regenerated them without
+    committing, and 22 Forecaster lessons went live with no catalog entry, no
+    Pro gating and no grading."""
     subprocess.run([sys.executable, os.path.join('Scripts', 'build_lessons_tracker.py')], cwd=ROOT)
     subprocess.run([sys.executable, os.path.join('_build', 'build_exercise_manifest.py')], cwd=ROOT)
+    if subprocess.run(['git', 'diff', '--quiet', '--'] + CATALOG_FILES, cwd=ROOT).returncode == 0:
+        return
+    subprocess.run(['git', 'add', '--'] + CATALOG_FILES, cwd=ROOT)
+    r = subprocess.run(['git', 'commit', '-m', 'Lesson catalog sync: courses.json, pro-lessons.json, grading manifest',
+                        '--'] + CATALOG_FILES, cwd=ROOT, capture_output=True, text=True)
+    if r.returncode == 0:
+        subprocess.run(['git', 'push', 'origin', 'HEAD'], cwd=ROOT)
+        print('  catalog sync committed and pushed', flush=True)
+    else:
+        print('  catalog sync commit FAILED: %s' % (r.stderr or r.stdout).strip()[-300:], flush=True)
 
 
 # ---- Remediation: catch, fix, re-check, then advance ----
