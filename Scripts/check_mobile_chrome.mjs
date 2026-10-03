@@ -57,7 +57,8 @@ for (const path of PAGES) {
           const r = box(s);
           if (!r) continue;
           if (r.right > cw + 1) out.push(`${s} off-screen (right ${Math.round(r.right)})`);
-          if ((s === '.lm-stepn' || s === '.lm-cert') && r.height > 36) out.push(`${s} wraps (${Math.round(r.height)}px)`);
+          // one line is ~20px for the counter and ~36px for the button; a wrap adds a line
+          if ((s === '.lm-stepn' && r.height > 28) || (s === '.lm-cert' && r.height > 44)) out.push(`${s} wraps (${Math.round(r.height)}px)`);
         }
       }
       if (document.documentElement.scrollWidth > cw + 1) out.push(`page scrolls sideways (${document.documentElement.scrollWidth} > ${cw})`);
