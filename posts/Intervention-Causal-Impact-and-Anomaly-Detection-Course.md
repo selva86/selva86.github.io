@@ -27,7 +27,7 @@ Each lesson is a guided, interactive experience: you run real R code in the page
 
 Code an event on a known date as a step for a permanent shift, a pulse for a one-off or a ramp for a gradual change. Fit it alongside ARIMA errors so serial correlation does not fake significance, and read the coefficient as the effect with its standard error.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Intervention analysis for a known event](Intervention-Analysis-and-Interrupted-Time-Series.html)
 
 ### Lesson 2: Estimating an event's effect with a counterfactual forecast
 
@@ -67,4 +67,4 @@ Analysts and forecasters who already fit ARIMA and ETS models in R and now need 
 
 This course is part of the Forecaster track.
 
-Ready? [Begin with Lesson 2: Estimating an event's effect with a counterfactual forecast](Causal-Impact-of-an-Event.html).
+Ready? [Begin with Lesson 1: Intervention analysis for a known event](Intervention-Analysis-and-Interrupted-Time-Series.html).
