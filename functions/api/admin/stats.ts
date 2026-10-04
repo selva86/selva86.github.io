@@ -411,7 +411,11 @@ function dayFinalTs(dayStr: string): number {
   return Math.floor(Date.parse(dayStr + "T00:00:00Z") / 1000) + 86400 + 7200;
 }
 
-async function cfAnalytics(env: Env & CfEnv, DB: D1Database, now: number, range: RangeKey, retried = false) {
+// Exported so the hourly cron can keep traffic_daily current. The table was
+// only ever written as a side effect of somebody opening this dashboard, so
+// it stopped on 2026-09-20 and the daily digest, which reads it, has been
+// reporting a traffic collapse that was really just an unwritten table.
+export async function cfAnalytics(env: Env & CfEnv, DB: D1Database, now: number, range: RangeKey, retried = false) {
   if (!env.CF_ANALYTICS_TOKEN || !env.CF_ACCOUNT_TAG) {
     return { configured: false as const };
   }

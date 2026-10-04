@@ -241,3 +241,40 @@ export async function flushPendingSignup(
     console.warn(`[notify.flush] failed for ${userId}: ${(e as Error).message}`);
   }
 }
+
+// A parked notification waits for the browser to come back, and sometimes the
+// browser never does: an OAuth signup whose tab is closed on the provider's
+// redirect leaves the notice sitting in KV until it expires 48 hours later,
+// unsent and unnoticed. That is why signups kept arriving while the owner's
+// inbox stayed quiet. This sweep is the server-side path that does not depend
+// on the client returning. It runs on the hourly heartbeat and gives the fast
+// paths a grace period first, so a notification is normally sent by
+// /api/me/signup-context within seconds and this only ever catches the
+// strays.
+const PENDING_GRACE = 15 * 60; // let the browser win when it is coming back
+const PENDING_SWEEP_MAX = 25;  // a quiet bound on one run's work
+
+export async function sweepPendingSignups(env: Env): Promise<number> {
+  try {
+    if ((await env.KV.get("flag:signup-admin-email")) !== "on") return 0;
+    const now = Math.floor(Date.now() / 1000);
+    const listed = await env.KV.list({ prefix: "signup-pending:", limit: 200 });
+    let sent = 0;
+    for (const k of listed.keys) {
+      if (sent >= PENDING_SWEEP_MAX) break;
+      // The key carries a 48h TTL, so its expiry timestamp says when it was
+      // parked. No expiry means an old key written before the TTL existed,
+      // which is unambiguously stale and safe to flush.
+      const parkedAt = k.expiration ? k.expiration - PENDING_TTL : 0;
+      if (parkedAt && now - parkedAt < PENDING_GRACE) continue;
+      const userId = k.name.slice("signup-pending:".length);
+      if (!userId) continue;
+      await flushPendingSignup(env, userId);
+      sent += 1;
+    }
+    return sent;
+  } catch (e) {
+    console.warn(`[notify.sweep] failed: ${(e as Error).message}`);
+    return 0;
+  }
+}

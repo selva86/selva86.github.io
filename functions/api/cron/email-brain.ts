@@ -7,6 +7,8 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { sweepAbandonedCheckouts } from "../../_lib/cartrecovery";
+import { sweepPendingSignups } from "../../_lib/notify";
+import { cfAnalytics } from "../admin/stats";
 import { sweepPriceAlerts } from "../../_lib/pricealerts";
 import { json, err401 } from "../../_lib/errors";
 import { runBrain } from "../../_lib/brain";
@@ -32,12 +34,32 @@ export const onRequestPost: PagesFunction<Env & { CRON_SECRET?: string; EMAIL_UN
   if (!isCron && !isAdmin) return err401();
 
   const url = new URL(context.request.url);
-  const result = await runBrain(context.env, {
-    execute: true,
-    forceDaily: url.searchParams.get("force_daily") === "1",
-  });
-  const counts: Record<string, number> = {};
-  for (const d of result.decisions) counts[d.action] = (counts[d.action] || 0) + 1;
+
+  // These four are registered BEFORE the brain runs, and that ordering is
+  // deliberate. They used to be registered after it, which meant they were
+  // hostage to it: the daily 13:00 run is long enough to be cut off part way
+  // through, and a run that never returns never reaches the lines that queue
+  // them, so the busiest hour of the day was also the one hour these did not
+  // happen. None of them depends on the brain's result, so none of them should
+  // wait on it.
+
+  // A parked signup notification is normally flushed by the browser coming
+  // back. When it does not come back, nothing sent the notice at all and it
+  // expired in KV two days later. This is the path that does not need a
+  // browser.
+  try { context.waitUntil(sweepPendingSignups(context.env).then(() => undefined).catch(() => undefined)); } catch (_) {}
+  // Snapshot traffic into traffic_daily. This used to happen only when the
+  // admin dashboard was opened, so the table went stale on 2026-09-20 and the
+  // daily digest, which reads it, has been reporting an apparent traffic
+  // collapse ever since. A 30-day range also backfills the days that were
+  // missed, since Cloudflare keeps 30 days of RUM. The 30-minute response
+  // cache is shorter than this hourly beat, so each run really does refresh.
+  try {
+    context.waitUntil(
+      cfAnalytics(context.env as never, context.env.DB, Math.floor(Date.now() / 1000), "30d")
+        .then(() => undefined).catch(() => undefined),
+    );
+  } catch (_) {}
   // Cart-recovery rides the same hourly heartbeat, so both recovery touches
   // land on schedule even in zero-traffic hours (internally 30-min throttled).
   try { context.waitUntil(sweepAbandonedCheckouts(context.env)); } catch (_) {}
@@ -55,5 +77,12 @@ export const onRequestPost: PagesFunction<Env & { CRON_SECRET?: string; EMAIL_UN
       { force: url.searchParams.get("force_digest") === "1" },
     ).then(() => undefined).catch(() => undefined));
   } catch (_) {}
+
+  const result = await runBrain(context.env, {
+    execute: true,
+    forceDaily: url.searchParams.get("force_daily") === "1",
+  });
+  const counts: Record<string, number> = {};
+  for (const d of result.decisions) counts[d.action] = (counts[d.action] || 0) + 1;
   return json({ ran: result.ran, mode: result.mode, daily_run: result.daily_run, counts, total: result.decisions.length });
 };
