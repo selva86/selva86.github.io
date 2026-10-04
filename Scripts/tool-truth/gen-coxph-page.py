@@ -93,7 +93,7 @@ HTML = """<!DOCTYPE html>
 <meta name="Author" content="Selva Prabhakaran">
 <meta name="Robots" content="index, follow">
 <link rel="canonical" href="https://r-statistics.co/tools/coxph-output-interpreter.html">
-<link rel="icon" href="/screenshots/iconb-64.png?v=2" type="image/x-icon">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">
 <meta property="og:title" content="__TITLE__">
 <meta property="og:description" content="__OGDESC__">
 <meta property="og:type" content="website">

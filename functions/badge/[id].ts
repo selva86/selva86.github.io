@@ -157,7 +157,7 @@ a{text-decoration:none;color:inherit}
 .navlinks a:hover{background:#f1f3f6;color:var(--ink)}
 .mine{font-weight:600;font-size:14px;color:var(--green)}
 @media(max-width:820px){.navlinks{display:none}.mine{margin-left:auto}}
-.bmark{width:29px;height:29px;background:var(--deep);color:#fff;display:inline-flex;align-items:center;justify-content:center;font:700 17px 'Inter Tight'}
+.bmark{display:inline-block;flex:none;width:29px;height:29px;background:url(/logo-mark.svg) center/100% 100% no-repeat;color:transparent;font-size:0}
 .brand{font:700 17px 'Inter Tight';letter-spacing:-.02em}.brand span{color:var(--mut)}
 .wrap{max-width:660px;margin:0 auto;padding:44px 24px 0}
 .cred{background:#fff;border:1px solid var(--line);box-shadow:0 1px 2px rgba(15,26,43,.04),0 22px 50px -34px rgba(15,26,43,.4)}

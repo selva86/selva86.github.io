@@ -112,7 +112,7 @@ def render_scripts(page_js=None):
              '  <script defer src="/www/practice-nav.js?v=15"></script>',
              '  <script defer src="/www/roadmap-nav.js?v=10"></script>',
              '  <script defer src="/www/tutorials-nav.js?v=9"></script>',
-             '  <script defer src="/www/signin-nudge.js?v=16"></script>']
+             '  <script defer src="/www/signin-nudge.js?v=17"></script>']
     for src in (page_js or []):
         parts.append(f'  <script defer src="{src}"></script>')
     return '\n'.join(parts)
@@ -138,7 +138,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 <meta name="author" content="Selva Prabhakaran">
 <meta name="robots" content="{robots}">
 <link rel="canonical" href="{canonical}">
-<link rel="icon" type="image/png" href="/screenshots/iconb-64.png">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">
 <meta property="og:type" content="website">
 <meta property="og:title" content="{_esc(title)}">
 <meta property="og:description" content="{_esc(description)}">
@@ -153,7 +153,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 {FOUC}
 {FONTS}
 <link rel="stylesheet" href="/www/sections-v3.css?v=3">
-<link rel="stylesheet" href="/www/site-nav.css?v=18">
+<link rel="stylesheet" href="/www/site-nav.css?v=19">
 <style>html,body{{overflow-x:clip;max-width:100vw}}</style>
 <style>
 {page_css}

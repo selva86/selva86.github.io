@@ -45,7 +45,7 @@ const SCRIPTS =
 '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon=\'{"token": "edf7e3d50c3e4130a913e7f144643624"}\'></script>'+
 '<script defer src="/www/auth-hydrate.js?v=15"></script>'+
 '<script defer src="/www/persona-menu.js?v=4"></script>'+
-'<script defer src="/www/signin-nudge.js?v=10"></script>';
+'<script defer src="/www/signin-nudge.js?v=17"></script>';
 
 const NAVITEMS = [
   {href:'/dashboard.html', icon:'i-grid', label:'Dashboard', key:'dashboard'},
@@ -65,7 +65,7 @@ function page(o){
 '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'+
 '<title>'+o.title+' &middot; r-statistics.co</title>\n'+
 '<meta name="robots" content="noindex, nofollow">\n'+
-'<link rel="icon" type="image/png" href="/screenshots/iconb-64.png">\n'+
+'<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">\n'+
 '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'+
 '<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet">\n'+
 '<link rel="stylesheet" href="/www/dashboard.css?v=1">\n<link rel="stylesheet" href="/www/account.css?v=1">\n'+

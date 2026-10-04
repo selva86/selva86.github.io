@@ -376,9 +376,12 @@ def generate_og_image(title, slug_no_ext, force=False):
     # Site name at bottom
     draw.text((80, 540), 'r-statistics.co', fill='#64748b', font=site_font)
 
-    # R badge
-    draw.rounded_rectangle([1060, 530, 1140, 585], radius=10, fill='#3F73D8')
-    draw.text((1085, 538), 'R', fill='#ffffff', font=badge_font)
+    # Brand mark (the r-statistics.co logo, /icon-192.png), bottom right
+    try:
+        mark = Image.open(os.path.join(REPO_ROOT, 'icon-192.png')).convert('RGBA').resize((56, 56), Image.LANCZOS)
+        img.paste(mark, (1084, 529), mark)
+    except (OSError, IOError):
+        pass
 
     img.save(out_path, 'PNG', optimize=True)
     return out_path
@@ -3037,7 +3040,7 @@ a:hover{color:var(--accent)}
 html.dark .comp-masthead{background:rgba(12,13,16,0.80)}
 .comp-masthead-inner{max-width:1280px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:32px}
 .comp-wordmark{display:inline-flex;align-items:center;gap:10px;font-family:var(--ff-mono);font-weight:600;font-size:15px;color:var(--text)}
-.comp-mark{width:28px;height:28px;border-radius:6px;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;box-shadow:var(--shadow-sm)}
+.comp-mark{display:inline-block;flex:none;width:28px;height:28px;background:url(/logo-mark.svg) center/100% 100% no-repeat;color:transparent;font-size:0}
 .comp-wordmark .muted{color:var(--text-mute)}
 .comp-nav{display:flex;gap:4px;flex:1}
 .comp-nav-link{color:var(--text-soft);font-size:14px;font-weight:500;padding:6px 12px;border-radius:6px}
@@ -3395,7 +3398,7 @@ def patch_tool_pages(sections, asset_hrefs):
         # Keep the practice-nav version current on already-injected tools.
         new_html = re.sub(r'practice-nav\.js\?v=\d+', 'practice-nav.js?v=15', new_html)
         new_html = re.sub(r'roadmap-nav\.js\?v=\d+', 'roadmap-nav.js?v=10', new_html)
-        new_html = re.sub(r'site-nav\.css\?v=\d+', 'site-nav.css?v=18', new_html)
+        new_html = re.sub(r'site-nav\.css\?v=\d+', 'site-nav.css?v=19', new_html)
         if 'roadmap-nav.js' not in new_html and 'practice-nav.js' in new_html:
             new_html = new_html.replace('<script defer src="/www/practice-nav.js?v=15"></script>',
                 '<script defer src="/www/practice-nav.js?v=15"></script><script defer src="/www/roadmap-nav.js?v=10"></script>', 1)
@@ -3411,7 +3414,7 @@ def patch_tool_pages(sections, asset_hrefs):
         if 'site-nav.css' not in new_html:
             new_html = re.sub(
                 r'</head>',
-                '<link rel="stylesheet" href="/www/site-nav.css?v=18"></head>',
+                '<link rel="stylesheet" href="/www/site-nav.css?v=19"></head>',
                 new_html, count=1, flags=re.IGNORECASE,
             )
         if 'auth-hydrate.js' not in new_html:
@@ -3578,7 +3581,7 @@ def patch_tool_pages(sections, asset_hrefs):
         m = first_style_re.search(html)
         if m:
             html = html[:m.start()] + f'<link rel="stylesheet" href="/{main_css_href}">\n' + html[m.start():]
-        html = head_close_re.sub(layout_css + '<link rel="stylesheet" href="/www/site-nav.css?v=18">\n</head>', html, count=1)
+        html = head_close_re.sub(layout_css + '<link rel="stylesheet" href="/www/site-nav.css?v=19">\n</head>', html, count=1)
 
         # 2. Strip the tool's bespoke masthead.
         html = masthead_re.sub('', html, count=1)

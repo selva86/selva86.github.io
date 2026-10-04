@@ -34,7 +34,7 @@ function notFoundHtml(): string {
 <title>Certificate not found &middot; r-statistics.co</title>
 <meta name="robots" content="noindex,follow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="shortcut icon" href="/screenshots/iconb-64.png">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">
 <style>
   body{font-family:'IBM Plex Sans',-apple-system,sans-serif;background:#f8f9fb;color:#0a0d14;
     display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
@@ -138,7 +138,7 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
 <meta name="description" content="${escapeHtml(ogDesc)}">
 <meta name="robots" content="noindex,follow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="shortcut icon" href="/screenshots/iconb-64.png">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">
 <link rel="canonical" href="${escapeHtml(verifyUrl)}">
 <meta property="og:title" content="${escapeHtml(ogTitle)}">
 <meta property="og:description" content="${escapeHtml(ogDesc)}">
@@ -174,11 +174,7 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
   }
   .topbar-brand{display:inline-flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;
     font-weight:600;font-size:14px;color:var(--ink);text-decoration:none}
-  .topbar-brand .mark{width:28px;height:28px;border-radius:7px;
-    background:linear-gradient(135deg,var(--navy),#2d4173);color:#fff;
-    display:flex;align-items:center;justify-content:center;
-    font-family:'IBM Plex Serif',Georgia,serif;font-style:italic;font-weight:700;
-    font-size:16px;letter-spacing:-.04em}
+  .topbar-brand .mark{display:inline-block;flex:none;width:28px;height:28px;background:url(/logo-mark.svg) center/100% 100% no-repeat;color:transparent;font-size:0}
   .topbar-brand .co{color:var(--faint)}
   .verified-pill{display:inline-flex;align-items:center;gap:6px;
     padding:6px 12px;background:var(--success-soft);color:var(--success);

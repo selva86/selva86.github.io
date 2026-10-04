@@ -22,7 +22,7 @@
 //   - Supabase client is lazy-imported on first submit, so it adds no
 //     network/JS cost until the reader engages with it.
 //
-// Add to a page with <script defer src="/www/signin-nudge.js?v=2"></script>
+// Add to a page with <script defer src="/www/signin-nudge.js?v=17"></script>
 // (wired into _build/template.html). Bump ?v=N when editing - /www/* is
 // immutable-cached at the edge.
 
@@ -78,10 +78,7 @@
     '.rs-nudge.center.show{transform:translate(-50%,-50%) scale(1)}' +
     '.rs-nudge-x{position:absolute;top:13px;right:13px;background:none;border:0;color:#b6bcc6;font-size:20px;line-height:1;cursor:pointer;padding:3px 7px;border-radius:7px;transition:color .15s,background .15s}' +
     '.rs-nudge-x:hover{color:#4b5260;background:#f1f3f6}' +
-    '.rs-nudge-logo{display:inline-flex;align-items:baseline;justify-content:center;width:44px;height:44px;border-radius:12px;' +
-    'background:linear-gradient(150deg,#f0f4fb,#eaf5ee);' +
-    "font-family:'Inter Tight','IBM Plex Sans',sans-serif;font-weight:700;font-size:23px;color:#1b2a4a;letter-spacing:-.03em;margin:0 0 15px}" +
-    '.rs-nudge-logo i{font-style:normal;color:#2fa565;margin-left:1px}' +
+    '.rs-nudge-logo{display:block;width:44px;height:44px;margin:0 0 15px;background:url(/logo-mark.svg) center/100% 100% no-repeat}' +
     '.rs-nudge-title{font-family:"Inter Tight","IBM Plex Sans",sans-serif;font-weight:700;font-size:20px;line-height:1.18;letter-spacing:-.02em;color:#0e1117;margin:0}' +
     '.rs-nudge-sub{font-size:13.5px;color:#5b6472;margin:7px 0 18px;line-height:1.5}' +
     '.rs-nudge-auth{display:flex;flex-direction:column;gap:9px}' +
@@ -118,8 +115,6 @@
     '.rs-nudge-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:rs-nudge-spin .7s linear infinite}' +
     '@keyframes rs-nudge-spin{to{transform:rotate(360deg)}}' +
     'html.dark .rs-nudge{background:#12151b;color:#e6edf3;border-color:#262b33;box-shadow:0 2px 6px rgba(0,0,0,.4),0 24px 56px rgba(0,0,0,.55)}' +
-    'html.dark .rs-nudge-logo{background:linear-gradient(150deg,#18202f,#152a20);color:#dfe7f5}' +
-    'html.dark .rs-nudge-logo i{color:#4bd489}' +
     'html.dark .rs-nudge-title{color:#f0f3f7}' +
     'html.dark .rs-nudge-sub{color:#9aa4b2}' +
     'html.dark .rs-nudge-x:hover{background:#1f242c;color:#e6edf3}' +
@@ -246,7 +241,7 @@
     var signup = mode === 'signup';
     var inner =
       '<button class="rs-nudge-x" type="button" aria-label="Close">&times;</button>' +
-      '<span class="rs-nudge-logo" aria-hidden="true">R<i>.</i></span>' +
+      '<span class="rs-nudge-logo" aria-hidden="true"></span>' +
       '<h3 class="rs-nudge-title">' + (signup ? 'Save your progress' : 'Welcome back') + '</h3>' +
       '<p class="rs-nudge-sub">' + (signup
         ? 'Free account, so your lessons, XP and streak follow you on any device.'
