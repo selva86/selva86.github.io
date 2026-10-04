@@ -165,7 +165,22 @@ export async function runBrain(
     return { ran: false, mode: "disabled", daily_run: false, decisions: [] };
   }
   const live = (await env.KV.get("flag:email-live")) === "on";
-  const dailyRun = opts.forceDaily || new Date(now * 1000).getUTCHours() === DAILY_HOUR_UTC;
+  // The daily batch is RESUMABLE. It used to get exactly one window a day, so
+  // a run that was cut off part way through simply lost the rest of the list,
+  // and because the list had no order it lost the same people every day: on
+  // 2026-10-03, 98 of 242 opted-in readers got their lesson and the other 144
+  // had never had one. A run that reaches its end stamps the day done; the
+  // absence of that stamp is the only reliable signal that it was cut off, so
+  // the later hours of the day read it and continue the batch. One KV get per
+  // quiet hour. Every block below is keyed in the ledger and every reader is
+  // held to one email a day, so continuing cannot double-send.
+  const dayStamp = new Date(now * 1000).toISOString().slice(0, 10);
+  const doneKey = `brain-daily-done:${dayStamp}`;
+  const hourNow = new Date(now * 1000).getUTCHours();
+  let dailyRun = opts.forceDaily || hourNow === DAILY_HOUR_UTC;
+  if (!dailyRun && hourNow > DAILY_HOUR_UTC) {
+    dailyRun = (await env.KV.get(doneKey)) !== "done";
+  }
   const allow = new Set(
     (env.EMAIL_TEST_ALLOWLIST || DEFAULT_ALLOWLIST).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
   );
@@ -587,8 +602,55 @@ export async function runBrain(
     (byUser.get(c.u.id) as Candidate[]).push(c);
   }
 
+  // Serve the longest-waiting reader first. A Map iterates in insertion order,
+  // which here was the order the database happened to return rows in, so the
+  // same prefix of the list was served every single day and everyone past the
+  // cut-off waited forever. Ordering by who was last written to means a run
+  // that only gets through part of the list still gets through the part that
+  // has waited longest, and the queue rotates instead of starving. Account mail
+  // (welcome, receipts) is time-critical and keeps the front of the queue.
+  // Transactional mail does not count as having been served. A reader who
+  // signed up on Thursday, got their welcome on Thursday and has still never
+  // had a lesson has waited longer FOR A LESSON than someone who had one on
+  // Monday, and counting the welcome against them put them behind that person.
+  // The one-a-day rule already discounts welcome for the same reason.
+  const TRANSACTIONAL = new Set(["welcome", "flip"]);
+  const lastTouch = (uid: string): number => {
+    let m = 0;
+    for (const [k, at] of ledger.get(uid) ?? []) {
+      if (TRANSACTIONAL.has(k)) continue;
+      if (at > m) m = at;
+    }
+    return m;
+  };
+  const queue = [...byUser.keys()].sort((a, b) => {
+    const aAcct = (byUser.get(a) as Candidate[]).some((c) => c.category === "account") ? 0 : 1;
+    const bAcct = (byUser.get(b) as Candidate[]).some((c) => c.category === "account") ? 0 : 1;
+    if (aAcct !== bAcct) return aAcct - bAcct;
+    return lastTouch(a) - lastTouch(b);
+  });
+
+  // The same lesson copy serves every reader on that lesson, and the same
+  // override serves every reader on that template, but both were being fetched
+  // from KV once per send: ~240 round trips a day on the critical path of a run
+  // that is racing a wall-clock limit. Fetch each one once per run instead.
+  const copyCache = new Map<string, unknown>();
+  const seqCopyCache = new Map<number, Awaited<ReturnType<typeof getSeqCopy>>>();
+
+  // Yield before the platform cuts us off. The daily run had grown long enough
+  // to be killed in mid-loop, and an abrupt kill is not free: the ledger row is
+  // written before the send, so the reader being processed at that moment is
+  // recorded as having had their lesson and never receives it. Stopping on our
+  // own clock turns that into a clean hand-off. The budget is set well inside
+  // the request limit, and the hours after 13:00 continue the batch, so this
+  // costs nothing but the wait.
+  const RUN_BUDGET_MS = 60_000;
+  const startedAt = Date.now();
+  let yielded = false;
+
   let sends = 0;
-  for (const [userId, list] of byUser) {
+  for (const userId of queue) {
+    const list = byUser.get(userId) as Candidate[];
     const u = list[0].u;
     if (u.email_status === "bounced" || u.email_status === "complained") {
       decisions.push({ user_id: userId, email: u.email, key: "-", template: "-", category: "account", action: "skipped", reason: `suppressed: ${u.email_status}` });
@@ -635,8 +697,9 @@ export async function runBrain(
     }
 
     for (const c of [...accountMails, ...others]) {
-      if (sends >= MAX_SENDS_PER_RUN) {
-        decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "skipped", reason: "run send cap reached; next run picks it up" });
+      if (sends >= MAX_SENDS_PER_RUN || Date.now() - startedAt > RUN_BUDGET_MS) {
+        yielded = true;
+        decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "skipped", reason: sends >= MAX_SENDS_PER_RUN ? "run send cap reached; a later run continues the batch" : "run time budget reached; a later run continues the batch" });
         continue;
       }
       const devBlocked = !live && !allow.has((u.email || "").toLowerCase());
@@ -665,14 +728,19 @@ export async function runBrain(
         "INSERT OR IGNORE INTO sent_emails (user_id, email_key, sent_at) VALUES (?1, ?2, ?3)",
       ).bind(userId, c.key, now).run();
       if ((ins.meta?.changes ?? 0) === 0) continue; // raced by another run
-      c.data.unsubscribe_url = await unsubUrl(env, userId, c.key);
+      // One signature per user, not two: the unsubscribe link and the tracking
+      // token are the same HMAC, and it was being computed twice per send.
       const sig = await userSig(env, userId);
+      c.data.unsubscribe_url = sig
+        ? `${SITE}/api/email/unsubscribe?u=${encodeURIComponent(userId)}&t=${sig}&k=${encodeURIComponent(c.key)}`
+        : undefined;
       if (sig) c.data.track = { uid: userId, sig, key: c.key };
       let r: ReturnType<typeof renderEmail>;
       if (c.template.startsWith("seq:")) {
         const seqN = parseInt(c.template.slice(4), 10);
         const dest = seqUrl(seqN, userId, sig);
-        const copy = await getSeqCopy(env.KV, seqN);
+        if (!seqCopyCache.has(seqN)) seqCopyCache.set(seqN, await getSeqCopy(env.KV, seqN));
+        const copy = seqCopyCache.get(seqN) ?? null;
         if (sig) {
           const vb = `${SITE}/api/email/vote?u=${encodeURIComponent(userId)}&k=${encodeURIComponent(c.key)}&t=${sig}&v=`;
           c.data.vote_up_url = vb + "up";
@@ -680,12 +748,15 @@ export async function runBrain(
         }
         r = dest ? renderSeqEmail(seqN, dest, c.data, copy) : null;
       } else {
-        let ovr = null;
-        try {
-          const raw = await env.KV.get(`emailcopy:${c.template}`);
-          if (raw) ovr = JSON.parse(raw);
-        } catch { /* default */ }
-        r = renderEmail(c.template, c.data, ovr);
+        if (!copyCache.has(c.template)) {
+          let o: unknown = null;
+          try {
+            const raw = await env.KV.get(`emailcopy:${c.template}`);
+            if (raw) o = JSON.parse(raw);
+          } catch { /* default */ }
+          copyCache.set(c.template, o);
+        }
+        r = renderEmail(c.template, c.data, copyCache.get(c.template) as never);
       }
       if (!r) {
         decisions.push({ user_id: userId, email: u.email, key: c.key, template: c.template, category: c.category, action: "error", reason: "no template" });
@@ -712,5 +783,11 @@ export async function runBrain(
     }
   }
 
+  // Reaching this line is the proof the whole list was worked through, so the
+  // later hours of the day can stand down. A run that is cut off never gets
+  // here, which is exactly when the later hours should pick the batch up.
+  if (dailyRun && execute && !yielded) {
+    try { await env.KV.put(doneKey, "done", { expirationTtl: 3 * 86400 }); } catch { /* retry next hour */ }
+  }
   return { ran: true, mode: live ? "live" : "development", daily_run: dailyRun, decisions };
 }
