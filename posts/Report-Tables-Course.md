@@ -29,11 +29,11 @@ Turn a raw data frame into a presentation-ready table with **gt**: a title, huma
 
 [Start Lesson 1: From data frame to report table](Report-Tables-with-gt-and-flextable.html)
 
-### Lesson 2: Summary tables and number formatting
+### Lesson 2: Summary Tables & Formatting
 
 Build one-line summary tables and regression tables with **gtsummary**, and master the formatting details that make a table read cleanly: numbers, percentages and units, rounding that is consistent across a column, and alignment that lets a reader scan down a figure.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Summary Tables & Formatting](Summary-Tables-and-Number-Formatting.html)
 
 ## Who this is for
 

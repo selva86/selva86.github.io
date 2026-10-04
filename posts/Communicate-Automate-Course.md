@@ -29,17 +29,17 @@ See the anatomy of a **Quarto** (and **R Markdown**) document: the YAML header, 
 
 [Start Lesson 1: Reproducible reports with Quarto](Reproducible-Reports-with-Quarto.html)
 
-### Lesson 2: Telling a story with data
+### Lesson 2: Data Storytelling
 
 Lead with the answer. You learn to open with the executive summary a busy reader needs first, then structure a short, honest data story that carries them from the headline to the evidence to the recommendation, so the point lands before their attention runs out.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Data Storytelling](Telling-a-Story-with-Data.html)
 
-### Lesson 3: AI-assisted analysis in R
+### Lesson 3: AI-Assisted Analysis
 
 Put a language model to work inside your analysis with **ellmer**: summarize free-text fields, label rows at scale, and draft the boring prose. Just as important, you get a clear-eyed guide to when an LLM is the right tool and when it is not, and how to verify what it gives you.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: AI-Assisted Analysis](AI-Assisted-Analysis-in-R.html)
 
 ## Who this is for
 

@@ -1,0 +1,357 @@
+---
+title: "Intervention, Causal Impact, and Anomaly Detection Lesson 2: Estimating an event's effect with a counterfactual forecast"
+description: "Fit a model on the days before an event, forecast it forward as the counterfactual, and read the gap against what actually happened as the event's effect."
+keywords: "counterfactual forecast, causal impact analysis, intervention analysis in R, auto.arima, forecast package R, pre-period and post-period, CausalImpact package, bsts Bayesian structural time series, cumulative effect, prediction interval"
+mathjax: false
+webr: true
+curriculum_id: "5.140.2"
+post_type: "LESSON"
+course_id: "ts-intervention"
+course_title: "Intervention, Causal Impact, and Anomaly Detection"
+course_lesson: "2"
+course_total: "5"
+course_landing: "Intervention-Causal-Impact-and-Anomaly-Detection-Course.html"
+course_next: "Changepoint-Detection.html"
+course_prev: "Intervention-Analysis-and-Interrupted-Time-Series.html"
+lesson_access: "pro"
+catalog_blurb: "Build the counterfactual that tells you what would have happened without the event."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Estimating an event's effect with a counterfactual forecast</h2>
+
+<p>Today let's understand how to work out what an event actually did to a number you track every day, using a real example you can run yourself.</p>
+
+<p>Daybreak Coffee is an online coffee-subscription retailer. For 90 days it tracked its daily online orders, and on day 61 it launched a podcast advertising campaign. The 60 days before the campaign averaged 541.9 orders a day. The 30 days after averaged 668.2 orders a day.</p>
+
+<p>Here is the whole 90-day series, colored by whether the day fell before or after the campaign.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":506,"fill":"pre"},{"x":2,"y":541,"fill":"pre"},{"x":3,"y":523,"fill":"pre"},{"x":4,"y":534,"fill":"pre"},{"x":5,"y":531,"fill":"pre"},{"x":6,"y":568,"fill":"pre"},{"x":7,"y":563,"fill":"pre"},{"x":8,"y":532,"fill":"pre"},{"x":9,"y":492,"fill":"pre"},{"x":10,"y":520,"fill":"pre"},{"x":11,"y":537,"fill":"pre"},{"x":12,"y":545,"fill":"pre"},{"x":13,"y":597,"fill":"pre"},{"x":14,"y":556,"fill":"pre"},{"x":15,"y":541,"fill":"pre"},{"x":16,"y":528,"fill":"pre"},{"x":17,"y":492,"fill":"pre"},{"x":18,"y":527,"fill":"pre"},{"x":19,"y":559,"fill":"pre"},{"x":20,"y":532,"fill":"pre"},{"x":21,"y":580,"fill":"pre"},{"x":22,"y":486,"fill":"pre"},{"x":23,"y":544,"fill":"pre"},{"x":24,"y":509,"fill":"pre"},{"x":25,"y":534,"fill":"pre"},{"x":26,"y":568,"fill":"pre"},{"x":27,"y":549,"fill":"pre"},{"x":28,"y":552,"fill":"pre"},{"x":29,"y":511,"fill":"pre"},{"x":30,"y":528,"fill":"pre"},{"x":31,"y":532,"fill":"pre"},{"x":32,"y":531,"fill":"pre"},{"x":33,"y":533,"fill":"pre"},{"x":34,"y":561,"fill":"pre"},{"x":35,"y":565,"fill":"pre"},{"x":36,"y":526,"fill":"pre"},{"x":37,"y":551,"fill":"pre"},{"x":38,"y":539,"fill":"pre"},{"x":39,"y":514,"fill":"pre"},{"x":40,"y":535,"fill":"pre"},{"x":41,"y":562,"fill":"pre"},{"x":42,"y":597,"fill":"pre"},{"x":43,"y":535,"fill":"pre"},{"x":44,"y":529,"fill":"pre"},{"x":45,"y":518,"fill":"pre"},{"x":46,"y":532,"fill":"pre"},{"x":47,"y":556,"fill":"pre"},{"x":48,"y":568,"fill":"pre"},{"x":49,"y":606,"fill":"pre"},{"x":50,"y":530,"fill":"pre"},{"x":51,"y":541,"fill":"pre"},{"x":52,"y":551,"fill":"pre"},{"x":53,"y":524,"fill":"pre"},{"x":54,"y":551,"fill":"pre"},{"x":55,"y":580,"fill":"pre"},{"x":56,"y":583,"fill":"pre"},{"x":57,"y":528,"fill":"pre"},{"x":58,"y":567,"fill":"pre"},{"x":59,"y":556,"fill":"pre"},{"x":60,"y":530,"fill":"pre"},{"x":61,"y":551,"fill":"post"},{"x":62,"y":646,"fill":"post"},{"x":63,"y":599,"fill":"post"},{"x":64,"y":586,"fill":"post"},{"x":65,"y":636,"fill":"post"},{"x":66,"y":620,"fill":"post"},{"x":67,"y":640,"fill":"post"},{"x":68,"y":669,"fill":"post"},{"x":69,"y":714,"fill":"post"},{"x":70,"y":694,"fill":"post"},{"x":71,"y":636,"fill":"post"},{"x":72,"y":661,"fill":"post"},{"x":73,"y":662,"fill":"post"},{"x":74,"y":666,"fill":"post"},{"x":75,"y":682,"fill":"post"},{"x":76,"y":692,"fill":"post"},{"x":77,"y":706,"fill":"post"},{"x":78,"y":653,"fill":"post"},{"x":79,"y":681,"fill":"post"},{"x":80,"y":690,"fill":"post"},{"x":81,"y":653,"fill":"post"},{"x":82,"y":691,"fill":"post"},{"x":83,"y":724,"fill":"post"},{"x":84,"y":729,"fill":"post"},{"x":85,"y":694,"fill":"post"},{"x":86,"y":693,"fill":"post"},{"x":87,"y":685,"fill":"post"},{"x":88,"y":683,"fill":"post"},{"x":89,"y":673,"fill":"post"},{"x":90,"y":738,"fill":"post"}],"x":"day","y":"orders","geoms":["line"],"code":{"line":"ggplot(orders_df, aes(day, orders, colour = period)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Orders step up noticeably right where the color changes at day 61. But a weekly pattern was already pushing orders up and down before the campaign ever started, and the series was already drifting upward day by day on top of that. So the question this lesson answers is: how much of that step up is the campaign, and how much would have happened anyway?</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What a counterfactual answers that a before and after average cannot</h2>
+
+<p>The gap between those two averages is 668.2 minus 541.9, which comes to 126.3 orders a day. It is tempting to call that the campaign's effect. But it is not, because both periods already carried patterns that had nothing to do with the campaign.</p>
+
+<p>Build the series the way it was actually generated, and two of those patterns show up right in the code.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Daybreak Coffee's 90 days of orders and compare the before/after averages
+set.seed(110)
+day &lt;- 1:90
+day_of_week &lt;- ((day - 1) %% 7) + 1                      # 1 = Monday ... 7 = Sunday
+weekly_add  &lt;- c(0, 15, 10, 5, 20, 55, 60)[day_of_week]  # Friday and Saturday run busiest
+
+baseline &lt;- 500 + 0.6 * day + weekly_add
+noise    &lt;- rnorm(90, mean = 0, sd = 18)
+orders_obs &lt;- baseline + noise
+
+post_days &lt;- 61:90
+ramp &lt;- pmin((post_days - 60) / 7, 1)                    # the lift ramps in over the first week
+orders_obs[post_days] &lt;- orders_obs[post_days] + 0.20 * baseline[post_days] * ramp
+orders_obs &lt;- round(orders_obs)
+
+round(c(pre_mean = mean(orders_obs[1:60]), post_mean = mean(orders_obs[61:90]),
+        naive_gap = mean(orders_obs[61:90]) - mean(orders_obs[1:60])), 1)
+#&gt; pre_mean post_mean naive_gap 
+#&gt;    541.9     668.2     126.3 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>weekly_add</code> adds the Friday and Saturday peak to every single day, before the campaign and after it alike. The <code>0.6 * day</code> term is a small steady climb that was already built into the series from day one. So part of that 126.3 naive gap is just the weekly pattern and the drift landing differently across the two periods, nothing to do with the campaign.</p>
+
+<p>To separate the two properly, name the pieces.</p>
+
+<ul>
+
+<li>The <strong>response series</strong> is the number being measured over time. Here it is <code>orders_obs</code>, the daily order count.</li>
+
+<li>The <strong>intervention date</strong> is the day the event happened: day 61.</li>
+
+<li>The <strong>pre-period</strong> is every day before the intervention: days 1 to 60.</li>
+
+<li>The <strong>post-period</strong> is every day from the intervention onward: days 61 to 90.</li>
+
+<li>The <strong>counterfactual</strong> is what the response series would have looked like in the post-period if the intervention had never happened.</li>
+
+</ul>
+
+<p>The campaign's effect is not post-period average minus pre-period average. It is actual minus counterfactual, day by day, and the counterfactual has to come from a model that never saw the campaign.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Build the counterfactual: fit a forecasting model on the pre-period alone</h2>
+
+<p>A counterfactual has to come from somewhere, and where you get it from is the whole trick. Fit a forecasting model using only the 60 pre-period days, the days that never saw the campaign. Whatever that model forecasts for day 61 onward is, by construction, what it predicts orders would do with no campaign in them, because it was never shown a single day that had one.</p>
+
+<p>Turn the pre-period into a time series object and let <code>auto.arima()</code> search for the model that fits it best.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a forecasting model on the pre-period alone, the only part that never saw the campaign
+library(forecast)
+
+y_pre &lt;- ts(orders_obs[1:60], frequency = 7)   # frequency = 7 tells R the season repeats every 7 days
+fit &lt;- auto.arima(y_pre)
+fit
+#&gt; Series: y_pre 
+#&gt; ARIMA(0,0,0)(0,1,1)[7] with drift 
+#&gt; 
+#&gt; Coefficients:
+#&gt;          sma1   drift
+#&gt;       -0.8354  0.3520
+#&gt; s.e.   0.2268  0.1313
+#&gt; 
+#&gt; sigma^2 = 308.9:  log likelihood = -230.13
+#&gt; AIC=466.26   AICc=466.75   BIC=472.17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the model name piece by piece. The first <code>(0,0,0)</code> is the ordinary, non-seasonal part, and all three zeros mean <code>auto.arima()</code> found no ordinary autoregressive term, no ordinary differencing, and no ordinary moving-average term worth keeping.</p>
+
+<p>The second <code>(0,1,1)</code> is the seasonal part, and <code>[7]</code> says the season is 7 days long, one calendar week. The middle 1 means the model takes one seasonal difference: it works with the change from this Tuesday to last Tuesday rather than the raw order count, which is how it tracks the weekly Friday and Saturday peak without being told where the peaks sit. The final 1 is a seasonal moving-average term, <code>sma1</code> in the output, with coefficient -0.8354, which smooths that week-to-week change using last week's error.</p>
+
+<p><code>with drift</code> adds one more piece, a small constant slope. Its coefficient is 0.352, so the fitted line climbs by about 0.352 orders a day on top of the weekly pattern, matching the steady climb built into the series. <code>sigma^2 = 308.9</code> is what is left over once the weekly pattern and the drift are accounted for; its square root, about 17.6 orders, is how much a single day still wobbles around the fitted value.</p>
+
+<p>This model never saw a single day from the campaign. So whatever it forecasts next is the counterfactual: what orders would have done if day 61 had been an ordinary Wednesday.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Forecast the counterfactual forward and compare it to what happened</h2>
+
+<p><code>forecast()</code> turns that fitted model into 30 days of counterfactual values, one for every post-campaign day, each with a 95% interval around it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast the counterfactual 30 days forward and compare it to the real orders
+fc &lt;- forecast(fit, h = 30, level = 95)
+actual_post &lt;- orders_obs[61:90]
+counterfactual &lt;- as.numeric(fc$mean)
+gap &lt;- actual_post - counterfactual
+
+round(data.frame(day = 60 + c(1, 2, 9),
+                  actual = actual_post[c(1, 2, 9)],
+                  counterfactual = counterfactual[c(1, 2, 9)],
+                  gap = gap[c(1, 2, 9)]), 1)
+#&gt;   day actual counterfactual   gap
+#&gt; 1  61    551          557.4  -6.4
+#&gt; 2  62    646          575.3  70.7
+#&gt; 3  69    714          577.8 136.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On day 61, the very first day of the campaign, actual orders came in at 551 against a counterfactual of 557.4, a gap of -6.4. That is the one day in the entire post-period where actual orders ran below the counterfactual; the campaign's lift was still ramping in and had not caught up yet. By day 62 the gap is already 70.7, and by day 69, the ninth day of the campaign, actual orders are running 136.2 above what the model expected with no campaign at all.</p>
+
+<p>Here is the whole post-period: the actual orders and the counterfactual, plotted side by side.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":61,"y":551,"fill":"actual"},{"x":62,"y":646,"fill":"actual"},{"x":63,"y":599,"fill":"actual"},{"x":64,"y":586,"fill":"actual"},{"x":65,"y":636,"fill":"actual"},{"x":66,"y":620,"fill":"actual"},{"x":67,"y":640,"fill":"actual"},{"x":68,"y":669,"fill":"actual"},{"x":69,"y":714,"fill":"actual"},{"x":70,"y":694,"fill":"actual"},{"x":71,"y":636,"fill":"actual"},{"x":72,"y":661,"fill":"actual"},{"x":73,"y":662,"fill":"actual"},{"x":74,"y":666,"fill":"actual"},{"x":75,"y":682,"fill":"actual"},{"x":76,"y":692,"fill":"actual"},{"x":77,"y":706,"fill":"actual"},{"x":78,"y":653,"fill":"actual"},{"x":79,"y":681,"fill":"actual"},{"x":80,"y":690,"fill":"actual"},{"x":81,"y":653,"fill":"actual"},{"x":82,"y":691,"fill":"actual"},{"x":83,"y":724,"fill":"actual"},{"x":84,"y":729,"fill":"actual"},{"x":85,"y":694,"fill":"actual"},{"x":86,"y":693,"fill":"actual"},{"x":87,"y":685,"fill":"actual"},{"x":88,"y":683,"fill":"actual"},{"x":89,"y":673,"fill":"actual"},{"x":90,"y":738,"fill":"actual"},{"x":61,"y":557.4,"fill":"counterfactual"},{"x":62,"y":575.3,"fill":"counterfactual"},{"x":63,"y":588.1,"fill":"counterfactual"},{"x":64,"y":533.7,"fill":"counterfactual"},{"x":65,"y":549.8,"fill":"counterfactual"},{"x":66,"y":541.7,"fill":"counterfactual"},{"x":67,"y":539,"fill":"counterfactual"},{"x":68,"y":559.8,"fill":"counterfactual"},{"x":69,"y":577.8,"fill":"counterfactual"},{"x":70,"y":590.6,"fill":"counterfactual"},{"x":71,"y":536.2,"fill":"counterfactual"},{"x":72,"y":552.2,"fill":"counterfactual"},{"x":73,"y":544.1,"fill":"counterfactual"},{"x":74,"y":541.5,"fill":"counterfactual"},{"x":75,"y":562.3,"fill":"counterfactual"},{"x":76,"y":580.2,"fill":"counterfactual"},{"x":77,"y":593,"fill":"counterfactual"},{"x":78,"y":538.6,"fill":"counterfactual"},{"x":79,"y":554.7,"fill":"counterfactual"},{"x":80,"y":546.6,"fill":"counterfactual"},{"x":81,"y":543.9,"fill":"counterfactual"},{"x":82,"y":564.8,"fill":"counterfactual"},{"x":83,"y":582.7,"fill":"counterfactual"},{"x":84,"y":595.5,"fill":"counterfactual"},{"x":85,"y":541.1,"fill":"counterfactual"},{"x":86,"y":557.2,"fill":"counterfactual"},{"x":87,"y":549.1,"fill":"counterfactual"},{"x":88,"y":546.4,"fill":"counterfactual"},{"x":89,"y":567.2,"fill":"counterfactual"},{"x":90,"y":585.2,"fill":"counterfactual"}],"x":"day","y":"orders","geoms":["line","point"],"code":{"line":"ggplot(post_compare, aes(day, orders, colour = series)) +\n  geom_line()","point":"ggplot(post_compare, aes(day, orders, colour = series)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Follow the two lines from day 61. They start close together, cross briefly, and then the actual line pulls away and stays above the counterfactual for the rest of the post-period. That growing gap, not the single before-and-after averages, is where the campaign's effect actually lives.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Why the gap has to stay wide: confidence interval vs prediction interval</h2>
+
+<p>The forecast did not just give one number per day. It gave a point estimate, 557.4 for day 61, plus a 95% interval around it, because the model is not certain the future will match its central value exactly. That interval has a type, and the type decides how wide it can ever get.</p>
+
+<p>Statisticians keep two different ranges for two different questions. A <strong>confidence interval</strong> answers where the true average sits. A <strong>prediction interval</strong> answers where one new, individual future value will land. The second is always wider, because it has to cover both the uncertainty about the average and the ordinary day-to-day scatter around it. The counterfactual forecast is the second kind: each post-campaign day is one new, unobserved value, not a long-run average.</p>
+
+<p>The widget below is not the Daybreak Coffee series. It is its own small built-in regression, with a slider for the sample size n, so you can watch both kinds of interval behave as the data grows.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Slide n up and the confidence band, the one around the average, collapses toward the line, because more data pins down an average more precisely. The prediction band barely moves, because a new single point still carries the same ordinary scatter no matter how much data went into fitting the line. That is exactly why the counterfactual's interval never shrinks to nothing: 60 days of pre-period data pin down the model's pattern well, but every post-campaign day is still one new value, floored by the same day-to-day noise, sigma about 17.6 orders, that the pre-period always had.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading the counterfactual chart and its interval</h2>
+
+<p>By day 9 of the campaign, how far above the counterfactual is the actual line running, and why does the band around the counterfactual stay wide instead of narrowing to nothing?</p>
+<section class="exercise" data-exercise-id="Causal-Impact-of-an-Event-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">By day 9, actual orders run close to the counterfactual, within a few orders either way.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">By day 9, actual orders run about 136 orders above the counterfactual, and the band around the counterfactual stays wide because it is a prediction interval for one future day's orders, floored by the day-to-day noise, not by how many pre-period days fed the fit.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The band stays wide only because the ARIMA model is the wrong model for this series.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Given enough pre-period days, the interval would eventually shrink to nothing.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. The 95% band never has to promise that a single future day will land near its center, only that the range covers it 95% of the time, and that range is set by the ordinary day-to-day scatter, sigma about 17.6 orders, not by the sample size.</div><div class="lesson-qfb lesson-qfb-no">More pre-period data pins down the model's pattern more precisely, which is the confidence-interval story. It does nothing to the ordinary day-to-day scatter in a single future value, which is the floor under a prediction interval and the reason it never reaches zero.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>The cumulative effect: adding the daily gaps into one number</h2>
+
+<p>One number is more useful to a stakeholder than 30 separate daily gaps. Add every day's gap across the whole post-period, and you get the <strong>cumulative effect</strong>: the total number of extra orders the campaign gets credited with.</p>
+
+<p>Sum the actual orders and the counterfactual orders separately across all 30 post-campaign days, then subtract.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add up the 30 daily gaps into one cumulative effect over the whole post-period
+actual_total &lt;- sum(actual_post)
+counterfactual_total &lt;- sum(fc$mean)
+cumulative_effect &lt;- actual_total - counterfactual_total
+pct_above &lt;- 100 * cumulative_effect / counterfactual_total
+
+round(data.frame(actual_total, counterfactual_total, cumulative_effect, pct_above), 1)
+#&gt;   actual_total counterfactual_total cumulative_effect pct_above
+#&gt; 1        20047              16795.5            3251.5      19.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Daybreak Coffee actually took 20,047 orders over the 30 post-campaign days. Had the campaign never run, the counterfactual says it would have taken about 16,795.5. The difference, 3,251.5 orders, is the cumulative effect: 19.4% more than the counterfactual's own total.</p>
+
+<p>That one number still needs a range around it, for the same reason every single day's forecast needed one. Each day's forecast carried its own 95% lower and upper bound, so add those up the same way to get an approximate interval for the cumulative effect.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Approximate the cumulative effect's own interval from the forecast's lower and upper bounds
+effect_lower &lt;- actual_total - sum(fc$upper)
+effect_upper &lt;- actual_total - sum(fc$lower)
+
+round(data.frame(effect_lower, effect_upper), 1)
+#&gt;   effect_lower effect_upper
+#&gt; 1       2187.6       4315.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A higher counterfactual total means a smaller effect, which is why the forecast's upper bound, the most generous counterfactual, produces the effect's lower bound, and the forecast's lower bound produces the effect's upper bound. So the honest headline is not "3,251.5 extra orders." It is "about 3,251.5 extra orders, plausibly between 2,187.6 and 4,315.5."</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">This interval is only an approximation. Summing 30 separate 95% bounds treats each day's forecast error as unrelated to the next day's, which it is not: a day that runs high tends to be followed by another day that also runs high, because the model missed the same thing on both days. CausalImpact and bsts, covered next, fix exactly this by simulating the whole 30-day path at once instead of day by day.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Three ways this estimate can mislead you</h2>
+
+<p>A counterfactual forecast is only as honest as the pre-period model and the assumption that nothing else changed during the post-period. Three things commonly break that assumption, and a stakeholder looking at 3,251.5 extra orders should ask about all three.</p>
+
+<ol>
+
+<li><strong>A concurrent event.</strong> Suppose Daybreak Coffee also ran a sitewide discount the same week as the podcast campaign. The model has no way to separate the two, so every order the discount brought in gets credited to the campaign instead, inflating the 3,251.5 figure.</li>
+
+<li><strong>A seasonal pattern the pre-period never saw.</strong> The fitted model's seasonal part only knows a 7-day week, because that is all 60 days of pre-period data could show it. If a holiday surge happened to land inside the post-period, something a weekly-only model has no term for, the model would read the whole surge as campaign lift and overstate the effect.</li>
+
+<li><strong>A control series that was itself affected.</strong> Adding a competitor's sales as a steadying predictor only helps if the campaign left the competitor untouched. If the podcast also reached the competitor's customers and lifted its sales too, that control series is contaminated, and using it would bias the estimate with no obvious warning sign in the output.</li>
+
+</ol>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Where CausalImpact and bsts take over</h2>
+
+<p>Everything so far, fit on the pre-period, forecast forward, subtract, sum, is also what the <code>CausalImpact</code> package automates, built on top of a Bayesian structural time series model from the <code>bsts</code> package. The idea is identical to what you just did by hand. What it adds is a properly simulated interval.</p>
+
+<p>Instead of summing 30 separate forecast intervals, CausalImpact draws thousands of samples from the fitted model's posterior distribution, simulates a whole 30-day counterfactual path from each draw, and adds up each simulated path before looking at the spread across the thousands of totals. That path-by-path approach fixes the summed-bounds approximation, because it keeps each day's error correlated with the days around it instead of treating every day as independent. CausalImpact can also blend in several control predictors at once, like the competitor's sales from the control-series scenario earlier, as long as you are confident the campaign left them alone.</p>
+
+<p>Here is the matching call: the same pre-period and post-period split, handed to <code>CausalImpact()</code> instead of <code>auto.arima()</code>.</p>
+
+<pre><code class="language-r"># Run the same pre-period / post-period split through CausalImpact instead of auto.arima()
+library(CausalImpact)
+
+daybreak_data &lt;- data.frame(orders = orders_obs)
+impact &lt;- CausalImpact(daybreak_data, pre.period = c(1, 60), post.period = c(61, 90))
+summary(impact)</code></pre>
+
+<p>Both <code>CausalImpact</code> and <code>bsts</code> are missing from the browser's R environment this lesson runs in, so the code above is shown rather than run. Everything it would report, the cumulative effect and its interval, is the same idea already built across the last few steps, just with a properly simulated interval in place of the summed-bounds shortcut.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: putting the estimate together</h2>
+
+<p>Given the three ways this kind of estimate can mislead you and the difference between an approximate interval and a properly simulated one, which of these is the honest way to report the 3,251.5-order estimate?</p>
+<section class="exercise" data-exercise-id="Causal-Impact-of-an-Event-step10" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The campaign caused exactly 3,251.5 extra orders, with certainty.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Given that the pre-period pattern held and no unmodeled concurrent event or unseen seasonality crept in, orders ran about 3,251 higher than the counterfactual over the post-period, plausibly between about 2,188 and 4,316, an approximate interval rather than a properly simulated one.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Any rise in orders after day 61 proves the campaign worked.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The estimate would be unchanged even if a holiday fell inside the post-period.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. It states the number, keeps the caveats about what could still be wrong, and is honest about the interval being the summed-bounds approximation, not CausalImpact's properly simulated one.</div><div class="lesson-qfb lesson-qfb-no">A holiday inside the post-period is exactly the seasonal-pattern failure mode: the weekly-only model has no term for it, so it would fold the whole holiday surge into the campaign's credit and change the estimate with no warning in the output.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: recompute the effect over a shorter window</h2>
+
+<p><code>fit</code> and <code>actual_post</code> are both still around. Use them to find the cumulative effect over just the first 14 days of the campaign instead of all 30.</p>
+<section class="exercise" data-exercise-id="Causal-Impact-of-an-Event-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*actual_post[[]1:14\])(?=[\s\S]*fc[$]mean[[]1:14\])"><textarea class="lesson-tryit-input" spellcheck="false"># fc$mean holds the 30-day counterfactual and actual_post holds the 30 real
+# post-campaign days.
+# Slice both vectors down to their first 14 days, sum each one, and
+# subtract the counterfactual sum from the actual sum.
+# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: about 1,193 extra orders over just the first 14 days, a little over a third of the full 30-day cumulative effect, which fits since the campaign's lift was still ramping in over its first week.</span><span class="lesson-tryit-fb lesson-tryit-no">Slice both vectors to their first 14 entries before subtracting: sum(actual_post[1:14]) and sum(fc$mean[1:14]).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Cumulative effect over just the first 14 post-campaign days
+sum(actual_post[1:14]) - sum(fc$mean[1:14])
+#&gt; [1] 1192.956</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1214/14-AOAS788">Inferring causal impact using Bayesian structural time-series models</a> - Brodersen, Gallusser, Koehler, Remy, and Scott (2015), Annals of Applied Statistics, 9(1), 247-274. The paper behind the CausalImpact package.</li>
+
+<li><a href="https://doi.org/10.1504/IJMMNO.2014.059942">Predicting the present with Bayesian structural time series</a> - Scott and Varian (2014), International Journal of Mathematical Modelling and Numerical Optimisation, 5(1-2), 4-23. The bsts model CausalImpact is built on.</li>
+
+<li><a href="https://doi.org/10.1080/01621459.1975.10480264">Intervention analysis with applications to economic and environmental problems</a> - Box and Tiao (1975), Journal of the American Statistical Association, 70(349), 70-79. The original statistical treatment of a known intervention date.</li>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice, 3rd edition</a> - Hyndman and Athanasopoulos. The chapters on ARIMA models and on regression with ARIMA errors cover the forecasting machinery this lesson builds on.</li>
+
+<li><a href="https://github.com/google/CausalImpact">The CausalImpact package</a> - Google, on CRAN and GitHub. The documentation for the automated version of the method built by hand in this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<ul>
+
+<li>A counterfactual is what the response series would have done after the intervention date if the event had never happened. Build it by fitting a model on the pre-period alone and forecasting it forward.</li>
+
+<li>The effect is actual minus counterfactual, day by day, never actual minus the pre-period average.</li>
+
+<li>Add the daily gaps into one cumulative effect, 3,251.5 extra orders here, with an approximate interval built from summing the forecast's own bounds.</li>
+
+<li>Three things can bias that number: a concurrent event, an unmodeled seasonal pattern, and a contaminated control series.</li>
+
+<li>CausalImpact and bsts automate the same fit-forecast-subtract idea, with a properly simulated interval in place of the summed-bounds shortcut.</li>
+
+</ul>
+
+<p>The next lesson in this course picks up the harder version of this problem: finding the break date yourself, when nobody tells you which day the event happened on.</p>
+</section>
+
+{% endraw %}

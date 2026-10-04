@@ -29,17 +29,17 @@ Turn an ordinary ggplot into an interactive **plotly** chart with one line, `ggp
 
 [Start Lesson 1: Charts and maps you can explore](Interactive-Charts-and-Maps-in-R.html)
 
-### Lesson 2: Quarto dashboards and linked views
+### Lesson 2: Quarto Dashboards
 
 Lay out a real dashboard in **Quarto**: value boxes for the headline numbers and chart tiles arranged on a grid. Then wire the pieces together with **crosstalk** so a selection in one view filters every other view at once, the moment that makes a dashboard feel like a single instrument rather than a page of separate charts.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Quarto Dashboards](Quarto-Dashboards-and-Linked-Views.html)
 
-### Lesson 3: Your first Shiny app
+### Lesson 3: Your First Shiny App
 
 Build reactivity from scratch. Start with the smallest possible **Shiny** app, one input driving one output, and watch how the reactive graph re-runs only what it needs when the input changes. This is the mental model every larger Shiny app is built on.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Your First Shiny App](Your-First-Shiny-App.html)
 
 ## Who this is for
 

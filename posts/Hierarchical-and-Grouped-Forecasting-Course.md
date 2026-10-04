@@ -33,25 +33,25 @@ Learn how the structure of your series decides which forecasts can add up. Tell 
 
 Meet the three classic answers and the honest trade in each. Bottom-up keeps the detail and accumulates the noise, top-down forecasts the stable total and loses series-specific signal, and middle-out picks a level in between. Run all three on the same hierarchy and compare accuracy level by level.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Bottom-up, top-down and middle-out](Bottom-Up-Top-Down-and-Middle-Out.html)
 
 ### Lesson 3: Optimal reconciliation with MinT
 
 See why the classic three are special cases of one projection. Use the forecast error covariance to choose the adjustment that minimises variance, and watch it beat bottom-up on the same data.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Optimal reconciliation with MinT](Optimal-Reconciliation-MinT.html)
 
 ### Lesson 4: Reconciliation with fabletools
 
 Run the whole workflow in the fable grammar: declare the structure with `aggregate_key()`, fit a model across every node, reconcile with `min_trace()`, and forecast coherent paths. Read the accuracy table by level and confirm that the children now add to the parent exactly.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Reconciliation with fabletools](Reconciliation-with-fabletools.html)
 
-### Lesson 5: Coherent forecasts a finance team can plan against
+### Lesson 5: Coherent forecasts finance can plan against
 
 Take a set of incoherent forecasts and show the gap in money terms. Reconcile them, and show exactly what changed for the planning meeting, so the regional plans and the national plan finally agree.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Coherent forecasts finance can plan against](Coherent-Forecasts-Finance-Can-Plan-Against.html)
 
 ## Who this is for
 

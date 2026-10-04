@@ -29,35 +29,35 @@ Learn why one model fitted to the stacked rows of all your series can beat a mod
 
 [Start Lesson 1: One global model across many series](Global-Models-One-Model-Across-Many-Series.html)
 
-### Lesson 2: Machine learning forecasting with modeltime
+### Lesson 2: Machine Learning Forecasting with modeltime
 
 Treat forecasting as supervised learning inside a tidy workflow. Build lagged and calendar features, fit a model, and put the result on the same accuracy table as a seasonal naive forecast and an ARIMA so you can see whether the machinery paid for itself.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Machine Learning Forecasting with modeltime](Machine-Learning-Forecasting-with-modeltime.html)
 
-### Lesson 3: Boosted trees for forecasting
+### Lesson 3: Boosted Trees for Forecasting
 
 Use gradient boosting on lagged features. See why trees cannot extrapolate a trend and what to do about it, which features matter for a seasonal series, and how the result compares with a statistical benchmark.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Boosted Trees for Forecasting](Boosted-Trees-for-Forecasting.html)
 
-### Lesson 4: Neural network forecasts with NNETAR
+### Lesson 4: Forecasting with a neural network using NNETAR
 
 Fit a feed-forward network on lagged values. Learn what the architecture is in plain terms, why the fit is averaged over several random starts, how prediction intervals come from simulation, and whether it beats ETS on a series of this size.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Forecasting with a neural network using NNETAR](Neural-Network-Forecasts-NNETAR.html)
 
-### Lesson 5: Deep learning with DeepAR, N-BEATS and N-HiTS
+### Lesson 5: How DeepAR, N-BEATS and N-HiTS forecast
 
 See what the modern deep forecasters do differently. DeepAR learns a distribution across many series, N-BEATS stacks basis expansions, and N-HiTS samples at several rates for long horizons. The ideas are taught from diagrams and a small network built by hand in base R, and the deep learning code is shown and explained for you to run on your own machine.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: How DeepAR, N-BEATS and N-HiTS forecast](Deep-Learning-DeepAR-N-BEATS-and-N-HiTS.html)
 
-### Lesson 6: Temporal fusion transformers
+### Lesson 6: How a Temporal Fusion Transformer forecasts
 
 Learn attention for forecasting in plain language: static covariates, inputs known in the future, inputs observed in the past, and what the attention weights tell you about which time steps mattered. The code is shown and explained, with the focus on when this class of model is worth its cost and when it is not.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: How a Temporal Fusion Transformer forecasts](Temporal-Fusion-Transformers.html)
 
 ### Lesson 7: Bootstrapping, bagging and forecast combinations
 

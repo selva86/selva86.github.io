@@ -29,17 +29,17 @@ Read the `DT[i, j, by]` grammar and name what each slot does: filter rows in `i`
 
 [Start Lesson 1: The DT[i, j, by] syntax and keys](data-table-Syntax-and-Keys.html)
 
-### Lesson 2: data.table vs dplyr, head to head
+### Lesson 2: dplyr vs data.table
 
 The same task written both ways, side by side, so the trade-offs are concrete: the speed and memory differences on large data, when each style reads more clearly, and how to bridge the two with **dtplyr** so you can keep dplyr syntax and get data.table speed underneath.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: dplyr vs data.table](dplyr-vs-data-table.html)
 
-### Lesson 3: Bigger-than-memory data
+### Lesson 3: Bigger-Than-Memory Data
 
 What to do when the data does not fit in RAM at all: wrangle millions of rows efficiently, and query on-disk datasets with **duckdb** and **duckplyr** without loading everything into memory first.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Bigger-Than-Memory Data](Bigger-than-Memory-Data-in-R.html)
 
 ## Who this is for
 

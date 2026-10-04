@@ -29,35 +29,35 @@ See what an AR(2) leaves out: the lags of the other series. Fit a VAR(2) to Cana
 
 [Start Lesson 1: Fitting a vector autoregression (VAR) to two related series](Vector-Autoregression-VAR.html)
 
-### Lesson 2: Choosing the lag order
+### Lesson 2: Choosing the Lag Order
 
 Settle how far back the system should look. Read the four information criteria that `VARselect()` reports and see why they disagree, see what too few lags leaves behind in the residuals and what too many costs in parameters, and confirm the choice with a serial correlation test on the fitted residuals.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Choosing the Lag Order](Choosing-the-Lag-Order.html)
 
-### Lesson 3: Granger causality
+### Lesson 3: Testing Granger causality between two series
 
 Learn what Granger causality claims and what it does not. It is about forecast improvement, not mechanism. Run the test in both directions, find the case where one series helps predict the other but not the reverse, and see a confounded example where the test fires and the causal story is still wrong.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Testing Granger causality between two series](Granger-Causality.html)
 
-### Lesson 4: Impulse response functions
+### Lesson 4: Tracing a shock through a VAR with impulse responses
 
 Push one variable by one shock and trace what the system does over the following quarters. Compute impulse responses with bootstrap bands, read a response that overshoots and then settles, and see why the ordering of the variables changes the answer and what that means for reporting the result honestly.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Tracing a shock through a VAR with impulse responses](Impulse-Response-Functions.html)
 
 ### Lesson 5: Cointegration and the VECM
 
 Two series that each wander can still be tied together by a stable relationship. See spurious regression fail on unrelated series, count the cointegrating relationships with the Johansen trace test using `ca.jo()`, and read the speed-of-adjustment coefficient from `cajorls()` as how fast the system pulls back to equilibrium.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Cointegration and the VECM](Cointegration-and-the-VECM.html)
 
 ### Lesson 6: Forecasting multiple related series
 
 Turn the fitted system into forecasts. Move from the VECM to a forecastable form with `vec2var()`, get paths and intervals from `predict()`, and compare the system forecast against forecasting each series on its own, so you can tell when the extra machinery pays and when it does not.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Forecasting multiple related series](Forecasting-Multiple-Related-Series.html)
 
 ## Who this is for
 
