@@ -25,8 +25,10 @@
   var role=(document.body.getAttribute('data-role'))||(location.search.match(/[?&]role=([a-z]+)/)||[])[1]||'ds';
   if(ALLOWED.indexOf(role)<0)role='ds';
   var L=RM.byKey(role), secs=RM2.sections[role], cv=CV[role];
-  var allFree=(role==='foundations'||role==='analyst');
-  function isFree(s){return allFree||s.free;}
+  // Only New to R is free beyond section 1 (Data Analyst sections 2-9 went Pro on
+  // 2026-09-17). Derived from the section number, not the stale per-section flags.
+  var allFree=(role==='foundations');
+  function isFree(s){return allFree||s.n===1;}
   var total=secs.reduce(function(a,s){return a+s.items.length;},0);
 
   document.documentElement.style.setProperty('--c','var('+cv+')');
@@ -138,7 +140,7 @@
   var prq=document.getElementById('prereq');
   if(role==='foundations'){prq.innerHTML='<b>This is where everyone starts.</b> Free to read in full, it earns the '+esc(L.cert)+' certificate and feeds every track that follows.';}
   else if(role==='analyst'){prq.innerHTML='<b>Comes after</b> <a href="/roadmap/new-to-r.html">New to R</a> (free). Together they are the shared core every specialization builds on.';}
-  else{prq.innerHTML='<b>Comes after the shared core:</b> <a href="/roadmap/new-to-r.html">New to R</a> and <a href="/roadmap/data-analyst.html">Data Analyst</a>, both free to read. This track is one of four equal specializations.';}
+  else{prq.innerHTML='<b>Comes after the shared core:</b> <a href="/roadmap/new-to-r.html">New to R</a> (free) and <a href="/roadmap/data-analyst.html">Data Analyst</a> (section 1 free). This track is one of four equal specializations.';}
 
   // curriculum
   document.getElementById('curHead').textContent='The full '+ROLE[role]+' curriculum';
@@ -249,6 +251,9 @@
 
   // cert band
   document.getElementById('certHead').textContent='Earn the '+L.cert+' certificate';
+  document.getElementById('certSub').textContent=allFree
+    ? 'Every lesson is free to read. Graded practice and the certificate come with the Program.'
+    : 'Section 1 is free to read. The other sections, graded practice and the certificate come with the Program.';
 
   // progress bar + reveal
   var prog=document.getElementById('prog');

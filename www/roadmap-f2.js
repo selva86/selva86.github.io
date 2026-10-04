@@ -103,8 +103,10 @@
 
   /* ---- section accordion ---- */
   function sectionEl(key,sec,open){
-    var allFree=(key==='foundations'||key==='analyst');
-    var isFree=allFree||sec.free, pro=!isFree;
+    // Only New to R is free beyond section 1 (Data Analyst sections 2-9 went Pro on
+    // 2026-09-17). Derived from the section number, not the stale per-section flags.
+    var allFree=(key==='foundations');
+    var isFree=allFree||sec.n===1, pro=!isFree;
     var chip=pro?'<span class="chip pro">'+LOCK+'Pro</span>':'<span class="chip free">'+CHECK+'Free</span>';
     var rows=sec.items.map(function(t){return itemRow(t,isFree);}).join('');
     return '<details class="sec'+(pro?' pro':'')+'" data-track="'+key+'" data-sec="'+sec.n+'"'+(open?' open':'')+'>'
@@ -119,7 +121,7 @@
 
   /* ---- chapter meta pills ---- */
   function metaPills(key,count){
-    var secs=RM2.sections[key]||[], af=(key==='foundations'||key==='analyst');
+    var secs=RM2.sections[key]||[], af=(key==='foundations');
     var bits=[count+' lessons', secs.length+' sections', af?'all free':'Section 1 free'];
     return bits.map(function(b){var f=/free/i.test(b);return '<span'+(f?' class="free"':'')+'>'+(f?CHECK:'')+esc(b)+'</span>';}).join('');
   }
@@ -148,8 +150,8 @@
 
   /* ---- role cards ---- */
   function roleCard(key,spec){
-    var cv=CVAR[key], secs=RM2.sections[key], count=trackLessonCount(key), af=(key==='foundations'||key==='analyst');
-    var pills='<span>'+count+' lessons</span><span>'+secs.length+' sections</span>'+(af?'<span class="free">Free</span>':'<span class="free">Section 1 free</span>');
+    var cv=CVAR[key], secs=RM2.sections[key], af=(key==='foundations');
+    var pills='<span class="rlc" hidden></span><span>'+secs.length+' sections</span>'+(af?'<span class="free">Free</span>':'<span class="free">Section 1 free</span>');
     return '<a class="rcard'+(spec?' spec':'')+' reveal" style="--c:var('+cv+')" href="'+roleHref(key)+'" data-viz="'+key+'">'
       +'<div class="rviz" data-role="'+key+'"></div>'
       +'<div class="rbody"><div class="reye">'+esc(ROLE[key])+'</div><h3>'+esc(headText(RM.byKey(key)))+'</h3>'
@@ -221,8 +223,7 @@
   function set(id,html){var el=document.getElementById(id);if(el)el.innerHTML=html;}
 
   // hero stats
-  var totalLessons=CORE.concat(TRACKS).reduce(function(a,k){return a+trackLessonCount(k);},0);
-  set('hstats',[['6','roles'],[String(totalLessons),'lessons'],[String(RM2.projectList.length),'projects'],['6','certificates']]
+  set('hstats',[['6','roles'],['','lessons'],['6','certificates']]
     .map(function(s){return '<div><b>'+s[0]+'</b><span>'+s[1]+'</span></div>';}).join(''));
 
   // role cards
@@ -350,8 +351,23 @@
   // fetch refreshes to pick up anything published since the last rebuild.
   (function(){
     var HYBRID={analyst:1,foundations:1,ds:1,ts:1};
+    function applyCounts(cat){
+      var T={};
+      cat.courses.forEach(function(c){var t=c.roadmap&&c.roadmap.track;if(!t)return;
+        T[t]=(T[t]||0)+(c.lessons||[]).filter(function(l){return l.built!==false;}).length;});
+      var label=function(n){return n>=10?n+' lessons':(n?n+' lessons so far':'Lessons in progress');};
+      CORE.concat(TRACKS).forEach(function(k){
+        var el=document.querySelector('.rcard[data-viz="'+k+'"] .rlc');if(el){el.textContent=label(T[k]||0);el.hidden=false;}
+        if(!T[k]||T[k]<10){var m=document.querySelector('.chmeta[data-track="'+k+'"]');
+          if(m&&!m.__rlc){m.__rlc=1;var s=m.querySelector('span');if(s)s.textContent=label(T[k]||0);}}
+      });
+      // the hero total waits for the full catalog (the baked copy omits some tracks)
+      if(T.ds){var tot=CORE.concat(TRACKS).reduce(function(a,k){return a+(T[k]||0);},0);
+        var hb=document.querySelector('#hstats div:nth-child(2) b');if(hb)hb.textContent=String(tot);}
+    }
     function applyHybrid(cat){
       if(!cat||!cat.courses)return;
+      applyCounts(cat);
       var byTrack={};
       cat.courses.forEach(function(c){ if(!c.roadmap||!HYBRID[c.roadmap.track])return;
         var t=c.roadmap.track; byTrack[t]=byTrack[t]||{};
