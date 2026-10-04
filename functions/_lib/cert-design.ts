@@ -165,7 +165,9 @@ export function renderCertificateSvg(d: CertData): string {
   };
   const nPx = pick([92, 76, 64, 56, 48], nameSize(d.holder), px => textW(d.holder, px, W_CORM, 0.48));
   const tPx = pick([54, 46, 40, 34], titleSize(d.title), px => textW(d.title, px, W_JAK, 0.62, -0.02));
-  const squeeze = (w: number) => w > MAXW ? ` textLength="${MAXW}" lengthAdjust="spacingAndGlyphs"` : "";
+  // Pin name and title to their measured width: a no-op with the real fonts, and it keeps a
+  // wider fallback font (an SVG inside <img> cannot load web fonts) inside the panel.
+  const squeeze = (w: number) => ` textLength="${Math.min(w, MAXW).toFixed(1)}" lengthAdjust="spacingAndGlyphs"`;
   const m = wrapWords(`Demonstrated mastery of ${d.mastery} in code-graded R exercises.`, 23, 0.47, 640);
   // vertical rhythm measured from the HTML: the body block is centred between header (103) and data row (613)
   const block = 41 + 10 + nPx * 1.02 + 10 + 53 + 10 + tPx * 1.1 + 10 + 8 + m.length * 33.35;
