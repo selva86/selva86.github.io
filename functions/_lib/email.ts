@@ -34,10 +34,59 @@ export interface SendMailResult {
   error?: string;
 }
 
+export const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";
+
+/* flag:email-live is the switch that lets email reach real people, and it is
+   only ever honoured in production. Every branch preview shares the DEV KV
+   namespace, so setting that flag there turned every branch deployment into a
+   live mailer pointed at the dev database: a test that drove the price-alert
+   endpoint on a preview really did try to mail @example.com addresses through
+   ZeptoMail. Reading the flag through here means a preview stays in dev mode
+   whatever the flag says.
+
+   This fails CLOSED. If the ENVIRONMENT var ever goes missing in production,
+   email stops rather than quietly going out from somewhere it should not. A
+   stopped mailer is noticed and recovered; mail sent to strangers from a test
+   branch is neither. */
+export async function emailLive(
+  env: { KV: KVNamespace; ENVIRONMENT?: string },
+): Promise<boolean> {
+  if (env.ENVIRONMENT !== "production") return false;
+  return (await env.KV.get("flag:email-live")) === "on";
+}
+
+function allowlisted(env: { EMAIL_TEST_ALLOWLIST?: string }, address: string): boolean {
+  return (env.EMAIL_TEST_ALLOWLIST || DEFAULT_ALLOWLIST)
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    .includes((address || "").toLowerCase());
+}
+
 export async function sendMail(
-  env: { ZOHO_ZEPTOMAIL_TOKEN: string; ZOHO_ZEPTOMAIL_SENDER: string },
+  env: {
+    ZOHO_ZEPTOMAIL_TOKEN: string; ZOHO_ZEPTOMAIL_SENDER: string;
+    ENVIRONMENT?: string; EMAIL_TEST_ALLOWLIST?: string;
+  },
   args: SendMailArgs,
 ): Promise<SendMailResult> {
+  /* The backstop. It lives down here rather than at the call sites because of
+     eighteen places that send mail, only three ever consulted the live flag:
+     the weekly recap, cart recovery, fulfilment, team invites and the waitlist
+     would mail real people straight from a branch deployment. No call site,
+     present or future, can get around it here.
+
+     It sits ahead of the config check on purpose. Previews currently have no
+     ZeptoMail credentials, so a blocked send used to report
+     "missing_email_config", which is incidental and would stop being true the
+     moment somebody set those secrets to test a branch. Refusing first means
+     the reason given is the policy, and the refusal always reaches the logs.
+
+     Outside production nothing leaves except to the allowlist, so owner-bound
+     mail (the digest, signup notices, feedback) still works on a preview and
+     nobody else is reachable. */
+  if (env.ENVIRONMENT !== "production" && !allowlisted(env, args.to.email)) {
+    console.warn(`[email] refused outside production: ${args.to.email} (${args.subject})`);
+    return { ok: false, status: 0, error: "blocked_outside_production" };
+  }
   if (!env.ZOHO_ZEPTOMAIL_TOKEN || !env.ZOHO_ZEPTOMAIL_SENDER) {
     return { ok: false, status: 0, error: "missing_email_config" };
   }

@@ -29,7 +29,7 @@
 // off = allowlist-only, same as the brain.
 
 import type { Env } from "../_middleware";
-import { sendMail } from "./email";
+import { sendMail, emailLive } from "./email";
 import { renderEmail, SENDER, REPLY_TO, type TemplateData } from "./email-templates";
 import { createPaddleDiscount, hasPurchased } from "./cartrecovery";
 
@@ -168,7 +168,7 @@ export { fmtExpiry as formatOfferExpiry };
 
 // ---- the confirmation, sent synchronously by /api/price-alert ------------
 export async function sendAlertConfirmation(env: AlertEnv, row: AlertRow): Promise<boolean> {
-  const live = (await env.KV.get("flag:email-live")) === "on";
+  const live = await emailLive(env);
   const template = row.reason === "unsure" ? "alert-unsure" : "alert-confirm";
   if (!allowedTo(env, live, row.email)) { await logEvent(env, row, template, "would_send", "dev mode"); return false; }
   /* "Not sure it is for me" is not "too expensive". Asking that person when
@@ -240,7 +240,7 @@ export async function sweepPriceAlerts(
       if (await env.KV.get(lock)) return;
       await env.KV.put(lock, "1", { expirationTtl: 300 });
     }
-    const live = (await env.KV.get("flag:email-live")) === "on";
+    const live = await emailLive(env);
     // bind() is only called when there is a placeholder to fill, rather than
     // relying on a zero-argument bind being a no-op
     const stmt = env.DB.prepare(

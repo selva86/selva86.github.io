@@ -10,7 +10,7 @@
 import type { Env, RequestData } from "../../_middleware";
 import { userSig, unsubUrl } from "../../_lib/brain";
 import { getSeqPlan, seqSendable, seqUrl, renderSeqEmail, getSeqCopy, SEQ_ITEMS } from "../../_lib/nurture";
-import { sendMail } from "../../_lib/email";
+import { sendMail, emailLive } from "../../_lib/email";
 import { SENDER, REPLY_TO } from "../../_lib/email-templates";
 import type { TemplateData } from "../../_lib/email-templates";
 
@@ -67,7 +67,7 @@ export const onRequestGet: PagesFunction<JoinEnv, string, RequestData> = async (
   // join above already succeeded, and the daily run picks the user up.
   let sentNow = false;
   try {
-    const live = (await env.KV.get("flag:email-live")) === "on";
+    const live = await emailLive(env);
     const allow = new Set(
       (env.EMAIL_TEST_ALLOWLIST || DEFAULT_ALLOWLIST).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
     );
