@@ -1,0 +1,323 @@
+---
+title: "Production Forecasting Lesson 2: Monitoring forecast accuracy over time"
+description: "Track forecast error separately by horizon, build a rolling accuracy series, and learn the two numbers that tell a short bad patch from a real model problem."
+keywords: "forecast accuracy monitoring, rolling MAE, forecast horizon, mean absolute error, production forecasting, forecast monitoring dashboard, concept drift, time series monitoring, R"
+mathjax: false
+webr: true
+curriculum_id: "5.160.2"
+post_type: "LESSON"
+course_id: "ts-production"
+course_title: "Production Forecasting"
+course_lesson: "2"
+course_total: "6"
+course_landing: "Production-Forecasting-Course.html"
+course_next: "Detecting-and-Diagnosing-Forecast-Degradation.html"
+course_prev: "Setting-a-Refresh-Cadence-and-Retraining.html"
+lesson_access: "pro"
+catalog_blurb: "Track forecast error by horizon and tell a bad week from a bad model."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Monitoring forecast accuracy over time</h2>
+
+<p>Today let's understand what to watch on a forecast once it is already running, not just how accurate it looked on the day you built it.</p>
+
+<p>Fernbank Bakery is a small wholesale bakery, and its best-selling product is a sourdough loaf. Below are the last 130 days of case orders for that loaf.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":203.4},{"x":2,"y":206.8},{"x":3,"y":196.2},{"x":4,"y":200.6},{"x":5,"y":199.0},{"x":6,"y":201.4},{"x":7,"y":198.8},{"x":8,"y":197.2},{"x":9,"y":204.6},{"x":10,"y":199.0},{"x":11,"y":209.4},{"x":12,"y":202.8},{"x":13,"y":207.2},{"x":14,"y":202.6},{"x":15,"y":202.0},{"x":16,"y":208.4},{"x":17,"y":200.8},{"x":18,"y":203.2},{"x":19,"y":204.6},{"x":20,"y":212.0},{"x":21,"y":211.4},{"x":22,"y":202.8},{"x":23,"y":212.2},{"x":24,"y":207.6},{"x":25,"y":214.0},{"x":26,"y":216.4},{"x":27,"y":212.8},{"x":28,"y":213.2},{"x":29,"y":212.6},{"x":30,"y":209.0},{"x":31,"y":209.4},{"x":32,"y":212.8},{"x":33,"y":208.2},{"x":34,"y":208.6},{"x":35,"y":217.0},{"x":36,"y":208.4},{"x":37,"y":217.8},{"x":38,"y":212.2},{"x":39,"y":209.6},{"x":40,"y":214.0},{"x":41,"y":221.4},{"x":42,"y":215.8},{"x":43,"y":215.2},{"x":44,"y":211.6},{"x":45,"y":214.0},{"x":46,"y":218.4},{"x":47,"y":213.8},{"x":48,"y":215.2},{"x":49,"y":220.6},{"x":50,"y":222.0},{"x":51,"y":225.4},{"x":52,"y":218.8},{"x":53,"y":224.2},{"x":54,"y":227.6},{"x":55,"y":224.0},{"x":56,"y":220.4},{"x":57,"y":227.8},{"x":58,"y":217.2},{"x":59,"y":218.6},{"x":60,"y":227.0},{"x":61,"y":265.4},{"x":62,"y":255.8},{"x":63,"y":229.2},{"x":64,"y":230.6},{"x":65,"y":228.0},{"x":66,"y":228.4},{"x":67,"y":226.8},{"x":68,"y":225.2},{"x":69,"y":222.6},{"x":70,"y":222.0},{"x":71,"y":227.4},{"x":72,"y":230.8},{"x":73,"y":224.2},{"x":74,"y":229.6},{"x":75,"y":230.0},{"x":76,"y":229.4},{"x":77,"y":226.8},{"x":78,"y":232.2},{"x":79,"y":236.6},{"x":80,"y":237.0},{"x":81,"y":227.4},{"x":82,"y":238.8},{"x":83,"y":233.2},{"x":84,"y":238.6},{"x":85,"y":232.0},{"x":86,"y":237.4},{"x":87,"y":239.8},{"x":88,"y":233.2},{"x":89,"y":238.6},{"x":90,"y":237.0},{"x":91,"y":257.4},{"x":92,"y":249.8},{"x":93,"y":258.2},{"x":94,"y":257.6},{"x":95,"y":256.0},{"x":96,"y":259.4},{"x":97,"y":247.8},{"x":98,"y":258.2},{"x":99,"y":258.6},{"x":100,"y":254.0},{"x":101,"y":257.4},{"x":102,"y":252.8},{"x":103,"y":261.2},{"x":104,"y":262.6},{"x":105,"y":251.0},{"x":106,"y":263.4},{"x":107,"y":255.8},{"x":108,"y":255.2},{"x":109,"y":254.6},{"x":110,"y":256.0},{"x":111,"y":258.4},{"x":112,"y":262.8},{"x":113,"y":255.2},{"x":114,"y":259.6},{"x":115,"y":258.0},{"x":116,"y":260.4},{"x":117,"y":257.8},{"x":118,"y":260.2},{"x":119,"y":259.6},{"x":120,"y":266.0},{"x":121,"y":266.4},{"x":122,"y":262.8},{"x":123,"y":266.2},{"x":124,"y":270.6},{"x":125,"y":269.0},{"x":126,"y":260.4},{"x":127,"y":264.8},{"x":128,"y":266.2},{"x":129,"y":260.6},{"x":130,"y":265.0}],"geoms":["line"],"x":"day","y":"orders (cases)","code":{"line":"ggplot(fernbank, aes(day, orders)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>For the first two months, orders climb gently, the ordinary drift of a bakery that is slowly growing. Then two things happen that are not ordinary drift: a short, sharp jump partway through the series, and later a jump that never settles back down. Neither one explains itself from the chart alone. This lesson works out how to watch a forecast's own errors closely enough to catch exactly that kind of change, and to tell the two apart.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Forecasting two horizons from the same average</h2>
+
+<p>A forecasting model can look fine on the day you launch it and still go wrong later, without anyone changing a line of code. That is exactly why its accuracy needs watching over time, not just measuring once before it ships.</p>
+
+<p>Fernbank forecasts its sourdough orders with a trailing 7-day average: every day, it averages the last 7 days of actual orders and calls that the forecast. The bakery uses this one number for two different jobs. Tomorrow's bake decision needs a forecast 1 day ahead.</p>
+
+<p>Next week's flour order needs a forecast 7 days ahead. How far ahead a forecast is aimed at is called its horizon, and Fernbank is really running the same average at two different horizons: 1 day and 7 days.</p>
+
+<p>Press Run to build Fernbank's 130 days of orders and see both horizons side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Fernbank's 130 days of orders and the trailing 7-day average that forecasts them
+n_days &lt;- 130
+seed &lt;- 11
+noise &lt;- numeric(n_days)
+for (t in 1:n_days) {
+  seed &lt;- (seed * 48271) %% 2147483647
+  noise[t] &lt;- (seed %% 13) - 6
+}
+orders &lt;- 200 + 0.4 * (1:n_days) + noise
+orders[61:62] &lt;- orders[61:62] + 35
+orders[91:n_days] &lt;- orders[91:n_days] + 15
+
+trail7 &lt;- rep(NA, n_days)
+for (s in 7:n_days) {
+  trail7[s] &lt;- mean(orders[(s - 6):s])
+}
+
+days &lt;- 55:62
+data.frame(
+  day = days,
+  horizon_1_forecast = round(trail7[days - 1], 2),
+  horizon_7_forecast = round(trail7[days - 7], 2),
+  actual_orders = round(orders[days], 2)
+)
+#&gt;   day horizon_1_forecast horizon_7_forecast actual_orders
+#&gt; 1  55             221.97             214.86         224.0
+#&gt; 2  56             223.23             215.54         220.4
+#&gt; 3  57             223.20             216.51         227.8
+#&gt; 4  58             224.03             218.49         217.2
+#&gt; 5  59             222.86             219.17         218.6
+#&gt; 6  60             222.83             220.00         227.0
+#&gt; 7  61             223.23             221.97         265.4
+#&gt; 8  62             228.63             223.23         255.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The orders for days 1 to 130 are not pulled from R's random number generator. They come from a repeatable formula, a base level that climbs 0.4 cases a day plus a repeatable wobble, so every reader who runs this sees the exact same 130 days. Day 61 and 62 then get a one-off festival bump of 35 cases, and from day 91 onward a competitor's closing adds a permanent 15 cases.</p>
+
+<p><code>horizon_1_forecast</code> is yesterday's trailing average, used to forecast today's bake. <code>horizon_7_forecast</code> is the trailing average from a week ago, used seven days back to forecast today's flour order. Look at days 55 to 60: both forecasts sit close to each other and close to the actual orders, because nothing unusual is happening yet.</p>
+
+<p>Then day 61 arrives. Actual orders jump to 265.4, but both forecasts stay far below it, at 223.23 and 221.97, because both are built purely from past orders, and a one-off festival leaves no trace in the data that came before it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>horizon_1_forecast</code> and <code>horizon_7_forecast</code> are both trailing 7-day averages. The only difference is which day each one was computed on: horizon 1 uses yesterday's average, horizon 7 uses the average from a week ago. Same formula, same kind of input, different point in time.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Error by horizon, not just in aggregate</h2>
+
+<p>Here's the question day 61 raises: before any festival or any closing, is Fernbank's two-horizon setup even equally accurate on an ordinary day? Let's check, using the 41 calm days from day 20 to day 60, before anything unusual happens.</p>
+
+<p>A forecast's error on a given day is just the absolute gap between what it predicted and what actually happened. Averaging that gap over many days gives the mean absolute error, or MAE, in the same units as the orders themselves, cases a day.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Mean absolute error by horizon, over the calm 41 days before the festival
+calm &lt;- 20:60
+err_h1_calm &lt;- abs(orders[calm] - trail7[calm - 1])
+err_h7_calm &lt;- abs(orders[calm] - trail7[calm - 7])
+cat(sprintf(&quot;Horizon 1 MAE: %.2f\n&quot;, mean(err_h1_calm)))
+cat(sprintf(&quot;Horizon 7 MAE: %.2f\n&quot;, mean(err_h7_calm)))
+#&gt; Horizon 1 MAE: 3.88
+#&gt; Horizon 7 MAE: 5.40
+
+# Build the same two error series for every day
+err_h1 &lt;- rep(NA, n_days)
+for (d in 8:n_days) err_h1[d] &lt;- abs(orders[d] - trail7[d - 1])
+err_h7 &lt;- rep(NA, n_days)
+for (d in 14:n_days) err_h7[d] &lt;- abs(orders[d] - trail7[d - 7])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is that same comparison laid out as a table.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["Horizon","Used for","MAE, days 20-60"],"rows":[["1 day ahead","Next day bake","3.88"],["7 days ahead","Next week flour order","5.40"]],"title":"Same model, same day, two different errors","note":"Mean absolute error in cases a day, over the calm 41-day stretch before the festival."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>5.40 is almost 40% bigger than 3.88, and nothing unusual happened in either case. The reason is mechanical, not mysterious: the horizon-7 forecast is always a full week older by the time anyone compares it to the actual order. Orders are rising by about 0.4 cases a day, so that older average has six extra days to fall behind the trend before it gets judged.</p>
+
+<p>A dashboard that only tracked one blended MAE across both horizons would never show this gap. It would hide the fact that the flour-order forecast is working from a seven-day-old number while the bake forecast is working from a one-day-old one.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>A rolling MAE series shows when something changed</h2>
+
+<p>One MAE number, even split by horizon, still describes a whole stretch of time. It cannot say when inside that stretch something changed, only what the average error was overall. Here is the same two MAEs computed over the full 130 days instead of just the calm stretch.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Mean absolute error by horizon, over the whole 130 days
+cat(sprintf(&quot;Horizon 1 MAE, all 130 days: %.2f\n&quot;, mean(err_h1, na.rm = TRUE)))
+cat(sprintf(&quot;Horizon 7 MAE, all 130 days: %.2f\n&quot;, mean(err_h7, na.rm = TRUE)))
+#&gt; Horizon 1 MAE, all 130 days: 4.82
+#&gt; Horizon 7 MAE, all 130 days: 6.89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>4.82 and 6.89 are both bigger than the calm-stretch numbers from the last step, 3.88 and 5.40, which makes sense since the festival and the closing are now mixed in. But these two numbers alone cannot say whether that rise came from one bad week or a changed bakery. For that, compute the same MAE again and again using only the last 14 days of errors each time, and plot it against the day it was computed on, which turns one flat number into a series: a rolling MAE.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Turn each day's error into a 14-day trailing average, by horizon
+roll_h1 &lt;- rep(NA, n_days)
+roll_h7 &lt;- rep(NA, n_days)
+for (d in 21:n_days) roll_h1[d] &lt;- mean(err_h1[(d - 13):d])
+for (d in 27:n_days) roll_h7[d] &lt;- mean(err_h7[(d - 13):d])
+
+cat(sprintf(&quot;Calm-stretch range, horizon 1: %.2f to %.2f\n&quot;, min(roll_h1[21:60]), max(roll_h1[21:60])))
+cat(sprintf(&quot;Calm-stretch range, horizon 7: %.2f to %.2f\n&quot;, min(roll_h7[27:60]), max(roll_h7[27:60])))
+#&gt; Calm-stretch range, horizon 1: 2.90 to 4.38
+#&gt; Calm-stretch range, horizon 7: 3.73 to 6.22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plotted against the day, that rolling MAE looks like this for both horizons.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":21,"y":3.67,"fill":"Horizon-1 rolling MAE"},{"x":22,"y":3.64,"fill":"Horizon-1 rolling MAE"},{"x":23,"y":3.74,"fill":"Horizon-1 rolling MAE"},{"x":24,"y":3.75,"fill":"Horizon-1 rolling MAE"},{"x":25,"y":3.54,"fill":"Horizon-1 rolling MAE"},{"x":26,"y":3.95,"fill":"Horizon-1 rolling MAE"},{"x":27,"y":3.7,"fill":"Horizon-1 rolling MAE"},{"x":28,"y":3.85,"fill":"Horizon-1 rolling MAE"},{"x":29,"y":3.85,"fill":"Horizon-1 rolling MAE"},{"x":30,"y":3.8,"fill":"Horizon-1 rolling MAE"},{"x":31,"y":3.74,"fill":"Horizon-1 rolling MAE"},{"x":32,"y":3.65,"fill":"Horizon-1 rolling MAE"},{"x":33,"y":3.89,"fill":"Horizon-1 rolling MAE"},{"x":34,"y":3.51,"fill":"Horizon-1 rolling MAE"},{"x":35,"y":3.5,"fill":"Horizon-1 rolling MAE"},{"x":36,"y":3.46,"fill":"Horizon-1 rolling MAE"},{"x":37,"y":3.55,"fill":"Horizon-1 rolling MAE"},{"x":38,"y":3.52,"fill":"Horizon-1 rolling MAE"},{"x":39,"y":3.25,"fill":"Horizon-1 rolling MAE"},{"x":40,"y":2.9,"fill":"Horizon-1 rolling MAE"},{"x":41,"y":3.4,"fill":"Horizon-1 rolling MAE"},{"x":42,"y":3.35,"fill":"Horizon-1 rolling MAE"},{"x":43,"y":3.33,"fill":"Horizon-1 rolling MAE"},{"x":44,"y":3.32,"fill":"Horizon-1 rolling MAE"},{"x":45,"y":3.14,"fill":"Horizon-1 rolling MAE"},{"x":46,"y":3.39,"fill":"Horizon-1 rolling MAE"},{"x":47,"y":3.24,"fill":"Horizon-1 rolling MAE"},{"x":48,"y":3.1,"fill":"Horizon-1 rolling MAE"},{"x":49,"y":3.04,"fill":"Horizon-1 rolling MAE"},{"x":50,"y":3.31,"fill":"Horizon-1 rolling MAE"},{"x":51,"y":3.43,"fill":"Horizon-1 rolling MAE"},{"x":52,"y":3.42,"fill":"Horizon-1 rolling MAE"},{"x":53,"y":3.59,"fill":"Horizon-1 rolling MAE"},{"x":54,"y":3.97,"fill":"Horizon-1 rolling MAE"},{"x":55,"y":3.48,"fill":"Horizon-1 rolling MAE"},{"x":56,"y":3.58,"fill":"Horizon-1 rolling MAE"},{"x":57,"y":3.83,"fill":"Horizon-1 rolling MAE"},{"x":58,"y":4.07,"fill":"Horizon-1 rolling MAE"},{"x":59,"y":4.36,"fill":"Horizon-1 rolling MAE"},{"x":60,"y":4.38,"fill":"Horizon-1 rolling MAE"},{"x":61,"y":7.25,"fill":"Horizon-1 rolling MAE"},{"x":62,"y":9.15,"fill":"Horizon-1 rolling MAE"},{"x":63,"y":9.02,"fill":"Horizon-1 rolling MAE"},{"x":64,"y":8.83,"fill":"Horizon-1 rolling MAE"},{"x":65,"y":8.69,"fill":"Horizon-1 rolling MAE"},{"x":66,"y":9.23,"fill":"Horizon-1 rolling MAE"},{"x":67,"y":9.66,"fill":"Horizon-1 rolling MAE"},{"x":68,"y":10.01,"fill":"Horizon-1 rolling MAE"},{"x":69,"y":10.54,"fill":"Horizon-1 rolling MAE"},{"x":70,"y":10.71,"fill":"Horizon-1 rolling MAE"},{"x":71,"y":10.47,"fill":"Horizon-1 rolling MAE"},{"x":72,"y":10.34,"fill":"Horizon-1 rolling MAE"},{"x":73,"y":10.18,"fill":"Horizon-1 rolling MAE"},{"x":74,"y":10.17,"fill":"Horizon-1 rolling MAE"},{"x":75,"y":7.44,"fill":"Horizon-1 rolling MAE"},{"x":76,"y":5.7,"fill":"Horizon-1 rolling MAE"},{"x":77,"y":5.47,"fill":"Horizon-1 rolling MAE"},{"x":78,"y":5.48,"fill":"Horizon-1 rolling MAE"},{"x":79,"y":5.53,"fill":"Horizon-1 rolling MAE"},{"x":80,"y":5.47,"fill":"Horizon-1 rolling MAE"},{"x":81,"y":4.99,"fill":"Horizon-1 rolling MAE"},{"x":82,"y":4.63,"fill":"Horizon-1 rolling MAE"},{"x":83,"y":4.0,"fill":"Horizon-1 rolling MAE"},{"x":84,"y":4.02,"fill":"Horizon-1 rolling MAE"},{"x":85,"y":4.13,"fill":"Horizon-1 rolling MAE"},{"x":86,"y":3.96,"fill":"Horizon-1 rolling MAE"},{"x":87,"y":4.17,"fill":"Horizon-1 rolling MAE"},{"x":88,"y":4.03,"fill":"Horizon-1 rolling MAE"},{"x":89,"y":3.92,"fill":"Horizon-1 rolling MAE"},{"x":90,"y":3.79,"fill":"Horizon-1 rolling MAE"},{"x":91,"y":5.21,"fill":"Horizon-1 rolling MAE"},{"x":92,"y":5.68,"fill":"Horizon-1 rolling MAE"},{"x":93,"y":6.3,"fill":"Horizon-1 rolling MAE"},{"x":94,"y":6.7,"fill":"Horizon-1 rolling MAE"},{"x":95,"y":7.01,"fill":"Horizon-1 rolling MAE"},{"x":96,"y":7.1,"fill":"Horizon-1 rolling MAE"},{"x":97,"y":7.48,"fill":"Horizon-1 rolling MAE"},{"x":98,"y":7.3,"fill":"Horizon-1 rolling MAE"},{"x":99,"y":7.34,"fill":"Horizon-1 rolling MAE"},{"x":100,"y":7.33,"fill":"Horizon-1 rolling MAE"},{"x":101,"y":7.09,"fill":"Horizon-1 rolling MAE"},{"x":102,"y":7.16,"fill":"Horizon-1 rolling MAE"},{"x":103,"y":7.39,"fill":"Horizon-1 rolling MAE"},{"x":104,"y":7.82,"fill":"Horizon-1 rolling MAE"},{"x":105,"y":6.83,"fill":"Horizon-1 rolling MAE"},{"x":106,"y":6.55,"fill":"Horizon-1 rolling MAE"},{"x":107,"y":5.51,"fill":"Horizon-1 rolling MAE"},{"x":108,"y":4.78,"fill":"Horizon-1 rolling MAE"},{"x":109,"y":4.37,"fill":"Horizon-1 rolling MAE"},{"x":110,"y":3.86,"fill":"Horizon-1 rolling MAE"},{"x":111,"y":3.55,"fill":"Horizon-1 rolling MAE"},{"x":112,"y":3.8,"fill":"Horizon-1 rolling MAE"},{"x":113,"y":3.76,"fill":"Horizon-1 rolling MAE"},{"x":114,"y":3.78,"fill":"Horizon-1 rolling MAE"},{"x":115,"y":3.71,"fill":"Horizon-1 rolling MAE"},{"x":116,"y":3.68,"fill":"Horizon-1 rolling MAE"},{"x":117,"y":3.33,"fill":"Horizon-1 rolling MAE"},{"x":118,"y":2.93,"fill":"Horizon-1 rolling MAE"},{"x":119,"y":2.47,"fill":"Horizon-1 rolling MAE"},{"x":120,"y":2.52,"fill":"Horizon-1 rolling MAE"},{"x":121,"y":2.84,"fill":"Horizon-1 rolling MAE"},{"x":122,"y":2.78,"fill":"Horizon-1 rolling MAE"},{"x":123,"y":2.88,"fill":"Horizon-1 rolling MAE"},{"x":124,"y":3.33,"fill":"Horizon-1 rolling MAE"},{"x":125,"y":3.54,"fill":"Horizon-1 rolling MAE"},{"x":126,"y":3.47,"fill":"Horizon-1 rolling MAE"},{"x":127,"y":3.34,"fill":"Horizon-1 rolling MAE"},{"x":128,"y":3.18,"fill":"Horizon-1 rolling MAE"},{"x":129,"y":3.5,"fill":"Horizon-1 rolling MAE"},{"x":130,"y":3.34,"fill":"Horizon-1 rolling MAE"},{"x":27,"y":5.52,"fill":"Horizon-7 rolling MAE"},{"x":28,"y":5.91,"fill":"Horizon-7 rolling MAE"},{"x":29,"y":6.22,"fill":"Horizon-7 rolling MAE"},{"x":30,"y":5.77,"fill":"Horizon-7 rolling MAE"},{"x":31,"y":5.84,"fill":"Horizon-7 rolling MAE"},{"x":32,"y":5.96,"fill":"Horizon-7 rolling MAE"},{"x":33,"y":5.96,"fill":"Horizon-7 rolling MAE"},{"x":34,"y":5.47,"fill":"Horizon-7 rolling MAE"},{"x":35,"y":5.3,"fill":"Horizon-7 rolling MAE"},{"x":36,"y":5.52,"fill":"Horizon-7 rolling MAE"},{"x":37,"y":5.37,"fill":"Horizon-7 rolling MAE"},{"x":38,"y":5.18,"fill":"Horizon-7 rolling MAE"},{"x":39,"y":4.65,"fill":"Horizon-7 rolling MAE"},{"x":40,"y":3.98,"fill":"Horizon-7 rolling MAE"},{"x":41,"y":4.18,"fill":"Horizon-7 rolling MAE"},{"x":42,"y":4.01,"fill":"Horizon-7 rolling MAE"},{"x":43,"y":3.89,"fill":"Horizon-7 rolling MAE"},{"x":44,"y":3.73,"fill":"Horizon-7 rolling MAE"},{"x":45,"y":3.74,"fill":"Horizon-7 rolling MAE"},{"x":46,"y":3.97,"fill":"Horizon-7 rolling MAE"},{"x":47,"y":3.87,"fill":"Horizon-7 rolling MAE"},{"x":48,"y":3.76,"fill":"Horizon-7 rolling MAE"},{"x":49,"y":3.81,"fill":"Horizon-7 rolling MAE"},{"x":50,"y":3.99,"fill":"Horizon-7 rolling MAE"},{"x":51,"y":4.39,"fill":"Horizon-7 rolling MAE"},{"x":52,"y":4.67,"fill":"Horizon-7 rolling MAE"},{"x":53,"y":5.08,"fill":"Horizon-7 rolling MAE"},{"x":54,"y":5.72,"fill":"Horizon-7 rolling MAE"},{"x":55,"y":5.6,"fill":"Horizon-7 rolling MAE"},{"x":56,"y":5.61,"fill":"Horizon-7 rolling MAE"},{"x":57,"y":6.08,"fill":"Horizon-7 rolling MAE"},{"x":58,"y":6.16,"fill":"Horizon-7 rolling MAE"},{"x":59,"y":6.07,"fill":"Horizon-7 rolling MAE"},{"x":60,"y":6.09,"fill":"Horizon-7 rolling MAE"},{"x":61,"y":9.1,"fill":"Horizon-7 rolling MAE"},{"x":62,"y":11.37,"fill":"Horizon-7 rolling MAE"},{"x":63,"y":11.34,"fill":"Horizon-7 rolling MAE"},{"x":64,"y":11.32,"fill":"Horizon-7 rolling MAE"},{"x":65,"y":10.89,"fill":"Horizon-7 rolling MAE"},{"x":66,"y":10.98,"fill":"Horizon-7 rolling MAE"},{"x":67,"y":10.63,"fill":"Horizon-7 rolling MAE"},{"x":68,"y":10.03,"fill":"Horizon-7 rolling MAE"},{"x":69,"y":10.13,"fill":"Horizon-7 rolling MAE"},{"x":70,"y":10.67,"fill":"Horizon-7 rolling MAE"},{"x":71,"y":10.4,"fill":"Horizon-7 rolling MAE"},{"x":72,"y":10.7,"fill":"Horizon-7 rolling MAE"},{"x":73,"y":11.63,"fill":"Horizon-7 rolling MAE"},{"x":74,"y":11.71,"fill":"Horizon-7 rolling MAE"},{"x":75,"y":8.76,"fill":"Horizon-7 rolling MAE"},{"x":76,"y":6.58,"fill":"Horizon-7 rolling MAE"},{"x":77,"y":6.19,"fill":"Horizon-7 rolling MAE"},{"x":78,"y":6.18,"fill":"Horizon-7 rolling MAE"},{"x":79,"y":6.56,"fill":"Horizon-7 rolling MAE"},{"x":80,"y":6.98,"fill":"Horizon-7 rolling MAE"},{"x":81,"y":6.83,"fill":"Horizon-7 rolling MAE"},{"x":82,"y":7.45,"fill":"Horizon-7 rolling MAE"},{"x":83,"y":7.09,"fill":"Horizon-7 rolling MAE"},{"x":84,"y":6.94,"fill":"Horizon-7 rolling MAE"},{"x":85,"y":6.62,"fill":"Horizon-7 rolling MAE"},{"x":86,"y":6.77,"fill":"Horizon-7 rolling MAE"},{"x":87,"y":6.38,"fill":"Horizon-7 rolling MAE"},{"x":88,"y":5.93,"fill":"Horizon-7 rolling MAE"},{"x":89,"y":6.21,"fill":"Horizon-7 rolling MAE"},{"x":90,"y":6.34,"fill":"Horizon-7 rolling MAE"},{"x":91,"y":7.91,"fill":"Horizon-7 rolling MAE"},{"x":92,"y":8.52,"fill":"Horizon-7 rolling MAE"},{"x":93,"y":9.44,"fill":"Horizon-7 rolling MAE"},{"x":94,"y":10.21,"fill":"Horizon-7 rolling MAE"},{"x":95,"y":11.53,"fill":"Horizon-7 rolling MAE"},{"x":96,"y":12.33,"fill":"Horizon-7 rolling MAE"},{"x":97,"y":12.72,"fill":"Horizon-7 rolling MAE"},{"x":98,"y":13.34,"fill":"Horizon-7 rolling MAE"},{"x":99,"y":14.32,"fill":"Horizon-7 rolling MAE"},{"x":100,"y":14.43,"fill":"Horizon-7 rolling MAE"},{"x":101,"y":14.56,"fill":"Horizon-7 rolling MAE"},{"x":102,"y":14.58,"fill":"Horizon-7 rolling MAE"},{"x":103,"y":14.69,"fill":"Horizon-7 rolling MAE"},{"x":104,"y":14.95,"fill":"Horizon-7 rolling MAE"},{"x":105,"y":13.64,"fill":"Horizon-7 rolling MAE"},{"x":106,"y":13.06,"fill":"Horizon-7 rolling MAE"},{"x":107,"y":11.41,"fill":"Horizon-7 rolling MAE"},{"x":108,"y":9.87,"fill":"Horizon-7 rolling MAE"},{"x":109,"y":8.51,"fill":"Horizon-7 rolling MAE"},{"x":110,"y":6.87,"fill":"Horizon-7 rolling MAE"},{"x":111,"y":6.11,"fill":"Horizon-7 rolling MAE"},{"x":112,"y":5.19,"fill":"Horizon-7 rolling MAE"},{"x":113,"y":4.16,"fill":"Horizon-7 rolling MAE"},{"x":114,"y":3.64,"fill":"Horizon-7 rolling MAE"},{"x":115,"y":2.97,"fill":"Horizon-7 rolling MAE"},{"x":116,"y":3.01,"fill":"Horizon-7 rolling MAE"},{"x":117,"y":2.53,"fill":"Horizon-7 rolling MAE"},{"x":118,"y":2.28,"fill":"Horizon-7 rolling MAE"},{"x":119,"y":2.08,"fill":"Horizon-7 rolling MAE"},{"x":120,"y":2.24,"fill":"Horizon-7 rolling MAE"},{"x":121,"y":2.88,"fill":"Horizon-7 rolling MAE"},{"x":122,"y":3.18,"fill":"Horizon-7 rolling MAE"},{"x":123,"y":3.66,"fill":"Horizon-7 rolling MAE"},{"x":124,"y":4.48,"fill":"Horizon-7 rolling MAE"},{"x":125,"y":5.14,"fill":"Horizon-7 rolling MAE"},{"x":126,"y":4.84,"fill":"Horizon-7 rolling MAE"},{"x":127,"y":5.0,"fill":"Horizon-7 rolling MAE"},{"x":128,"y":5.22,"fill":"Horizon-7 rolling MAE"},{"x":129,"y":5.28,"fill":"Horizon-7 rolling MAE"},{"x":130,"y":5.24,"fill":"Horizon-7 rolling MAE"}],"geoms":["line"],"x":"day","y":"14-day rolling MAE","code":{"line":"ggplot(fernbank_roll, aes(day, rolling_mae, color = horizon)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Through the calm stretch, both lines sit inside a narrow band: about 2.9 to 4.4 for horizon 1, about 3.7 to 6.2 for horizon 7. Then both lines climb above their own band, once from day 61, and a second time, climbing even further in the horizon-7 line, from around day 91 onward. A single whole-period MAE would have folded both of those moments into one number and shown you none of this.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Separating a bad week from a bad model</h2>
+
+<p>Both bumps on that chart clear the calm band, so the rolling MAE on its own cannot tell you which kind of problem you are looking at. For that, drop back down to the raw daily errors behind each bump.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The raw horizon-1 errors behind each bump: the festival, then the closing
+festival_window &lt;- round(err_h1[58:70], 2)
+names(festival_window) &lt;- 58:70
+festival_window
+#&gt;    58    59    60    61    62    63    64    65    66    67    68    69    70
+#&gt;  6.83  4.26  4.17 42.17 27.17  3.97  3.83  6.83  7.97 10.97 12.54  9.40  5.26
+
+closing_window &lt;- round(err_h1[89:97], 2)
+names(closing_window) &lt;- 89:97
+closing_window
+#&gt;    89    90    91    92    93    94    95    96    97
+#&gt;  2.46  0.89 20.74 10.46 16.31 12.74  8.60  8.74  5.83
+
+# For comparison, one ordinary calm day picked at random
+round(err_h1[41], 2)
+#&gt; [1] 8.89</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The festival's signature is two extreme days, 42.17 and 27.17, towering over everything around them. A few days later the trailing average is still partly built from those two festival days, so the error ticks up again for a few more days, 10.97 and 12.54, before settling back near 5 by day 70.</p>
+
+<p>The closing's signature looks nothing like that. There is no single huge day. Instead there are six days in a row, from day 91 to day 96, each moderately elevated, 20.74 down to 8.74, and none of them drops back to normal until day 97.</p>
+
+<p>Now look at day 41 above, a perfectly ordinary calm day: its error alone reaches 8.89, higher than four of the six closing days. So one elevated day, on its own, proves nothing; it could just as easily be noise. What marks the closing as a real change is not how high any single day went, it is that several days in a row stayed up.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Choosing the few numbers for a daily dashboard</h2>
+
+<p>The rolling MAE's shape and the raw errors behind it, taken together, point at two numbers worth putting on a dashboard that gets checked every day. The first is the rolling MAE at each horizon, which says how the forecast is doing lately. The second is a count of elevated days in the last week, which says whether a bad reading is a blip or a run.</p>
+
+<p>Call a day elevated when its horizon-1 error tops 8 cases, roughly double the calm-stretch MAE of 3.88. That line is not perfect; an ordinary calm day can still cross it once in a while, the way one calm day earlier reached 8.89 on its own. What makes the count useful is not the line by itself, it is whether several days in a row cross it: isolated extremes look nothing like a sustained run, and it is the run that marks a real change.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count how many of the last 7 days had a horizon-1 error above the elevated-day line
+threshold &lt;- 8
+elevated &lt;- err_h1 &gt; threshold
+cat(sprintf(&quot;Day 50 - Horizon 1 rolling MAE: %.2f\n&quot;, roll_h1[50]))
+cat(sprintf(&quot;Day 50 - Horizon 7 rolling MAE: %.2f\n&quot;, roll_h7[50]))
+cat(sprintf(&quot;Day 50 - elevated days in last 7: %d\n&quot;, sum(elevated[44:50])))
+cat(sprintf(&quot;Day 97 - Horizon 1 rolling MAE: %.2f\n&quot;, roll_h1[97]))
+cat(sprintf(&quot;Day 97 - Horizon 7 rolling MAE: %.2f\n&quot;, roll_h7[97]))
+cat(sprintf(&quot;Day 97 - elevated days in last 7: %d\n&quot;, sum(elevated[91:97])))
+#&gt; Day 50 - Horizon 1 rolling MAE: 3.31
+#&gt; Day 50 - Horizon 7 rolling MAE: 3.99
+#&gt; Day 50 - elevated days in last 7: 0
+#&gt; Day 97 - Horizon 1 rolling MAE: 7.48
+#&gt; Day 97 - Horizon 7 rolling MAE: 12.72
+#&gt; Day 97 - elevated days in last 7: 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is that same reading as a small dashboard, switchable between a calm day and a day partway through the closing.</p>
+<div class="lesson-widget" data-widget-type="dashboard-layout" data-widget-config='{"filterLabel":"Day","views":{"A calm day (day 50)":{"boxes":[["Horizon-1 rolling MAE","3.3"],["Horizon-7 rolling MAE","4.0"],["Elevated days, last 7","0"]]},"Partway through the closing (day 97)":{"boxes":[["Horizon-1 rolling MAE","7.5"],["Horizon-7 rolling MAE","12.7"],["Elevated days, last 7","6"]]}}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switch between the two views above. On the calm day, both rolling MAEs sit near their usual band and no day in the last week crossed the line. A week into the closing, both rolling MAEs have more than doubled, and 6 of the last 7 days crossed the line.</p>
+
+<p>That combination, both horizons up together and a sustained run behind them, is what separates a day worth a closer look from an ordinary noisy week. More numbers on the dashboard would mostly just add noise to read through.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading the dashboard</h2>
+
+<p>Suppose one morning Fernbank's dashboard reads: horizon-1 rolling MAE 8.3, horizon-7 rolling MAE 10.1, and 5 elevated days in the last 7. What does this most likely mean?</p>
+<section class="exercise" data-exercise-id="Monitoring-Forecast-Accuracy-Over-Time-step7" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing unusual. The horizon-7 forecast always runs behind horizon-1, since it is built from less data.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both rolling MAEs clearing the calm band is enough on its own to prove the model needs retraining today.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Five elevated days out of the last seven is a sustained run, not a one-off, so this looks like a genuine shift worth investigating, the same signature the closing left behind.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Only the horizon-7 number needs a closer look, since horizon-1 is the smaller of the two readings.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Five days in a row past the line is the pattern that separates a real shift from noise. A single elevated day proves nothing on its own; several in a row is the signal.</div><div class="lesson-qfb lesson-qfb-no">Three of these miss the point. Horizon-7 is not behind because it uses less data, it uses the exact same trailing average, just read a week earlier. A rolling MAE above the calm band does not by itself prove the model is broken, since even two isolated bad days can push it there. And both horizons rising together means both forecasts are affected, not just one. What actually separates a bad week from a bad model is the run of elevated days behind the numbers, and five out of seven is exactly that run.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<h2>Your turn: flag the days that need a closer look</h2>
+
+<p>Fernbank's own dashboard uses 8 cases as its elevated-day line. Suppose a different series inside the bakery uses a line of 10 instead. Here is one practice week of horizon-1 errors; find which days clear that line, and notice which ones form a run.</p>
+<section class="exercise" data-exercise-id="Monitoring-Forecast-Accuracy-Over-Time-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="errs\s*&gt;\s*threshold"><textarea class="lesson-tryit-input" spellcheck="false"># One practice week of horizon-1 errors, and this series' own elevated-day line
+errs &lt;- c(3.1, 2.4, 9.8, 11.2, 10.6, 12.1, 9.4, 2.8, 3.6)
+threshold &lt;- 10
+
+# Write the comparison that flags which days are elevated, then wrap it in which()
+</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. errs > threshold flags entries 4, 5 and 6, three days in a row at 11.2, 10.6 and 12.1. Entry 3, at 9.8, stays under the line, so it does not count at all, let alone as part of a run.</span><span class="lesson-tryit-fb lesson-tryit-no">Compare each entry against the line: errs > threshold. Wrap that comparison in which() to see which positions it flags.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Flag every day whose error clears the line, then find which ones they are
+flagged &lt;- errs &gt; threshold
+which(flagged)
+#&gt; [1] 4 5 6</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice, 3rd edition</a> - Hyndman, R.J. and Athanasopoulos, G. The chapter on evaluating forecast accuracy.</li>
+
+<li><a href="https://doi.org/10.1109/BigData.2017.8258038">The ML Test Score: A Rubric for ML Production Readiness and Technical Debt Reduction</a> - Breck, E. and collaborators (2017), IEEE Big Data.</li>
+
+<li><a href="https://github.com/chiphuyen/dmls-book">Designing Machine Learning Systems</a> - Huyen, C. (2022), O'Reilly. The chapter on monitoring machine learning systems in production.</li>
+
+<li><a href="https://doi.org/10.1145/2523813">A Survey on Concept Drift Adaptation</a> - Gama, J., Zliobaite, I., Bifet, A., Pechenizkiy, M., and Bouchachia, A. (2014), ACM Computing Surveys, 46(4).</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>By the end of this lesson, you can track a forecast's error separately by horizon instead of blending it into one number, the way Fernbank's 3.88 against 5.40 showed up before anything had even gone wrong. You can build a 14-day rolling MAE and read its shape to see when something changed, not just whether. And you can tell a short-lived bad patch from a genuine shift by looking past the rolling MAE to the raw daily errors behind it: two isolated extremes for a one-off event, several moderately elevated days in a row for something that is not going away on its own.</p>
+
+<p>Put together, that is a two-number dashboard: rolling MAE by horizon, and a count of elevated days in the last week. Flagging a real problem with those two numbers raises the next question, what inside the forecasting setup actually changed.</p>
+</section>
+
+{% endraw %}
