@@ -34,12 +34,53 @@ export interface SendMailResult {
   error?: string;
 }
 
+export const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";
+
+/* flag:email-live is the switch that lets email reach real people, and it is
+   only ever honoured in production. Every branch preview shares the DEV KV
+   namespace, so setting that flag there turned every branch deployment into a
+   live mailer pointed at the dev database: a test that drove the price-alert
+   endpoint on a preview really did try to mail @example.com addresses through
+   ZeptoMail. Reading the flag through here means a preview stays in dev mode
+   whatever the flag says.
+
+   This fails CLOSED. If the ENVIRONMENT var ever goes missing in production,
+   email stops rather than quietly going out from somewhere it should not. A
+   stopped mailer is noticed and recovered; mail sent to strangers from a test
+   branch is neither. */
+export async function emailLive(
+  env: { KV: KVNamespace; ENVIRONMENT?: string },
+): Promise<boolean> {
+  if (env.ENVIRONMENT !== "production") return false;
+  return (await env.KV.get("flag:email-live")) === "on";
+}
+
+function allowlisted(env: { EMAIL_TEST_ALLOWLIST?: string }, address: string): boolean {
+  return (env.EMAIL_TEST_ALLOWLIST || DEFAULT_ALLOWLIST)
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+    .includes((address || "").toLowerCase());
+}
+
 export async function sendMail(
-  env: { ZOHO_ZEPTOMAIL_TOKEN: string; ZOHO_ZEPTOMAIL_SENDER: string },
+  env: {
+    ZOHO_ZEPTOMAIL_TOKEN: string; ZOHO_ZEPTOMAIL_SENDER: string;
+    ENVIRONMENT?: string; EMAIL_TEST_ALLOWLIST?: string;
+  },
   args: SendMailArgs,
 ): Promise<SendMailResult> {
   if (!env.ZOHO_ZEPTOMAIL_TOKEN || !env.ZOHO_ZEPTOMAIL_SENDER) {
     return { ok: false, status: 0, error: "missing_email_config" };
+  }
+  /* The backstop, and the reason it lives down here rather than at the call
+     sites: of the eighteen places that send mail, only three ever consulted
+     the live flag. The other fifteen (weekly recap, cart recovery, fulfilment,
+     team invites, waitlist) would mail real people straight from a branch
+     deployment. Outside production nothing leaves except to the allowlist, so
+     owner-bound mail still works on a preview and nobody else is reachable.
+     No call site, present or future, can get around this. */
+  if (env.ENVIRONMENT !== "production" && !allowlisted(env, args.to.email)) {
+    console.warn(`[email] refused outside production: ${args.to.email} (${args.subject})`);
+    return { ok: false, status: 0, error: "blocked_outside_production" };
   }
   // The stored token already begins with "Zoho-enczapikey "; using as-is.
   const auth = env.ZOHO_ZEPTOMAIL_TOKEN.startsWith("Zoho-enczapikey ")

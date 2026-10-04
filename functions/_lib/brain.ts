@@ -12,7 +12,10 @@
 //
 // Development mode vs live (the owner's switch):
 //   flag:email-engine  "on" = the brain runs at all (master kill)
-//   flag:email-live    "on" = sends reach everyone. Anything else = dev mode:
+//   flag:email-live    "on" = sends reach everyone, and ONLY in production:
+//                       previews share the dev KV namespace, so the flag is
+//                       read through emailLive() which refuses outside
+//                       production. Anything else = dev mode:
 //                       only the test allowlist receives real email; every
 //                       other decision is logged as a would_send event with
 //                       NO ledger write, so flipping live later delivers the
@@ -23,7 +26,7 @@ import type { User } from "./db";
 import { resolvePass, passCoupon, mintPassCoupon } from "./pass";
 import proLessonsJson from "../_data/pro-lessons.json";
 import { meterMonth, METER_LIMIT } from "./meter";
-import { sendMail } from "./email";
+import { sendMail, emailLive } from "./email";
 import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
 import { seqSendable, seqUrl, renderSeqEmail, getSeqCopy, getSeqPlan, SEQ_ITEMS } from "./nurture";
 
@@ -34,6 +37,8 @@ export interface BrainEnv {
   ZOHO_ZEPTOMAIL_SENDER: string;
   EMAIL_UNSUB_SECRET?: string;
   EMAIL_TEST_ALLOWLIST?: string;
+  // Only "production" lets email reach anyone but the allowlist (see emailLive).
+  ENVIRONMENT?: string;
   // Pass day-27 coupon minting (pass.ts); absent = the coupon emails are skipped.
   PADDLE_API_KEY?: string;
   PADDLE_PRICE_SINGLE_MONTH?: string;
@@ -164,7 +169,7 @@ export async function runBrain(
   if ((await env.KV.get("flag:email-engine")) !== "on") {
     return { ran: false, mode: "disabled", daily_run: false, decisions: [] };
   }
-  const live = (await env.KV.get("flag:email-live")) === "on";
+  const live = await emailLive(env);
   // The daily batch is RESUMABLE. It used to get exactly one window a day, so
   // a run that was cut off part way through simply lost the rest of the list,
   // and because the list had no order it lost the same people every day: on
