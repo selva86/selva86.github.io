@@ -1,9 +1,9 @@
 // GET /cert/<public_id>
 //
-// Public verify page for a certificate. Renders self-contained HTML — no
-// external image requests for the cert artwork (badge SVG is inlined),
-// minimal CSS (also inlined). Print-friendly so browser-print => PDF
-// gives a clean credential.
+// Public verify page for a certificate. Renders self-contained HTML: the
+// certificate itself comes from _lib/cert-design.ts (the 2026-10 design, one
+// source for every surface), styles are inlined. Print-friendly, so
+// browser-print gives a one-page landscape PDF of the certificate.
 //
 // Returns:
 //   200 with HTML  -> active cert
@@ -14,18 +14,14 @@
 import type { Env, RequestData } from "../_middleware";
 import { getCertificateByPublicId } from "../_lib/db";
 import { getTrack, getIssuer, isValidPublicId } from "../_lib/tracks";
-import { renderBadgeSvg } from "../_lib/cert-svg";
+import { CERT_CSS, CERT_FIT_JS, CERT_FONTS_HREF, certMeta, fmtCertDate, renderCertificateHtml } from "../_lib/cert-design";
 
 function escapeHtml(s: string): string {
   return String(s).replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 }
 
-function fmtDate(unixSec: number): string {
-  const d = new Date(unixSec * 1000);
-  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
+const HEAD_ICONS = `<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">`;
 
 function notFoundHtml(): string {
   return `<!DOCTYPE html>
@@ -34,15 +30,16 @@ function notFoundHtml(): string {
 <title>Certificate not found &middot; r-statistics.co</title>
 <meta name="robots" content="noindex,follow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">
+${HEAD_ICONS}
+<link href="${CERT_FONTS_HREF}" rel="stylesheet">
 <style>
-  body{font-family:'IBM Plex Sans',-apple-system,sans-serif;background:#f8f9fb;color:#0a0d14;
+  body{font-family:'Source Sans 3',-apple-system,sans-serif;background:#FAFBFA;color:#151816;
     display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
-  .card{background:#fff;border:1px solid #d4d9e3;border-radius:12px;padding:48px 36px;
-    max-width:480px;text-align:center;box-shadow:0 4px 16px -4px rgba(13,20,38,.08)}
-  h1{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;font-size:24px;margin:0 0 8px;color:#0a0d14}
-  p{color:#4b5260;font-size:15px;line-height:1.6;margin:0 0 20px}
-  a{color:#2056d2;text-decoration:none;font-weight:500}
+  .card{background:#fff;border:1px solid #E3E6E4;border-radius:16px;padding:48px 36px;
+    max-width:480px;text-align:center}
+  h1{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:24px;margin:0 0 8px}
+  p{color:#59605C;font-size:16px;line-height:1.6;margin:0 0 20px}
+  a{color:#1F6B4A;text-decoration:none;font-weight:600}
   a:hover{text-decoration:underline}
 </style>
 </head><body>
@@ -59,7 +56,7 @@ function htmlResponse(body: string, status: number): Response {
     status,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "public, max-age=300", // 5min — cert data rarely changes
+      "Cache-Control": "public, max-age=300", // 5min, cert data rarely changes
     },
   });
 }
@@ -78,12 +75,13 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
   const origin = new URL(context.request.url).origin;
   const verifyUrl = `${origin}/cert/${cert.public_id}`;
   const issuedAtIso = new Date(cert.issued_at * 1000).toISOString();
-  const issuedAtPretty = fmtDate(cert.issued_at);
+  const issuedAtPretty = fmtCertDate(cert.issued_at);
   const issueYear = new Date(cert.issued_at * 1000).getUTCFullYear();
   const issueMonth = new Date(cert.issued_at * 1000).getUTCMonth() + 1;
 
   const recipientName = cert.recipient_name || "Learner";
   const trackName = cert.track_name || track.name;
+  const meta = certMeta(track.id, trackName);
   const skills: Array<{ name: string; level?: string }> = (() => {
     try {
       const arr = cert.skills_json ? JSON.parse(cert.skills_json) : [];
@@ -102,7 +100,7 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
   const linkedInUrl =
     `https://www.linkedin.com/profile/add?` +
     `startTask=CERTIFICATION_NAME` +
-    `&name=${encodeURIComponent(trackName + " — r-statistics.co")}` +
+    `&name=${encodeURIComponent(trackName)}` +
     `&organizationName=${encodeURIComponent("r-statistics.co")}` +
     `&issueYear=${issueYear}&issueMonth=${issueMonth}` +
     `&certUrl=${encodeURIComponent(verifyUrl)}` +
@@ -114,7 +112,15 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
     `text=${encodeURIComponent(twitterText)}` +
     `&url=${encodeURIComponent(verifyUrl)}`;
 
-  const badgeSvg = renderBadgeSvg(track);
+  const certHtml = renderCertificateHtml({
+    holder: recipientName,
+    title: trackName,
+    code: meta.code,
+    mastery: meta.mastery,
+    issuedAt: cert.issued_at,
+    score: cert.score ?? null,
+    credId: cert.public_id || "",
+  });
 
   const skillChips = skills.map(s => {
     const level = s.level ? ` &middot; <span class="chip-level">${escapeHtml(s.level)}</span>` : "";
@@ -126,8 +132,8 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
     return `<li><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></li>`;
   }).join("");
 
-  // OG defaults: site-wide social preview image. v1.1 swaps in a per-cert PNG.
-  const ogTitle = `${trackName} — Certificate of Completion`;
+  // Social preview: the per-track image (screenshots/og-cert-<track>.png, Scripts/gen_cert_og.mjs).
+  const ogTitle = `${trackName} certificate · r-statistics.co`;
   const ogDesc = `${recipientName} earned the ${trackName} certificate from r-statistics.co on ${issuedAtPretty}.`;
 
   const html = `<!DOCTYPE html>
@@ -138,158 +144,102 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
 <meta name="description" content="${escapeHtml(ogDesc)}">
 <meta name="robots" content="noindex,follow">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">
+${HEAD_ICONS}
 <link rel="canonical" href="${escapeHtml(verifyUrl)}">
 <meta property="og:title" content="${escapeHtml(ogTitle)}">
 <meta property="og:description" content="${escapeHtml(ogDesc)}">
 <meta property="og:url" content="${escapeHtml(verifyUrl)}">
 <meta property="og:type" content="profile">
-<meta property="og:image" content="${escapeHtml(origin)}/screenshots/og-cert-${escapeHtml(track.id)}.png">
+<meta property="og:image" content="${escapeHtml(origin)}/screenshots/og-cert-${escapeHtml(track.id)}.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="${CERT_FONTS_HREF}" rel="stylesheet">
 <style>
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  *,*::before,*::after{box-sizing:border-box}
   :root{
-    --bg:#f4f6f9;--ink:#0a0d14;--ink-2:#1f2533;--mute:#4b5260;--faint:#6b7280;
-    --line:#e4e7ee;--border:#d4d9e3;--navy:#1c2c4f;--acc:#2056d2;--acc-h:#1842a8;
-    --acc-soft:#e9efff;--success:#137a3e;--success-soft:#dff1e3;
-    --paper:#fff;--paper-edge:#eef1f5;
-    --r:10px;--r-sm:6px;--r-md:13px;--r-lg:18px;
+    --bg:#FAFBFA;--ink:#151816;--ink2:#363D39;--mute:#59605C;--faint:#868C89;
+    --line:#E3E6E4;--line2:#ECEEED;--brand:#1F6B4A;--brand-h:#17553A;--deep:#0F3F2A;--tint:#E5F3EA;
   }
-  body{font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;
-    color:var(--ink);background:var(--bg);min-height:100vh;font-size:15px;
+  html,body{margin:0;padding:0}
+  body{font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,sans-serif;
+    color:var(--ink);background:var(--bg);min-height:100vh;font-size:16px;
     line-height:1.55;-webkit-font-smoothing:antialiased}
-  a{color:var(--acc);text-decoration:none}
-  a:hover{text-decoration:underline}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{color:var(--brand-h);text-decoration:underline}
 
-  /* Top status bar (above the cert sheet) — hidden on print. */
-  .topbar{
-    background:#fff;border-bottom:1px solid var(--line);padding:14px 24px;
-    display:flex;align-items:center;justify-content:space-between;
-    position:sticky;top:0;z-index:5;
-  }
-  .topbar-brand{display:inline-flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;
-    font-weight:600;font-size:14px;color:var(--ink);text-decoration:none}
+  /* Top bar (above the certificate), hidden on print. */
+  .topbar{background:#fff;border-bottom:1px solid var(--line);padding:14px 24px;
+    display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+  .topbar-brand{display:inline-flex;align-items:center;gap:10px;font-family:'Plus Jakarta Sans',sans-serif;
+    font-weight:700;font-size:16px;color:var(--ink);text-decoration:none}
+  .topbar-brand:hover{color:var(--ink);text-decoration:none}
   .topbar-brand .mark{display:inline-block;flex:none;width:28px;height:28px;background:url(/logo-mark.svg) center/100% 100% no-repeat;color:transparent;font-size:0}
-  .topbar-brand .co{color:var(--faint)}
-  .verified-pill{display:inline-flex;align-items:center;gap:6px;
-    padding:6px 12px;background:var(--success-soft);color:var(--success);
-    border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .verified-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:var(--tint);
+    color:#226B47;border-radius:999px;font-size:14px;font-weight:600}
   .verified-pill svg{flex:none}
 
-  /* Page wrapper */
-  .wrap{max-width:880px;margin:32px auto;padding:0 20px 60px}
+  .wrap{max-width:1180px;margin:32px auto;padding:0 20px 60px}
 
-  /* The certificate sheet itself */
-  .sheet{
-    background:var(--paper);border:1px solid var(--border);border-radius:var(--r-lg);
-    padding:56px 56px 48px;text-align:center;position:relative;
-    box-shadow:0 24px 48px -24px rgba(13,20,38,.18),0 6px 12px -6px rgba(13,20,38,.06);
-    overflow:hidden;
-  }
-  .sheet::before,.sheet::after{content:"";position:absolute;left:0;right:0;height:6px;
-    background:linear-gradient(90deg,${track.color_primary},${track.color_accent},${track.color_primary})}
-  .sheet::before{top:0}
-  .sheet::after{bottom:0}
+  /* The certificate */
+  .sheet{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;
+    box-shadow:0 2px 0 var(--line2),0 44px 80px -40px rgba(10,40,25,.40)}
+${CERT_CSS}
 
-  .badge-wrap{width:200px;height:200px;margin:0 auto 24px;display:block}
-  .badge-wrap svg{display:block;width:100%;height:100%}
-
-  .preamble{font-family:'IBM Plex Sans',sans-serif;color:var(--mute);font-size:13px;
-    text-transform:uppercase;letter-spacing:.18em;margin-bottom:8px}
-  .recipient{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;font-style:italic;
-    font-size:44px;letter-spacing:-.012em;line-height:1.1;color:var(--ink);
-    margin:0 0 20px;padding:0 20px}
-  .has-completed{font-family:'IBM Plex Sans',sans-serif;color:var(--mute);font-size:13px;
-    text-transform:uppercase;letter-spacing:.18em;margin-bottom:10px}
-  .track-name{font-family:'IBM Plex Serif',Georgia,serif;font-weight:700;
-    font-size:32px;letter-spacing:-.018em;line-height:1.15;color:${track.color_primary};
-    margin:0 0 12px}
-  .track-tagline{font-size:14.5px;color:var(--mute);max-width:540px;margin:0 auto 28px;
-    line-height:1.6}
-
-  .meta-row{display:flex;justify-content:center;gap:48px;margin-bottom:32px;
-    padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .meta-cell{display:flex;flex-direction:column;align-items:center;gap:4px}
-  .meta-label{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.12em;font-weight:600}
-  .meta-value{font-family:'IBM Plex Mono',monospace;font-size:13.5px;color:var(--ink);font-weight:500}
-
-  .skills-row{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 auto 28px;
-    max-width:660px}
-  .skill-chip{display:inline-flex;align-items:center;padding:5px 12px;border-radius:999px;
-    background:var(--paper-edge);color:var(--ink-2);font-size:12px;font-weight:500;
-    border:1px solid var(--border)}
-  .skill-chip .chip-level{color:var(--mute);font-weight:400;margin-left:4px}
-
-  /* No signature. The sheet points at its own record instead. */
-  .verify-line{text-align:center;font-size:12.5px;line-height:1.7;color:var(--faint);
-    margin:26px auto 2px;max-width:420px}
-  .verify-line span{display:block;font-family:'IBM Plex Mono',monospace;
-    font-size:13px;color:var(--ink);margin-top:2px}
-
-  /* Actions below the sheet — hidden on print. */
-  .actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:36px 0}
-  .act{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;
-    background:#fff;color:var(--ink);border:1px solid var(--border);border-radius:var(--r-sm);
-    font-family:inherit;font-size:13.5px;font-weight:500;cursor:pointer;text-decoration:none;
-    transition:border-color .15s,background .15s}
-  .act:hover{border-color:var(--ink-2);background:var(--paper-edge);text-decoration:none}
+  /* Actions below the certificate, hidden on print. */
+  .actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:32px 0}
+  .act{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:#fff;color:var(--ink);
+    border:1px solid #D5DAD7;border-radius:999px;font-family:inherit;font-size:15px;font-weight:600;
+    cursor:pointer;text-decoration:none;transition:border-color .15s,background .15s}
+  .act:hover{border-color:var(--ink);color:var(--ink);text-decoration:none}
   .act svg{flex:none}
-  .act.primary{background:var(--acc);color:#fff;border-color:var(--acc)}
-  .act.primary:hover{background:var(--acc-h);border-color:var(--acc-h)}
+  .act.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .act.primary:hover{background:var(--brand-h);border-color:var(--brand-h);color:#fff}
 
-  /* Trust block + evidence */
-  .trust{background:#fff;border:1px solid var(--line);border-radius:var(--r-md);
-    padding:24px 28px;margin-top:24px}
-  .trust h3{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;font-size:16px;
-    margin:0 0 8px;color:var(--ink)}
-  .trust p{font-size:13.5px;color:var(--mute);line-height:1.6;margin:0 0 10px}
-  .trust .verify-url{font-family:'IBM Plex Mono',monospace;font-size:12.5px;
-    background:var(--paper-edge);padding:8px 12px;border-radius:var(--r-sm);
-    word-break:break-all;display:inline-block;margin-top:4px;color:var(--ink-2)}
-
+  /* Trust block, skills, evidence */
+  .trust{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 30px;margin-top:8px}
+  .trust h3{font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:18px;margin:0 0 8px}
+  .trust p{font-size:15.5px;color:var(--mute);line-height:1.6;margin:0 0 10px}
+  .trust .verify-url{font-size:15px;font-weight:600;background:var(--bg);border:1px solid var(--line2);
+    padding:8px 12px;border-radius:8px;word-break:break-all;display:inline-block;margin-top:4px;color:var(--ink2)}
+  .skills-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px}
+  .skill-chip{display:inline-flex;align-items:center;padding:5px 12px;border-radius:999px;background:var(--bg);
+    color:var(--ink2);font-size:14px;border:1px solid var(--line)}
+  .skill-chip .chip-level{color:var(--mute);margin-left:4px}
   .evidence{margin-top:16px}
-  .evidence summary{cursor:pointer;font-size:13px;color:var(--acc);font-weight:500;
-    list-style:none;outline:none}
+  .evidence summary{cursor:pointer;font-size:15px;color:var(--brand);font-weight:600;list-style:none;outline:none}
   .evidence summary::-webkit-details-marker{display:none}
-  .evidence summary::before{content:"\\25B8";display:inline-block;margin-right:6px;
-    transition:transform .15s;font-size:10px}
+  .evidence summary::before{content:"\\25B8";display:inline-block;margin-right:6px;transition:transform .15s;font-size:11px}
   .evidence[open] summary::before{transform:rotate(90deg)}
-  .evidence ul{margin:12px 0 0 22px;padding:0;font-size:13px;color:var(--mute);line-height:1.9}
+  .evidence ul{margin:12px 0 0 22px;padding:0;font-size:15px;color:var(--mute);line-height:1.9}
 
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
-    background:var(--ink);color:#fff;padding:10px 18px;border-radius:var(--r-sm);
-    font-size:13px;opacity:0;transition:transform .25s,opacity .25s;z-index:60}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);
+    color:#fff;padding:10px 18px;border-radius:8px;font-size:14px;opacity:0;transition:transform .25s,opacity .25s;z-index:60}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  /* Print: hide everything but the certificate sheet, fit one page. */
+  /* Print: the certificate alone, scaled onto one landscape page (A4 or Letter). */
+  @page{size:landscape;margin:0}
   @media print{
-    body{background:#fff}
-    .topbar,.actions,.trust,.toast,.evidence{display:none!important}
-    .wrap{margin:0;padding:0;max-width:none}
-    .sheet{box-shadow:none;border:none;padding:36px 48px;page-break-inside:avoid}
-    .recipient{font-size:38px}
-    .track-name{font-size:28px}
+    html,body{background:#fff}
+    .topbar,.actions,.trust,.toast{display:none!important}
+    .wrap{margin:0;padding:0;max-width:none;height:100vh;display:flex;align-items:center;justify-content:center}
+    .sheet{border:0;border-radius:0;box-shadow:none;zoom:.82}
+    .rsc-frame{width:1280px;height:800px;aspect-ratio:auto}
+    .rsc{transform:none}
   }
 
-  /* Narrow viewports */
-  @media (max-width: 640px){
-    .sheet{padding:40px 24px 32px}
-    .recipient{font-size:32px;padding:0}
-    .track-name{font-size:24px}
-    .meta-row{flex-direction:column;gap:14px;align-items:center}
-    .badge-wrap{width:150px;height:150px}
+  @media (max-width:640px){
+    .wrap{margin:20px auto;padding:0 12px 48px}
+    .trust{padding:22px 20px}
   }
 </style>
 </head>
 <body>
 
 <header class="topbar">
-  <a class="topbar-brand" href="/"><span class="mark">R</span>r-statistics<span class="co">.co</span></a>
+  <a class="topbar-brand" href="/"><span class="mark">R</span>r-statistics.co</a>
   <span class="verified-pill" title="Verified by r-statistics.co">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
     Verified
@@ -298,34 +248,7 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
 
 <div class="wrap">
 
-  <section class="sheet" aria-label="Certificate of completion">
-    <div class="badge-wrap" aria-hidden="false">${badgeSvg}</div>
-    <div class="preamble">Certificate of Completion</div>
-    <h1 class="recipient">${escapeHtml(recipientName)}</h1>
-    <div class="has-completed">has successfully completed the</div>
-    <h2 class="track-name">${escapeHtml(trackName)}</h2>
-    <p class="track-tagline">${escapeHtml(track.tagline || track.description)}</p>
-
-    <div class="meta-row">
-      <div class="meta-cell">
-        <span class="meta-label">Issued</span>
-        <span class="meta-value">${escapeHtml(issuedAtPretty)}</span>
-      </div>
-      <div class="meta-cell">
-        <span class="meta-label">Certificate ID</span>
-        <span class="meta-value">${escapeHtml(cert.public_id || "")}</span>
-      </div>
-      <div class="meta-cell">
-        <span class="meta-label">Issued by</span>
-        <span class="meta-value">${escapeHtml(issuer.name)}</span>
-      </div>
-    </div>
-
-    ${skillChips ? `<div class="skills-row" aria-label="Skills demonstrated">${skillChips}</div>` : ""}
-
-    <p class="verify-line">Verify this certificate at
-      <span>r-statistics.co/cert/${escapeHtml(cert.public_id || "")}</span></p>
-  </section>
+  <section class="sheet" aria-label="Certificate">${certHtml}</section>
 
   <div class="actions">
     <a class="act primary" href="${escapeHtml(linkedInUrl)}" target="_blank" rel="noopener">
@@ -354,17 +277,13 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
     <h3>How to verify this credential</h3>
     <p>
       Anyone can verify this certificate by visiting the URL below. The
-      r-statistics.co server will return this page only while the holder
-      keeps the credential listed; an unlisted or revoked credential
-      returns a 404, so a recipient can independently confirm their cert
-      is in good standing.
+      r-statistics.co server returns this page only while the holder keeps the
+      credential listed; an unlisted or revoked credential returns a 404, so
+      anyone can confirm the certificate is in good standing.
     </p>
-    <p>
-      <span class="verify-url">${escapeHtml(verifyUrl)}</span>
-    </p>
-    <p style="margin-top:14px">
-      <a href="/verify/" style="font-weight:600;color:#2056d2;text-decoration:none">Verify another credential &rarr;</a>
-    </p>
+    <p><span class="verify-url">${escapeHtml(verifyUrl)}</span></p>
+    ${skillChips ? `<div class="skills-row" aria-label="Skills demonstrated">${skillChips}</div>` : ""}
+    <p style="margin-top:14px"><a href="/verify/" style="font-weight:600">Verify another credential &rarr;</a></p>
     ${evidence.length ? `<details class="evidence"><summary>View evidence (${evidence.length} exercise hubs completed)</summary><ul>${evidenceList}</ul></details>` : ""}
   </section>
 
@@ -373,6 +292,7 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
 <div class="toast" id="toast">Link copied</div>
 
 <script>
+${CERT_FIT_JS}
 function copyUrl(btn){
   const url = ${JSON.stringify(verifyUrl)};
   if (navigator.clipboard) {

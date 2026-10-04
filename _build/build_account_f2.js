@@ -40,7 +40,7 @@ const FOOT = '<footer class="foot"><span>&copy; 2016&ndash;2026 r-statistics.co<
 const SCRIPTS =
 '<script src="/www/roadmap-data.js"></script>'+
 '<script src="/www/roadmap-curriculum.js"></script>'+
-'<script src="/www/account.js?v=2"></script>'+
+'<script src="/www/account.js?v=5"></script>'+
 '<script defer src="/www/consent-banner.js?v=2"></script>'+
 '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon=\'{"token": "edf7e3d50c3e4130a913e7f144643624"}\'></script>'+
 '<script defer src="/www/auth-hydrate.js?v=15"></script>'+
@@ -68,7 +68,7 @@ function page(o){
 '<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/site.webmanifest"><meta name="theme-color" content="#1F6B4A">\n'+
 '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'+
 '<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600&display=swap" rel="stylesheet">\n'+
-'<link rel="stylesheet" href="/www/dashboard.css?v=1">\n<link rel="stylesheet" href="/www/account.css?v=1">\n'+
+'<link rel="stylesheet" href="/www/dashboard.css?v=14">\n<link rel="stylesheet" href="/www/account.css?v=4">\n'+
 '<script>'+GA+'</script>\n<style>'+AUTHCSS+'</style>\n</head>\n'+
 '<body data-acct="'+o.acct+'">\n<div class="prog" id="prog"></div>\n'+SPRITE+'\n'+NAV+'\n'+
 '<main class="wrap"><div class="pagewrap">'+acctNav(o.acct==='settings'?'settings':o.acct)+'<div class="acctmain">'+o.content+'</div></div>'+FOOT+'</main>\n'+

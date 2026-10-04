@@ -93,6 +93,9 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
   const recipientName = u.display_name || (u.email ? u.email.split("@")[0] : "Learner");
   const evidence = track.hubs.map(h => h.url);
   const publicId = generatePublicId();
+  // Score on the certificate = share of the track's exercises solved when it was minted.
+  const score = track.total_exercises > 0
+    ? Math.min(100, Math.round((100 * progress.solved) / track.total_exercises)) : null;
   const rowId = newRowId();
 
   const { cert, newly_minted } = await mintCertificate(context.env.DB, {
@@ -105,6 +108,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
     publicId,
     rowId,
     xpAward: track.xp_award,
+    score,
   });
 
   const stats = await getStats(context.env.DB, u.id);
@@ -124,6 +128,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
             trackName: cert.track_name || track.name,
             verifyUrl,
             publicId: cert.public_id as string,
+            imageUrl: `${origin}/screenshots/og-cert-${track.id}.png?v=2`,
           });
           if (result.ok) {
             await context.env.DB

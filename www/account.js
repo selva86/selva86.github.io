@@ -111,10 +111,10 @@
     el('ac-stats').innerHTML=
       '<div class="stat"><b class="mono">'+items.length+'</b><span>Earned</span></div>'+
       '<div class="stat"><b class="mono">'+inProg.length+'</b><span>In progress</span></div>'+
-      '<div class="stat"><b class="mono">'+(avg!=null?avg+'%':'&ndash;')+'</b><span>Avg assessment score</span></div>';
+      '<div class="stat"><b class="mono">'+(avg!=null?avg+'%':'&ndash;')+'</b><span>Average score</span></div>';
 
     el('ac-claim').innerHTML=claimable.map(function(t){
-      return '<div class="claim"><span class="ci">'+ic('i-trophy')+'</span><span class="ct"><b>'+esc(t.name)+' &mdash; ready to claim</b><span>You have met the requirement. Mint your certificate.</span></span>'+
+      return '<div class="claim"><span class="ci">'+ic('i-trophy')+'</span><span class="ct"><b>'+esc(t.name)+' is ready to claim</b><span>You have met the requirement. Mint your certificate.</span></span>'+
         '<button class="btn btn-primary btn-sm" data-claim="'+esc(t.id)+'">Claim certificate</button></div>';
     }).join('');
     el('ac-claim').querySelectorAll('[data-claim]').forEach(function(b){
@@ -126,12 +126,14 @@
     if(items.length){
       el('ac-earned').innerHTML=items.map(function(c){
         var nm=c.track_name||c.track;
+        // seal codes match functions/_lib/cert-design.ts
+        var code={'r-fundamentals':'RF','tidyverse-practitioner':'TP','data-visualization':'DV','statistics-for-ds':'SD','machine-learning':'ML','advanced-r':'AR'}[c.track]||String(nm).split(/\s+/).filter(function(w){return /^[A-Za-z]/.test(w);}).map(function(w){return w.charAt(0);}).join('').slice(0,2).toUpperCase();
         var v=absUrl(c.verify_url||('/cert/'+c.public_id));
         var d=new Date((c.issued_at>2e10?c.issued_at:c.issued_at*1000));
         var li='https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name='+encodeURIComponent(nm)+'&organizationName='+encodeURIComponent('r-statistics.co')+'&certUrl='+encodeURIComponent(v)+'&certId='+encodeURIComponent(c.public_id||'')+(c.issued_at?('&issueYear='+d.getFullYear()+'&issueMonth='+(d.getMonth()+1)):'');
-        return '<div class="ccard"><div class="frame"><span class="cseal">'+ic('i-trophy')+'</span>'+
-          '<div class="clbl">Certificate of Mastery</div><div class="cnm">'+esc(nm)+'</div>'+
-          '<div class="awd">Verified at <b>'+esc((v||'').replace(/^https?:\/\//,''))+'</b></div></div>'+
+        return '<div class="ccard"><div class="frame"><span class="cfl">'+'<svg viewBox="0 0 160 160" width="64" height="64" aria-hidden="true"><circle cx="80" cy="80" r="76" fill="#0F3F2A" stroke="#C9A85E" stroke-width="3"/>'+'<circle cx="80" cy="80" r="56" fill="#134A33" stroke="#C9A85E" stroke-width="3"/><text x="80" y="92" text-anchor="middle" font-family="Cormorant Garamond,Georgia,serif" font-weight="600" font-size="58" fill="#E9D49A">R</text>'+'<text x="80" y="121" text-anchor="middle" font-family="Plus Jakarta Sans,Inter,sans-serif" font-weight="800" font-size="16" letter-spacing="3" fill="#D9BE7C">'+esc(code)+'</text></svg>'+'</span>'+
+          '<span class="cfr"><span class="clbl">Professional certificate</span><span class="cnm">'+esc(nm)+'</span>'+
+          '<span class="awd">Verify at <b>'+esc((v||'').replace(/^https?:\/\//,''))+'</b></span></span></div>'+
           '<div class="cmeta">'+(c.score!=null?'<span class="score">'+c.score+'% score</span>':'')+'<span>Earned '+fmtDate(c.issued_at)+'</span></div>'+
           '<div class="cacts"><a class="btn btn-primary btn-sm" href="'+v+'" target="_blank" rel="noopener">'+ic('i-arr')+' Share link</a>'+
           '<a class="btn btn-out btn-sm" href="'+li+'" target="_blank" rel="noopener">Add to LinkedIn</a>'+

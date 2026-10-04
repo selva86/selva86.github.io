@@ -172,14 +172,16 @@ export async function sendCertificateEmail(
     trackName: string;
     verifyUrl: string;
     publicId: string;
+    imageUrl?: string;  // the track's certificate image (screenshots/og-cert-<track>.png)
   },
 ): Promise<SendMailResult> {
-  const subject = `${args.trackName} certificate — issued`;
+  const subject = `Your ${args.trackName} certificate is issued`;
   const contentHtml = `
     <p style="font-size:17px;font-weight:600;color:#0a0d14;margin:0 0 12px">
       Congratulations, ${args.to.name}.
     </p>
     <p>You've earned the <strong>${args.trackName}</strong> certificate from r-statistics.co.</p>
+    ${args.imageUrl ? `<p style="margin:18px 0"><a href="${args.verifyUrl}"><img src="${args.imageUrl}" width="520" alt="${args.trackName} certificate" style="display:block;width:100%;max-width:520px;height:auto;border:1px solid #E3E6E4;border-radius:8px"></a></p>` : ""}
     <p>Your credential is now live at the public verify URL below. Add it to LinkedIn, share it with employers, or download the Open Badges JSON for badge wallets.</p>
     <p style="font-family:'Courier New',monospace;font-size:13px;background:#f4f6f9;padding:12px;border-radius:6px;word-break:break-all">
       ${args.verifyUrl}

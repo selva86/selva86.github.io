@@ -274,7 +274,8 @@
 
     $('dh-certs').innerHTML = items.map(function(c){
       var tname = c.track_name || c.track || '';
-      var initials = String(tname).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); })
+      /* seal codes match functions/_lib/cert-design.ts */
+      var initials = {'r-fundamentals':'RF','tidyverse-practitioner':'TP','data-visualization':'DV','statistics-for-ds':'SD','machine-learning':'ML','advanced-r':'AR'}[c.track] || String(tname).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); })
         .map(function(w){ return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
       var vurl = c.verify_url || (c.public_id ? '/cert/' + c.public_id : null);
       return '<div class="cert"><span class="seal">' + esc(initials) + '</span>' +
