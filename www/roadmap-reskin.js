@@ -70,7 +70,7 @@
     g += node(300, my - 8, 'analyst', { below: true, text: 'Section 1 free' });
     sp.forEach(function (k, i) { g += node(600, ys[i], k, { text: TRACK[k].sub }); });
     return '<svg class="rs-route" viewBox="0 0 1040 210" role="img" aria-label="New to R, then Data Analyst, then one of four specializations">' +
-      '<style>.rs-route .rn{font:600 14px Inter,sans-serif;fill:var(--ink)}.rs-route .rc{font:400 12.5px Inter,sans-serif;fill:var(--faint)}.rs-route .rl{stroke:#c3ccd6;stroke-width:1.5;fill:none}.rs-route a:hover .rn{fill:var(--c,var(--ink))}</style>' +
+      '<style>.rs-route .rn{font:600 15.5px Inter,sans-serif;fill:var(--ink)}.rs-route .rc{font:400 13.5px Inter,sans-serif;fill:var(--faint)}.rs-route .rl{stroke:#c3ccd6;stroke-width:1.5;fill:none}.rs-route a:hover .rn{fill:var(--c,var(--ink))}</style>' +
       '<defs><marker id="rsah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1l8 4-8 4" fill="none" stroke="#c3ccd6" stroke-width="1.5"/></marker></defs>' +
       g + '</svg>';
   }
