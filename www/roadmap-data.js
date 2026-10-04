@@ -181,7 +181,7 @@
 
     { n: 4, key: 'ts', persona: 'Time Series', color: '#b1832f',
       head: 'Time series analysis and <em>forecasting</em>',
-      become: 'Decompose, model and forecast ordered data, with prediction intervals you can stand behind.',
+      become: 'Build and evaluate forecasts in R with ETS, ARIMA, regression and machine learning models.',
       weeks: '~3 weeks', cert: 'Time Series Forecasting', track: null,
       arrive: 'You can produce and validate forecasts for temporal data.',
       stages: [

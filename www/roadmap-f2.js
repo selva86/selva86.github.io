@@ -11,7 +11,7 @@
   var CORE=['foundations','analyst'], TRACKS=['ds','ts','researcher','developer'];
   var ROLE={foundations:'New to R',analyst:'Data Analyst',ds:'Data Scientist',ts:'Forecaster',researcher:'Researcher',developer:'R Developer'};
   var CVAR={foundations:'--core',analyst:'--core',ds:'--ds',ts:'--ts',researcher:'--res',developer:'--dev'};
-  var OUTCOME={foundations:'Fluency in the language itself.',analyst:'Answer real questions with data.',ds:'A validated model you can defend.',ts:'A forecast with honest intervals.',researcher:'A reproducible, review-proof report.',developer:'A tested package, shipped to GitHub.'};
+  var OUTCOME={foundations:'The R language itself: data types, data frames, control flow and functions.',analyst:'Turn raw data into tables and charts with dplyr, tidyr and ggplot2.',ds:'Build predictive models with tidymodels and check how well they hold up on new data.',ts:'Build forecasts with ETS, ARIMA and machine learning models, and measure their accuracy.',researcher:'Choose the right statistical test and report results the way journals expect.',developer:'Write and test R packages, and build Shiny applications.'};
   var CERT={foundations:'R Fundamentals',analyst:'Tidyverse Practitioner',ds:'Machine Learning with R',ts:'Time Series Forecasting',researcher:'Applied Statistics with R',developer:'Advanced R'};
   var SPECCLS={ds:'spec-ds',ts:'spec-ts',researcher:'spec-res',developer:'spec-dev'};
   var TRACKTAG={ds:'Machine Learning',ts:'Time Series',researcher:'Applied Statistics',developer:'Advanced R'};
@@ -92,7 +92,7 @@
     var chip=o.access?(String(o.access).toLowerCase()==='pro'
       ?'<span class="ltag pro" title="Part of the Program"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3H9z"/></svg> Pro</span>'
       :'<span class="ltag free">Free</span>'):'';
-    var inner='<span class="lw"><span class="lt">'+esc(o.title)+'</span></span>'+chip+badge(o.kind)+ARR;
+    var inner='<span class="lw"><span class="lt">'+esc(o.title)+'</span></span>'+(o.kind==='quiz'||o.kind==='soon'?badge(o.kind):'')+ARR;
     if(o.href) return '<a class="'+cls+'" href="'+esc(o.href)+'">'+inner+'</a>';
     return '<span class="'+cls+'">'+inner+'</span>';
   }
@@ -107,14 +107,14 @@
     // 2026-09-17). Derived from the section number, not the stale per-section flags.
     var allFree=(key==='foundations');
     var isFree=allFree||sec.n===1, pro=!isFree;
-    var chip=pro?'<span class="chip pro">'+LOCK+'Pro</span>':'<span class="chip free">'+CHECK+'Free</span>';
+    var acc='<span class="sacc'+(pro?' pro':'')+'">'+(pro?'Pro':'Free')+'</span>';
     var rows=sec.items.map(function(t){return itemRow(t,isFree);}).join('');
     return '<details class="sec'+(pro?' pro':'')+'" data-track="'+key+'" data-sec="'+sec.n+'"'+(open?' open':'')+'>'
       +'<summary class="sm'+(pro?' pro':'')+'">'
         +'<span class="thumb">'+svgIcon(iconFor(sec.title))+'</span>'
         +'<span class="sinfo"><span class="stopline"><span class="snn">'+two(sec.n)+'</span><span class="stitle">'+esc(sec.title)+'</span></span>'
           +(sec.outcome?'<span class="ssub">'+esc(sec.outcome)+'</span>':'')+'</span>'
-        +'<span class="sright"><span class="lcount"><span class="cnt">'+sec.items.length+'</span> lessons</span> '+chip+'<span class="car"></span></span>'
+        +'<span class="sright"><span class="lcount"><span class="cnt">'+sec.items.length+'</span> lessons</span>'+acc+'<span class="car"></span></span>'
       +'</summary>'
       +'<div class="lsns">'+rows+'</div></details>';
   }
@@ -129,15 +129,16 @@
   /* ---- chapter (level card) ---- */
   function chapterEl(key){
     var L=RM.byKey(key), secs=RM2.sections[key], cv=CVAR[key], count=trackLessonCount(key);
-    var body=secs.map(function(s,i){return sectionEl(key,s,i===0);}).join('');
+    var body=secs.map(function(s,i){
+      var notice=(i===1&&key!=='foundations')?'<div class="secpro">'+LOCK+'<b>Sections 2 to '+secs.length+' are included with Pro.</b><a href="/pricing.html">See plans</a></div>':'';
+      return notice+sectionEl(key,s,i===0);}).join('');
     var cred='<div class="cred"><span class="cmark">'+SEAL+'</span>'
-      +'<span><span class="ct">Earn the '+esc(CERT[key]||L.cert||'certificate')+' certificate</span>'
-      +'<span class="cs">Complete every section to certify this role.</span></span>'
-      +'<span class="cver">Credential</span></div>';
+      +'<span><span class="ct">Certificate: '+esc(CERT[key]||L.cert||'')+'</span>'
+      +'<span class="cs">Awarded when you complete every section of the path.</span></span></div>';
     return '<article class="chapter" style="--c:var('+cv+')">'
       +'<div class="chnum"><b>'+CHNUM[key]+'</b><span class="chspine"></span></div>'
       +'<div class="chbody">'
-        +'<div class="chhead"><div class="cheye">'+esc(ROLE[key])+'</div><h3>'+esc(headText(L))+'</h3>'
+        +'<div class="chhead"><h3>'+esc(ROLE[key])+'</h3>'
           +'<p class="chbecome">'+esc(L.become)+'</p><div class="chmeta" data-track="'+key+'">'+metaPills(key,count)+'</div></div>'
         +'<div class="secs">'+body+'</div>'+cred
       +'</div></article>';
@@ -192,11 +193,7 @@
     var cv=p.accent||'var(--core)';
     var feat=(p.tier==='Capstone');
     var meter='';for(var i=0;i<4;i++)meter+='<i class="'+(i<p.level?'on':'')+'"></i>';
-    var free=(p.free==='1');
     return '<div class="pcard'+(feat?' feat':'')+' reveal" data-tier="'+esc(p.tier)+'" data-free="'+esc(p.free)+'" style="--c:'+cv+'">'
-      +(feat?'<span class="pribbon">Capstone build</span>':'')
-      +'<div class="pthumb">'+projThumb(p)+'<span class="pn">'+esc(p.n)+'</span>'
-        +(free?'<span class="pfree">Free</span>':'')+'</div>'
       +'<div class="pbody">'
         +'<div class="pdom">'+esc((p.dom||'').replace(/\.$/,''))+'</div>'
         +'<div class="ptt">'+esc(p.name)+'</div>'
@@ -207,7 +204,7 @@
   }
   function projObj(p){
     return {n:String(p.n),tier:p.tier,free:p.free?'1':'0',dom:p.domain,name:p.name,desc:p.blurb,
-      level:TIER[p.tier]||1,ml:p.tier,ptag:'Soon',accent:'var('+(TIERC[p.tier]||'--core')+')'};
+      level:TIER[p.tier]||1,ml:p.tier,ptag:'Planned',accent:'var('+(TIERC[p.tier]||'--core')+')'};
   }
 
   /* =================== RENDER =================== */
@@ -223,8 +220,6 @@
   function set(id,html){var el=document.getElementById(id);if(el)el.innerHTML=html;}
 
   // hero stats
-  set('hstats',[['6','roles'],['','lessons'],['6','certificates']]
-    .map(function(s){return '<div><b>'+s[0]+'</b><span>'+s[1]+'</span></div>';}).join(''));
 
   // role cards
   set('coreRoles',CORE.map(function(k){return roleCard(k,false);}).join(''));
@@ -256,11 +251,9 @@
 
   /* =================== SIGNATURE VIZ (per-role) =================== */
   var MONO='ui-monospace,SFMono-Regular,Consolas,monospace';
+  // New to R: three real lines of R and their output, instead of an empty grid
   function vizFoundations(el){
-    var C0=72,R0=44,CW=68,RH=26,cols=4,rows=4,g='',c,r;
-    for(c=0;c<cols;c++)g+='<rect x="'+(C0+c*CW)+'" y="'+R0+'" width="58" height="18" rx="5" style="fill:var(--c);opacity:.18"/>';
-    for(c=0;c<cols;c++)for(r=0;r<rows;r++)g+='<rect class="hv-in" x="'+(C0+c*CW)+'" y="'+(R0+RH+r*RH)+'" width="58" height="18" rx="5" fill="#fff" style="animation-delay:'+((c*rows+r)*55)+'ms;stroke:var(--line)" stroke-width="1"/>';
-    el.innerHTML='<svg viewBox="0 0 410 200">'+g+'</svg>';
+    el.innerHTML='<div class="rcode"><pre>x &lt;- c(12, 7, 21, 9)\nmean(x)\n<span class="o">#&gt; [1] 12.25</span></pre></div>';
   }
   function vizAnalyst(el){
     var t='<rect x="30" y="52" width="118" height="112" rx="9" fill="#f5f4ef" style="stroke:var(--line)"/><rect x="30" y="52" width="118" height="20" rx="9" style="fill:var(--c);opacity:.14"/>';
@@ -363,7 +356,7 @@
       });
       // the hero total waits for the full catalog (the baked copy omits some tracks)
       if(T.ds){var tot=CORE.concat(TRACKS).reduce(function(a,k){return a+(T[k]||0);},0);
-        var hb=document.querySelector('#hstats div:nth-child(2) b');if(hb)hb.textContent=String(tot);}
+        var hf=document.getElementById('hfact');if(hf)hf.innerHTML='<b>'+tot+'</b> interactive lessons so far, across six paths.';}
     }
     function applyHybrid(cat){
       if(!cat||!cat.courses)return;

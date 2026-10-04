@@ -138,15 +138,15 @@
 
   // prereq note
   var prq=document.getElementById('prereq');
-  if(role==='foundations'){prq.innerHTML='<b>This is where everyone starts.</b> Free to read in full, it earns the '+esc(L.cert)+' certificate and feeds every track that follows.';}
-  else if(role==='analyst'){prq.innerHTML='<b>Comes after</b> <a href="/roadmap/new-to-r.html">New to R</a> (free). Together they are the shared core every specialization builds on.';}
-  else{prq.innerHTML='<b>Comes after the shared core:</b> <a href="/roadmap/new-to-r.html">New to R</a> (free) and <a href="/roadmap/data-analyst.html">Data Analyst</a> (section 1 free). This track is one of four equal specializations.';}
+  if(role==='foundations'){prq.innerHTML='This is where everyone starts, and every lesson is free.';}
+  else if(role==='analyst'){prq.innerHTML='Comes after <a href="/roadmap/new-to-r.html">New to R</a>, which is free. Together they are the shared core every specialization builds on.';}
+  else{prq.innerHTML='Comes after <a href="/roadmap/new-to-r.html">New to R</a> and <a href="/roadmap/data-analyst.html">Data Analyst</a>. If you already use the tidyverse, you can start here.';}
 
   // curriculum
   document.getElementById('curHead').textContent='The full '+ROLE[role]+' curriculum';
   document.getElementById('curLead').textContent=allFree
-    ? 'All '+secs.length+' sections are free to read in full.'
-    : 'Section 1 is free to read. The rest is the Program, ending in the '+L.cert+' certificate.';
+    ? 'All '+secs.length+' sections are free.'
+    : 'Section 1 is free. Sections 2 to '+secs.length+' are included with Pro, along with the '+L.cert+' certificate.';
 
   function postHref(t){return (RM2.links&&RM2.links[t])||(RM.STOP_LINKS&&RM.STOP_LINKS[t])||'';}
   var ARR='<span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
@@ -175,12 +175,16 @@
   // B6 section block: numbered chip + title + outcome + Free/Pro badge, then a
   // hairline-ruled table of rows. Open by default (collapsible), concept rows are
   // upgraded to interactive rows once courses.json loads.
+  function lessonsLabel(n){return n+' lesson'+(n===1?'':'s');}
+  // one notice where the free part ends, instead of a Pro tag on every section
+  function proBreak(){return '<div class="probreak"><b>Sections 2 to '+secs.length+' are included with Pro.</b><span>Every lesson is listed so you can see what you get.</span><a href="/pricing.html">See plans</a></div>';}
   function secBlock(s,free){
     // free sections open by default (the browse-everything feel); Pro sections
     // collapse so long tracks (DS = 29 sections) stay navigable. Both collapsible.
     return '<details id="rm-s'+s.n+'" class="sec '+(free?'free-sec':'pro-sec')+'"'+(free?' open':'')+'><summary><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
-      '<span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome)+'</span></span>'+
-      (free?'':UNLOCK)+'<span class="car" aria-hidden="true"></span></summary>'+
+      '<span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome)+'</span>'+
+      '<span class="smeta"><span class="sct">'+lessonsLabel(s.items.length)+'</span> &middot; '+(free?'Free':'<span class="p">Pro</span>')+'</span></span>'+
+      '<span class="car" aria-hidden="true"></span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return conceptRow(t,free);}).join('')+'</div></details>';
   }
 
@@ -216,6 +220,7 @@
   (function(){var html='',prev=null;
     secs.forEach(function(s,i){var t=s.tier||null;
       if(t&&t!==prev){if(prev==='core')html+=certMile();html+=bandHead(t);prev=t;}
+      if(!allFree&&s.n===2)html+=proBreak();
       html+=secBlock(s,isFree(s));});
     document.getElementById('curric').innerHTML=html;})();
 
@@ -240,11 +245,10 @@
   var doms=DOM[role]||[];
   var projs=(RM2.projectList||[]).filter(function(p){return doms.indexOf(p.domain)>=0;});
   if(projs.length){
-    var meter=function(t){var n=TIER[t]||1,x='';for(var i=0;i<4;i++)x+='<i class="'+(i<n?'on':'')+'"></i>';return '<span class="meter">'+x+'<span class="ml">'+esc(t)+'</span></span>';};
     document.getElementById('pgrid').innerHTML=projs.map(function(p){var cv=DCV[p.domain]||'--ds';
-      return '<span class="prow soon" style="--c:var('+cv+')"><span class="pn">'+(p.n<10?'0'+p.n:p.n)+'</span>'+
+      return '<span class="prow soon" style="--c:var('+cv+')">'+
         '<span class="pmid"><b>'+esc(p.name)+'</b><span class="pd"><span class="dom">'+esc(p.domain)+'.</span> '+esc(p.blurb)+'</span></span>'+
-        meter(p.tier)+'<span class="ptag soon">Soon</span></span>';}).join('');
+        '<span class="ptag soon">Planned</span></span>';}).join('');
   } else {
     document.getElementById('projects-sec').style.display='none';
   }
@@ -252,8 +256,8 @@
   // cert band
   document.getElementById('certHead').textContent='Earn the '+L.cert+' certificate';
   document.getElementById('certSub').textContent=allFree
-    ? 'Every lesson is free to read. Graded practice and the certificate come with the Program.'
-    : 'Section 1 is free to read. The other sections, graded practice and the certificate come with the Program.';
+    ? 'Every lesson is free. Graded exercises and the certificate come with Pro.'
+    : 'Section 1 is free. Pro opens the other '+(secs.length-1)+' sections, graded exercises and the '+L.cert+' certificate.';
 
   // progress bar + reveal
   var prog=document.getElementById('prog');
@@ -288,6 +292,7 @@
         ls.sort(function(a,b){return (a.order||0)-(b.order||0);});
         if(!ls.length)return;
         lsns.innerHTML=ls.map(interRow).join('');
+        var sct=det.querySelector('.sct'); if(sct)sct.textContent=lessonsLabel(ls.length);
         det.classList.add('has-inter');
         grand+=ls.length;
       });
