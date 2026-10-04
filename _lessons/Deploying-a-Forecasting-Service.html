@@ -1,0 +1,512 @@
+---
+title: "Production Forecasting Lesson 6: Deploying a forecasting service"
+description: "Design a forecasting service's request and response contract, validate bad input, version the model with vetiver, and learn what earns trust in production."
+keywords: "forecasting service, model deployment, vetiver, pins, plumber R, model versioning, API contract, request validation, MLOps, production forecasting, R"
+mathjax: false
+webr: true
+curriculum_id: "5.160.6"
+post_type: "LESSON"
+course_id: "ts-production"
+course_title: "Production Forecasting"
+course_lesson: "6"
+course_total: "6"
+course_landing: "Production-Forecasting-Course.html"
+course_next: ""
+course_prev: "Scaling-fable-and-fabletools.html"
+lesson_access: "pro"
+catalog_blurb: "What it takes to let another system safely request a forecast."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Deploying a forecasting service</h2>
+
+<p>Today we're looking at what it actually takes to hand a forecasting model over to another piece of software, one that will call it every single morning with nobody standing by to catch a mistake.</p>
+
+<p>Birchwood Grocers runs 4 grocery stores. Every morning, its replenishment system decides how much fresh milk to order for the next delivery truck, and for store 4 that decision leans on a forecast of how many cartons of milk the store will sell. The store has 730 days, two full years, of daily sales on record, starting 2024-01-01.</p>
+
+<p>Here is the last 70 days of that record, the part closest to today.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"2025-10-22","y":133},{"x":"2025-10-23","y":119},{"x":"2025-10-24","y":140},{"x":"2025-10-25","y":163},{"x":"2025-10-26","y":181},{"x":"2025-10-27","y":119},{"x":"2025-10-28","y":138},{"x":"2025-10-29","y":139},{"x":"2025-10-30","y":135},{"x":"2025-10-31","y":132},{"x":"2025-11-01","y":182},{"x":"2025-11-02","y":170},{"x":"2025-11-03","y":125},{"x":"2025-11-04","y":138},{"x":"2025-11-05","y":147},{"x":"2025-11-06","y":132},{"x":"2025-11-07","y":142},{"x":"2025-11-08","y":174},{"x":"2025-11-09","y":192},{"x":"2025-11-10","y":136},{"x":"2025-11-11","y":135},{"x":"2025-11-12","y":144},{"x":"2025-11-13","y":129},{"x":"2025-11-14","y":137},{"x":"2025-11-15","y":176},{"x":"2025-11-16","y":163},{"x":"2025-11-17","y":125},{"x":"2025-11-18","y":146},{"x":"2025-11-19","y":156},{"x":"2025-11-20","y":141},{"x":"2025-11-21","y":131},{"x":"2025-11-22","y":174},{"x":"2025-11-23","y":163},{"x":"2025-11-24","y":131},{"x":"2025-11-25","y":133},{"x":"2025-11-26","y":125},{"x":"2025-11-27","y":146},{"x":"2025-11-28","y":135},{"x":"2025-11-29","y":176},{"x":"2025-11-30","y":164},{"x":"2025-12-01","y":144},{"x":"2025-12-02","y":143},{"x":"2025-12-03","y":130},{"x":"2025-12-04","y":136},{"x":"2025-12-05","y":136},{"x":"2025-12-06","y":166},{"x":"2025-12-07","y":179},{"x":"2025-12-08","y":142},{"x":"2025-12-09","y":128},{"x":"2025-12-10","y":140},{"x":"2025-12-11","y":137},{"x":"2025-12-12","y":131},{"x":"2025-12-13","y":177},{"x":"2025-12-14","y":163},{"x":"2025-12-15","y":130},{"x":"2025-12-16","y":150},{"x":"2025-12-17","y":137},{"x":"2025-12-18","y":137},{"x":"2025-12-19","y":147},{"x":"2025-12-20","y":175},{"x":"2025-12-21","y":167},{"x":"2025-12-22","y":130},{"x":"2025-12-23","y":134},{"x":"2025-12-24","y":133},{"x":"2025-12-25","y":136},{"x":"2025-12-26","y":144},{"x":"2025-12-27","y":190},{"x":"2025-12-28","y":171},{"x":"2025-12-29","y":139},{"x":"2025-12-30","y":123}],"geoms":["line"],"x":"date","y":"cartons","code":{"line":"ggplot(milk_sales[661:730, ], aes(date, cartons)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Notice the ridge-and-valley pattern: cartons dip during the week and jump on weekends, while the whole line drifts upward, a little higher every week, across those 70 days. Somewhere, every single morning, something has to ask for tomorrow's number, safely, with nobody checking it by eye.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What changes when a machine asks instead of a person</h2>
+
+<p>Picture the forecast living the ordinary way first: as a script, forecast.R, that an analyst runs by hand each morning. They open it, run it, and glance at the number before sending it anywhere. If the date looks wrong, or the number comes out negative, they notice, and they fix it before it reaches anyone.</p>
+
+<p>Now picture Birchwood's actual setup: the replenishment system calls the forecast automatically, at 6am, with nobody watching. Nobody glances at the number. Nobody notices if the date was typed wrong. Whatever comes back gets used to decide how much milk gets ordered.</p>
+
+<p>That difference, a person in the loop versus nobody in the loop, is what changes when you serve a model instead of running it by hand. Three things that the analyst's habits used to cover for now have to be built into the service itself.</p>
+
+<ol>
+
+<li>A fixed shape for what goes in and what comes back, a request and a response, agreed on in advance, since the caller is code and code cannot read a column header to work out what a number means.</li>
+
+<li>Handling of bad input, since nobody is there to notice a typo or a nonsense request before it reaches the model.</li>
+
+<li>Being available whenever the caller asks, with nobody around to restart it if it falls over overnight.</li>
+
+</ol>
+
+<p>A contract, handling bad input, and staying available: those three things are what turn a fitted model sitting in an analyst's R session into a forecasting service.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The contract: what goes in, what comes back</h2>
+
+<p>A contract is just an agreement, written down precisely enough that two separate pieces of software, Birchwood's replenishment system and the forecasting service, can talk to each other without a person translating in between.</p>
+
+<p>The request, what the replenishment system sends, has 3 fields:</p>
+
+<ul>
+
+<li><strong>store_id</strong>: which of Birchwood's 4 stores the forecast is for.</li>
+
+<li><strong>as_of_date</strong>: the last day of actual sales the forecast should count as known, the date everything is forecast forward from.</li>
+
+<li><strong>horizon_days</strong>: how many days ahead to forecast, starting the day after as_of_date.</li>
+
+</ul>
+
+<p>The response, what the service sends back, has 7 fields. Four of them, store_id, date, forecast, and the interval bounds, are the actual answer. The other three exist for a reason that matters once something goes wrong: <strong>model_version</strong> names exactly which version of the model produced this forecast, and <strong>generated_at</strong> records exactly when. Months later, if a forecast turns out to have been badly wrong, those two fields are what let someone trace it back to one exact model and one exact run, instead of shrugging and guessing.</p>
+
+<p>Here is the full contract, with one real example of each field filled in.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["Direction","Field","Type","Example"],"rows":[["Request","store_id","integer","4"],["Request","as_of_date","date (YYYY-MM-DD)","2025-12-30"],["Request","horizon_days","integer","7"],["Response","store_id","integer","4"],["Response","date","date (YYYY-MM-DD)","2025-12-31"],["Response","forecast","numeric","139.5"],["Response","lower","numeric","125.5"],["Response","upper","numeric","153.5"],["Response","model_version","string","v3"],["Response","generated_at","datetime (ISO 8601)","2025-12-31T06:00:00Z"]],"title":"The Birchwood forecasting service contract","note":"The response row shown is for horizon day 1 (2025-12-31): a real 7-day request returns one row like this per day."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Read the example response row as one sentence: as of 2025-12-30, store 4 is forecast to sell 139.5 cartons on 2025-12-31, somewhere between 125.5 and 153.5, according to model version v3, generated at 06:00 UTC that morning. Every part of that sentence is a field in the table above. Nothing in the response is free-floating; every number names what it belongs to and where it came from.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>What happens on a bad request</h2>
+
+<p>A contract only says what a well-formed request looks like. It says nothing about what the service should do when a request is not well-formed, and with nobody watching at 6am, a bad request is no longer rare, it is routine. Three ways Birchwood's service can get a bad request:</p>
+
+<ol>
+
+<li><strong>store_id = 9.</strong> Birchwood only has 4 stores, so this store does not exist.</li>
+
+<li><strong>horizon_days = 60.</strong> The model is only checked out to be reliable 14 days ahead. Beyond that, the forecast is not trustworthy, so the service should refuse rather than guess.</li>
+
+<li><strong>A missing as_of_date.</strong> Without a reference date, the service has no idea which days to forecast.</li>
+
+</ol>
+
+<p>A service that crashes on any of these is unusable, since a crash gives the replenishment system nothing to work with. A service that silently predicts anyway, or quietly returns 0, is worse: it looks like an answer, and the replenishment system will act on it. The right response is a structured error that names exactly which field was wrong and why, so whatever is calling the service can tell the difference between a real forecast and a rejected request.</p>
+
+<p>validate_request() below checks a request before anything gets predicted. Press Run to see it reject all 3 bad requests, and let one good one through.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Define Birchwood's known stores, the longest trustworthy horizon, and the request checker
+known_stores &lt;- 1:4
+MAX_HORIZON &lt;- 14
+
+validate_request &lt;- function(store_id, as_of_date, horizon_days) {
+  if (!(store_id %in% known_stores)) {
+    return(list(field = &quot;store_id&quot;, code = &quot;unknown_store&quot;,
+                message = paste(&quot;store_id&quot;, store_id, &quot;is not one of Birchwood's stores&quot;)))
+  }
+  if (is.na(as_of_date)) {
+    return(list(field = &quot;as_of_date&quot;, code = &quot;missing_field&quot;,
+                message = &quot;as_of_date is required&quot;))
+  }
+  if (horizon_days &lt; 1 || horizon_days &gt; MAX_HORIZON) {
+    return(list(field = &quot;horizon_days&quot;, code = &quot;horizon_out_of_range&quot;,
+                message = paste(&quot;horizon_days must be between 1 and&quot;, MAX_HORIZON)))
+  }
+  NULL
+}
+
+# Try 3 bad requests, then one good one
+validate_request(store_id = 9, as_of_date = &quot;2025-12-30&quot;, horizon_days = 7)
+validate_request(store_id = 4, as_of_date = &quot;2025-12-30&quot;, horizon_days = 60)
+validate_request(store_id = 4, as_of_date = NA, horizon_days = 7)
+validate_request(store_id = 4, as_of_date = &quot;2025-12-30&quot;, horizon_days = 7)
+#&gt; $field
+#&gt; [1] &quot;store_id&quot;
+#&gt; 
+#&gt; $code
+#&gt; [1] &quot;unknown_store&quot;
+#&gt; 
+#&gt; $message
+#&gt; [1] &quot;store_id 9 is not one of Birchwood's stores&quot;
+#&gt; 
+#&gt; $field
+#&gt; [1] &quot;horizon_days&quot;
+#&gt; 
+#&gt; $code
+#&gt; [1] &quot;horizon_out_of_range&quot;
+#&gt; 
+#&gt; $message
+#&gt; [1] &quot;horizon_days must be between 1 and 14&quot;
+#&gt; 
+#&gt; $field
+#&gt; [1] &quot;as_of_date&quot;
+#&gt; 
+#&gt; $code
+#&gt; [1] &quot;missing_field&quot;
+#&gt; 
+#&gt; $message
+#&gt; [1] &quot;as_of_date is required&quot;
+#&gt; 
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each of the 3 bad requests returns a list with the same 3 fields: which field was wrong, a short code for it, and a readable message. The 4th call, the good one, returns <code>NULL</code>, which is how validate_request() says "nothing wrong here, go ahead and predict." A real service checks for that <code>NULL</code> before it does anything else: no error means predict, an error means stop and send the error back instead.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: the right response to a bad request</h2>
+
+<p>A request for store_id = 9 arrives at Birchwood's service. Store 9 does not exist.</p>
+<section class="exercise" data-exercise-id="Deploying-a-Forecasting-Service-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Predict anyway, using store 4's model, since it is the most recently trained one</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Return a structured error that names store_id as the bad field, and predict nothing</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Return a forecast of 0 cartons for every day in the horizon</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Let the function crash with R's default error message</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. A request for a store Birchwood does not have should never reach the model. validate_request() catches it first and hands back the field that failed, so whoever sent the request knows exactly what to fix.</div><div class="lesson-qfb lesson-qfb-no">A crash and a silent wrong number both leave the replenishment system no better off: one gets nothing back, the other gets an answer that looks real but is not. A structured error, naming the exact field that failed, is the only response that lets the caller fix the problem instead of guessing at it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Fitting the model that will be served</h2>
+
+<p>Before any of this matters, there has to be a model to serve. Birchwood's store 4 has 730 days of daily cartons sold, with a clear weekday and weekend pattern and a slow upward trend, the same shape you saw on the cover.</p>
+
+<p>Press Run to build that data and fit the regression the service will actually call.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build store 4's 2 years of daily milk-carton sales, and fit the model the service will call
+set.seed(5160)
+dates &lt;- seq(as.Date(&quot;2024-01-01&quot;), by = &quot;day&quot;, length.out = 730)
+day_index &lt;- 1:730
+is_weekend &lt;- weekdays(dates) %in% c(&quot;Saturday&quot;, &quot;Sunday&quot;)
+cartons &lt;- round(100 + day_index * 40 / 729 + ifelse(is_weekend, 30, 0) + rnorm(730, 0, 8))
+cartons &lt;- pmax(cartons, 0)
+milk_sales &lt;- data.frame(date = dates, day_index = day_index, is_weekend = is_weekend, cartons = cartons)
+
+fit &lt;- lm(cartons ~ day_index + is_weekend, data = milk_sales)
+summary(fit)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = cartons ~ day_index + is_weekend, data = milk_sales)
+#&gt; 
+#&gt; Residuals:
+#&gt;      Min       1Q   Median       3Q      Max 
+#&gt; -26.6876  -5.5201  -0.3069   5.4605  31.4957 
+#&gt; 
+#&gt; Coefficients:
+#&gt;                 Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)    1.002e+02  6.569e-01  152.48   &lt;2e-16 ***
+#&gt; day_index      5.382e-02  1.487e-03   36.20   &lt;2e-16 ***
+#&gt; is_weekendTRUE 3.000e+01  6.941e-01   43.22   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 8.465 on 727 degrees of freedom
+#&gt; Multiple R-squared:  0.8145,  Adjusted R-squared:  0.814 
+#&gt; F-statistic:  1596 on 2 and 727 DF,  p-value: &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R prints those coefficient estimates in scientific notation because of how differently sized they are: <code>1.002e+02</code> is 100.2, <code>5.382e-02</code> is 0.05382, and <code>3.000e+01</code> is 30.00. Read plainly, the model says: start at about 100.2 cartons, add about 0.054 cartons for every day that passes, and add 30.0 more on top of that for any day that falls on a Saturday or Sunday. R names that last coefficient <code>is_weekendTRUE</code> rather than <code>is_weekend</code>, because <code>is_weekend</code> is a logical column, TRUE or FALSE, and R always tacks the level's name onto a logical or categorical predictor in its coefficient table.</p>
+
+<p>Residual standard error, 8.465, is the typical size of a miss, in cartons: on an ordinary day, the actual count lands about 8 or 9 cartons away from what the line predicts. That is exactly the day-to-day noise store 4's sales were built with. This fitted line, <code>fit</code>, is the object the forecasting service is actually going to call every morning.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Reading the forecast and its prediction interval</h2>
+
+<p>A single point forecast is not enough for a replenishment decision; Birchwood also needs to know how much that forecast could be off by. That is what a prediction interval gives you: a range, not just a point, with some stated chance that the true number falls inside it.</p>
+
+<p>Press Run to forecast the next 7 days from fit, with a 90% prediction interval around each one.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Forecast the next 7 days, with a 90% prediction interval around each one
+future &lt;- data.frame(day_index = 731:737)
+future$date &lt;- max(milk_sales$date) + 1:7
+future$is_weekend &lt;- weekdays(future$date) %in% c(&quot;Saturday&quot;, &quot;Sunday&quot;)
+
+forecast &lt;- predict(fit, newdata = future, interval = &quot;prediction&quot;, level = 0.90)
+forecast_tbl &lt;- cbind(future, round(forecast, 1))
+forecast_tbl
+#&gt;   day_index       date is_weekend   fit   lwr   upr
+#&gt; 1       731 2025-12-31      FALSE 139.5 125.5 153.5
+#&gt; 2       732 2026-01-01      FALSE 139.6 125.6 153.5
+#&gt; 3       733 2026-01-02      FALSE 139.6 125.6 153.6
+#&gt; 4       734 2026-01-03       TRUE 169.7 155.7 183.7
+#&gt; 5       735 2026-01-04       TRUE 169.7 155.7 183.7
+#&gt; 6       736 2026-01-05      FALSE 139.8 125.8 153.8
+#&gt; 7       737 2026-01-06      FALSE 139.8 125.8 153.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>interval = &quot;prediction&quot;</code> is what asks for a prediction interval rather than a confidence interval: it widens the band to cover the model's residual noise, 8.465 cartons worth, on top of the usual uncertainty about where the line itself sits. <code>level = 0.90</code> sets how much of that uncertainty the band is built to cover, 90%, which is why each row's upper bound sits about 14 cartons above its forecast and the lower bound about 14 cartons below.</p>
+
+<p>Now compare day 731 and day 737 specifically. Day 731's interval runs 125.5 to 153.5, a width of 28.0. Day 737's interval runs 125.8 to 153.8, also 28.0 at this rounding, though the unrounded numbers (27.965 versus 27.967) do creep apart in the third decimal place.</p>
+
+<p>That tiny movement, not the dramatic widening you might expect, is itself worth understanding. A prediction interval widens the further a forecast sits from the middle of the training data, because that is where the fitted line is least precisely pinned down. Birchwood trained this model on 730 days, so day 731 and day 737 are both still extremely close to that middle, and the interval barely moves between them. Fit the same model on 30 days of history instead of 730, and the same 7-day step out would widen the interval far more visibly, because each of those days would sit much further out, relative to how little data anchors the line.</p>
+
+<p>One more sentence says more than the row-by-row numbers. Here is the last 30 days of actual sales, with the 7-day forecast and its prediction interval laid on top.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the last 30 days of history with the 7-day forecast and its prediction interval
+library(ggplot2)
+
+history &lt;- tail(milk_sales, 30)
+
+ggplot() +
+  geom_line(data = history, aes(date, cartons)) +
+  geom_ribbon(data = forecast_tbl, aes(x = date, ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(data = forecast_tbl, aes(x = date, y = fit), color = &quot;blue&quot;) +
+  labs(x = &quot;Date&quot;, y = &quot;Cartons of milk sold&quot;, title = &quot;Store 4: last 30 days plus a 7-day forecast&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The black line is what actually happened. The blue line is the forecast, continuing the same weekday-weekend pattern forward. The shaded ribbon is the 90% prediction interval, a steady band running alongside the forecast line rather than flaring open, for exactly the reason just covered.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Versioning the model so a forecast can be traced to what produced it</h2>
+
+<p>Right now, <code>fit</code> is just an R object sitting in memory. Close this session and it is gone. Retrain it tomorrow on a new day of sales, and there is no record of what the model looked like today, the one that actually produced this morning's forecast. For a service other people's decisions depend on, that is not good enough.</p>
+
+<p>The <strong>vetiver</strong> package's first job is to describe a fitted model so it can be handed off. <code>vetiver_model()</code> wraps <code>fit</code> with a name and a description of its inputs.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrap the fitted model with a name and a description of its inputs
+suppressMessages(library(vetiver))
+v &lt;- vetiver_model(fit, &quot;birchwood-store4-milk&quot;)
+v
+#&gt; 
+#&gt; ── birchwood-store4-milk ─ &lt;butchered_lm&gt; model for deployment 
+#&gt; An OLS linear regression model using 2 features</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That banner is vetiver describing <code>fit</code> back to you: an ordinary least squares regression, with 2 features, day_index and is_weekend. Wrapping it does not change what the model predicts. It changes what travels alongside it: a name, a description, and a record of the columns it expects.</p>
+
+<p>The second package, <strong>pins</strong>, is what actually keeps a history. You write a model to a pins board under a name, and the next time you write a model under that same name, pins does not overwrite the old one. It keeps it, and numbers the new one as the next version. Real pin versions are not called v1, v2, v3; <code>pin_versions()</code> returns a short string stamped with a timestamp and a content hash, something like <code>20261004T044909Z-c66a5</code>. This lesson labels them v1, v2 and v3 instead, so the version named in a response is easy to read at a glance.</p>
+
+<p>Here are the 3 versions Birchwood has pinned for store 4's model so far, each one a separate call to <code>vetiver_pin_write()</code> on a separate retraining date.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["Version","Created","Training RMSE"],"rows":[["v1","2024-03-31","16.14"],["v2","2024-10-27","8.52"],["v3","2025-12-31","8.45"]],"title":"Store 4 pinned model versions","note":"v1 was trained before the weekend pattern was added as a predictor. v2 added is_weekend. v3 is the current fit, trained on all 730 days."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>RMSE, root mean squared error, is the typical size of a training miss in cartons, the same idea as the residual standard error from a few steps back. v1 missed by about 16 cartons a day, because it only used day_index and had no way to explain the weekend jump. Adding is_weekend to v2 cut that roughly in half, to 8.52. v3, trained on the full 2 years and identical to the <code>fit</code> object from before, lands at 8.45, barely different from v2: once the right predictor is in the model, more history mostly just confirms the same answer rather than improving it further.</p>
+
+<p>And this is the piece that makes a forecast traceable. The response's <code>model_version</code> field names one of these exact rows. See "v3" in a response, and you know precisely which training run produced it, what RMSE it had going in, and the exact day it was created.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Serving the model with plumber, and the operational habits that earn trust</h2>
+
+<p>Versioning answers what produced a forecast. It does not answer how the replenishment system actually gets one at 6am. That is <strong>plumber</strong>'s job: turning an ordinary R function into something another program can call over the network.</p>
+
+<p>Here is the plumber.R file that would serve store 4's forecast. It is explained and shown, not run here, because serving an API means keeping a process listening for requests indefinitely, not evaluating a block of code once: run it on your own machine instead.</p>
+
+<pre><code class="language-r"># plumber.R: wraps validate_request() and the pinned model behind one HTTP endpoint
+library(plumber)
+library(vetiver)
+library(pins)
+
+board &lt;- board_folder(&quot;birchwood-model-board&quot;)
+v &lt;- vetiver_pin_read(board, &quot;birchwood-store4-milk&quot;, version = &quot;v3&quot;)
+
+#* Forecast cartons of milk for one Birchwood store
+#* @param store_id The store to forecast for (1 to 4)
+#* @param as_of_date The last day of known sales, as YYYY-MM-DD
+#* @param horizon_days How many days ahead to forecast (1 to 14)
+#* @post /forecast
+function(store_id, as_of_date, horizon_days) {
+  store_id &lt;- as.integer(store_id)
+  horizon_days &lt;- as.integer(horizon_days)
+
+  error &lt;- validate_request(store_id, as_of_date, horizon_days)
+  if (!is.null(error)) {
+    return(list(error = error))
+  }
+
+  future &lt;- data.frame(date = as.Date(as_of_date) + seq_len(horizon_days))
+  future$is_weekend &lt;- weekdays(future$date) %in% c(&quot;Saturday&quot;, &quot;Sunday&quot;)
+
+  pred &lt;- predict(v$model, newdata = future, interval = &quot;prediction&quot;, level = 0.90)
+
+  list(
+    store_id = store_id,
+    date = as.character(future$date),
+    forecast = unname(pred[, &quot;fit&quot;]),
+    lower = unname(pred[, &quot;lwr&quot;]),
+    upper = unname(pred[, &quot;upr&quot;]),
+    model_version = &quot;v3&quot;,
+    generated_at = format(Sys.time(), &quot;%Y-%m-%dT%H:%M:%SZ&quot;, tz = &quot;UTC&quot;)
+  )
+}
+
+# Run this on your own machine, not in a browser:
+# plumber::plumb(&quot;plumber.R&quot;)$run(port = 8000)</code></pre>
+
+<p>Each <code>#*</code> line above is an annotation, a comment plumber reads to build the endpoint: <code>@param</code> documents one request field, and <code>@post /forecast</code> says this function answers a POST request sent to <code>/forecast</code>. <code>plumber::plumb(&quot;plumber.R&quot;)$run()</code> is what reads the whole file and starts the service listening. From there, calling <code>/forecast</code> is calling the function, with validate_request() and the pinned model both running inside it, exactly as shown in the earlier steps.</p>
+
+<p>Getting the file running is not the same as earning anyone's trust in what it returns. Three operational habits decide that, and all three live in the gap between "it runs" and "people rely on it."</p>
+
+<ul>
+
+<li><strong>Latency.</strong> The pinned model is loaded into memory once, when the service starts, not re-read from the pins board on every single request. Birchwood's replenishment system waits for an answer at 6am; a service that reads a model file from disk on every call would be needlessly slow for no benefit.</li>
+
+<li><strong>Logging.</strong> Every request gets recorded: the model_version that answered it, the input it was given, and how long it took to respond. Without that, a forecast that turns out wrong weeks later is a dead end. With it, it traces back to one exact version and one exact run.</li>
+
+<li><strong>Rollback.</strong> Because every version stays pinned, never overwritten, the previous version is always one step away. If a newly retrained model starts forecasting badly, the service can point back at the version before it immediately, with nobody retraining under pressure to make the bad morning stop.</li>
+
+</ul>
+
+<p>Here is the full cycle those three habits sit inside, from one retrain to the next.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Retrain","sub":"fit cartons ~ day_index + is_weekend again on the latest sales"},{"title":"Pin a new version","sub":"vetiver_pin_write() adds it to the board; every earlier version stays"},{"title":"plumber loads it","sub":"the service reads the newest pinned version into memory once"},{"title":"The replenishment system requests","sub":"calls POST /forecast every morning at 6am, nobody watching"},{"title":"Log the request and response","sub":"record model_version, the input, the forecast, and the response time"},{"title":"Roll back if the new version is wrong","sub":"point the service at the previous pinned version while it is investigated"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Notice where rollback sits: it is not a separate emergency procedure bolted on afterward, it is just the last arrow in the same cycle every retrain already goes through.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a trustworthy forecasting service needs</h2>
+
+<p>Birchwood retrains store 4's model, plumber starts serving the new version, and within a day its forecasts are consistently low.</p>
+<section class="exercise" data-exercise-id="Deploying-a-Forecasting-Service-step10" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Retrain again immediately, on the bad day's data</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Shut the service down until someone has time to fix it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Serve the previous pinned version again while the new one is investigated</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Average the new model's forecast with the old model's forecast</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Because every version stayed pinned, rolling back costs nothing more than pointing the service at the old version again, and Birchwood's forecasts go back to normal while someone works out what went wrong with the new one.</div><div class="lesson-qfb lesson-qfb-no">Retraining again right away usually teaches the model the same mistake a second time, on data from the very day things went wrong. Averaging a known-bad model with a known-good one still ships a worse forecast than the good one alone. And shutting the service off entirely means the replenishment system gets no forecast at all tomorrow morning. Rolling back to the last pinned version is the only option that is both immediate and safe, which is the entire reason versions get pinned in the first place.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: reject the request the service should never answer</h2>
+
+<p>known_stores, MAX_HORIZON and validate_request() are already sitting in your session. One check is missing from the function below: the one that rejects a horizon_days outside Birchwood's trusted range, 1 to MAX_HORIZON. Replace the <code>____</code> with that condition, then press Check.</p>
+<section class="exercise" data-exercise-id="Deploying-a-Forecasting-Service-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(horizon_days\s*[&lt;]\s*1[\s\S]*horizon_days\s*[&gt;]\s*MAX_HORIZON)|(horizon_days\s*[&gt;]\s*MAX_HORIZON[\s\S]*horizon_days\s*[&lt;]\s*1)"><textarea class="lesson-tryit-input" spellcheck="false"># Complete the one check that rejects a horizon_days outside Birchwood's trusted range
+validate_request &lt;- function(store_id, as_of_date, horizon_days) {
+  if (!(store_id %in% known_stores)) {
+    return(list(field = &quot;store_id&quot;, code = &quot;unknown_store&quot;,
+                message = paste(&quot;store_id&quot;, store_id, &quot;is not one of Birchwood's stores&quot;)))
+  }
+  if (is.na(as_of_date)) {
+    return(list(field = &quot;as_of_date&quot;, code = &quot;missing_field&quot;,
+                message = &quot;as_of_date is required&quot;))
+  }
+  if (____) {
+    return(list(field = &quot;horizon_days&quot;, code = &quot;horizon_out_of_range&quot;,
+                message = paste(&quot;horizon_days must be between 1 and&quot;, MAX_HORIZON)))
+  }
+  NULL
+}
+
+# Try it on a request that asks 21 days ahead
+validate_request(store_id = 4, as_of_date = &quot;2025-12-30&quot;, horizon_days = 21)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That's it: horizon_days = 21 falls outside 1 to 14, so validate_request() now returns the horizon_days error instead of predicting 21 days ahead on a model only ever checked out to 14.</span><span class="lesson-tryit-fb lesson-tryit-no">The condition needs both bounds: horizon_days less than 1, or horizon_days greater than MAX_HORIZON. Try: horizon_days < 1 || horizon_days > MAX_HORIZON</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># The complete check, with both bounds of the trusted horizon filled in
+validate_request &lt;- function(store_id, as_of_date, horizon_days) {
+  if (!(store_id %in% known_stores)) {
+    return(list(field = &quot;store_id&quot;, code = &quot;unknown_store&quot;,
+                message = paste(&quot;store_id&quot;, store_id, &quot;is not one of Birchwood's stores&quot;)))
+  }
+  if (is.na(as_of_date)) {
+    return(list(field = &quot;as_of_date&quot;, code = &quot;missing_field&quot;,
+                message = &quot;as_of_date is required&quot;))
+  }
+  if (horizon_days &lt; 1 || horizon_days &gt; MAX_HORIZON) {
+    return(list(field = &quot;horizon_days&quot;, code = &quot;horizon_out_of_range&quot;,
+                message = paste(&quot;horizon_days must be between 1 and&quot;, MAX_HORIZON)))
+  }
+  NULL
+}
+
+validate_request(store_id = 4, as_of_date = &quot;2025-12-30&quot;, horizon_days = 21)
+#&gt; $field
+#&gt; [1] &quot;horizon_days&quot;
+#&gt; 
+#&gt; $code
+#&gt; [1] &quot;horizon_out_of_range&quot;
+#&gt; 
+#&gt; $message
+#&gt; [1] &quot;horizon_days must be between 1 and 14&quot;</code></pre></details></div>
+</section>
+<p><code>horizon_days &lt; 1 || horizon_days &gt; MAX_HORIZON</code> is true whenever the request asks for fewer than 1 day or more than 14. 21 clears the second half of that condition, so the function returns the horizon_days error instead of ever reaching predict().</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://vetiver.posit.co/">vetiver R package documentation, "Version and deploy a model"</a> - Posit. vetiver_model() and reading a version back from a served prediction.</li>
+
+<li><a href="https://pins.rstudio.com/">pins R package documentation</a> - Posit. board_folder() and versioned pins.</li>
+
+<li><a href="https://www.rplumber.io/">plumber R package documentation, "Quickstart"</a> - the #* annotations that turn an R function into an HTTP endpoint.</li>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice, 3rd edition</a> - Hyndman, R.J. and Athanasopoulos, G. The chapters on prediction intervals and on evaluating and producing forecasts.</li>
+
+<li><a href="https://sre.google/sre-book/table-of-contents/">Site Reliability Engineering</a> - Google, 2016. The chapters on monitoring distributed systems and on managing a rollout, the source for this lesson's latency, logging and rollback framing.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You can now describe, end to end, what turns a fitted model into something another system can call safely.</p>
+
+<ul>
+
+<li>A <strong>contract</strong>: a fixed set of request fields (store_id, as_of_date, horizon_days) and response fields (store_id, date, forecast, lower, upper, model_version, generated_at), agreed on in advance.</li>
+
+<li><strong>Validated input</strong>: a function that checks store_id against the known stores, horizon_days against the trusted range of 1 to 14, and as_of_date against being present at all, before anything gets predicted.</li>
+
+<li>A <strong>versioned, traceable model</strong>: vetiver_model() describes a fitted model, a pins board keeps every version ever written, and a model_version field in a response names exactly which one answered it. Store 4's 3 versions went from 16.14 to 8.52 to 8.45 training RMSE as the right predictor, then more history, went in.</li>
+
+<li>A <strong>served endpoint</strong>: plumber turns validate_request(), the pinned model, and the response contract into one function other software can call over the network.</li>
+
+<li>The <strong>operational habits that earn trust</strong>: latency (load the model once, not per request), logging (record model_version and response time on every call), and rollback (the previous pinned version is always one step away).</li>
+
+</ul>
+
+<p>Store 4's own numbers run through all of it: about 0.054 extra cartons a day, a weekend bump of 30.0 cartons, a 90% prediction interval roughly 28 cartons wide that barely moves across a 7-day horizon, and 3 pinned versions tracing every forecast back to the model that made it.</p>
+</section>
+
+{% endraw %}
