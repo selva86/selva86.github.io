@@ -609,9 +609,18 @@ export async function runBrain(
   // that only gets through part of the list still gets through the part that
   // has waited longest, and the queue rotates instead of starving. Account mail
   // (welcome, receipts) is time-critical and keeps the front of the queue.
+  // Transactional mail does not count as having been served. A reader who
+  // signed up on Thursday, got their welcome on Thursday and has still never
+  // had a lesson has waited longer FOR A LESSON than someone who had one on
+  // Monday, and counting the welcome against them put them behind that person.
+  // The one-a-day rule already discounts welcome for the same reason.
+  const TRANSACTIONAL = new Set(["welcome", "flip"]);
   const lastTouch = (uid: string): number => {
     let m = 0;
-    for (const at of ledger.get(uid)?.values() ?? []) if (at > m) m = at;
+    for (const [k, at] of ledger.get(uid) ?? []) {
+      if (TRANSACTIONAL.has(k)) continue;
+      if (at > m) m = at;
+    }
     return m;
   };
   const queue = [...byUser.keys()].sort((a, b) => {
