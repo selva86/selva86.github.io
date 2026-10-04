@@ -68,19 +68,27 @@ export async function sendMail(
   },
   args: SendMailArgs,
 ): Promise<SendMailResult> {
-  if (!env.ZOHO_ZEPTOMAIL_TOKEN || !env.ZOHO_ZEPTOMAIL_SENDER) {
-    return { ok: false, status: 0, error: "missing_email_config" };
-  }
-  /* The backstop, and the reason it lives down here rather than at the call
-     sites: of the eighteen places that send mail, only three ever consulted
-     the live flag. The other fifteen (weekly recap, cart recovery, fulfilment,
-     team invites, waitlist) would mail real people straight from a branch
-     deployment. Outside production nothing leaves except to the allowlist, so
-     owner-bound mail still works on a preview and nobody else is reachable.
-     No call site, present or future, can get around this. */
+  /* The backstop. It lives down here rather than at the call sites because of
+     eighteen places that send mail, only three ever consulted the live flag:
+     the weekly recap, cart recovery, fulfilment, team invites and the waitlist
+     would mail real people straight from a branch deployment. No call site,
+     present or future, can get around it here.
+
+     It sits ahead of the config check on purpose. Previews currently have no
+     ZeptoMail credentials, so a blocked send used to report
+     "missing_email_config", which is incidental and would stop being true the
+     moment somebody set those secrets to test a branch. Refusing first means
+     the reason given is the policy, and the refusal always reaches the logs.
+
+     Outside production nothing leaves except to the allowlist, so owner-bound
+     mail (the digest, signup notices, feedback) still works on a preview and
+     nobody else is reachable. */
   if (env.ENVIRONMENT !== "production" && !allowlisted(env, args.to.email)) {
     console.warn(`[email] refused outside production: ${args.to.email} (${args.subject})`);
     return { ok: false, status: 0, error: "blocked_outside_production" };
+  }
+  if (!env.ZOHO_ZEPTOMAIL_TOKEN || !env.ZOHO_ZEPTOMAIL_SENDER) {
+    return { ok: false, status: 0, error: "missing_email_config" };
   }
   // The stored token already begins with "Zoho-enczapikey "; using as-is.
   const auth = env.ZOHO_ZEPTOMAIL_TOKEN.startsWith("Zoho-enczapikey ")
