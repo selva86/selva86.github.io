@@ -1,0 +1,421 @@
+---
+title: "Production Forecasting Lesson 3: Diagnosing a drop in forecast accuracy"
+description: "Forecast error can spike for four very different reasons. Learn to tell a pipeline bug, a shifted input, a structural break, and real model decay apart."
+keywords: "forecast degradation, model decay, concept drift, distribution shift, covariate shift, structural break, pipeline bug, forecast monitoring, mean absolute error, production forecasting, R"
+mathjax: false
+webr: true
+curriculum_id: "5.160.3"
+post_type: "LESSON"
+course_id: "ts-production"
+course_title: "Production Forecasting"
+course_lesson: "3"
+course_total: "6"
+course_landing: "Production-Forecasting-Course.html"
+course_next: "Feature-Stores-for-Calendars-and-Events.html"
+course_prev: "Monitoring-Forecast-Accuracy-Over-Time.html"
+lesson_access: "pro"
+catalog_blurb: "Tell a pipeline bug, a shifted input, a structural break, and decay apart."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Diagnosing a drop in forecast accuracy</h2>
+
+<p>Today let's understand how to tell apart the different reasons a forecast's accuracy can suddenly get worse.</p>
+
+<p>Carrow Outdoor Supply is a regional garden-and-hardware chain. It forecasts how many of its best-selling patio umbrellas it will sell each week, using nothing but that week's price. The forecast is a straight line, fit once on two years of past data, and for months at a stretch it stays accurate to within about 3 to 5 umbrellas a week.</p>
+
+<p>Below is that forecast's rolling 4-week average error, week by week, for the weeks after it went live.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":108,"y":2.6},{"x":109,"y":1.5},{"x":110,"y":1.6},{"x":111,"y":2.2},{"x":112,"y":1.7},{"x":113,"y":3.5},{"x":114,"y":4.7},{"x":115,"y":3.7},{"x":116,"y":3.8},{"x":117,"y":2.4},{"x":118,"y":1.6},{"x":119,"y":2.2},{"x":120,"y":2.7},{"x":121,"y":2.2},{"x":122,"y":3.5},{"x":123,"y":3.8},{"x":124,"y":3.9},{"x":125,"y":4.2},{"x":126,"y":2.7},{"x":127,"y":2.3},{"x":128,"y":2.6},{"x":129,"y":833.3},{"x":130,"y":1562.5},{"x":131,"y":2234.6},{"x":132,"y":2999.7},{"x":133,"y":2168.6},{"x":134,"y":1439.3},{"x":135,"y":766.9},{"x":136,"y":1.0},{"x":137,"y":0.8},{"x":138,"y":4.2},{"x":139,"y":4.9},{"x":140,"y":4.7},{"x":141,"y":4.8},{"x":142,"y":1.9},{"x":143,"y":2.9},{"x":144,"y":4.6},{"x":145,"y":6.4},{"x":146,"y":8.2},{"x":147,"y":6.4},{"x":148,"y":4.9},{"x":149,"y":5.9},{"x":150,"y":5.1},{"x":151,"y":5.7},{"x":152,"y":7.6},{"x":153,"y":7.1},{"x":154,"y":5.8},{"x":155,"y":5.5},{"x":156,"y":4.6},{"x":157,"y":6.0},{"x":158,"y":12.1},{"x":159,"y":16.9},{"x":160,"y":18.1},{"x":161,"y":17.5},{"x":162,"y":15.1},{"x":163,"y":11.9},{"x":164,"y":14.2},{"x":165,"y":13.6},{"x":166,"y":13.7},{"x":167,"y":16.4},{"x":168,"y":15.7},{"x":169,"y":14.4},{"x":170,"y":11.3},{"x":171,"y":8.1},{"x":172,"y":6.9},{"x":173,"y":7.0},{"x":174,"y":6.7},{"x":175,"y":5.3},{"x":176,"y":4.6},{"x":177,"y":5.6},{"x":178,"y":5.4},{"x":179,"y":8.2},{"x":180,"y":7.2},{"x":181,"y":6.6},{"x":182,"y":6.2},{"x":183,"y":3.4},{"x":184,"y":3.1},{"x":185,"y":4.8},{"x":186,"y":4.7},{"x":187,"y":5.6},{"x":188,"y":6.7},{"x":189,"y":4.7},{"x":190,"y":6.1},{"x":191,"y":4.9},{"x":192,"y":4.5},{"x":193,"y":10.0},{"x":194,"y":13.6},{"x":195,"y":18.8},{"x":196,"y":23.7},{"x":197,"y":22.2},{"x":198,"y":21.9},{"x":199,"y":18.3},{"x":200,"y":16.2},{"x":201,"y":15.0},{"x":202,"y":15.7},{"x":203,"y":18.9},{"x":204,"y":18.8},{"x":205,"y":17.4},{"x":206,"y":17.0},{"x":207,"y":17.4},{"x":208,"y":18.8},{"x":209,"y":19.6},{"x":210,"y":19.2},{"x":211,"y":13.9},{"x":212,"y":10.0},{"x":213,"y":6.8},{"x":214,"y":2.4},{"x":215,"y":3.3},{"x":216,"y":4.6},{"x":217,"y":4.1},{"x":218,"y":6.1},{"x":219,"y":7.1},{"x":220,"y":9.5},{"x":221,"y":13.4},{"x":222,"y":14.2},{"x":223,"y":16.4},{"x":224,"y":15.5},{"x":225,"y":14.9},{"x":226,"y":14.0},{"x":227,"y":13.7},{"x":228,"y":15.3},{"x":229,"y":16.1},{"x":230,"y":20.4},{"x":231,"y":19.3},{"x":232,"y":17.7},{"x":233,"y":19.9},{"x":234,"y":18.8},{"x":235,"y":21.5},{"x":236,"y":25.0},{"x":237,"y":24.7},{"x":238,"y":27.7},{"x":239,"y":29.8},{"x":240,"y":27.5},{"x":241,"y":28.5},{"x":242,"y":28.1},{"x":243,"y":31.5},{"x":244,"y":36.3},{"x":245,"y":39.5},{"x":246,"y":39.4},{"x":247,"y":37.6},{"x":248,"y":37.3},{"x":249,"y":37.0},{"x":250,"y":39.9},{"x":251,"y":42.0},{"x":252,"y":46.0},{"x":253,"y":45.1},{"x":254,"y":46.9},{"x":255,"y":48.3},{"x":256,"y":47.4},{"x":257,"y":51.8}],"geoms":["line"],"x":"week","y":"mae","code":{"line":"ggplot(monitor, aes(week, mae)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>One of the four bumps towers so far above the rest that it flattens the other three into what looks like a flat line beside it. Each of the four happens for a different reason, and this lesson works through them in the order they are cheapest to check.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why "retrain the model" is usually the wrong first move</h2>
+
+<p>When a forecast's accuracy suddenly drops, the instinct is to retrain the model right away. That is usually the wrong first move, and here is why.</p>
+
+<p>There are four different things that can make a forecast go wrong, and they are not equally likely or equally cheap to check. In the order worth checking them:</p>
+
+<ol>
+
+<li>A pipeline bug: something broke in how the data reaches the model, and the model itself was never the problem.</li>
+
+<li>A distribution shift in an input: one of the model's inputs moved outside the range it was trained on.</li>
+
+<li>A structural break: something in the real world changed the series itself, permanently.</li>
+
+<li>Model decay: the relationship between the inputs and the outcome has genuinely drifted, little by little.</li>
+
+</ol>
+
+<p>Each cause down this list is more real, and more expensive to be wrong about, than the one before it. A pipeline bug costs you a five-minute look at a log file. Retraining a model to chase what was actually a data feed mistake costs you a broken model, and the same bug still sitting there, waiting to break the next one too.</p>
+
+<p>So before touching the model, Carrow's forecast needs a number to compare everything else against: how accurate does it run normally?</p>
+
+<p>Carrow's forecast predicts weekly sales of its best-selling patio umbrella from price alone, using a straight-line regression fit once on 104 weeks, two years, of past sales. Press Run to fit that line and check how far off it usually runs.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Carrow's 260 weeks of data, fit the baseline forecast, and check its usual accuracy
+set.seed(104)
+week  &lt;- 1:260
+price &lt;- rnorm(260, mean = 18.99, sd = 1.00)
+price[157:168] &lt;- rnorm(12, mean = 7.99, sd = 0.50)
+logged_price &lt;- price
+logged_price[129:132] &lt;- price[129:132] * 100
+intercept  &lt;- ifelse(week &lt; 193, 140, 122)
+elasticity &lt;- rep(-3.0, 260)
+elasticity[211:260] &lt;- seq(-3.0, -6.0, length.out = 50)
+sales &lt;- pmax(round(intercept + elasticity * price + rnorm(260, 0, 5)), 0)
+carrow &lt;- data.frame(week, price, logged_price, sales)
+
+fit &lt;- lm(sales ~ price, data = carrow[1:104, ])
+coef(fit)
+#&gt; (Intercept)       price 
+#&gt;   113.96361    -1.60979 
+
+mae &lt;- function(weeks) {
+  actual   &lt;- carrow$sales[weeks]
+  forecast &lt;- predict(fit, newdata = carrow[weeks, ])
+  mean(abs(actual - forecast))
+}
+round(c(weeks_105_128 = mae(105:128), weeks_133_156 = mae(133:156)), 2)
+#&gt; weeks_105_128 weeks_133_156 
+#&gt;          2.86          4.57 
+
+round(mean(carrow$sales[c(105:128, 133:156)]), 1)
+#&gt; [1] 82.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted line says predicted sales = 113.96 - 1.61 x price: every extra dollar on the umbrella's price costs Carrow about 1.6 sales a week. Over two ordinary stretches of weeks, its mean absolute error, or MAE, the average size of its miss regardless of direction, comes out at 2.86 umbrellas in one stretch and 4.57 in the other, against sales that average around 82 a week.</p>
+
+<p>Call that Carrow's usual error: about 3 to 5 umbrellas a week. Every cause in this lesson is a way that number can blow up, and the shape of the blow-up is what tells you which cause it is.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>A pipeline bug: a forecast that turns impossible</h2>
+
+<p>A pipeline bug is the cheapest of the four causes to rule out, and also the easiest to miss if you only watch the error number instead of the forecast itself.</p>
+
+<p>Here is the mechanism. Somewhere between the point of sale system and the model, a price is supposed to arrive in dollars, say 19.15. If a step in that pipeline logs the same price in cents instead, it arrives as 1915, a number 100 times too large.</p>
+
+<p>Nothing tells the model the units changed. It just multiplies whatever number it receives by its slope, same as always.</p>
+
+<p>That is exactly what happened to Carrow's price feed for four weeks, weeks 129 to 132. Here is what the model's own coefficients do when fed a price 100 times too large.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Weeks 129-132: the price feed logged price in cents, not dollars
+bug &lt;- carrow[129:132, ]
+bug_forecast &lt;- coef(fit)[1] + coef(fit)[2] * bug$logged_price
+data.frame(week = bug$week, price = round(bug$price, 2),
+           logged_price = round(bug$logged_price, 1),
+           actual_sales = bug$sales, forecast = round(bug_forecast, 1),
+           error = round(abs(bug$sales - bug_forecast), 1))
+#&gt;   week price logged_price actual_sales forecast  error
+#&gt; 1  129 20.87        2086.6           80  -3245.1 3325.1
+#&gt; 2  130 18.32        1832.3           83  -2835.7 2918.7
+#&gt; 3  131 16.86        1686.4           90  -2600.7 2690.7
+#&gt; 4  132 19.15        1915.3           95  -2969.2 3064.2
+mean(abs(bug$sales - bug_forecast))
+#&gt; [1] 2999.679</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Week 132's real price was $19.15, an ordinary price for this umbrella. But the feed logged it as 1915.3, and the model multiplied that straight through its slope of -1.61, the same way it multiplies every price. That lands the forecast for that week at about -2,969 umbrellas, a number of umbrellas sold that is simply impossible. Real sales that week were 95.</p>
+
+<p>The same thing happens for all four weeks: forecasts between about -2,600 and -3,245 umbrellas, against real sales of 80 to 95. The forecast error for this window averages 2,999.7, about 3,000, which is roughly 650 to 1,050 times Carrow's usual error of 3 to 5 umbrellas a week.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A forecast of negative three thousand umbrellas is not a model problem. No reasonable relationship between price and sales produces a negative forecast in the thousands; the model is just doing arithmetic correctly on a number that was never really a price. The fix here is upstream: correct whatever is multiplying price by 100 in the feed. Retraining the model on four weeks of cents-as-dollars data would only fit that same mistake into its coefficients.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>A distribution shift in an input: when the model has to extrapolate</h2>
+
+<p>Not every input value Carrow's model sees falls inside the price range it was trained on. When a new value lands outside that range, the model has to extrapolate, and that is a milder, more ordinary problem than a pipeline bug.</p>
+
+<p>There is a general name for this: a distribution shift. Three different things can shift between the data a model trained on and the data it sees later, and each has its own name: the input's own distribution, the overall rate of the outcome, or the relationship between the two. The widget below runs its own small demo on simulated data, a classifier trained on one set of transactions and tested on three differently shifted versions of it, so you can toggle between the three kinds and see which one actually breaks the model's accuracy.</p>
+<div class="lesson-widget" data-widget-type="shift-types" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Leave it on "Covariate: P(x)", the view it opens on. That is the shift behind Carrow's clearance sale: the feature, price, moves into a new range, but the relationship between price and sales, the grey curve in the plot, does not change at all. Toggle to "Concept: P(y|x)" and you can see why that one is the dangerous shift instead, the relationship itself flips, and accuracy falls below what guessing would get you. Carrow's clearance runs price down instead of up, but it is the same kind of shift as the covariate view: the input's distribution moves, the underlying relationship does not.</p>
+
+<p>For 12 weeks, weeks 157 to 168, Carrow ran a clearance sale on this same umbrella. Here is what that did to the price Carrow's model saw, against the range it was trained on.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the clearance-week prices to the price range the model trained on
+range(carrow$price[1:104])
+#&gt; [1] 16.56422 21.38848
+range(carrow$price[157:168])
+#&gt; [1] 6.564209 8.656045
+mae(157:168)
+#&gt; [1] 16.00671
+
+round(mae(169), 2)
+#&gt; [1] 4.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Carrow's model was trained on prices from $16.56 to $21.39. During the clearance, price fell to between $6.56 and $8.66, nowhere near that range. The line predicted sales = 113.96 - 1.61 x price was only ever tested inside the trained range, so it has no real evidence for how much a price this low actually lifts demand. It just keeps extrapolating the same slope outward, and under-reacts.</p>
+
+<p>Carrow's forecast error during the clearance averages 16.01 umbrellas a week: real, and three to five times the usual error, but nothing like the pipeline bug's 3,000. That is a bounded, moderate rise, exactly what a model extrapolating past data it has actually seen looks like. Once the clearance ends and price returns to its usual range, the error drops back down fast: by the very next week it is already back to 4.69, close to Carrow's usual size.</p>
+
+<p>Name this cause covariate shift: the input's distribution moved, P(x) in the widget above, while the relationship it learned, P(y|x), held.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>A structural break: an error that jumps once and holds steady</h2>
+
+<p>A structural break is different again. This time nothing is wrong with the data, and no input has moved outside its usual range. What changed is the real-world relationship the series itself describes.</p>
+
+<p>At week 193, a competitor opened near one of Carrow's stores. Nothing about how price drives sales changed: Carrow's customers still respond to price the same way they always did. But overall demand for the umbrella stepped down, because some of the customers who used to buy from Carrow now buy from the competitor instead.</p>
+
+<p>In the 23 weeks right before the break, weeks 170 to 192, Carrow sold about 83.57 umbrellas a week on average. In the 18 weeks right after it, weeks 193 to 210, that average dropped to about 64.72, with price behaving exactly as before.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average sales before and after the break, and the old model's error right after it
+round(mean(carrow$sales[170:192]), 2)
+#&gt; [1] 83.57
+round(mean(carrow$sales[193:210]), 2)
+#&gt; [1] 64.72
+round(c(first_nine = mae(193:201), next_nine = mae(202:210)), 2)
+#&gt; first_nine  next_nine 
+#&gt;      19.71      18.55 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is Carrow's real sales against the old forecast for the ten weeks either side of the break.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":170,"y":79,"fill":"Actual"},{"x":171,"y":91,"fill":"Actual"},{"x":172,"y":95,"fill":"Actual"},{"x":173,"y":87,"fill":"Actual"},{"x":174,"y":80,"fill":"Actual"},{"x":175,"y":88,"fill":"Actual"},{"x":176,"y":73,"fill":"Actual"},{"x":177,"y":73,"fill":"Actual"},{"x":178,"y":79,"fill":"Actual"},{"x":179,"y":96,"fill":"Actual"},{"x":180,"y":89,"fill":"Actual"},{"x":181,"y":91,"fill":"Actual"},{"x":182,"y":86,"fill":"Actual"},{"x":183,"y":82,"fill":"Actual"},{"x":184,"y":85,"fill":"Actual"},{"x":185,"y":68,"fill":"Actual"},{"x":186,"y":83,"fill":"Actual"},{"x":187,"y":79,"fill":"Actual"},{"x":188,"y":90,"fill":"Actual"},{"x":189,"y":79,"fill":"Actual"},{"x":190,"y":77,"fill":"Actual"},{"x":191,"y":81,"fill":"Actual"},{"x":192,"y":91,"fill":"Actual"},{"x":193,"y":57,"fill":"Actual"},{"x":194,"y":66,"fill":"Actual"},{"x":195,"y":64,"fill":"Actual"},{"x":196,"y":57,"fill":"Actual"},{"x":197,"y":62,"fill":"Actual"},{"x":198,"y":63,"fill":"Actual"},{"x":199,"y":77,"fill":"Actual"},{"x":200,"y":67,"fill":"Actual"},{"x":201,"y":66,"fill":"Actual"},{"x":202,"y":61,"fill":"Actual"},{"x":203,"y":61,"fill":"Actual"},{"x":204,"y":68,"fill":"Actual"},{"x":205,"y":72,"fill":"Actual"},{"x":206,"y":64,"fill":"Actual"},{"x":207,"y":62,"fill":"Actual"},{"x":208,"y":62,"fill":"Actual"},{"x":209,"y":70,"fill":"Actual"},{"x":210,"y":66,"fill":"Actual"},{"x":170,"y":84.0,"fill":"Forecast"},{"x":171,"y":84.0,"fill":"Forecast"},{"x":172,"y":84.1,"fill":"Forecast"},{"x":173,"y":81.8,"fill":"Forecast"},{"x":174,"y":83.7,"fill":"Forecast"},{"x":175,"y":86.3,"fill":"Forecast"},{"x":176,"y":80.9,"fill":"Forecast"},{"x":177,"y":82.3,"fill":"Forecast"},{"x":178,"y":81.8,"fill":"Forecast"},{"x":179,"y":83.1,"fill":"Forecast"},{"x":180,"y":85.3,"fill":"Forecast"},{"x":181,"y":83.9,"fill":"Forecast"},{"x":182,"y":84.8,"fill":"Forecast"},{"x":183,"y":83.8,"fill":"Forecast"},{"x":184,"y":82.8,"fill":"Forecast"},{"x":185,"y":82.1,"fill":"Forecast"},{"x":186,"y":83.9,"fill":"Forecast"},{"x":187,"y":84.1,"fill":"Forecast"},{"x":188,"y":83.5,"fill":"Forecast"},{"x":189,"y":85.4,"fill":"Forecast"},{"x":190,"y":83.4,"fill":"Forecast"},{"x":191,"y":81.3,"fill":"Forecast"},{"x":192,"y":86.0,"fill":"Forecast"},{"x":193,"y":85.3,"fill":"Forecast"},{"x":194,"y":87.0,"fill":"Forecast"},{"x":195,"y":85.1,"fill":"Forecast"},{"x":196,"y":81.6,"fill":"Forecast"},{"x":197,"y":84.3,"fill":"Forecast"},{"x":198,"y":82.7,"fill":"Forecast"},{"x":199,"y":83.7,"fill":"Forecast"},{"x":200,"y":83.3,"fill":"Forecast"},{"x":201,"y":83.4,"fill":"Forecast"},{"x":202,"y":83.3,"fill":"Forecast"},{"x":203,"y":80.7,"fill":"Forecast"},{"x":204,"y":84.0,"fill":"Forecast"},{"x":205,"y":83.8,"fill":"Forecast"},{"x":206,"y":84.4,"fill":"Forecast"},{"x":207,"y":83.6,"fill":"Forecast"},{"x":208,"y":83.4,"fill":"Forecast"},{"x":209,"y":84.9,"fill":"Forecast"},{"x":210,"y":84.9,"fill":"Forecast"}],"geoms":["line"],"x":"week","y":"sales","code":{"line":"ggplot(carrow_break, aes(week, sales, color = group)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The forecast line barely moves, because it is still the same regression fit on the old, higher-selling weeks. But real sales drop and stay down right from week 193. The forecast keeps missing low by about the same amount, week after week: the error for the first nine weeks after the break averages 19.71, and for the next nine weeks it averages 18.55, essentially the same number. That is the signature of a structural break: the error does not creep up gradually, it jumps once, on one date, and then holds steady at its new, larger size.</p>
+
+<p>Because the shift is real and permanent, not a blip and not a data problem, the right fix is to refit the model once, using only the data from after the break. The weeks before week 193 describe a Carrow that no longer exists; keeping them in the training data would just drag the new forecast back up toward a sales level it will not see again.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Model decay: an error that climbs with no single start date</h2>
+
+<p>Carrow's team does exactly that: refit the model once, using only the 18 stable weeks after the competitor opened, weeks 193 to 210.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit on the 18 stable weeks after the structural break
+fit2 &lt;- lm(sales ~ price, data = carrow[193:210, ])
+coef(fit2)
+#&gt; (Intercept)       price 
+#&gt;   90.270538   -1.365727 
+
+mae2 &lt;- function(weeks) {
+  actual   &lt;- carrow$sales[weeks]
+  forecast &lt;- predict(fit2, newdata = carrow[weeks, ])
+  mean(abs(actual - forecast))
+}
+mae2(193:210)
+#&gt; [1] 3.564612</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The refit line is predicted sales = 90.27 - 1.37 x price. Checked against the same 18 weeks it was fit on, its own error averages 3.56 umbrellas a week, right back near Carrow's usual 3 to 5. The refit has done its job: the one-time break is corrected.</p>
+
+<p>But watch what happens if that refit model just keeps running, untouched, for the next 50 weeks.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Let the refit model keep forecasting for 50 more weeks, untouched
+round(c(weeks_211_225 = mae2(211:225), weeks_226_240 = mae2(226:240), weeks_241_260 = mae2(241:260)), 2)
+#&gt; weeks_211_225 weeks_226_240 weeks_241_260 
+#&gt;          9.17         21.87         44.60 
+
+decay_weeks &lt;- 211:260
+decay_error &lt;- abs(carrow$sales[decay_weeks] - predict(fit2, newdata = carrow[decay_weeks, ]))
+plot(decay_weeks, decay_error, type = &quot;l&quot;, xlab = &quot;week&quot;, ylab = &quot;absolute forecast error&quot;,
+     main = &quot;The refit model's own error, weeks 211 to 260&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Over those next 50 weeks, Carrow's buyers keep getting a little more price-sensitive every week, in a way the week-193-to-210 refit had no way to see coming. The same refit model's error climbs on its own: about 9.17 umbrellas a week over the first 15 weeks, about 21.87 over the next 15, and about 44.6 over the last 20.</p>
+
+<p>The line in that plot climbs, but unevenly; week to week it is noisy. There is no single week where it suddenly jumps the way the structural break did. That is the real distinguishing feature: a structural break's error jumps once and holds flat, while model decay's error keeps climbing, with no one date you could point to and say that is when it broke.</p>
+
+<p>This cause has another common name: concept drift. It describes a relationship, here between price and sales, that keeps changing underneath a model that cannot update itself. The fix is not a single refit: it is a standing policy of refitting on some regular cadence, so the model never gets to drift this far before it is corrected again.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: structural break or model decay?</h2>
+
+<p>A model's weekly forecast error jumps on one known date, then holds at about the same size for the next 10 weeks. What does that call for?</p>
+<section class="exercise" data-exercise-id="Detecting-and-Diagnosing-Forecast-Degradation-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A structural break: refit the model once on data from after the jump.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Model decay: move to a standing refit schedule.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A pipeline bug: check the data feed first.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The bias is real and permanent, but it is also exactly the same size from the day it starts, so one refit on the post-break data clears it for good.</div><div class="lesson-qfb lesson-qfb-no">Neither fits here. A standing refit schedule is for an error that keeps climbing with no single start date, the opposite of a jump that holds flat. And a pipeline bug reads as erratic or impossible values, not a bias that is stable and the same size from day one. An error that jumps once, on a known date, and then holds steady is the signature of a structural break, corrected with a single refit.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Reading the four signatures side by side</h2>
+
+<p>Lay all four causes next to each other, and the pattern that tells them apart becomes a short checklist you can run against any accuracy drop.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Cause</th>
+<th>What changed</th>
+<th>What the error looks like</th>
+<th>The fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pipeline bug (weeks 129-132)</td>
+<td>The price feed logged price in cents, not dollars</td>
+<td>Impossible forecasts: about -2,600 to -3,245 umbrellas, MAE about 3,000</td>
+<td>Correct the feed upstream, never retrain</td>
+</tr>
+<tr>
+<td>Distribution shift (weeks 157-168)</td>
+<td>A clearance dropped price to $6.56-$8.66, below the $16.56-$21.39 trained range</td>
+<td>A bounded, moderate rise: MAE about 16, nothing like the pipeline bug's numbers</td>
+<td>Treat forecasts past the trained range with caution</td>
+</tr>
+<tr>
+<td>Structural break (week 193 on)</td>
+<td>A competitor opened; average sales stepped down from about 83 to about 65</td>
+<td>A flat step that holds: MAE jumps to about 19 and stays there (19.71, then 18.55)</td>
+<td>Refit once on data from after the break</td>
+</tr>
+<tr>
+<td>Model decay (weeks 211-260)</td>
+<td>Buyers kept growing more price-sensitive; the input-output relationship itself drifted</td>
+<td>A climb with no single start date: MAE about 9, then 22, then 45</td>
+<td>Set a standing refit cadence, not a one-time fix</td>
+</tr>
+</tbody>
+</table>
+
+<p>Work down this table in order, cheapest check first. Most accuracy drops die at the first or second row. The fourth row, the one that actually needs a new model on a standing schedule, is the one you should be least eager to assume.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: name the cause</h2>
+
+<p>A model's forecast error rises gradually over about four months. There is no single day it jumped, and every input has stayed within the range the model was trained on. Which cause fits?</p>
+<section class="exercise" data-exercise-id="Detecting-and-Diagnosing-Forecast-Degradation-step9" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Model decay: the relationship between inputs and outcome has drifted.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A distribution shift in an input.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A structural break.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A gradual climb over months, with no single date it broke and every input still inside its trained range, is exactly model decay: the relationship itself has moved, not the inputs.</div><div class="lesson-qfb lesson-qfb-no">Neither fits here. A distribution shift is ruled out by the problem itself: every input stays inside the range the model trained on. And a structural break jumps once and then holds at a new, steady level; it does not keep climbing for four months. A rise with no single start date, while every input stays in range, is model decay: the input-output relationship has drifted.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: classify a new case</h2>
+
+<p>Put the checklist to work on a case you have not seen the numbers for yet. Carrow gets a new price to forecast from, 9.50, and you pull the last 8 weeks of forecast error: 5, 4, 6, 5, 7, 9, 12, 15. Carrow's model was trained on prices from $16.56 to $21.39, the same range from a few steps back.</p>
+
+<p>Below, <code>price_new</code> and <code>recent_errors</code> are already defined. Check whether <code>price_new</code> falls inside that training range, and whether the error across those 8 weeks is flat or climbing.</p>
+<section class="exercise" data-exercise-id="Detecting-and-Diagnosing-Forecast-Degradation-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=.*price_new)(?=.*(16[.]56|21[.]39))(?=.*mean)(?=.*1:4)(?=.*5:8)"><textarea class="lesson-tryit-input" spellcheck="false"># price_new is a new price to forecast from; recent_errors holds the last 8 weeks of forecast error
+price_new &lt;- 9.50
+recent_errors &lt;- c(5, 4, 6, 5, 7, 9, 12, 15)
+
+# Is price_new below 16.56 or above 21.39, Carrow's training range?
+
+
+# Compare the mean of the first half of recent_errors (the first 4 weeks)
+# to the mean of the second half (the last 4 weeks)
+</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: 9.50 is below the 16.56 to 21.39 training range, which on its own looks like a distribution shift. But recent_errors climbs from a mean of 5 in the first half to 10.75 in the second, real growth across all 8 weeks, not a one-off jump. That climbing pattern points to model decay instead.</span><span class="lesson-tryit-fb lesson-tryit-no">Add two comparisons: check whether price_new is below 16.56 or above 21.39, then compare mean(recent_errors[1:4]) with mean(recent_errors[5:8]) to see whether the error is flat or climbing.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Check price_new against the training range, and compare the two halves of recent_errors
+price_new &lt; 16.56 | price_new &gt; 21.39
+#&gt; [1] TRUE
+
+mean(recent_errors[1:4])
+#&gt; [1] 5
+
+mean(recent_errors[5:8])
+#&gt; [1] 10.75</code></pre></details></div>
+</section>
+<p><code>price_new</code> sits below the training range, which by itself looks like a distribution shift. But the error is not bounded and flat the way a shift's error is: it climbs from 5 to 10.75 across the 8 weeks, real growth, not a one-off jump. That climbing pattern is the stronger signal here. The better-supported cause is model decay, not a distribution shift: this calls for a standing refit cadence, not just a flag on one out-of-range price.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice, 3rd edition</a> - Hyndman, R.J. and Athanasopoulos, G. The chapters on evaluating forecast accuracy and residual diagnostics.</li>
+
+<li><a href="https://doi.org/10.1145/2523813">A Survey on Concept Drift Adaptation</a> - Gama, J., Zliobaite, I., Bifet, A., Pechenizkiy, M., and Bouchachia, A. (2014), ACM Computing Surveys, 46(4).</li>
+
+<li>Chow, G.C. (1960). Tests of Equality Between Sets of Coefficients in Two Linear Regressions. Econometrica, 28(3), 591-605. The statistical test behind checking whether a regression's coefficients changed at a known breakpoint.</li>
+
+<li><a href="https://developers.google.com/machine-learning/guides/rules-of-ml">Rules of Machine Learning: Best Practices for ML Engineering</a> - Zinkevich, M., Google.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson complete</h2>
+
+<p>By the end of this lesson, you can run a short checklist against any sudden drop in forecast accuracy, cheapest check first.</p>
+
+<ul>
+
+<li>Pipeline bug: does the forecast itself turn impossible, wildly negative or absurdly large? Fix the feed, not the model.</li>
+
+<li>Distribution shift in an input: does the new input value fall outside the range the model trained on? Treat the forecast with caution past that range.</li>
+
+<li>Structural break: did the error jump once, on one date, and hold steady afterward? Refit once on data from after the break.</li>
+
+<li>Model decay: has the error kept climbing, with no single date it started? Set a standing refit cadence.</li>
+
+</ul>
+
+<p>Run that checklist top to bottom on the next unexplained accuracy drop you see, and you will usually know which of the four you are looking at before you have touched the model at all.</p>
+</section>
+
+{% endraw %}
