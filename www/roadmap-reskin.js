@@ -69,7 +69,7 @@
     g += node(20, my - 8, 'foundations', { below: true, text: 'Free in full' });
     g += node(300, my - 8, 'analyst', { below: true, text: 'Section 1 free' });
     sp.forEach(function (k, i) { g += node(600, ys[i], k, { text: TRACK[k].sub }); });
-    return '<svg class="rs-route" viewBox="0 0 1040 210" role="img" aria-label="New to R, then Data Analyst, then one of four specialisations">' +
+    return '<svg class="rs-route" viewBox="0 0 1040 210" role="img" aria-label="New to R, then Data Analyst, then one of four specializations">' +
       '<style>.rs-route .rn{font:600 14px Inter,sans-serif;fill:var(--ink)}.rs-route .rc{font:400 12.5px Inter,sans-serif;fill:var(--faint)}.rs-route .rl{stroke:#c3ccd6;stroke-width:1.5;fill:none}.rs-route a:hover .rn{fill:var(--c,var(--ink))}</style>' +
       '<defs><marker id="rsah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1l8 4-8 4" fill="none" stroke="#c3ccd6" stroke-width="1.5"/></marker></defs>' +
       g + '</svg>';
@@ -78,7 +78,7 @@
   function mainPage() {
     var hero = q('header.hero');
     if (!hero || !q('#coreRoles')) return;
-    swap(q('#hlede'), 'Interactive R lessons, organised by the job you want. Start with the free R foundations, then choose a specialisation.');
+    swap(q('#hlede'), 'Interactive R lessons, organized by the job you want. Start with the free R foundations, then choose a specialization.');
     var stats = q('#hstats');
     if (stats && !q('.rs-fact')) add('<p class="rs-add rs-fact"><b>366</b> interactive lessons so far, across six paths.</p>', stats, 'afterend');
     var cap = q('.hviz-cap');
@@ -88,8 +88,8 @@
     if (!q('.rs-start')) {
       var rows = [
         ['You have not written R before', 'foundations', 'New to R, lesson 1', '/R-Syntax-and-First-Objects.html'],
-        ['You can write R and want to analyse data', 'analyst', 'Data Analyst'],
-        ['You analyse data and want to build predictive models', 'ds', 'Data Scientist'],
+        ['You can write R and want to analyze data', 'analyst', 'Data Analyst'],
+        ['You analyze data and want to build predictive models', 'ds', 'Data Scientist'],
         ['You work with data recorded over time', 'ts', 'Forecaster'],
         ['You run studies and report statistical results', 'researcher', 'Researcher'],
         ['You write R code that other people use', 'developer', 'R Developer']
@@ -104,10 +104,10 @@
     var roles = q('section.roles');
     if (roles) {
       swap(q('.roles-head h2', roles), 'Six learning paths');
-      swap(q('.roles-head p', roles), 'Everyone takes New to R and Data Analyst first. Then choose one specialisation, or several.');
+      swap(q('.roles-head p', roles), 'Everyone takes New to R and Data Analyst first. Then choose one specialization, or several.');
       var labels = qa('.rlabel', roles);
       swap(labels[0], 'The shared core');
-      swap(labels[1], 'Specialisations');
+      swap(labels[1], 'Specializations');
     }
     qa('.rcard').forEach(function (card) {
       var k = keyOfCard(card); if (!k) return;
@@ -126,7 +126,7 @@
       var h = q('h2', sh); if (!h) return;
       var p = q('p', sh);
       if (/foundation/i.test(h.textContent) || (h.__rs && /foundation/i.test(h.__rs.b))) swap(p, 'Every path starts with these two: the R language, then data analysis with the tidyverse. New to R is free in full, and the first section of Data Analyst is free.');
-      if (/specializ/i.test(h.textContent) || (h.__rs && /specializ/i.test(h.__rs.b))) swap(p, 'Section 1 of every specialisation is free. Pro opens the remaining sections, graded exercises and the certificate.');
+      if (/specializ/i.test(h.textContent) || (h.__rs && /specializ/i.test(h.__rs.b))) swap(p, 'Section 1 of every specialization is free. Pro opens the remaining sections, graded exercises and the certificate.');
       if (/projects/i.test(h.textContent) || (h.__rs && /projects/i.test(h.__rs.b))) {
         swap(h, 'Projects');
         swap(p, 'Guided projects are in development. These are the ones planned for each path.');
@@ -154,11 +154,11 @@
       swap(chip, '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:11px;height:11px"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Pro');
     });
 
-    // hand-off between the core and the specialisations, with the route diagram
+    // hand-off between the core and the specializations, with the route diagram
     var fork = q('.fork-wrap');
     if (fork) {
-      swap(q('b', fork), 'After the shared core, choose a specialisation.');
-      swap(q('span', fork), 'The four specialisations are independent. Take one, or several in any order. Each has its own certificate.');
+      swap(q('b', fork), 'After the shared core, choose a specialization.');
+      swap(q('span', fork), 'The four specializations are independent. Take one, or several in any order. Each has its own certificate.');
       var fsvg = q(':scope > svg', fork);
       if (fsvg) { if (!fsvg.__rsDisp) fsvg.__rsDisp = fsvg.style.display || ''; fsvg.style.display = after ? 'none' : fsvg.__rsDisp; }
       if (!q('.rs-routewrap', fork)) add('<div class="rs-add rs-routewrap" style="margin-top:14px">' + routeSvg() + '</div>', fork, 'beforeend');
