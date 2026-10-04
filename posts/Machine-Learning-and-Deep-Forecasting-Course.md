@@ -59,11 +59,11 @@ Learn attention for forecasting in plain language: static covariates, inputs kno
 
 [Start Lesson 6: How a Temporal Fusion Transformer forecasts](Temporal-Fusion-Transformers.html)
 
-### Lesson 7: Bootstrapping, bagging and forecast combinations
+### Lesson 7: Bagging and combining forecasts
 
 Finish with the cheapest reliable win in forecasting. Bootstrap a series, bag the forecasts, and combine models by simple averaging, then see why the average so often beats the single best model chosen after the fact.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Bagging and combining forecasts](Bootstrapping-Bagging-and-Forecast-Combinations.html)
 
 ## Who this is for
 

@@ -1,0 +1,509 @@
+---
+title: "Machine Learning and Deep Forecasting Lesson 7: Bagging and combining forecasts"
+description: "Bootstrap a time series with a moving block bootstrap, bag an ETS forecast to cut its error, then combine ETS and ARIMA forecasts to beat every single model."
+keywords: "bootstrap time series, moving block bootstrap, bld.mbb.bootstrap, baggedETS, bagging forecasts, forecast combination, forecast combination puzzle, ARIMA, ETS, R time series, rolling origin forecast"
+mathjax: false
+webr: true
+curriculum_id: "5.130.7"
+post_type: "LESSON"
+course_id: "ts-ml"
+course_title: "Machine Learning and Deep Forecasting"
+course_lesson: "7"
+course_total: "7"
+course_landing: "Machine-Learning-and-Deep-Forecasting-Course.html"
+course_next: ""
+course_prev: "Temporal-Fusion-Transformers"
+lesson_access: "pro"
+catalog_blurb: "Why averaging several forecasts usually beats picking the single best model."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Bagging and combining forecasts</h2>
+
+<p>Today let's look at the cheapest reliable trick in forecasting: instead of trusting one model's forecast, build several and combine them.</p>
+
+<p>Suppose you are the demand planner at an airline. Every December you forecast passenger traffic for the coming calendar year, so the airline knows how many seats, crews and gates to plan for.</p>
+
+<p>The series behind this lesson is <code>AirPassengers</code>, a dataset built into R: the monthly total of international airline passengers, in thousands, from January 1949 to December 1960, 144 months in all. We will train on the first 132 of those months, through December 1959, and hold back the 12 months of 1960 to check every forecast in this lesson against what actually happened.</p>
+
+<p>The chart below plots the full series, the training months in one colour and the twelve held-out months of 1960 in the other.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"x":"month","y":"passengers","geoms":["line"],"data":[{"x":1,"y":112,"fill":"Trained on"},{"x":2,"y":118,"fill":"Trained on"},{"x":3,"y":132,"fill":"Trained on"},{"x":4,"y":129,"fill":"Trained on"},{"x":5,"y":121,"fill":"Trained on"},{"x":6,"y":135,"fill":"Trained on"},{"x":7,"y":148,"fill":"Trained on"},{"x":8,"y":148,"fill":"Trained on"},{"x":9,"y":136,"fill":"Trained on"},{"x":10,"y":119,"fill":"Trained on"},{"x":11,"y":104,"fill":"Trained on"},{"x":12,"y":118,"fill":"Trained on"},{"x":13,"y":115,"fill":"Trained on"},{"x":14,"y":126,"fill":"Trained on"},{"x":15,"y":141,"fill":"Trained on"},{"x":16,"y":135,"fill":"Trained on"},{"x":17,"y":125,"fill":"Trained on"},{"x":18,"y":149,"fill":"Trained on"},{"x":19,"y":170,"fill":"Trained on"},{"x":20,"y":170,"fill":"Trained on"},{"x":21,"y":158,"fill":"Trained on"},{"x":22,"y":133,"fill":"Trained on"},{"x":23,"y":114,"fill":"Trained on"},{"x":24,"y":140,"fill":"Trained on"},{"x":25,"y":145,"fill":"Trained on"},{"x":26,"y":150,"fill":"Trained on"},{"x":27,"y":178,"fill":"Trained on"},{"x":28,"y":163,"fill":"Trained on"},{"x":29,"y":172,"fill":"Trained on"},{"x":30,"y":178,"fill":"Trained on"},{"x":31,"y":199,"fill":"Trained on"},{"x":32,"y":199,"fill":"Trained on"},{"x":33,"y":184,"fill":"Trained on"},{"x":34,"y":162,"fill":"Trained on"},{"x":35,"y":146,"fill":"Trained on"},{"x":36,"y":166,"fill":"Trained on"},{"x":37,"y":171,"fill":"Trained on"},{"x":38,"y":180,"fill":"Trained on"},{"x":39,"y":193,"fill":"Trained on"},{"x":40,"y":181,"fill":"Trained on"},{"x":41,"y":183,"fill":"Trained on"},{"x":42,"y":218,"fill":"Trained on"},{"x":43,"y":230,"fill":"Trained on"},{"x":44,"y":242,"fill":"Trained on"},{"x":45,"y":209,"fill":"Trained on"},{"x":46,"y":191,"fill":"Trained on"},{"x":47,"y":172,"fill":"Trained on"},{"x":48,"y":194,"fill":"Trained on"},{"x":49,"y":196,"fill":"Trained on"},{"x":50,"y":196,"fill":"Trained on"},{"x":51,"y":236,"fill":"Trained on"},{"x":52,"y":235,"fill":"Trained on"},{"x":53,"y":229,"fill":"Trained on"},{"x":54,"y":243,"fill":"Trained on"},{"x":55,"y":264,"fill":"Trained on"},{"x":56,"y":272,"fill":"Trained on"},{"x":57,"y":237,"fill":"Trained on"},{"x":58,"y":211,"fill":"Trained on"},{"x":59,"y":180,"fill":"Trained on"},{"x":60,"y":201,"fill":"Trained on"},{"x":61,"y":204,"fill":"Trained on"},{"x":62,"y":188,"fill":"Trained on"},{"x":63,"y":235,"fill":"Trained on"},{"x":64,"y":227,"fill":"Trained on"},{"x":65,"y":234,"fill":"Trained on"},{"x":66,"y":264,"fill":"Trained on"},{"x":67,"y":302,"fill":"Trained on"},{"x":68,"y":293,"fill":"Trained on"},{"x":69,"y":259,"fill":"Trained on"},{"x":70,"y":229,"fill":"Trained on"},{"x":71,"y":203,"fill":"Trained on"},{"x":72,"y":229,"fill":"Trained on"},{"x":73,"y":242,"fill":"Trained on"},{"x":74,"y":233,"fill":"Trained on"},{"x":75,"y":267,"fill":"Trained on"},{"x":76,"y":269,"fill":"Trained on"},{"x":77,"y":270,"fill":"Trained on"},{"x":78,"y":315,"fill":"Trained on"},{"x":79,"y":364,"fill":"Trained on"},{"x":80,"y":347,"fill":"Trained on"},{"x":81,"y":312,"fill":"Trained on"},{"x":82,"y":274,"fill":"Trained on"},{"x":83,"y":237,"fill":"Trained on"},{"x":84,"y":278,"fill":"Trained on"},{"x":85,"y":284,"fill":"Trained on"},{"x":86,"y":277,"fill":"Trained on"},{"x":87,"y":317,"fill":"Trained on"},{"x":88,"y":313,"fill":"Trained on"},{"x":89,"y":318,"fill":"Trained on"},{"x":90,"y":374,"fill":"Trained on"},{"x":91,"y":413,"fill":"Trained on"},{"x":92,"y":405,"fill":"Trained on"},{"x":93,"y":355,"fill":"Trained on"},{"x":94,"y":306,"fill":"Trained on"},{"x":95,"y":271,"fill":"Trained on"},{"x":96,"y":306,"fill":"Trained on"},{"x":97,"y":315,"fill":"Trained on"},{"x":98,"y":301,"fill":"Trained on"},{"x":99,"y":356,"fill":"Trained on"},{"x":100,"y":348,"fill":"Trained on"},{"x":101,"y":355,"fill":"Trained on"},{"x":102,"y":422,"fill":"Trained on"},{"x":103,"y":465,"fill":"Trained on"},{"x":104,"y":467,"fill":"Trained on"},{"x":105,"y":404,"fill":"Trained on"},{"x":106,"y":347,"fill":"Trained on"},{"x":107,"y":305,"fill":"Trained on"},{"x":108,"y":336,"fill":"Trained on"},{"x":109,"y":340,"fill":"Trained on"},{"x":110,"y":318,"fill":"Trained on"},{"x":111,"y":362,"fill":"Trained on"},{"x":112,"y":348,"fill":"Trained on"},{"x":113,"y":363,"fill":"Trained on"},{"x":114,"y":435,"fill":"Trained on"},{"x":115,"y":491,"fill":"Trained on"},{"x":116,"y":505,"fill":"Trained on"},{"x":117,"y":404,"fill":"Trained on"},{"x":118,"y":359,"fill":"Trained on"},{"x":119,"y":310,"fill":"Trained on"},{"x":120,"y":337,"fill":"Trained on"},{"x":121,"y":360,"fill":"Trained on"},{"x":122,"y":342,"fill":"Trained on"},{"x":123,"y":406,"fill":"Trained on"},{"x":124,"y":396,"fill":"Trained on"},{"x":125,"y":420,"fill":"Trained on"},{"x":126,"y":472,"fill":"Trained on"},{"x":127,"y":548,"fill":"Trained on"},{"x":128,"y":559,"fill":"Trained on"},{"x":129,"y":463,"fill":"Trained on"},{"x":130,"y":407,"fill":"Trained on"},{"x":131,"y":362,"fill":"Trained on"},{"x":132,"y":405,"fill":"Trained on"},{"x":133,"y":417,"fill":"Held out (1960)"},{"x":134,"y":391,"fill":"Held out (1960)"},{"x":135,"y":419,"fill":"Held out (1960)"},{"x":136,"y":461,"fill":"Held out (1960)"},{"x":137,"y":472,"fill":"Held out (1960)"},{"x":138,"y":535,"fill":"Held out (1960)"},{"x":139,"y":622,"fill":"Held out (1960)"},{"x":140,"y":606,"fill":"Held out (1960)"},{"x":141,"y":508,"fill":"Held out (1960)"},{"x":142,"y":461,"fill":"Held out (1960)"},{"x":143,"y":390,"fill":"Held out (1960)"},{"x":144,"y":432,"fill":"Held out (1960)"}],"code":{"line":"ggplot(ap, aes(month, passengers, colour = group)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Notice how the held-out stretch, the second colour, keeps climbing above anything the training months ever showed. That is exactly the stretch every forecast in this lesson has to reach.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why one model's forecast depends on the data you happened to get</h2>
+
+<p>Let's start with the obvious thing to do: fit one model on the training months, and forecast with it.</p>
+
+<p><code>ets()</code> fits an exponential smoothing model to a time series automatically. It tries several combinations of a level, a trend and a season, and keeps the combination that fits best. Run it on the 132 training months, then forecast the 12 months of 1960.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit ETS on the training months and forecast the 12 held-out months of 1960
+library(forecast)
+train &lt;- window(AirPassengers, end = c(1959, 12))
+test  &lt;- window(AirPassengers, start = c(1960, 1), end = c(1960, 12))
+
+fit_ets &lt;- ets(train)
+fit_ets$method
+#&gt; [1] &quot;ETS(M,Ad,M)&quot;
+
+fc_ets &lt;- forecast(fit_ets, h = 12)
+round(as.numeric(fc_ets$mean), 1)
+#&gt;  [1] 411.9 407.0 467.3 450.7 451.5 513.2 569.9 567.6 496.1 432.2 376.6 424.8
+as.numeric(test)
+#&gt;  [1] 417 391 419 461 472 535 622 606 508 461 390 432</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ets()</code> settled on ETS(M,Ad,M): multiplicative errors, a damped additive trend, and a multiplicative season. Additive means the trend adds a fixed amount to the series each month rather than scaling with its level; damped means that added amount shrinks the further out the forecast runs, instead of carrying the same slope forever. Multiplicative means the swings scale up with the level of the series, which fits AirPassengers well since its summer peaks grow taller as the years go by.</p>
+
+<p>Now score the forecast against what actually happened.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score the forecast against the real 1960 totals
+mae_ets  &lt;- mean(abs(test - fc_ets$mean))
+rmse_ets &lt;- sqrt(mean((test - fc_ets$mean)^2))
+sprintf(&quot;MAE = %.2f, RMSE = %.2f&quot;, mae_ets, rmse_ets)
+#&gt; [1] &quot;MAE = 22.80, RMSE = 27.40&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>MAE, the mean absolute error, averages how far off each month's forecast was, ignoring whether it ran too high or too low. RMSE, the root mean squared error, does something similar but squares each gap before averaging, so a few big misses weigh more heavily than many small ones.</p>
+
+<p><code>fit_ets</code> was fitted on exactly the 132 months that happened to occur between January 1949 and December 1959. Had the airline's bookings landed a little differently in any of those months, <code>ets()</code> would have produced a slightly different model, and a different forecast. The MAE of 22.80 above is not some fixed property of ETS on this series. It is what you get from the one history that actually happened, and a model's forecast is only ever as good as the one past it was shown.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Why you can't bootstrap a time series point by point</h2>
+
+<p>Since one history only gives one forecast, here's an idea: generate many alternate histories, and see how differently each one would have forecast. The usual way statisticians invent alternate versions of a dataset is the bootstrap: resample the data with replacement, so that some rows repeat and others get left out entirely.</p>
+
+<p>For an ordinary dataset where every row stands on its own, like a list of customers, that works fine. But a time series is different. Each month's passenger count is not independent of the months around it. July usually looks like last July, and a busy month tends to follow another busy month. Resampling point by point, with replacement, throws all of that away.</p>
+
+<p>Watch what it does to just the last 12 months of the training data, 1959.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Resample 1959's 12 months with replacement, point by point
+last_1959 &lt;- tail(as.numeric(train), 12)
+last_1959
+#&gt;  [1] 360 342 406 396 420 472 548 559 463 407 362 405
+
+set.seed(42)
+scrambled &lt;- sample(last_1959, replace = TRUE)
+scrambled
+#&gt;  [1] 360 420 360 463 407 396 342 407 360 559 548 396</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what happened. 360 shows up three times, while 406, 472, 405 and 362 vanished entirely from the resample. December's figure could now sit right after August's instead of next to November's. Any trend or seasonal shape that ran through the real sequence of 1959 is gone from <code>scrambled</code>, because the sequence itself is gone.</p>
+
+<p>A time series model relies on exactly that sequence, so a resampling scheme for a time series needs to keep nearby months together, and only vary the bigger structure. That is exactly what the moving block bootstrap does.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>The moving block bootstrap</h2>
+
+<p>The fix the <code>forecast</code> package uses is called the moving block bootstrap, and it is implemented in <code>bld.mbb.bootstrap()</code>. It builds a new, equally plausible version of the series in four steps, keeping the trend and the season fixed, and reshuffling only what's left over once those are removed.</p>
+
+<ol>
+
+<li><strong>Box-Cox transform the series.</strong> A Box-Cox transform raises the series to some exponent, chosen automatically, that steadies a series whose swings grow as the series itself grows. AirPassengers climbs from around 100 in 1949 to over 500 by 1960, and its monthly ups and downs grow right along with it. This step shrinks that growing swing down to a roughly constant size, which the next step needs.</li>
+
+<li><strong>Split the transformed series with STL.</strong> STL, short for seasonal-trend decomposition using Loess, splits a series into three pieces that add back up to the original: a season (the repeating within-year shape), a trend (the slow-moving level), and a remainder (whatever is left once season and trend are taken out, the part that looks like noise).</li>
+
+<li><strong>Resample only the remainder, in contiguous 24-month blocks.</strong> Instead of shuffling single points, this step cuts the remainder into chunks of 24 months, twice AirPassengers's 12-month frequency and the function's default for a monthly series, then draws whole chunks with replacement, end to end, until it has rebuilt a remainder of the same length. Because whole 24-month chunks move together, the correlation between a month and the months right around it survives inside every chunk.</li>
+
+<li><strong>Add the season and trend back, then invert the Box-Cox transform.</strong> The season and trend from step 2 go back in completely unchanged. Only the remainder is new. Reversing the Box-Cox transform returns the result to the original passenger-count scale.</li>
+
+</ol>
+
+<p>Run it on the 132 training months and ask for 10 replicates.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build 10 alternate, equally plausible versions of the training series
+set.seed(1)
+reps10 &lt;- bld.mbb.bootstrap(train, 10)
+length(reps10)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>reps10</code> is a list of 10 series, each the same length as <code>train</code>. The first one is always the original series exactly, unchanged, so later code can treat "the real data" as replicate 1 of its own bootstrap. Replicates 2 through 10 are the genuine resamples.</p>
+
+<p>Compare replicate 5's first 12 months against the real ones.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare one bootstrap replicate's first 12 months against the real series
+round(as.numeric(reps10[[5]])[1:12], 1)
+#&gt;  [1] 114.3 116.9 132.1 127.7 126.3 141.9 159.5 156.3 137.0 113.5  98.1 110.7
+round(as.numeric(train)[1:12], 1)
+#&gt;  [1] 112 118 132 129 121 135 148 148 136 119 104 118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two runs are close but not identical. Every month in the replicate is a little higher or lower than the real one, and the gap changes from month to month rather than shifting by the same amount throughout. That's the fixed trend and season carrying most of the shape, with a resampled remainder nudging each month up or down a little: 112 becomes 114.3, 118 becomes 116.9, small and plausible shifts, not a different series pretending to be AirPassengers.</p>
+
+<p>Here is the original training series next to two of these replicates, for the full 132 months.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"x":"month","y":"passengers","geoms":["line","point"],"data":[{"x":1,"y":112,"fill":"Original (train)"},{"x":2,"y":118,"fill":"Original (train)"},{"x":3,"y":132,"fill":"Original (train)"},{"x":4,"y":129,"fill":"Original (train)"},{"x":5,"y":121,"fill":"Original (train)"},{"x":6,"y":135,"fill":"Original (train)"},{"x":7,"y":148,"fill":"Original (train)"},{"x":8,"y":148,"fill":"Original (train)"},{"x":9,"y":136,"fill":"Original (train)"},{"x":10,"y":119,"fill":"Original (train)"},{"x":11,"y":104,"fill":"Original (train)"},{"x":12,"y":118,"fill":"Original (train)"},{"x":13,"y":115,"fill":"Original (train)"},{"x":14,"y":126,"fill":"Original (train)"},{"x":15,"y":141,"fill":"Original (train)"},{"x":16,"y":135,"fill":"Original (train)"},{"x":17,"y":125,"fill":"Original (train)"},{"x":18,"y":149,"fill":"Original (train)"},{"x":19,"y":170,"fill":"Original (train)"},{"x":20,"y":170,"fill":"Original (train)"},{"x":21,"y":158,"fill":"Original (train)"},{"x":22,"y":133,"fill":"Original (train)"},{"x":23,"y":114,"fill":"Original (train)"},{"x":24,"y":140,"fill":"Original (train)"},{"x":25,"y":145,"fill":"Original (train)"},{"x":26,"y":150,"fill":"Original (train)"},{"x":27,"y":178,"fill":"Original (train)"},{"x":28,"y":163,"fill":"Original (train)"},{"x":29,"y":172,"fill":"Original (train)"},{"x":30,"y":178,"fill":"Original (train)"},{"x":31,"y":199,"fill":"Original (train)"},{"x":32,"y":199,"fill":"Original (train)"},{"x":33,"y":184,"fill":"Original (train)"},{"x":34,"y":162,"fill":"Original (train)"},{"x":35,"y":146,"fill":"Original (train)"},{"x":36,"y":166,"fill":"Original (train)"},{"x":37,"y":171,"fill":"Original (train)"},{"x":38,"y":180,"fill":"Original (train)"},{"x":39,"y":193,"fill":"Original (train)"},{"x":40,"y":181,"fill":"Original (train)"},{"x":41,"y":183,"fill":"Original (train)"},{"x":42,"y":218,"fill":"Original (train)"},{"x":43,"y":230,"fill":"Original (train)"},{"x":44,"y":242,"fill":"Original (train)"},{"x":45,"y":209,"fill":"Original (train)"},{"x":46,"y":191,"fill":"Original (train)"},{"x":47,"y":172,"fill":"Original (train)"},{"x":48,"y":194,"fill":"Original (train)"},{"x":49,"y":196,"fill":"Original (train)"},{"x":50,"y":196,"fill":"Original (train)"},{"x":51,"y":236,"fill":"Original (train)"},{"x":52,"y":235,"fill":"Original (train)"},{"x":53,"y":229,"fill":"Original (train)"},{"x":54,"y":243,"fill":"Original (train)"},{"x":55,"y":264,"fill":"Original (train)"},{"x":56,"y":272,"fill":"Original (train)"},{"x":57,"y":237,"fill":"Original (train)"},{"x":58,"y":211,"fill":"Original (train)"},{"x":59,"y":180,"fill":"Original (train)"},{"x":60,"y":201,"fill":"Original (train)"},{"x":61,"y":204,"fill":"Original (train)"},{"x":62,"y":188,"fill":"Original (train)"},{"x":63,"y":235,"fill":"Original (train)"},{"x":64,"y":227,"fill":"Original (train)"},{"x":65,"y":234,"fill":"Original (train)"},{"x":66,"y":264,"fill":"Original (train)"},{"x":67,"y":302,"fill":"Original (train)"},{"x":68,"y":293,"fill":"Original (train)"},{"x":69,"y":259,"fill":"Original (train)"},{"x":70,"y":229,"fill":"Original (train)"},{"x":71,"y":203,"fill":"Original (train)"},{"x":72,"y":229,"fill":"Original (train)"},{"x":73,"y":242,"fill":"Original (train)"},{"x":74,"y":233,"fill":"Original (train)"},{"x":75,"y":267,"fill":"Original (train)"},{"x":76,"y":269,"fill":"Original (train)"},{"x":77,"y":270,"fill":"Original (train)"},{"x":78,"y":315,"fill":"Original (train)"},{"x":79,"y":364,"fill":"Original (train)"},{"x":80,"y":347,"fill":"Original (train)"},{"x":81,"y":312,"fill":"Original (train)"},{"x":82,"y":274,"fill":"Original (train)"},{"x":83,"y":237,"fill":"Original (train)"},{"x":84,"y":278,"fill":"Original (train)"},{"x":85,"y":284,"fill":"Original (train)"},{"x":86,"y":277,"fill":"Original (train)"},{"x":87,"y":317,"fill":"Original (train)"},{"x":88,"y":313,"fill":"Original (train)"},{"x":89,"y":318,"fill":"Original (train)"},{"x":90,"y":374,"fill":"Original (train)"},{"x":91,"y":413,"fill":"Original (train)"},{"x":92,"y":405,"fill":"Original (train)"},{"x":93,"y":355,"fill":"Original (train)"},{"x":94,"y":306,"fill":"Original (train)"},{"x":95,"y":271,"fill":"Original (train)"},{"x":96,"y":306,"fill":"Original (train)"},{"x":97,"y":315,"fill":"Original (train)"},{"x":98,"y":301,"fill":"Original (train)"},{"x":99,"y":356,"fill":"Original (train)"},{"x":100,"y":348,"fill":"Original (train)"},{"x":101,"y":355,"fill":"Original (train)"},{"x":102,"y":422,"fill":"Original (train)"},{"x":103,"y":465,"fill":"Original (train)"},{"x":104,"y":467,"fill":"Original (train)"},{"x":105,"y":404,"fill":"Original (train)"},{"x":106,"y":347,"fill":"Original (train)"},{"x":107,"y":305,"fill":"Original (train)"},{"x":108,"y":336,"fill":"Original (train)"},{"x":109,"y":340,"fill":"Original (train)"},{"x":110,"y":318,"fill":"Original (train)"},{"x":111,"y":362,"fill":"Original (train)"},{"x":112,"y":348,"fill":"Original (train)"},{"x":113,"y":363,"fill":"Original (train)"},{"x":114,"y":435,"fill":"Original (train)"},{"x":115,"y":491,"fill":"Original (train)"},{"x":116,"y":505,"fill":"Original (train)"},{"x":117,"y":404,"fill":"Original (train)"},{"x":118,"y":359,"fill":"Original (train)"},{"x":119,"y":310,"fill":"Original (train)"},{"x":120,"y":337,"fill":"Original (train)"},{"x":121,"y":360,"fill":"Original (train)"},{"x":122,"y":342,"fill":"Original (train)"},{"x":123,"y":406,"fill":"Original (train)"},{"x":124,"y":396,"fill":"Original (train)"},{"x":125,"y":420,"fill":"Original (train)"},{"x":126,"y":472,"fill":"Original (train)"},{"x":127,"y":548,"fill":"Original (train)"},{"x":128,"y":559,"fill":"Original (train)"},{"x":129,"y":463,"fill":"Original (train)"},{"x":130,"y":407,"fill":"Original (train)"},{"x":131,"y":362,"fill":"Original (train)"},{"x":132,"y":405,"fill":"Original (train)"},{"x":1,"y":115.7,"fill":"Replicate 2"},{"x":2,"y":111.6,"fill":"Replicate 2"},{"x":3,"y":126.3,"fill":"Replicate 2"},{"x":4,"y":123.7,"fill":"Replicate 2"},{"x":5,"y":124.6,"fill":"Replicate 2"},{"x":6,"y":145.7,"fill":"Replicate 2"},{"x":7,"y":159.9,"fill":"Replicate 2"},{"x":8,"y":156.6,"fill":"Replicate 2"},{"x":9,"y":132,"fill":"Replicate 2"},{"x":10,"y":115.5,"fill":"Replicate 2"},{"x":11,"y":104.7,"fill":"Replicate 2"},{"x":12,"y":111.5,"fill":"Replicate 2"},{"x":13,"y":118,"fill":"Replicate 2"},{"x":14,"y":114.6,"fill":"Replicate 2"},{"x":15,"y":137.1,"fill":"Replicate 2"},{"x":16,"y":135.5,"fill":"Replicate 2"},{"x":17,"y":135.3,"fill":"Replicate 2"},{"x":18,"y":153.5,"fill":"Replicate 2"},{"x":19,"y":173.5,"fill":"Replicate 2"},{"x":20,"y":182.6,"fill":"Replicate 2"},{"x":21,"y":166.6,"fill":"Replicate 2"},{"x":22,"y":143.3,"fill":"Replicate 2"},{"x":23,"y":118.7,"fill":"Replicate 2"},{"x":24,"y":132.6,"fill":"Replicate 2"},{"x":25,"y":140.9,"fill":"Replicate 2"},{"x":26,"y":140.8,"fill":"Replicate 2"},{"x":27,"y":167.9,"fill":"Replicate 2"},{"x":28,"y":160.5,"fill":"Replicate 2"},{"x":29,"y":160.9,"fill":"Replicate 2"},{"x":30,"y":185.4,"fill":"Replicate 2"},{"x":31,"y":193.8,"fill":"Replicate 2"},{"x":32,"y":207.7,"fill":"Replicate 2"},{"x":33,"y":196,"fill":"Replicate 2"},{"x":34,"y":167.9,"fill":"Replicate 2"},{"x":35,"y":149.9,"fill":"Replicate 2"},{"x":36,"y":159.7,"fill":"Replicate 2"},{"x":37,"y":159.9,"fill":"Replicate 2"},{"x":38,"y":156.9,"fill":"Replicate 2"},{"x":39,"y":182.4,"fill":"Replicate 2"},{"x":40,"y":186.5,"fill":"Replicate 2"},{"x":41,"y":188.6,"fill":"Replicate 2"},{"x":42,"y":216.5,"fill":"Replicate 2"},{"x":43,"y":243.5,"fill":"Replicate 2"},{"x":44,"y":235.8,"fill":"Replicate 2"},{"x":45,"y":229.8,"fill":"Replicate 2"},{"x":46,"y":196.4,"fill":"Replicate 2"},{"x":47,"y":171.3,"fill":"Replicate 2"},{"x":48,"y":179.2,"fill":"Replicate 2"},{"x":49,"y":190.3,"fill":"Replicate 2"},{"x":50,"y":192.1,"fill":"Replicate 2"},{"x":51,"y":219.8,"fill":"Replicate 2"},{"x":52,"y":222.9,"fill":"Replicate 2"},{"x":53,"y":212.5,"fill":"Replicate 2"},{"x":54,"y":233.4,"fill":"Replicate 2"},{"x":55,"y":278.8,"fill":"Replicate 2"},{"x":56,"y":271.9,"fill":"Replicate 2"},{"x":57,"y":242.4,"fill":"Replicate 2"},{"x":58,"y":210.8,"fill":"Replicate 2"},{"x":59,"y":185,"fill":"Replicate 2"},{"x":60,"y":220.6,"fill":"Replicate 2"},{"x":61,"y":206.2,"fill":"Replicate 2"},{"x":62,"y":197.2,"fill":"Replicate 2"},{"x":63,"y":228.3,"fill":"Replicate 2"},{"x":64,"y":229.8,"fill":"Replicate 2"},{"x":65,"y":217.6,"fill":"Replicate 2"},{"x":66,"y":260.3,"fill":"Replicate 2"},{"x":67,"y":285.8,"fill":"Replicate 2"},{"x":68,"y":298.2,"fill":"Replicate 2"},{"x":69,"y":268.1,"fill":"Replicate 2"},{"x":70,"y":233.8,"fill":"Replicate 2"},{"x":71,"y":203.4,"fill":"Replicate 2"},{"x":72,"y":232.9,"fill":"Replicate 2"},{"x":73,"y":247.3,"fill":"Replicate 2"},{"x":74,"y":254.2,"fill":"Replicate 2"},{"x":75,"y":287.1,"fill":"Replicate 2"},{"x":76,"y":261.4,"fill":"Replicate 2"},{"x":77,"y":258.7,"fill":"Replicate 2"},{"x":78,"y":308.3,"fill":"Replicate 2"},{"x":79,"y":347.4,"fill":"Replicate 2"},{"x":80,"y":347,"fill":"Replicate 2"},{"x":81,"y":311.7,"fill":"Replicate 2"},{"x":82,"y":276.5,"fill":"Replicate 2"},{"x":83,"y":250.3,"fill":"Replicate 2"},{"x":84,"y":280.6,"fill":"Replicate 2"},{"x":85,"y":279.6,"fill":"Replicate 2"},{"x":86,"y":277.7,"fill":"Replicate 2"},{"x":87,"y":317.1,"fill":"Replicate 2"},{"x":88,"y":311.2,"fill":"Replicate 2"},{"x":89,"y":312.9,"fill":"Replicate 2"},{"x":90,"y":362.4,"fill":"Replicate 2"},{"x":91,"y":389.9,"fill":"Replicate 2"},{"x":92,"y":399.2,"fill":"Replicate 2"},{"x":93,"y":352.7,"fill":"Replicate 2"},{"x":94,"y":312.4,"fill":"Replicate 2"},{"x":95,"y":284.4,"fill":"Replicate 2"},{"x":96,"y":317.2,"fill":"Replicate 2"},{"x":97,"y":323.8,"fill":"Replicate 2"},{"x":98,"y":318.3,"fill":"Replicate 2"},{"x":99,"y":364.7,"fill":"Replicate 2"},{"x":100,"y":358,"fill":"Replicate 2"},{"x":101,"y":354.5,"fill":"Replicate 2"},{"x":102,"y":407.1,"fill":"Replicate 2"},{"x":103,"y":432.2,"fill":"Replicate 2"},{"x":104,"y":429.7,"fill":"Replicate 2"},{"x":105,"y":391.8,"fill":"Replicate 2"},{"x":106,"y":333.1,"fill":"Replicate 2"},{"x":107,"y":299.5,"fill":"Replicate 2"},{"x":108,"y":342.4,"fill":"Replicate 2"},{"x":109,"y":341.8,"fill":"Replicate 2"},{"x":110,"y":332.9,"fill":"Replicate 2"},{"x":111,"y":385.4,"fill":"Replicate 2"},{"x":112,"y":386.1,"fill":"Replicate 2"},{"x":113,"y":398.3,"fill":"Replicate 2"},{"x":114,"y":440.2,"fill":"Replicate 2"},{"x":115,"y":457.8,"fill":"Replicate 2"},{"x":116,"y":448.4,"fill":"Replicate 2"},{"x":117,"y":407.1,"fill":"Replicate 2"},{"x":118,"y":357,"fill":"Replicate 2"},{"x":119,"y":320.3,"fill":"Replicate 2"},{"x":120,"y":355.4,"fill":"Replicate 2"},{"x":121,"y":357.4,"fill":"Replicate 2"},{"x":122,"y":355.8,"fill":"Replicate 2"},{"x":123,"y":383.5,"fill":"Replicate 2"},{"x":124,"y":403.9,"fill":"Replicate 2"},{"x":125,"y":407.1,"fill":"Replicate 2"},{"x":126,"y":479,"fill":"Replicate 2"},{"x":127,"y":529.3,"fill":"Replicate 2"},{"x":128,"y":566.9,"fill":"Replicate 2"},{"x":129,"y":483.9,"fill":"Replicate 2"},{"x":130,"y":420.6,"fill":"Replicate 2"},{"x":131,"y":340.5,"fill":"Replicate 2"},{"x":132,"y":401.9,"fill":"Replicate 2"},{"x":1,"y":114.3,"fill":"Replicate 5"},{"x":2,"y":116.9,"fill":"Replicate 5"},{"x":3,"y":132.1,"fill":"Replicate 5"},{"x":4,"y":127.7,"fill":"Replicate 5"},{"x":5,"y":126.3,"fill":"Replicate 5"},{"x":6,"y":141.9,"fill":"Replicate 5"},{"x":7,"y":159.5,"fill":"Replicate 5"},{"x":8,"y":156.3,"fill":"Replicate 5"},{"x":9,"y":137,"fill":"Replicate 5"},{"x":10,"y":113.5,"fill":"Replicate 5"},{"x":11,"y":98.1,"fill":"Replicate 5"},{"x":12,"y":110.7,"fill":"Replicate 5"},{"x":13,"y":117.2,"fill":"Replicate 5"},{"x":14,"y":122.4,"fill":"Replicate 5"},{"x":15,"y":143.6,"fill":"Replicate 5"},{"x":16,"y":143,"fill":"Replicate 5"},{"x":17,"y":131.5,"fill":"Replicate 5"},{"x":18,"y":153.3,"fill":"Replicate 5"},{"x":19,"y":169.7,"fill":"Replicate 5"},{"x":20,"y":165.3,"fill":"Replicate 5"},{"x":21,"y":154,"fill":"Replicate 5"},{"x":22,"y":130.6,"fill":"Replicate 5"},{"x":23,"y":118.7,"fill":"Replicate 5"},{"x":24,"y":135.9,"fill":"Replicate 5"},{"x":25,"y":146,"fill":"Replicate 5"},{"x":26,"y":154.1,"fill":"Replicate 5"},{"x":27,"y":165.6,"fill":"Replicate 5"},{"x":28,"y":155.7,"fill":"Replicate 5"},{"x":29,"y":157.8,"fill":"Replicate 5"},{"x":30,"y":188.4,"fill":"Replicate 5"},{"x":31,"y":199.2,"fill":"Replicate 5"},{"x":32,"y":209.2,"fill":"Replicate 5"},{"x":33,"y":180.3,"fill":"Replicate 5"},{"x":34,"y":163.9,"fill":"Replicate 5"},{"x":35,"y":146.8,"fill":"Replicate 5"},{"x":36,"y":165.2,"fill":"Replicate 5"},{"x":37,"y":166.5,"fill":"Replicate 5"},{"x":38,"y":166.8,"fill":"Replicate 5"},{"x":39,"y":201.3,"fill":"Replicate 5"},{"x":40,"y":201.4,"fill":"Replicate 5"},{"x":41,"y":197.3,"fill":"Replicate 5"},{"x":42,"y":211.3,"fill":"Replicate 5"},{"x":43,"y":231.7,"fill":"Replicate 5"},{"x":44,"y":242.2,"fill":"Replicate 5"},{"x":45,"y":214.2,"fill":"Replicate 5"},{"x":46,"y":194,"fill":"Replicate 5"},{"x":47,"y":168.4,"fill":"Replicate 5"},{"x":48,"y":189.9,"fill":"Replicate 5"},{"x":49,"y":194.2,"fill":"Replicate 5"},{"x":50,"y":197.7,"fill":"Replicate 5"},{"x":51,"y":229.2,"fill":"Replicate 5"},{"x":52,"y":223.7,"fill":"Replicate 5"},{"x":53,"y":237.6,"fill":"Replicate 5"},{"x":54,"y":249.3,"fill":"Replicate 5"},{"x":55,"y":267.5,"fill":"Replicate 5"},{"x":56,"y":266.6,"fill":"Replicate 5"},{"x":57,"y":240.9,"fill":"Replicate 5"},{"x":58,"y":196.9,"fill":"Replicate 5"},{"x":59,"y":178.4,"fill":"Replicate 5"},{"x":60,"y":196.7,"fill":"Replicate 5"},{"x":61,"y":205.9,"fill":"Replicate 5"},{"x":62,"y":207.7,"fill":"Replicate 5"},{"x":63,"y":237.7,"fill":"Replicate 5"},{"x":64,"y":227.6,"fill":"Replicate 5"},{"x":65,"y":230.8,"fill":"Replicate 5"},{"x":66,"y":275.2,"fill":"Replicate 5"},{"x":67,"y":318.3,"fill":"Replicate 5"},{"x":68,"y":311.7,"fill":"Replicate 5"},{"x":69,"y":256.9,"fill":"Replicate 5"},{"x":70,"y":221.1,"fill":"Replicate 5"},{"x":71,"y":201.6,"fill":"Replicate 5"},{"x":72,"y":229.7,"fill":"Replicate 5"},{"x":73,"y":238.4,"fill":"Replicate 5"},{"x":74,"y":240.4,"fill":"Replicate 5"},{"x":75,"y":274.7,"fill":"Replicate 5"},{"x":76,"y":268.8,"fill":"Replicate 5"},{"x":77,"y":258.3,"fill":"Replicate 5"},{"x":78,"y":294.2,"fill":"Replicate 5"},{"x":79,"y":330.1,"fill":"Replicate 5"},{"x":80,"y":347.3,"fill":"Replicate 5"},{"x":81,"y":322.7,"fill":"Replicate 5"},{"x":82,"y":287.9,"fill":"Replicate 5"},{"x":83,"y":260.2,"fill":"Replicate 5"},{"x":84,"y":269.8,"fill":"Replicate 5"},{"x":85,"y":279.4,"fill":"Replicate 5"},{"x":86,"y":274,"fill":"Replicate 5"},{"x":87,"y":305.7,"fill":"Replicate 5"},{"x":88,"y":312.3,"fill":"Replicate 5"},{"x":89,"y":301.2,"fill":"Replicate 5"},{"x":90,"y":353.1,"fill":"Replicate 5"},{"x":91,"y":395.9,"fill":"Replicate 5"},{"x":92,"y":416.7,"fill":"Replicate 5"},{"x":93,"y":357.8,"fill":"Replicate 5"},{"x":94,"y":323.7,"fill":"Replicate 5"},{"x":95,"y":286.5,"fill":"Replicate 5"},{"x":96,"y":304.3,"fill":"Replicate 5"},{"x":97,"y":316.1,"fill":"Replicate 5"},{"x":98,"y":323,"fill":"Replicate 5"},{"x":99,"y":369.5,"fill":"Replicate 5"},{"x":100,"y":350.7,"fill":"Replicate 5"},{"x":101,"y":353.3,"fill":"Replicate 5"},{"x":102,"y":397.7,"fill":"Replicate 5"},{"x":103,"y":449.7,"fill":"Replicate 5"},{"x":104,"y":448.5,"fill":"Replicate 5"},{"x":105,"y":397.2,"fill":"Replicate 5"},{"x":106,"y":332,"fill":"Replicate 5"},{"x":107,"y":294.5,"fill":"Replicate 5"},{"x":108,"y":332.7,"fill":"Replicate 5"},{"x":109,"y":339,"fill":"Replicate 5"},{"x":110,"y":347.3,"fill":"Replicate 5"},{"x":111,"y":393.2,"fill":"Replicate 5"},{"x":112,"y":380.7,"fill":"Replicate 5"},{"x":113,"y":377,"fill":"Replicate 5"},{"x":114,"y":424.2,"fill":"Replicate 5"},{"x":115,"y":477.6,"fill":"Replicate 5"},{"x":116,"y":469.7,"fill":"Replicate 5"},{"x":117,"y":413.3,"fill":"Replicate 5"},{"x":118,"y":343.3,"fill":"Replicate 5"},{"x":119,"y":297.6,"fill":"Replicate 5"},{"x":120,"y":335.6,"fill":"Replicate 5"},{"x":121,"y":357.4,"fill":"Replicate 5"},{"x":122,"y":347.2,"fill":"Replicate 5"},{"x":123,"y":415.9,"fill":"Replicate 5"},{"x":124,"y":412.4,"fill":"Replicate 5"},{"x":125,"y":413.1,"fill":"Replicate 5"},{"x":126,"y":469,"fill":"Replicate 5"},{"x":127,"y":530.8,"fill":"Replicate 5"},{"x":128,"y":557,"fill":"Replicate 5"},{"x":129,"y":506.6,"fill":"Replicate 5"},{"x":130,"y":433.1,"fill":"Replicate 5"},{"x":131,"y":356.4,"fill":"Replicate 5"},{"x":132,"y":396.1,"fill":"Replicate 5"}],"code":{"line":"ggplot(reps, aes(month, passengers, colour = group)) +\n  geom_line()","point":"ggplot(reps, aes(month, passengers, colour = group)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>All three lines trace the same climbing, seasonal shape. The two replicates wander a little above and a little below the original in different months, but neither one flattens the climb or erases the yearly cycle. That is the whole point: <code>bld.mbb.bootstrap()</code> hands you a new, equally plausible 132 months, not a random walk that happens to average out right.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: resampling in blocks</h2>
+<section class="exercise" data-exercise-id="Bootstrapping-Bagging-and-Forecast-Combinations-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Blocks exist only to make the computation run faster; resampling point by point would give just as valid a replicate, only slower.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A block bootstrap returns the exact same series every time, since the blocks are fixed in advance.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Resampling the remainder in contiguous 24-month blocks keeps each month next to the neighbours it actually had, so the correlation between nearby months survives in every replicate.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Blocks are only needed when a series has a trend; a series with no trend could safely be resampled one point at a time.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The whole reason to move in blocks rather than single points is to protect that neighbour-to-neighbour structure. The trend and season stay fixed, and only the remainder's chunks get reshuffled.</div><div class="lesson-qfb lesson-qfb-no">Blocks protect the correlation between neighbouring months, which has nothing to do with whether the series trends up or down. Even a flat series with no trend at all still has months that depend on their neighbours, so resampling it one point at a time would still scramble that structure.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Bagging a forecast by refitting on many bootstrap replicates</h2>
+
+<p>Now that you can build alternate, equally plausible histories, here's what to do with them: refit the model on each one, forecast with each refit, then average the forecasts. That is called bagging, short for bootstrap aggregating.</p>
+
+<p>First, see how much just the December 1960 forecast moves across the 10 replicates from the last step.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit ETS on each of the 10 replicates, forecast 1960, and keep December's value
+dec_forecasts &lt;- numeric(10)
+for (i in 1:10) {
+  fit_i &lt;- ets(reps10[[i]])
+  fc_i  &lt;- forecast(fit_i, h = 12)
+  dec_forecasts[i] &lt;- as.numeric(fc_i$mean)[12]
+}
+round(dec_forecasts, 1)
+#&gt;  [1] 424.8 416.1 429.1 450.1 416.9 471.5 455.3 448.1 468.3 463.0
+
+round(range(dec_forecasts), 1)
+#&gt; [1] 416.1 471.5
+sprintf(&quot;mean = %.1f, sd = %.1f&quot;, mean(dec_forecasts), sd(dec_forecasts))
+#&gt; [1] &quot;mean = 444.3, sd = 21.1&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten refits of the same model, on ten histories that could all plausibly have happened, and December 1960's forecast swings from 416.1 to 471.5, a range of over 55, with a standard deviation around 21. That spread is the real uncertainty sitting underneath the single ETS forecast you fitted at the start, the one number, 424.8, you would have reported had you only ever seen replicate 1, the original.</p>
+
+<p>Averaging over many such refits is what <code>baggedETS()</code> does, and it uses many more than 10. Build 100 replicates and let it refit and average over all of them. Refitting 100 models takes several minutes, so this code is shown for you to run locally.</p>
+
+<pre><code class="language-r"># Bag 100 ETS refits and forecast 1960 with their average
+set.seed(1)
+reps100 &lt;- bld.mbb.bootstrap(train, 100)
+fit_bagged &lt;- baggedETS(train, bootstrapped_series = reps100)
+fc_bagged  &lt;- forecast(fit_bagged, h = 12)
+
+round(as.numeric(fc_bagged$mean), 1)
+#&gt;  [1] 419.0 413.9 476.8 460.9 461.9 526.1 586.6 586.7 513.1 448.6 391.0 440.2
+
+mae_bagged  &lt;- mean(abs(test - fc_bagged$mean))
+rmse_bagged &lt;- sqrt(mean((test - fc_bagged$mean)^2))
+sprintf(&quot;MAE = %.2f, RMSE = %.2f&quot;, mae_bagged, rmse_bagged)
+#&gt; [1] &quot;MAE = 15.27, RMSE = 22.23&quot;</code></pre>
+
+<p>The single ETS fit from earlier scored MAE 22.80 and RMSE 27.40. Averaging over 100 refits brings that down to MAE 15.27 and RMSE 22.23, a drop of about a third in MAE. Bagging doesn't hand any one refit new information the original data didn't have. What it does is stop you from betting everything on whichever single refit you happened to get, for the same reason averaging many measurements beats trusting just one.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Combining forecasts from different models</h2>
+
+<p>Bagging improved one model by refitting it on many versions of the same data. There is a second, entirely different way to hedge your bet: fit two different kinds of models to the one real dataset, and average their forecasts.</p>
+
+<p><code>auto.arima()</code> searches for the best ARIMA model for a series automatically, the same way <code>ets()</code> searches for the best exponential smoothing model.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># auto.arima(train) searches many candidate models and settles on ARIMA(1,1,0)(0,1,0)[12].
+# The search takes a while, so this box fits that chosen order directly: same model, same numbers.
+fit_arima &lt;- Arima(train, order = c(1, 1, 0), seasonal = c(0, 1, 0))
+fit_arima
+#&gt; Series: train
+#&gt; ARIMA(1,1,0)(0,1,0)[12]
+#&gt;
+#&gt; Coefficients:
+#&gt;           ar1
+#&gt;       -0.2431
+#&gt; s.e.   0.0894
+#&gt;
+#&gt; sigma^2 = 109.8:  log likelihood = -447.95
+#&gt; AIC=899.9   AICc=900.01   BIC=905.46
+
+fc_arima &lt;- forecast(fit_arima, h = 12)
+mae_arima  &lt;- mean(abs(test - fc_arima$mean))
+rmse_arima &lt;- sqrt(mean((test - fc_arima$mean)^2))
+sprintf(&quot;MAE = %.2f, RMSE = %.2f&quot;, mae_arima, rmse_arima)
+#&gt; [1] &quot;MAE = 18.53, RMSE = 23.93&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ARIMA(1,1,0)(0,1,0)[12] reads as one autoregressive term and one ordinary difference, plus one seasonal difference at a lag of 12 months and no seasonal AR or MA term. On this series it scores MAE 18.53, already a little better than the single ETS fit's 22.80.</p>
+
+<p>Now average the two forecasts, ETS's from earlier and ARIMA's just now, month by month.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average the ETS and ARIMA forecasts, month by month
+combo &lt;- (fc_ets$mean + fc_arima$mean) / 2
+round(as.numeric(combo), 1)
+#&gt;  [1] 418.0 407.0 469.1 455.8 468.2 525.1 591.4 595.7 512.0 452.0 401.7 447.3
+
+mae_combo  &lt;- mean(abs(test - combo))
+rmse_combo &lt;- sqrt(mean((test - combo)^2))
+sprintf(&quot;MAE = %.2f, RMSE = %.2f&quot;, mae_combo, rmse_combo)
+#&gt; [1] &quot;MAE = 13.92, RMSE = 19.19&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Line up all four forecasts against the real 1960 totals, including <code>snaive()</code>, the seasonal naive forecast that simply repeats each month's value from one year back.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare ETS, ARIMA, seasonal naive, and the average against the real totals
+fc_snaive &lt;- snaive(train, h = 12)
+
+comparison &lt;- data.frame(
+  month  = 1:12,
+  actual = as.numeric(test),
+  ets    = round(as.numeric(fc_ets$mean), 1),
+  arima  = round(as.numeric(fc_arima$mean), 1),
+  snaive = round(as.numeric(fc_snaive$mean), 1),
+  combo  = round(as.numeric(combo), 1)
+)
+comparison
+#&gt;    month actual   ets arima snaive combo
+#&gt; 1      1    417 411.9 424.1    360 418.0
+#&gt; 2      2    391 407.0 407.1    342 407.0
+#&gt; 3      3    419 467.3 470.8    406 469.1
+#&gt; 4      4    461 450.7 460.9    396 455.8
+#&gt; 5      5    472 451.5 484.9    420 468.2
+#&gt; 6      6    535 513.2 536.9    472 525.1
+#&gt; 7      7    622 569.9 612.9    548 591.4
+#&gt; 8      8    606 567.6 623.9    559 595.7
+#&gt; 9      9    508 496.1 527.9    463 512.0
+#&gt; 10    10    461 432.2 471.9    407 452.0
+#&gt; 11    11    390 376.6 426.9    362 401.7
+#&gt; 12    12    432 424.8 469.9    405 447.3
+
+mae_snaive &lt;- mean(abs(test - fc_snaive$mean))
+sprintf(&quot;MAE: ets %.2f, arima %.2f, snaive %.2f, combo %.2f&quot;,
+        mae_ets, mae_arima, mae_snaive, mae_combo)
+#&gt; [1] &quot;MAE: ets 22.80, arima 18.53, snaive 47.83, combo 13.92&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plain average of ETS and ARIMA, MAE 13.92, beats every single model on the list: ETS alone at 22.80, ARIMA alone at 18.53, and seasonal naive by a wide margin at 47.83. Neither ETS nor ARIMA needed to be the better model for the average to win. Look at month 5: ETS undershoots at 451.5 while ARIMA overshoots at 484.9. Averaging lets mistakes like that partly cancel instead of compounding.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Checking the combination across four earlier forecast origins</h2>
+
+<p>One comparison, on one forecast origin, is itself just one history. Does the average always win, or did it get lucky this once? Check by rolling the forecast origin back: repeat the exact same four forecasts, ETS, ARIMA, seasonal naive, and the ETS-ARIMA average, from the end of 1955, 1956, 1957 and 1958. Each time, forecast only the following calendar year from the data available up to that point.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the four forecasts from four earlier origins and score each one's MAE
+origins &lt;- c(1955, 1956, 1957, 1958)
+# The order auto.arima(tr) picks at each origin, fitted directly to keep the loop fast
+arima_orders &lt;- list(&quot;1955&quot; = list(c(0, 1, 1), c(1, 1, 0)),
+                     &quot;1956&quot; = list(c(1, 1, 0), c(1, 1, 0)),
+                     &quot;1957&quot; = list(c(1, 1, 0), c(0, 1, 0)),
+                     &quot;1958&quot; = list(c(1, 1, 0), c(0, 1, 0)))
+raw &lt;- matrix(NA, 4, 4, dimnames = list(origins, c(&quot;ets&quot;, &quot;arima&quot;, &quot;snaive&quot;, &quot;combo&quot;)))
+
+for (j in seq_along(origins)) {
+  yr &lt;- origins[j]
+  tr &lt;- window(AirPassengers, end = c(yr, 12))
+  te &lt;- window(AirPassengers, start = c(yr + 1, 1), end = c(yr + 1, 12))
+
+  p_ets    &lt;- as.numeric(forecast(ets(tr), h = 12)$mean)
+  ord      &lt;- arima_orders[[as.character(yr)]]
+  p_arima  &lt;- as.numeric(forecast(Arima(tr, order = ord[[1]], seasonal = ord[[2]]), h = 12)$mean)
+  p_snaive &lt;- as.numeric(snaive(tr, h = 12)$mean)
+  p_combo  &lt;- (p_ets + p_arima) / 2
+
+  raw[j, &quot;ets&quot;]    &lt;- mean(abs(te - p_ets))
+  raw[j, &quot;arima&quot;]  &lt;- mean(abs(te - p_arima))
+  raw[j, &quot;snaive&quot;] &lt;- mean(abs(te - p_snaive))
+  raw[j, &quot;combo&quot;]  &lt;- mean(abs(te - p_combo))
+}
+
+round(raw, 1)
+#&gt;       ets arima snaive combo
+#&gt; 1955 13.8   8.5   44.2   7.9
+#&gt; 1956 19.7  12.1   40.2  15.4
+#&gt; 1957 17.3  19.4   12.6  17.2
+#&gt; 1958 43.5  45.5   47.3  44.5
+
+round(colMeans(raw), 2)
+#&gt;    ets  arima snaive  combo
+#&gt;  23.59  21.38  36.08  21.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the winner, the lowest MAE, at each origin. 1955: the average wins at 7.9. 1956: ARIMA wins at 12.1. 1957: seasonal naive wins at 12.6. 1958: ETS wins at 43.5. A different method comes out on top every single time. Had you picked "the best model" after watching 1955's result, you would have bet everything on the average, then watched ARIMA beat it at the very next origin.</p>
+
+<p>Here is a widget that steps through folds one at a time, the same stepping motion as walking through the four origins above, though it ships with its own small built-in dataset rather than these four years. Picture each click moving the origin forward one year, from the end of 1955 to the end of 1958, exactly like the loop you just ran.</p>
+<div class="lesson-widget" data-widget-type="cv-folds" data-widget-config='{"k":4}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Now look at the two numbers that matter for a decision made in advance, without hindsight. The average's mean MAE across all four origins, 21.26, sits right beside the best individual model's mean (ARIMA at 21.38, ETS at 23.59), and it is the lowest of the four. Check which method was ever the single worst at any origin: seasonal naive was the worst at three of the four origins, 1955, 1956 and 1958; ARIMA was the worst once, at 1957; the average was never the worst at any of them. Close to the best on average, and never the single worst: that combination is exactly why you reach for the average when you don't know in advance which model will win.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>The forecast combination puzzle</h2>
+
+<p>You might expect a smarter combination to beat a plain 50-50 average: estimate how much to trust ETS against ARIMA from the four origins you just saw, and weight accordingly. Since ARIMA's mean MAE, 21.38, beat ETS's, 23.59, across those four origins, you might lean toward weighting ARIMA more heavily.</p>
+
+<p>This is a well-documented finding with its own name: the forecast combination puzzle. Researchers who have compared combination methods across hundreds of real forecasting problems keep finding the same surprising result. Fitting weights from past accuracy, instead of just splitting evenly, usually makes the combined forecast worse, not better.</p>
+
+<p>Why? Estimating a weight needs data, and four origins is not a lot of data. Any weight fitted off those four MAEs carries its own estimation error, since a different four origins could easily have handed ETS the lower mean instead. That estimation error gets added on top of whatever the weighting was trying to fix, and more often than not it costs more than the mis-weighting an equal split risks. An equal average needs no fitting and no extra history. It is biased toward neither model, which is exactly why it holds up so well when you don't have enough history to safely estimate anything fancier.</p>
+
+<p>That is not an argument against ever fitting weights. With a long enough history of accuracy to learn from, a fitted combination can do better. But with a short history like this one, the dependable default is the plain average from two steps back.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: picking a model after the fact</h2>
+<section class="exercise" data-exercise-id="Bootstrapping-Bagging-and-Forecast-Combinations-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">ETS should be dropped from consideration, since it only won outright at one of the four origins.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A different model won at every one of the four origins, and the average was never the single worst performer at any of them, which is exactly why you can't pick "the best model" in advance.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The average is worthless since it never came out on top at any single origin.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">MAE is the wrong metric to use for this comparison, so none of these four numbers can be trusted.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. You cannot know ahead of time which model will win the next origin, since a different one won every time here. The average's appeal is not that it wins the most. It's that it is never badly wrong.</div><div class="lesson-qfb lesson-qfb-no">MAE is a perfectly ordinary way to score a forecast's accuracy, and nothing about comparing four models at four origins calls for a different one. The lesson here is about which model to trust in advance, not about the choice of metric.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: combine two forecasts by hand</h2>
+
+<p><code>fc_ets$mean</code> and <code>fc_arima$mean</code> are still sitting in this session, both 12-month forecasts for 1960. Write the expression that averages them, month by month, into a vector called <code>combo</code>, the same combination from a few steps back.</p>
+<section class="exercise" data-exercise-id="Bootstrapping-Bagging-and-Forecast-Combinations-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="combo\s*&lt;-\s*[(]\s*fc_ets\$mean\s*\+\s*fc_arima\$mean\s*[)]\s*/\s*2|combo\s*&lt;-\s*[(]\s*fc_arima\$mean\s*\+\s*fc_ets\$mean\s*[)]\s*/\s*2"><textarea class="lesson-tryit-input" spellcheck="false"># fc_ets$mean and fc_arima$mean each hold a 12-month forecast for 1960.
+# Average them, month by month, into a vector called combo.
+# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: that's the same average from a few steps back, MAE 13.92 against ETS's 22.80 and ARIMA's 18.53.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the two forecast vectors and divide by 2, the same combination you ran earlier: combo <- (fc_ets$mean + fc_arima$mean) / 2.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Average the ETS and ARIMA forecasts, month by month
+combo &lt;- (fc_ets$mean + fc_arima$mean) / 2
+round(as.numeric(combo), 1)
+#&gt;  [1] 418.0 407.0 469.1 455.8 468.2 525.1 591.4 595.7 512.0 452.0 401.7 447.3</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1016/j.ijforecast.2015.07.002">Bagging exponential smoothing methods using STL decomposition and Box-Cox transformation</a> - Bergmeir, C., Hyndman, R.J., Benitez, J.M. (2016), International Journal of Forecasting, 32(2), 303-312. The method behind <code>forecast::baggedETS()</code> and <code>forecast::bld.mbb.bootstrap()</code>.</li>
+
+<li><a href="https://doi.org/10.1016/0169-2070%2889%2990012-5">Combining forecasts: A review and annotated bibliography</a> - Clemen, R.T. (1989), International Journal of Forecasting, 5(4), 559-583. The case for simple-average forecast combination.</li>
+
+<li><a href="https://doi.org/10.1111/j.1468-0084.2008.00541.x">A Simple Explanation of the Forecast Combination Puzzle</a> - Smith, J., Wallis, K.F. (2009), Oxford Bulletin of Economics and Statistics, 71(3), 331-355. Names and explains the puzzle taught in this lesson.</li>
+
+<li><a href="https://otexts.com/fpp3/">Forecasting: Principles and Practice, 3rd edition</a> - Hyndman, R.J., Athanasopoulos, G., OTexts, section 12.4, Forecast combinations.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/forecast/forecast.pdf">Forecasting Functions for Time Series and Linear Models</a> - the R package documentation for <code>forecast::bld.mbb.bootstrap()</code> and <code>forecast::baggedETS()</code>, the functions run in this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What this lesson leaves you able to do</h2>
+
+<p>You've now seen two different ways to stop trusting a single forecast too much.</p>
+
+<ul>
+
+<li>A model's forecast is tied to the one history it was shown. Fit <code>ets()</code> again on a different, equally plausible 132 months and you get a different forecast, as the 10 refits showed, swinging from 416.1 to 471.5 for December 1960 alone.</li>
+
+<li>The moving block bootstrap builds those alternate histories properly, by resampling only the STL remainder in contiguous 24-month blocks and leaving the trend and season untouched.</li>
+
+<li>Bagging averages refits across a hundred such replicates to narrow that dependence. Here it cut the MAE from 22.80 down to 15.27.</li>
+
+<li>Combining forecasts from different models, just by averaging them, hedges against picking the wrong single "best" model. Averaging ETS with ARIMA brought MAE down to 13.92, beating both individual models and the seasonal naive baseline.</li>
+
+<li>Across four earlier forecast origins, a different model won every single time, which is exactly why the equal average, never the single worst and close to the best on average, is the dependable default.</li>
+
+<li>The forecast combination puzzle explains why: fitting weights from a short history usually adds more estimation error than the mis-weighting an equal split risks.</li>
+
+</ul>
+
+<p>The next time you have more than one reasonable model for a series, average their forecasts before you pick a favourite.</p>
+</section>
+
+{% endraw %}
