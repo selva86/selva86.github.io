@@ -175,8 +175,13 @@ def check_prompt(slug):
 def publish_prompt(slug):
     return ("Follow the skill at .claude/skills/publish-lesson/SKILL.md for the lesson `%s` "
             "with --skip-sync. " % slug + _WD +
+            "Build only this page, in the foreground: `python _build/build.py --only %s` "
+            "(a full build outlasts the shell timeout). This session is non-interactive: never "
+            "run a command in the background or wait for a notification, because none arrives "
+            "and the publish is lost (2026-10-04: five lessons built but never committed). "
+            "Stage `screenshots/og/%s.png` with the page if it exists. "
             "Commit to the CURRENT working branch and push that branch; never switch branches "
-            "and never push to master.")
+            "and never push to master." % (slug, slug))
 
 def _sibling_worktrees():
     """Every other checkout of this repo, so a misfiled artifact can be found."""
@@ -247,11 +252,18 @@ def sync():
     Pro gating and no grading."""
     subprocess.run([sys.executable, os.path.join('Scripts', 'build_lessons_tracker.py')], cwd=ROOT)
     subprocess.run([sys.executable, os.path.join('_build', 'build_exercise_manifest.py')], cwd=ROOT)
-    if subprocess.run(['git', 'diff', '--quiet', '--'] + CATALOG_FILES, cwd=ROOT).returncode == 0:
+    # Course landings list later lessons as "coming soon" until this links them.
+    r = subprocess.run([sys.executable, os.path.join('Scripts', 'refresh_course_landings.py'), '--build'],
+                       cwd=ROOT, capture_output=True, text=True)
+    landings = [l[len('refreshed: '):] for l in (r.stdout or '').splitlines() if l.startswith('refreshed: ')]
+    files = CATALOG_FILES + [p for lp in landings for p in
+                             ('posts/%s.md' % lp, '_posts/%s.html' % lp, '%s.html' % lp)]
+    if subprocess.run(['git', 'diff', '--quiet', '--'] + files, cwd=ROOT).returncode == 0:
         return
-    subprocess.run(['git', 'add', '--'] + CATALOG_FILES, cwd=ROOT)
-    r = subprocess.run(['git', 'commit', '-m', 'Lesson catalog sync: courses.json, pro-lessons.json, grading manifest',
-                        '--'] + CATALOG_FILES, cwd=ROOT, capture_output=True, text=True)
+    subprocess.run(['git', 'add', '--'] + files, cwd=ROOT)
+    r = subprocess.run(['git', 'commit', '-m', 'Lesson catalog sync: courses.json, pro-lessons.json, grading manifest'
+                        + (', course landings' if landings else ''),
+                        '--'] + files, cwd=ROOT, capture_output=True, text=True)
     if r.returncode == 0:
         subprocess.run(['git', 'push', 'origin', 'HEAD'], cwd=ROOT)
         print('  catalog sync committed and pushed', flush=True)
