@@ -157,10 +157,9 @@
     }
     return '<a class="lsn pro" href="/pricing.html"><span class="ltwrap"><span class="lt">'+esc(t)+'</span></span><span class="go">Pro</span></a>';
   }
-  // interactive step-player lesson row (dot + title + outcome subtitle + tag + arrow)
+  // interactive step-player lesson row (title + tag + arrow)
   function interRow(l){
-    var isQ=l.kind==='quiz', sub=(l.subtitle||'').trim();
-    var subHtml=sub?'<span class="lsub">'+esc(sub)+'</span>':'';
+    var isQ=l.kind==='quiz';
     /* Mark the exception, not the rule. Every row in this renderer IS an
        interactive lesson, so stamping "Interactive" on each one is a tautology
        repeated down the whole page; "Quiz" stays because it actually varies.
@@ -169,7 +168,7 @@
        word. */
     var chip=(String(l.access||'').toLowerCase()==='pro')?'<span class="ltag pro">Pro</span>':'';
     var tag=chip+(isQ?'<span class="itag quiz">Quiz</span>':'');
-    return '<a class="lsn inter" href="/'+l.slug+'.html"><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span>'+subHtml+'</span>'+tag+ARR+'</a>';
+    return '<a class="lsn inter" href="/'+l.slug+'.html"><span class="ltwrap"><span class="lt">'+esc(l.title)+'</span></span>'+tag+ARR+'</a>';
   }
   // B6 section block: numbered chip + title + outcome + Free/Pro badge, then a
   // hairline-ruled table of rows. Open by default (collapsible), concept rows are
