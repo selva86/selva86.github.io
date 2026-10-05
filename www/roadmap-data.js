@@ -111,7 +111,7 @@
     { n: 1, key: 'foundations', persona: 'New to R', color: '#2c5e8f',
       head: 'R programming <em>foundations</em>',
       become: 'Command of base R: data types, vectors and data frames, control flow, and writing your own functions with correct scope.',
-      weeks: '~3 weeks', cert: 'R Fundamentals', track: 'r-fundamentals',
+      weeks: '~3 weeks', cert: 'Certified R Fundamentals', track: 'r-fundamentals',
       arrive: 'You can read and write idiomatic base R with confidence.',
       stages: [
         { title: 'Syntax, data types and data structures',
@@ -129,7 +129,7 @@
     { n: 2, key: 'analyst', persona: 'Data Analyst', color: '#1f7a78',
       head: 'Data analysis with the <em>tidyverse</em>',
       become: 'Take a dataset from raw file to a clear, defensible analysis: reshape and join it, then communicate it with ggplot2 and a disciplined EDA.',
-      weeks: '~4 weeks', cert: 'Tidyverse Practitioner', track: 'tidyverse-practitioner',
+      weeks: '~4 weeks', cert: 'Certified R Data Analyst', track: 'data-analyst',
       arrive: 'You can wrangle, explore and present real data end to end.',
       stages: [
         { title: 'Data wrangling with dplyr and tidyr',
@@ -152,7 +152,7 @@
     { n: 3, key: 'ds', persona: 'Data Scientist', color: '#2d7d4e',
       head: 'Predictive modelling and <em>machine learning</em>',
       become: 'Build, tune and evaluate supervised and unsupervised models, and judge honestly when they will generalise.',
-      weeks: '~6 weeks', cert: 'Machine Learning with R', track: 'machine-learning',
+      weeks: '~6 weeks', cert: 'Certified R Data Scientist', track: 'data-scientist',
       arrive: 'You can take a problem from raw data to a validated model, and know its limits.',
       stages: [
         { title: 'Regression and model diagnostics',
@@ -182,7 +182,7 @@
     { n: 4, key: 'ts', persona: 'Time Series', color: '#b1832f',
       head: 'Time series analysis and <em>forecasting</em>',
       become: 'Build and evaluate forecasts in R with ETS, ARIMA, regression and machine learning models.',
-      weeks: '~3 weeks', cert: 'Time Series Forecasting', track: null,
+      weeks: '~3 weeks', cert: 'Certified R Forecaster', track: 'forecaster',
       arrive: 'You can produce and validate forecasts for temporal data.',
       stages: [
         { title: 'Exploring trend and seasonality',
@@ -200,7 +200,7 @@
     { n: 5, key: 'researcher', persona: 'Researcher', color: '#9c5732',
       head: 'Statistical <em>inference</em> and reporting',
       become: 'Run and defend the right statistical test, model effects rigorously, and report results reproducibly.',
-      weeks: '~6 weeks', cert: 'Applied Statistics with R', track: 'statistics-for-ds',
+      weeks: '~6 weeks', cert: 'Certified R Researcher', track: 'researcher',
       arrive: 'Your analysis can withstand methodological review.',
       stages: [
         { title: 'Probability and sampling distributions',
@@ -228,7 +228,7 @@
     { n: 6, key: 'developer', persona: 'R Developer', color: '#7a4e2e',
       head: 'Advanced R and <em>software engineering</em>',
       become: 'Functional and object-oriented R, language internals, performance, and the engineering that turns scripts into tools.',
-      weeks: '~7 weeks', cert: 'Advanced R', track: 'advanced-r',
+      weeks: '~7 weeks', cert: 'Certified R Developer', track: 'r-developer',
       arrive: 'You can read, extend and engineer production-grade R.',
       stages: [
         { title: 'Functional programming',

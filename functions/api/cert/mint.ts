@@ -10,9 +10,11 @@
 //
 // Gates (in order):
 //   1. Auth (Bearer JWT)
-//   2. Pro tier OR KV flag `flag:cert_free` == 'on' (early-launch escape)
-//   3. Track exists in the manifest
-//   4. User is eligible (solved >= threshold * total_exercises)
+//   2. Track exists in the manifest
+//   3. Track is open and the user's plan covers it (_lib/cert-access.ts):
+//      free track (New to R) for anyone; otherwise a paid plan whose scope
+//      covers the track. There is no free-for-all switch any more.
+//   4. User is eligible (solved >= threshold * the track's graded checks)
 //
 // On a newly-minted cert: +200 XP via xp_ledger (action='cert.earned') and
 // users.total_xp bumped. The endpoint also surfaces `xp_awarded_now` so the
@@ -21,20 +23,11 @@
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, jsonError } from "../../_lib/errors";
 import { getSolvedByHub, mintCertificate, getStats } from "../../_lib/db";
-import { resolvePro } from "../../_lib/entitlement";
+import { certAccess, claimBlock } from "../../_lib/cert-access";
 import {
   getTrack, computeTrackProgress, generatePublicId, getIssuer,
 } from "../../_lib/tracks";
 import { sendCertificateEmail } from "../../_lib/email";
-
-async function isCertFreeFlag(kv: KVNamespace): Promise<boolean> {
-  try {
-    const v = await kv.get("flag:cert_free");
-    return v === "on";
-  } catch {
-    return false;
-  }
-}
 
 function newRowId(): string {
   // 16 hex chars; row PK separate from public_id for back-compat with
@@ -60,38 +53,43 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
   const track = getTrack(trackId);
   if (!track) return jsonError(400, "unknown_track", "Unknown track");
 
-  // Pro gate (with KV flag escape for early launch). resolvePro grants Pro for
-  // an individual plan, lifetime, OR an active team seat.
-  const isPro = (await resolvePro(context.env.DB, u)).pro;
-  if (!isPro) {
-    // Free-track escape (profile v3 pass 2): the Foundations credential is
-    // mintable without Pro when its track is marked free AND the launch flag
-    // is on. The work requirement (eligibility below) is identical either way.
-    const freeTrack = track.free === true
-      && (await context.env.KV.get("flag:free-foundations-cert")) === "on";
-    const freeAllowed = freeTrack || await isCertFreeFlag(context.env.KV);
-    if (!freeAllowed) {
+  // An existing certificate is always handed back (mintCertificate is
+  // idempotent), even if the plan has lapsed or new lessons have since raised
+  // the bar. The gates below apply only to a certificate that does not exist yet.
+  const existing = await context.env.DB
+    .prepare("SELECT 1 FROM certificates WHERE user_id = ? AND track = ? AND status != 'revoked' LIMIT 1")
+    .bind(u.id, track.id).first();
+  const solvedByHub = await getSolvedByHub(context.env.DB, u.id);
+  const progress = computeTrackProgress(track, solvedByHub);
+  if (!existing) {
+    const block = claimBlock(await certAccess(context.env, u), track);
+    if (block === "closed") {
       return jsonError(
-        403, "pro_required",
-        "Certificate minting requires a Pro subscription.",
+        409, "track_not_open",
+        `The ${track.name} certificate opens once the track's lessons are all published.`,
+      );
+    }
+    if (block) {
+      return jsonError(
+        403, block === "needs_pro" ? "pro_required" : "track_not_in_plan",
+        block === "needs_pro"
+          ? `The ${track.name} certificate comes with Pro.`
+          : `Your Single Track plan does not cover the ${track.name} certificate. All-Access covers every track.`,
+      );
+    }
+    if (!progress.eligible) {
+      return jsonError(
+        400, "not_eligible",
+        `Need ${Math.ceil(track.threshold * 100)}% of the graded checks in this track's lessons. ` +
+        `Currently ${progress.solved} of ${track.total_exercises}.`,
       );
     }
   }
 
-  // Eligibility check.
-  const solvedByHub = await getSolvedByHub(context.env.DB, u.id);
-  const progress = computeTrackProgress(track, solvedByHub);
-  if (!progress.eligible) {
-    return jsonError(
-      400, "not_eligible",
-      `Need ${Math.ceil(track.threshold * 100)}% of exercises in this track. ` +
-      `Currently ${progress.solved} of ${track.total_exercises}.`,
-    );
-  }
-
   // Snapshot fields for the cert row.
   const recipientName = u.display_name || (u.email ? u.email.split("@")[0] : "Learner");
-  const evidence = track.hubs.map(h => h.url);
+  // Evidence = the lessons where the holder actually passed graded checks.
+  const evidence = track.hubs.filter(h => (solvedByHub.get(h.slug)?.size || 0) > 0).map(h => h.url);
   const publicId = generatePublicId();
   // Score on the certificate = share of the track's exercises solved when it was minted.
   const score = track.total_exercises > 0
@@ -128,7 +126,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
             trackName: cert.track_name || track.name,
             verifyUrl,
             publicId: cert.public_id as string,
-            imageUrl: `${origin}/screenshots/og-cert-${track.id}.png?v=2`,
+            imageUrl: `${origin}/screenshots/og-cert-${track.id}.png?v=3`,
           });
           if (result.ok) {
             await context.env.DB

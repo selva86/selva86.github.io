@@ -9,16 +9,16 @@
     {key:'foundations',name:'New to R',goal:'learn R from zero',free:true,slug:'new-to-r',code:'RF',mastery:'base R programming',
      blurb:'Learn R from your first vector to writing your own functions. A free, structured path through R fundamentals.',
      sig:'Your own R functions, written and tested',step:'From your first vector to writing your own functions.'},
-    {key:'analyst',name:'Data Analyst',goal:'turn data into decisions',slug:'data-analyst',code:'TP',mastery:'everyday data wrangling with the tidyverse',
+    {key:'analyst',name:'Data Analyst',goal:'turn data into decisions',slug:'data-analyst',code:'DA',mastery:'data analysis and reporting in R',
      blurb:'Wrangle, visualize and report on real data with dplyr, ggplot2 and Quarto. The shared core every specialization builds on.',
      sig:'A reproducible, parameterized Quarto report',step:'Wrangle, visualize and report with dplyr, ggplot2 and Quarto.'},
-    {key:'ds',name:'Data Scientist',goal:'build predictive models',slug:'data-scientist',code:'ML',mastery:'machine learning in R',color:'#3D7FD9',
+    {key:'ds',name:'Data Scientist',goal:'build predictive models',slug:'data-scientist',code:'DS',mastery:'machine learning in R',color:'#3D7FD9',
      blurb:'Build, tune, explain and ship machine learning models with tidymodels, XGBoost and torch.',sig:'A deployed, monitored model'},
-    {key:'ts',name:'Forecaster',goal:'forecast what happens next',slug:'forecaster',code:'TS',mastery:'time-series forecasting in R',color:'#D9822B',
+    {key:'ts',name:'Forecaster',goal:'forecast what happens next',slug:'forecaster',code:'FC',mastery:'time-series forecasting in R',color:'#D9822B',
      blurb:'Model time series with fable, state-space and deep learning, and forecast with honest intervals.',sig:'A backtested forecast with calibrated intervals'},
-    {key:'researcher',name:'Researcher',goal:'report statistical results',slug:'researcher',code:'AS',mastery:'statistical research methods in R',color:'#9A6BE0',
+    {key:'researcher',name:'Researcher',goal:'report statistical results',slug:'researcher',code:'RS',mastery:'statistical research methods in R',color:'#9A6BE0',
      blurb:'Design analyses, estimate effects and defend every inference, from mixed models to causal methods.',sig:'A complete study, from DAG to write-up'},
-    {key:'developer',name:'R Developer',goal:'build packages and apps',slug:'r-developer',code:'AR',mastery:'advanced R programming',color:'#D4467E',
+    {key:'developer',name:'R Developer',goal:'build packages and apps',slug:'r-developer',code:'RD',mastery:'R software development',color:'#D4467E',
      blurb:'Write fast, tested, documented R and ship it as packages, APIs and production Shiny apps.',sig:'A released package or app'}
   ];
   var BYKEY={};ROLES.forEach(function(r,i){r.i=i;BYKEY[r.key]=r;});
@@ -95,7 +95,7 @@
 
   /* ---- 01 foundation + 02 specialization cards ---- */
   function renderFoundation(){
-    ['foundations','analyst'].forEach(function(k){set('earn-'+k,esc(certName(k))+' certificate');});
+    ['foundations','analyst'].forEach(function(k){set('earn-'+k,esc(certName(k)));});
   }
   function renderSpecCards(){
     SPECS.forEach(function(r){

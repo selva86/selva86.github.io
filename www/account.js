@@ -103,8 +103,9 @@
   function renderCerts(certsR, tracksR){
     var items=(certsR&&certsR.items)||[];
     var tracks=(tracksR&&tracksR.tracks)||[];
-    var inProg=tracks.filter(function(t){return t.pct>0&&t.pct<100;});
-    var claimable=tracks.filter(function(t){return t.eligible&&!t.minted;});
+    var inProg=tracks.filter(function(t){return t.pct>0&&!t.minted&&!t.claimable;});
+    // claimable comes from the server (eligible, open, covered by the plan, not minted)
+    var claimable=tracks.filter(function(t){return t.claimable!=null?t.claimable:(t.eligible&&!t.minted);});
     var scores=items.map(function(c){return c.score;}).filter(function(s){return s!=null;});
     var avg=scores.length?Math.round(scores.reduce(function(a,b){return a+b;},0)/scores.length):null;
 
@@ -114,20 +115,20 @@
       '<div class="stat"><b class="mono">'+(avg!=null?avg+'%':'&ndash;')+'</b><span>Average score</span></div>';
 
     el('ac-claim').innerHTML=claimable.map(function(t){
-      return '<div class="claim"><span class="ci">'+ic('i-trophy')+'</span><span class="ct"><b>'+esc(t.name)+' is ready to claim</b><span>You have met the requirement. Mint your certificate.</span></span>'+
+      return '<div class="claim"><span class="ci">'+ic('i-trophy')+'</span><span class="ct"><b>'+esc(t.name)+' is ready to claim</b><span>You passed the graded checks for this track. Claim your certificate.</span></span>'+
         '<button class="btn btn-primary btn-sm" data-claim="'+esc(t.id)+'">Claim certificate</button></div>';
     }).join('');
     el('ac-claim').querySelectorAll('[data-claim]').forEach(function(b){
       b.addEventListener('click',function(){var id=b.getAttribute('data-claim');b.disabled=true;b.textContent='Minting...';
-        api('/api/cert/mint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({track_id:id})}).then(function(){toast('Certificate minted');load();}).catch(function(){b.disabled=false;b.textContent='Claim certificate';toast('Could not mint yet');});
+        api('/api/cert/mint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({track_id:id})}).then(function(){toast('Certificate issued');load();}).catch(function(){b.disabled=false;b.textContent='Claim certificate';toast('Could not issue it yet. Please try again.');});
       });
     });
 
     if(items.length){
       el('ac-earned').innerHTML=items.map(function(c){
         var nm=c.track_name||c.track;
-        // seal codes match functions/_lib/cert-design.ts
-        var code={'r-fundamentals':'RF','tidyverse-practitioner':'TP','data-visualization':'DV','statistics-for-ds':'SD','machine-learning':'ML','advanced-r':'AR'}[c.track]||String(nm).split(/\s+/).filter(function(w){return /^[A-Za-z]/.test(w);}).map(function(w){return w.charAt(0);}).join('').slice(0,2).toUpperCase();
+        // seal codes match _build/tracks-source.json
+        var code={'r-fundamentals':'RF','data-analyst':'DA','data-scientist':'DS','forecaster':'FC','researcher':'RS','r-developer':'RD'}[c.track]||String(nm).split(/\s+/).filter(function(w){return /^[A-Za-z]/.test(w);}).map(function(w){return w.charAt(0);}).join('').slice(0,2).toUpperCase();
         var v=absUrl(c.verify_url||('/cert/'+c.public_id));
         var d=new Date((c.issued_at>2e10?c.issued_at:c.issued_at*1000));
         var li='https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name='+encodeURIComponent(nm)+'&organizationName='+encodeURIComponent('r-statistics.co')+'&certUrl='+encodeURIComponent(v)+'&certId='+encodeURIComponent(c.public_id||'')+(c.issued_at?('&issueYear='+d.getFullYear()+'&issueMonth='+(d.getMonth()+1)):'');
@@ -147,7 +148,9 @@
     if(inProg.length){
       if(ph)ph.style.display='';
       pe.innerHTML=inProg.map(function(t){
-        return '<a class="row" href="'+rolePageForTrack(t.id)+'"><span class="ic">'+ic('i-compass')+'</span><span class="rt"><b>'+esc(t.name)+'</b><span>'+(t.solved||0)+' of '+(t.total_exercises||t.threshold||0)+' exercises &middot; '+t.pct+'%</span></span>'+ARR+'</a>';
+        // pct is a 0..1 ratio from /api/me/tracks
+        var p=Math.floor((t.pct||0)*100), why=t.block==='closed'?' &middot; opens when the track is published':t.block==='needs_pro'?' &middot; certificate comes with Pro':t.block==='needs_track'?' &middot; not in your plan':'';
+        return '<a class="row" href="'+esc(t.roadmap_url||rolePageForTrack(t.id))+'"><span class="ic">'+ic('i-compass')+'</span><span class="rt"><b>'+esc(t.name)+'</b><span>'+(t.solved||0)+' of '+(t.total_exercises||0)+' graded checks &middot; '+p+'%'+why+'</span></span>'+ARR+'</a>';
       }).join('');
     } else { if(ph)ph.style.display='none'; pe.innerHTML=''; }
   }
@@ -203,7 +206,7 @@
     var dme={user:{display_name:'Selva Prabhakaran',email:'selva@example.com'},pro:dpro,pro_until:dpro?dn+31000000:null};
     if(ACCT==='settings')renderSettings(dme,{sessions:[{device:'Chrome on Windows',last_seen_at:dn,created_at:dn-2000000,current:true},{device:'Safari on iPhone',session_id:'demo2',last_seen_at:dn-90000,created_at:dn-900000}]});
     else if(ACCT==='billing')renderBilling(dme);
-    else if(ACCT==='certificates')renderCerts({items:[{public_id:'RF-4127',track:'r-fundamentals',track_name:'R Foundations',issued_at:dn-3000000,score:94,verify_url:'https://r-statistics.co/cert/RF-4127'},{public_id:'TV-5102',track:'tidyverse-practitioner',track_name:'Tidyverse Practitioner',issued_at:dn-1000000,score:88,verify_url:'https://r-statistics.co/cert/TV-5102'}]},{tracks:[{id:'machine-learning',name:'Machine Learning',pct:46,solved:24,total_exercises:52},{id:'statistics-for-ds',name:'Statistics for Data Science',pct:100,eligible:true,minted:false,solved:40,total_exercises:40}]});
+    else if(ACCT==='certificates')renderCerts({items:[{public_id:'RST-2026-DEMO01',track:'r-fundamentals',track_name:'Certified R Fundamentals',issued_at:dn-3000000,score:94,verify_url:'https://r-statistics.co/cert/RST-2026-DEMO01'},{public_id:'RST-2026-DEMO02',track:'data-analyst',track_name:'Certified R Data Analyst',issued_at:dn-1000000,score:88,verify_url:'https://r-statistics.co/cert/RST-2026-DEMO02'}]},{tracks:[{id:'data-scientist',name:'Certified R Data Scientist',roadmap_url:'/roadmap/data-scientist.html',pct:0.46,solved:356,total_exercises:773,block:null,claimable:false},{id:'forecaster',name:'Certified R Forecaster',roadmap_url:'/roadmap/forecaster.html',pct:0.84,solved:241,total_exercises:287,eligible:true,block:null,claimable:true,minted:null},{id:'researcher',name:'Certified R Researcher',roadmap_url:'/roadmap/researcher.html',pct:0.25,solved:2,total_exercises:8,block:'closed',claimable:false}]});
   } else { load(); }
 
   var prog=el('prog'); if(prog){var os=function(){var h=document.documentElement,m=h.scrollHeight-h.clientHeight;prog.style.width=(m>0?(h.scrollTop/m*100):0)+'%';};window.addEventListener('scroll',os,{passive:true});os();}

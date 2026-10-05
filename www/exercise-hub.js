@@ -1686,7 +1686,7 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (body) {
         if (!body || !Array.isArray(body.tracks)) return;
-        var claimable = body.tracks.filter(function (t) { return t.eligible && !t.minted; });
+        var claimable = body.tracks.filter(function (t) { return t.claimable != null ? t.claimable : (t.eligible && !t.minted); });
         if (!claimable.length) return;
         renderClaimBlock(claimable);
       })
@@ -1713,7 +1713,7 @@
       row.innerHTML =
         '<div><div style="font-family:\'IBM Plex Serif\',Georgia,serif;font-weight:600;font-size:14.5px;color:' + t.color_primary + '">' +
         escapeHtml(t.name) + '</div>' +
-        '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + t.solved + ' of ' + t.total_exercises + ' exercises</div></div>';
+        '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + t.solved + ' of ' + t.total_exercises + ' graded checks</div></div>';
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.style.cssText = 'background:' + t.color_primary + ';color:#fff;border:none;border-radius:6px;' +
@@ -1741,7 +1741,7 @@
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
       .then(function (resp) {
-        if (!resp.ok) throw new Error(resp.body && resp.body.message || 'Mint failed');
+        if (!resp.ok) throw new Error((resp.body && resp.body.error && resp.body.error.message) || (resp.body && resp.body.message) || 'Mint failed');
         btn.textContent = 'View certificate';
         btn.disabled = false;
         btn.onclick = function () { window.open(resp.body.verify_url, '_blank', 'noopener'); };

@@ -10,8 +10,11 @@
 //   - generatePublicId()                    : RST-YYYY-XXXXXX format
 //   - getIssuer()                           : issuer metadata for Open Badges
 //
-// Eligibility model: a user is eligible when (solved exercises in track's
-// hubs) / (total exercises in track's hubs) >= track.threshold (default 0.8).
+// One certificate per roadmap track (2026-10). A track's "hubs" are its
+// published lessons; each hub's total is that lesson's graded checks.
+// Eligibility model: a user is eligible when (solved checks in the track's
+// lessons) / (total checks) >= track.threshold (default 0.8). Whether they may
+// CLAIM it also needs track.open and a plan that covers the track (mint.ts).
 // "Solved" means an `exercise_attempts` row exists with passed=1, regardless
 // of when it was recorded (so backfilled anon solves count fully).
 
@@ -30,6 +33,13 @@ export interface TrackHub {
 
 export interface Track {
   free?: boolean;          // mintable without Pro (flag:free-foundations-cert)
+  open?: boolean;          // claimable now; false while the track is still being published
+  roadmap_track?: string;  // roadmap key the track maps to (foundations, analyst, ds, ts, researcher, developer)
+  roadmap_url?: string;
+  code?: string;           // two-letter seal code (RF, DA, DS, FC, RS, RD)
+  mastery?: string;        // the phrase in "Demonstrated mastery of ___"
+  lessons?: number;        // published lessons in the track
+  sections?: number;       // roadmap sections that have published lessons
   id: string;
   name: string;
   tagline: string;
@@ -92,7 +102,9 @@ export function computeTrackProgress(
   for (const hub of track.hubs) {
     const ids = solvedByHub.get(hub.slug);
     if (!ids) continue;
-    solved += ids.size;
+    // Capped at the lesson's current check count: a renamed or removed check
+    // that was solved earlier can never push anyone past 100% of a lesson.
+    solved += Math.min(ids.size, hub.total);
   }
   const pct = track.total_exercises > 0 ? solved / track.total_exercises : 0;
   return {

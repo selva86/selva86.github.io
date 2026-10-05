@@ -14,7 +14,7 @@
 (function () {
   'use strict';
 
-  var FREE_TRACKS = ['r-fundamentals', 'tidyverse-practitioner'];
+  var FREE_TRACKS = ['r-fundamentals'];
 
   // NOTE: the sample certificate's recipient name is intentionally NOT editable.
   // An editable name on a public sample credential would invite screenshot-faking
@@ -105,12 +105,17 @@
         cta.innerHTML = 'View credential <span class="a">→</span>';
         cta.setAttribute('href', t.minted.verify_url);
         cta.removeAttribute('data-track-claim');
-      } else if (t.eligible) {
+      } else if (t.claimable != null ? t.claimable : t.eligible) {
         cta.innerHTML = 'Claim certificate <span class="a">→</span>';
         cta.setAttribute('href', '#');
         cta.setAttribute('data-track-claim', t.id);
+      } else if (t.eligible && (t.block === 'needs_pro' || t.block === 'needs_track')) {
+        // Earned the bar, but the plan does not cover this certificate yet.
+        cta.innerHTML = (t.block === 'needs_pro' ? 'Claim it with Pro' : 'Claim it with All-Access') + ' <span class="a">→</span>';
+        cta.setAttribute('href', '/pricing.html#plans');
+        cta.removeAttribute('data-track-claim');
       }
-      // else: leave the authored "Explore the track" CTA untouched
+      // else (closed, or under the bar): leave the authored "Explore the track" CTA untouched
     }
   }
 
@@ -159,7 +164,8 @@
       if (r.ok && r.body && r.body.verify_url) { window.location.href = r.body.verify_url; return; }
       cta.removeAttribute('data-busy');
       cta.innerHTML = label;
-      var msg = (r.body && (r.body.message || r.body.error)) || 'That did not go through. Please try again.';
+      var e = r.body && r.body.error;
+      var msg = (e && typeof e === 'object' ? e.message : (r.body && (r.body.message || e))) || 'That did not go through. Please try again.';
       var note = cta.parentNode.querySelector('.tcta-err');
       if (!note) {
         note = document.createElement('p');

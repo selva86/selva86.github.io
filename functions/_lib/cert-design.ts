@@ -1,30 +1,25 @@
 // The r-statistics.co certificate (2026-10 design handoff), one source for every surface:
 //   /cert/<id> page (HTML) and its print/PDF, the profile share card (SVG),
 //   the per-track social images (Scripts/gen_cert_og.mjs renders renderShareImageHtml).
-// Canvas 1280 x 800. No signature, no monospace. The account and dashboard minis and the
-// roadmap preview copy the codes below; keep them in step (www/account.js, www/dashboard.js,
-// www/roadmap-v3.js).
+// Canvas 1280 x 800. No signature, no monospace. Track codes live in _build/tracks-source.json;
+// the account and dashboard minis and the roadmap preview copy them (www/account.js,
+// www/dashboard.js, www/roadmap-v3.js), so keep those in step.
 
 export const CERT_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800" +
   "&family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Source+Sans+3:wght@400;600&display=swap";
 
-// Two-letter seal code + the phrase in "Demonstrated mastery of ___".
-const META: Record<string, { code: string; mastery: string }> = {
-  "r-fundamentals": { code: "RF", mastery: "base R programming" },
-  "tidyverse-practitioner": { code: "TP", mastery: "everyday data wrangling with the tidyverse" },
-  "data-visualization": { code: "DV", mastery: "data visualization with ggplot2" },
-  "statistics-for-ds": { code: "SD", mastery: "applied statistics for data science in R" },
-  "machine-learning": { code: "ML", mastery: "machine learning in R" },
-  "advanced-r": { code: "AR", mastery: "advanced R programming" },
-};
-
-export function certMeta(trackId: string, trackName: string): { code: string; mastery: string } {
-  const m = META[trackId];
-  if (m) return m;
-  const code = trackName.split(/\s+/).filter(w => /^[A-Za-z]/.test(w) && !/^(with|for|and|of|in|the)$/i.test(w))
+// Two-letter seal code + the phrase in "Demonstrated mastery of ___". Both come
+// from the track (functions/_data/tracks.json, authored in _build/tracks-source.json);
+// the fallback only covers a certificate whose track is no longer in the manifest.
+export function certMeta(
+  _trackId: string, trackName: string, track?: { code?: string; mastery?: string } | null,
+): { code: string; mastery: string } {
+  if (track && track.code && track.mastery) return { code: track.code, mastery: track.mastery };
+  const code = trackName.replace(/^Certified\s+R?\s*/i, "").split(/\s+/)
+    .filter(w => /^[A-Za-z]/.test(w) && !/^(with|for|and|of|in|the)$/i.test(w))
     .map(w => w[0]).join("").slice(0, 2).toUpperCase() || "R";
-  return { code, mastery: `the ${trackName} curriculum` };
+  return { code, mastery: `the ${trackName.replace(/^Certified\s+/i, "")} curriculum` };
 }
 
 export interface CertData {

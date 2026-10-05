@@ -81,7 +81,7 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
 
   const recipientName = cert.recipient_name || "Learner";
   const trackName = cert.track_name || track.name;
-  const meta = certMeta(track.id, trackName);
+  const meta = certMeta(track.id, trackName, track);
   const skills: Array<{ name: string; level?: string }> = (() => {
     try {
       const arr = cert.skills_json ? JSON.parse(cert.skills_json) : [];
@@ -150,7 +150,7 @@ ${HEAD_ICONS}
 <meta property="og:description" content="${escapeHtml(ogDesc)}">
 <meta property="og:url" content="${escapeHtml(verifyUrl)}">
 <meta property="og:type" content="profile">
-<meta property="og:image" content="${escapeHtml(origin)}/screenshots/og-cert-${escapeHtml(track.id)}.png?v=2">
+<meta property="og:image" content="${escapeHtml(origin)}/screenshots/og-cert-${escapeHtml(track.id)}.png?v=3">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
@@ -284,7 +284,7 @@ ${CERT_CSS}
     <p><span class="verify-url">${escapeHtml(verifyUrl)}</span></p>
     ${skillChips ? `<div class="skills-row" aria-label="Skills demonstrated">${skillChips}</div>` : ""}
     <p style="margin-top:14px"><a href="/verify/" style="font-weight:600">Verify another credential &rarr;</a></p>
-    ${evidence.length ? `<details class="evidence"><summary>View evidence (${evidence.length} exercise hubs completed)</summary><ul>${evidenceList}</ul></details>` : ""}
+    ${evidence.length ? `<details class="evidence"><summary>View evidence (${evidence.length} lessons with graded work)</summary><ul>${evidenceList}</ul></details>` : ""}
   </section>
 
 </div>

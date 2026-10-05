@@ -1466,6 +1466,53 @@
       var rv = card.querySelector('.lm-ca-review');
       if (rv) rv.addEventListener('click', function () { i = 0; render(); });
       completionOffer(card);
+      certClaimPrompt(card);
+    }
+
+    /* Track certificates (one per roadmap track, 2026-10). When finishing a
+       lesson completes the learner's track (80% of its graded checks) and
+       their plan covers it, the certificate is offered right here. The server
+       decides through `claimable`; this only asks once the last check landed. */
+    function certClaimPrompt(card) {
+      var rm = curRoadmap();
+      var api = window.RSCExerciseAPI, tk = api && api.token && api.token();
+      if (!rm || !rm.track || !tk || card.querySelector('.lm-ca-cert')) return;
+      var hdr = { 'Authorization': 'Bearer ' + tk, 'Accept': 'application/json' };
+      setTimeout(function () {
+        fetch('/api/me/tracks', { headers: hdr })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (b) {
+            var t = b && b.tracks && b.tracks.filter(function (x) { return x.roadmap_track === rm.track; })[0];
+            if (!t || !t.claimable || card.querySelector('.lm-ca-cert')) return;
+            var box = document.createElement('div');
+            box.className = 'lm-ca-cert';
+            box.style.cssText = 'margin-top:16px;padding:16px 18px;border:1.5px solid #C9A85E;border-radius:12px;background:#FBF8EF;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px';
+            box.innerHTML = '<span style="flex:1 1 220px;line-height:1.45"><b>You have completed the track.</b> ' +
+              'Your <b>' + esc(t.name) + '</b> certificate is ready.</span>' +
+              '<button type="button" style="flex:none;background:#0F3F2A;color:#fff;border:0;border-radius:999px;padding:10px 18px;font:inherit;font-weight:700;cursor:pointer">Claim your certificate</button>';
+            card.appendChild(box);
+            var btn = box.querySelector('button');
+            btn.addEventListener('click', function () {
+              btn.disabled = true; btn.textContent = 'Issuing...';
+              fetch('/api/cert/mint', { method: 'POST', headers: { 'Authorization': hdr.Authorization, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ track_id: t.id }) })
+                .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (x) {
+                  if (x.ok && x.j && x.j.verify_url) {
+                    box.innerHTML = '<span style="flex:1 1 220px"><b>Your certificate is issued.</b></span>' +
+                      '<a href="' + esc(x.j.verify_url) + '" style="flex:none;background:#0F3F2A;color:#fff;border-radius:999px;padding:10px 18px;font-weight:700;text-decoration:none">View your certificate &rarr;</a>';
+                  } else {
+                    btn.disabled = false; btn.textContent = 'Claim your certificate';
+                    var m = (x.j && x.j.error && x.j.error.message) || 'Could not issue it yet. Please try again.';
+                    var n = box.querySelector('.lm-ca-cert-msg') || box.appendChild(document.createElement('span'));
+                    n.className = 'lm-ca-cert-msg'; n.style.cssText = 'flex:1 1 100%;font-size:14px;color:#8a2c2c'; n.textContent = m;
+                  }
+                })
+                .catch(function () { btn.disabled = false; btn.textContent = 'Claim your certificate'; });
+            });
+          })
+          .catch(function () {});
+      }, 1500);
     }
 
     /* The one moment in the product where the reader has just succeeded at

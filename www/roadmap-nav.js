@@ -16,16 +16,16 @@
     ["Start", [
       {href:"/roadmap/new-to-r.html", tc:"#2563a8", mono:"R", mk:"found", name:"New to R", track:"foundations", free:1, sf:"R-Syntax-and-First-Objects",
        p:"Syntax to functions, from zero. Feeds every other track, and most people begin in it.",
-       cert:"R Fundamentals", start:1}
+       cert:"Certified R Fundamentals", start:1}
     ]],
     ["Work with data", [
-      {href:"/roadmap/data-analyst.html", tc:"#1f7a55", mono:"DA", mk:"da", name:"Data Analyst", track:"analyst", free:1, sf:"Importing-and-Tidy-Data-in-R", p:"Wrangle, visualize, report.", cert:"Tidyverse Practitioner"},
-      {href:"/roadmap/researcher.html", tc:"#b45309", mono:"RS", mk:"res", name:"Researcher", p:"Tests, models, inference.", cert:"Applied Statistics with R"},
-      {href:"/roadmap/forecaster.html", tc:"#be185d", mono:"F", mk:"fc", name:"Forecaster", p:"Decomposition to ARIMA.", cert:"Time Series Forecasting"}
+      {href:"/roadmap/data-analyst.html", tc:"#1f7a55", mono:"DA", mk:"da", name:"Data Analyst", track:"analyst", free:1, sf:"Importing-and-Tidy-Data-in-R", p:"Wrangle, visualize, report.", cert:"Certified R Data Analyst"},
+      {href:"/roadmap/researcher.html", tc:"#b45309", mono:"RS", mk:"res", name:"Researcher", p:"Tests, models, inference.", cert:"Certified R Researcher"},
+      {href:"/roadmap/forecaster.html", tc:"#be185d", mono:"F", mk:"fc", name:"Forecaster", p:"Decomposition to ARIMA.", cert:"Certified R Forecaster"}
     ]],
     ["Go deep", [
-      {href:"/roadmap/data-scientist.html", tc:"#7c3aed", mono:"DS", mk:"ds", name:"Data Scientist", track:"ds", sf:"Framing-a-Problem-as-ML", p:"Machine learning end to end.", cert:"Machine Learning with R"},
-      {href:"/roadmap/r-developer.html", tc:"#0e7490", mono:"RD", mk:"dev", name:"R Developer", p:"Packages, performance, Shiny.", cert:"Advanced R"},
+      {href:"/roadmap/data-scientist.html", tc:"#7c3aed", mono:"DS", mk:"ds", name:"Data Scientist", track:"ds", sf:"Framing-a-Problem-as-ML", p:"Machine learning end to end.", cert:"Certified R Data Scientist"},
+      {href:"/roadmap/r-developer.html", tc:"#0e7490", mono:"RD", mk:"dev", name:"R Developer", p:"Packages, performance, Shiny.", cert:"Certified R Developer"},
       {href:"/roadmap/ml-engineer.html", tc:"#4338ca", mono:"ML", mk:"mle", name:"ML Engineer", p:"Ship and operate ML in production.", cert:"ML Engineering with R"}
     ]]
   ];

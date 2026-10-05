@@ -259,7 +259,8 @@
     LV.forEach(function(k){
       var L = RM.byKey ? RM.byKey(k) : null;
       if (!L || !L.track || certBy[L.track]) return;
-      var e = byId[L.track], pct = Math.max(0, (e && e.pct) || 0);
+      /* /api/me/tracks pct is a 0..1 ratio; this row works in percent. */
+      var e = byId[L.track], pct = Math.max(0, (e && e.pct) || 0) * 100;
       /* Only credentials actually under way, and "under way" is measured by
          what the row would SAY, not by what the number is: 0.04% passes a
          pct > 0 test and then prints "0%", which is the same "you have done
@@ -274,8 +275,8 @@
 
     $('dh-certs').innerHTML = items.map(function(c){
       var tname = c.track_name || c.track || '';
-      /* seal codes match functions/_lib/cert-design.ts */
-      var initials = {'r-fundamentals':'RF','tidyverse-practitioner':'TP','data-visualization':'DV','statistics-for-ds':'SD','machine-learning':'ML','advanced-r':'AR'}[c.track] || String(tname).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); })
+      /* seal codes match _build/tracks-source.json */
+      var initials = {'r-fundamentals':'RF','data-analyst':'DA','data-scientist':'DS','forecaster':'FC','researcher':'RS','r-developer':'RD'}[c.track] || String(tname).split(/\s+/).filter(function(w){ return /^[A-Za-z]/.test(w); })
         .map(function(w){ return w.charAt(0); }).join('').slice(0, 2).toUpperCase();
       var vurl = c.verify_url || (c.public_id ? '/cert/' + c.public_id : null);
       return '<div class="cert"><span class="seal">' + esc(initials) + '</span>' +
@@ -612,8 +613,8 @@
     var days = []; for (var i = 89; i >= 0; i--){ var on = (i * 7 + 3) % 10 > 3 && i !== 2; days.push({ d: dayKey(i), xp: on ? 20 + (i % 4) * 12 : 0, solved: on ? 1 + (i % 3) : 0 }); }
     S.me = { user:{ display_name:'Selva Prabhakaran', email:'selva@example.com' }, pro:dpro };
     S.stats = { total_xp:4820, current_streak_days:12, longest_streak_days:14, streak_freezes:2, days:days };
-    S.tracks = { total_solved:64, tracks:[{ id:'r-fundamentals', pct:100 }, { id:'tidyverse-practitioner', pct:100 }, { id:'machine-learning', pct:46 }, { id:'statistics-for-ds', pct:22 }] };
-    S.certs = { items:[{ public_id:'RST-2026-T5V102', track:'tidyverse-practitioner', track_name:'Tidyverse Practitioner', issued_at:dn - 1000000, score:88, verify_url:'#' }, { public_id:'RST-2026-RF4127', track:'r-fundamentals', track_name:'R Foundations', issued_at:dn - 3000000, score:94, verify_url:'#' }] };
+    S.tracks = { total_solved:64, tracks:[{ id:'r-fundamentals', pct:1 }, { id:'data-analyst', pct:1 }, { id:'data-scientist', pct:0.46 }, { id:'forecaster', pct:0.22 }] };
+    S.certs = { items:[{ public_id:'RST-2026-DEMO02', track:'data-analyst', track_name:'Certified R Data Analyst', issued_at:dn - 1000000, score:88, verify_url:'#' }, { public_id:'RST-2026-DEMO01', track:'r-fundamentals', track_name:'Certified R Fundamentals', issued_at:dn - 3000000, score:94, verify_url:'#' }] };
     S.reading = { items:[{ slug:'Linear-Regression', scroll_pct:62, last_section:'Model diagnostics' }] };
     S.saved = { total:34, items:[{ slug:'Logistic-Regression' }, { slug:'Random-Forest' }, { slug:'GARCH-Models-in-R' }, { slug:'Quantile-Regression-in-R' }] };
     S.daily = { bonus_xp:25, all_done:false, tasks:[

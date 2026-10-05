@@ -5,6 +5,7 @@
 import type { Env, RequestData } from "../../_middleware";
 import { ensureProfileColumns } from "../../_lib/profile";
 import { certMeta, renderCertificateSvg } from "../../_lib/cert-design";
+import { getTrack } from "../../_lib/tracks";
 import type { User } from "../../_lib/db";
 
 export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (context) => {
@@ -28,7 +29,7 @@ export const onRequestGet: PagesFunction<Env, "handle", RequestData> = async (co
   if (!cert) return notFound;
 
   const trackName = cert.track_name || "r-statistics.co certificate";
-  const meta = certMeta(cert.track, trackName);
+  const meta = certMeta(cert.track, trackName, getTrack(cert.track));
   const svg = renderCertificateSvg({
     holder: cert.recipient_name || u.display_name || "R learner",
     title: trackName,

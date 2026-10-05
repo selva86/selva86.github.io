@@ -38,9 +38,9 @@ const NAV =
 const FOOT = '<footer class="foot"><span>&copy; 2016&ndash;2026 r-statistics.co</span><span><a href="/roadmap/">Roadmap</a> &nbsp; <a href="/pricing.html">Pricing</a></span></footer>';
 
 const SCRIPTS =
-'<script src="/www/roadmap-data.js"></script>'+
+'<script src="/www/roadmap-data.js?v=6"></script>'+
 '<script src="/www/roadmap-curriculum.js"></script>'+
-'<script src="/www/account.js?v=5"></script>'+
+'<script src="/www/account.js?v=6"></script>'+
 '<script defer src="/www/consent-banner.js?v=2"></script>'+
 '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon=\'{"token": "edf7e3d50c3e4130a913e7f144643624"}\'></script>'+
 '<script defer src="/www/auth-hydrate.js?v=15"></script>'+

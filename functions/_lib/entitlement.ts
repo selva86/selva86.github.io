@@ -91,8 +91,13 @@ export async function resolveScope(
   return t || "all";
 }
 
+// Tracks every paid scope includes: New to R (free content anyway) and the
+// Data Analyst core. Single Track is sold as "the shared core plus one
+// specialization", so a Single Track scope ("ds", "ts", ...) covers these too.
+export const CORE_TRACKS = ["foundations", "analyst"];
+
 // True when a scope string covers a lesson/hub's track ('any' = any Pro plan).
 export function scopeCovers(scope: string, track: string): boolean {
   if (scope === "0") return false;
-  return scope === "all" || track === "any" || scope === track;
+  return scope === "all" || track === "any" || scope === track || CORE_TRACKS.includes(track);
 }

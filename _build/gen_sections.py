@@ -221,19 +221,26 @@ def load_fragment(name):
 
 def build_certification():
     css, sprite, body = load_fragment('certification')
+    # Real numbers for the worked example, from the certificate manifest
+    # (built just before this step by _build/build_tracks_manifest.py).
+    with open(os.path.join(REPO_ROOT, 'functions', '_data', 'tracks.json'), encoding='utf-8') as f:
+        da = next(t for t in json.load(f)['tracks'] if t['id'] == 'data-analyst')
+    body = body.replace('{{CERT_DA_LESSONS}}', str(da['lessons'])).replace('{{CERT_DA_CHECKS}}', str(da['total_exercises']))
+    if '{{CERT_' in body:
+        raise RuntimeError('certification: unfilled {{CERT_*}} placeholder')
     breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
         {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
         {'@type': 'ListItem', 'position': 2, 'name': 'Certifications', 'item': SITE + '/certifications'}]}
     webpage = {'@context': 'https://schema.org', '@type': 'WebPage',
                'name': 'R Certifications, r-statistics.co',
                'url': SITE + '/certifications',
-               'description': 'Verifiable, evidence-based R programming certifications, earned by solving real R exercises, each graded by running your code.'}
+               'description': 'Verifiable R certifications, one per roadmap track, earned by passing the graded checks in its lessons, each graded by running your code.'}
     render_page(
         'certifications.html', SITE + '/certifications',
         'Certifications · r-statistics.co',
-        'Verifiable, evidence-based R programming certifications. Earn one by solving 80% of the exercises across a curated track of hubs. The two foundation credentials are free; the specialist ones come with Pro.',
+        'Verifiable R certifications, one per roadmap track. Earn one by passing 80% of the graded checks in the track. Certified R Fundamentals is free; the others come with Pro.',
         body, page_css=css, sprite=sprite, active='certification',
-        page_js=['/www/cert-page.js?v=3'], jsonld=[webpage, breadcrumb],
+        page_js=['/www/cert-page.js?v=4'], jsonld=[webpage, breadcrumb],
         keywords='R certification, R programming certificate, verifiable credential, data science certificate, tidyverse certification, machine learning R certificate, statistics certificate, open badges')
 
 

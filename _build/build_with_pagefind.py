@@ -43,6 +43,12 @@ def main() -> None:
     # every deploy, or newly published lesson/exercise step ids get rejected.
     run([sys.executable, "_build/build_exercise_manifest.py"])
 
+    # 1b2. Certificate manifest (one certificate per roadmap track). Reads the
+    # exercise manifest just built + courses.json, so a newly published lesson
+    # raises its track's certificate bar on this deploy. Fails the build on a
+    # broken track rather than shipping one.
+    run([sys.executable, "_build/build_tracks_manifest.py"])
+
     # 1c. v3 standalone section pages (certification/tools/tutorials/exercises/roadmap/topic)
     run([sys.executable, "_build/gen_sections.py"])
 

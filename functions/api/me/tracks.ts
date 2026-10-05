@@ -21,14 +21,16 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, err401 } from "../../_lib/errors";
 import { getSolvedByHub, listCertificates } from "../../_lib/db";
 import { getAllTracks, computeTrackProgress } from "../../_lib/tracks";
+import { certAccess, claimBlock } from "../../_lib/cert-access";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   const u = context.data.user;
   if (!u) return err401();
 
-  const [solvedByHub, certs] = await Promise.all([
+  const [solvedByHub, certs, access] = await Promise.all([
     getSolvedByHub(context.env.DB, u.id),
     listCertificates(context.env.DB, u.id),
+    certAccess(context.env, u),
   ]);
   const mintedByTrack = new Map<string, { public_id: string | null; issued_at: number }>();
   for (const c of certs) {
@@ -39,9 +41,21 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   const tracks = getAllTracks().map(t => {
     const p = computeTrackProgress(t, solvedByHub);
     const minted = mintedByTrack.get(t.id);
+    // block: null = the plan covers it; "closed" | "needs_pro" | "needs_track".
+    const block = claimBlock(access, t);
     return {
       id: t.id,
       name: t.name,
+      code: t.code,
+      mastery: t.mastery,
+      roadmap_track: t.roadmap_track,
+      roadmap_url: t.roadmap_url,
+      free: !!t.free,
+      open: !!t.open,
+      lessons: t.lessons,
+      block,
+      // The only flag a Claim button should read: eligible, open, covered, not yet minted.
+      claimable: p.eligible && !block && !(minted && minted.public_id),
       tagline: t.tagline,
       color_primary: t.color_primary,
       color_accent: t.color_accent,

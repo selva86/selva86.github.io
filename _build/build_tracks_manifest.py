@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """
-Combine the hand-authored tracks-source.json with the build-time exercise
-manifest (functions/_data/exercise-manifest.json) to produce the runtime
-tracks manifest at functions/_data/tracks.json.
+Build the runtime certificate manifest (functions/_data/tracks.json).
 
-For each track:
-  - Validate every listed hub_slug exists in the exercise manifest.
-  - Resolve the total exercise count per hub so the runtime can compute
-    eligibility percentages without re-scanning the exercise manifest.
-  - Carry through display fields (name, tagline, colors, skills, etc.).
+One certificate per roadmap track (owner decision 2026-10-05). Inputs:
+  - _build/tracks-source.json              hand-authored: names, codes, open/free
+  - courses.json                           the lesson catalog (roadmap.track per course)
+  - functions/_data/exercise-manifest.json graded checks per lesson slug (build-time)
 
-Fails the build (non-zero exit) if any track references an unknown hub
-so missing-hub typos are caught at build time, not at user mint time.
+For each track, every published lesson (built != false) of its roadmap track
+becomes a "hub" whose total is the number of graded checks in that lesson.
+Eligibility at runtime = solved checks / total checks >= threshold.
 
-Run after build_exercise_manifest.py, or directly:
+Runs in the Cloudflare build right after build_exercise_manifest.py
+(_build/build_with_pagefind.py), so a newly published lesson raises its
+track's total on the next deploy with no manual step.
+
+Fails the build (non-zero exit) on an unknown roadmap track, or an open
+track with no graded checks, so a broken certificate never ships.
+
   python _build/build_tracks_manifest.py
 """
 
@@ -25,30 +29,42 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_PATH = REPO_ROOT / "_build" / "tracks-source.json"
+CATALOG_PATH = REPO_ROOT / "courses.json"
 EX_MANIFEST_PATH = REPO_ROOT / "functions" / "_data" / "exercise-manifest.json"
 OUT_PATH = REPO_ROOT / "functions" / "_data" / "tracks.json"
 
+# Certificate palette (2026-10 design): deep green + brand green.
+COLOR_PRIMARY = "#0F3F2A"
+COLOR_ACCENT = "#1F6B4A"
 
-def slug_from_url_filename(name: str) -> str:
-    """`dplyr-Exercises-in-R.html` -> `dplyr-Exercises-in-R`."""
-    return name[:-5] if name.endswith(".html") else name
+
+def lessons_by_track(catalog: dict) -> dict[str, list[dict]]:
+    """Published lessons per roadmap track, in roadmap order (section, course, lesson)."""
+    courses = catalog.get("courses", catalog) if isinstance(catalog, dict) else catalog
+    rows: dict[str, list[tuple]] = {}
+    for ci, c in enumerate(courses):
+        rm = c.get("roadmap") or {}
+        track = rm.get("track")
+        if not track:
+            continue
+        for li, lesson in enumerate(c.get("lessons", [])):
+            if lesson.get("built") is False or not lesson.get("slug"):
+                continue
+            key = (int(rm.get("section") or 0), ci, int(lesson.get("order") or li))
+            rows.setdefault(track, []).append((key, int(rm.get("section") or 0), lesson))
+    return {t: [{"section": s, **l} for _, s, l in sorted(v, key=lambda r: r[0])] for t, v in rows.items()}
 
 
 def main() -> int:
-    if not SRC_PATH.is_file():
-        print(f"[tracks-manifest] source missing: {SRC_PATH}", file=sys.stderr)
-        return 1
-    if not EX_MANIFEST_PATH.is_file():
-        print(
-            f"[tracks-manifest] exercise manifest missing: {EX_MANIFEST_PATH}\n"
-            "  Run python _build/build_exercise_manifest.py first.",
-            file=sys.stderr,
-        )
-        return 1
+    for p in (SRC_PATH, CATALOG_PATH, EX_MANIFEST_PATH):
+        if not p.is_file():
+            print(f"[tracks-manifest] missing input: {p}", file=sys.stderr)
+            return 1
 
     src = json.loads(SRC_PATH.read_text(encoding="utf-8"))
-    ex_manifest = json.loads(EX_MANIFEST_PATH.read_text(encoding="utf-8"))
-    ex_hubs = ex_manifest.get("hubs", {})
+    catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    ex_hubs = json.loads(EX_MANIFEST_PATH.read_text(encoding="utf-8")).get("hubs", {})
+    by_track = lessons_by_track(catalog)
 
     threshold_default = float(src.get("threshold_default", 0.8))
     xp_award = int(src.get("xp_award", 200))
@@ -56,37 +72,42 @@ def main() -> int:
     errors: list[str] = []
     out_tracks = []
     for t in src.get("tracks", []):
-        track_id = t["id"]
-        track_hubs = []
-        total_exercises = 0
-        for hub_filename in t.get("hubs", []):
-            slug = slug_from_url_filename(hub_filename)
-            if slug not in ex_hubs:
-                errors.append(f"track '{track_id}': unknown hub '{slug}'")
-                continue
-            exercises = list(ex_hubs[slug].keys())
-            total_exercises += len(exercises)
-            track_hubs.append({
-                "slug": slug,
-                "url": "/" + hub_filename,
-                "total": len(exercises),
-            })
-        if not track_hubs:
-            errors.append(f"track '{track_id}': no resolvable hubs")
+        tid, rt = t["id"], t.get("roadmap_track")
+        if rt not in by_track and t.get("open"):
+            errors.append(f"track '{tid}': open, but roadmap track '{rt}' has no published lessons")
+            continue
+        lessons = by_track.get(rt, [])
+        hubs, total = [], 0
+        for lesson in lessons:
+            n = len(ex_hubs.get(lesson["slug"], {}))
+            if not n:
+                continue  # a lesson with no graded checks adds nothing to the bar
+            hubs.append({"slug": lesson["slug"], "url": "/" + lesson["slug"] + ".html", "total": n})
+            total += n
+        if t.get("open") and not total:
+            errors.append(f"track '{tid}': open, but its lessons carry no graded checks")
             continue
         out_tracks.append({
-            "id": track_id,
+            "id": tid,
+            "roadmap_track": rt,
+            "roadmap_url": t.get("roadmap_url", "/roadmap/"),
             "name": t["name"],
+            "code": t["code"],
+            "mastery": t["mastery"],
+            "free": bool(t.get("free", False)),
+            "open": bool(t.get("open", False)),
             "tagline": t.get("tagline", ""),
             "description": t.get("description", ""),
-            "color_primary": t.get("color_primary", "#1c2c4f"),
-            "color_accent": t.get("color_accent", "#2056d2"),
-            "icon": t.get("icon", "R"),
+            "color_primary": COLOR_PRIMARY,
+            "color_accent": COLOR_ACCENT,
+            "icon": t["code"],
             "skills": t.get("skills", []),
             "threshold": float(t.get("threshold", threshold_default)),
             "xp_award": int(t.get("xp_award", xp_award)),
-            "total_exercises": total_exercises,
-            "hubs": track_hubs,
+            "lessons": len(lessons),
+            "sections": len({l["section"] for l in lessons}),
+            "total_exercises": total,
+            "hubs": hubs,
         })
 
     if errors:
@@ -95,23 +116,16 @@ def main() -> int:
         return 2
 
     out = {
-        "version": 1,
+        "version": 2,
         "issuer": src.get("issuer", {}),
         "threshold_default": threshold_default,
         "xp_award": xp_award,
         "tracks": out_tracks,
     }
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUT_PATH.write_text(
-        json.dumps(out, ensure_ascii=False, indent=2, sort_keys=False),
-        encoding="utf-8",
-    )
-    size_kb = OUT_PATH.stat().st_size / 1024
-    print(
-        f"[tracks-manifest] {len(out_tracks)} tracks, "
-        f"{sum(t['total_exercises'] for t in out_tracks)} qualifying exercises, "
-        f"{size_kb:.1f} KB -> {OUT_PATH.relative_to(REPO_ROOT)}"
-    )
+    OUT_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+    summary = ", ".join(f"{t['id']} {t['lessons']}L/{t['total_exercises']}c{'' if t['open'] else ' closed'}" for t in out_tracks)
+    print(f"[tracks-manifest] {len(out_tracks)} certificates: {summary} -> {OUT_PATH.relative_to(REPO_ROOT)}")
     return 0
 
 
