@@ -227,11 +227,11 @@ def build_certification():
     webpage = {'@context': 'https://schema.org', '@type': 'WebPage',
                'name': 'R Certifications, r-statistics.co',
                'url': SITE + '/certifications',
-               'description': 'Verifiable, evidence-based R programming certifications, earned by solving real exercises and a code-based assessment.'}
+               'description': 'Verifiable, evidence-based R programming certifications, earned by solving real R exercises, each graded by running your code.'}
     render_page(
         'certifications.html', SITE + '/certifications',
         'Certifications · r-statistics.co',
-        'Verifiable, evidence-based R programming certifications. Earn one by solving 80% of the exercises across a curated track of hubs. Free to attempt; Pro to claim.',
+        'Verifiable, evidence-based R programming certifications. Earn one by solving 80% of the exercises across a curated track of hubs. The two foundation credentials are free; the specialist ones come with Pro.',
         body, page_css=css, sprite=sprite, active='certification',
         page_js=['/www/cert-page.js?v=3'], jsonld=[webpage, breadcrumb],
         keywords='R certification, R programming certificate, verifiable credential, data science certificate, tidyverse certification, machine learning R certificate, statistics certificate, open badges')
@@ -599,14 +599,14 @@ def build_verify():
     css, sprite, body = load_fragment('verify')
     webpage = {'@context': 'https://schema.org', '@type': 'WebPage',
                'name': 'Verify a credential, r-statistics.co', 'url': SITE + '/verify/',
-               'description': 'Verify any r-statistics.co certificate by its public credential ID. See the holder, track, assessment score and issue date. No account needed.'}
+               'description': 'Verify any r-statistics.co certificate by its public credential ID. See the holder, track, score and issue date. No account needed.'}
     breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
         {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
         {'@type': 'ListItem', 'position': 2, 'name': 'Verify a credential', 'item': SITE + '/verify/'}]}
     render_page(
         'verify/index.html', SITE + '/verify/',
         'Verify a Credential · r-statistics.co',
-        'Verify any r-statistics.co certificate by its public credential ID. See the holder, track, assessment score and issue date, no account needed.',
+        'Verify any r-statistics.co certificate by its public credential ID. See the holder, track, score and issue date, no account needed.',
         body, page_css=css, sprite=sprite, active='',
         page_js=['/www/verify-page.js?v=2'], jsonld=[webpage, breadcrumb],
         keywords='verify R certificate, credential verification, r-statistics.co credential, check certificate ID, verify data science certificate')
