@@ -8,8 +8,10 @@
    Data: /practice-menu.json, generated from www/exercise-catalog.json by
    _build/gen_exercises_index.py on every build (counts are never typed by hand).
    Progress: /api/me/practice for signed-in learners, fetched on the first open.
-   Styles: /www/practice-menu.css (CSS_V). Pages pin this script at ?v=16
-   (immutable cache): a change here needs a ?v bump across pages + emitters. */
+   Styles: /www/practice-menu.css (CSS_V). Pages pin this script at ?v=17
+   (immutable cache): a change here needs a ?v bump across pages + emitters, and the new
+   ?v must never be requested on production before the deploy that references it is live
+   (v=16 was: the edge cached the old file under it). */
 (function(){
   if (window.__practiceNav) return; window.__practiceNav = 1;
 
