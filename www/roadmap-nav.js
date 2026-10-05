@@ -9,7 +9,7 @@
 (function(){
   if (window.__roadmapNav) return; window.__roadmapNav = 1;
 
-  var CSS_V = 1;
+  var CSS_V = 2;
   var R = '/roadmap/';
   /* Access labels follow what is published (courses.json, 2026-10-05): New to R
      is free in full; Data Analyst, Data Scientist and Forecaster open with a free
@@ -50,22 +50,22 @@
 
   /* ---------- desktop panel (2a) ---------- */
   function coreRow(t){
-    return '<a class="cm-a cm-row cm-core"'+rowAttrs(t)+'>'+tile(t, 22)+
+    return '<a class="cm-a cm-row cm-core"'+rowAttrs(t)+'>'+tile(t, 19)+
       '<span class="cm-body"><span class="cm-nm"><span class="cm-name cm-pj">'+t.name+'</span>'+badge(t)+'</span>'+
-      '<span class="cm-desc">'+t.desc+' <span class="cm-cl1">&middot; Certificate</span> <span class="cm-cn">'+t.cert+'</span></span></span>'+
+      '<span class="cm-desc">'+t.desc+' <span class="cm-cl1">&middot; Earns</span> <span class="cm-cn">'+t.cert+'</span></span></span>'+
       '<span class="cm-act" data-cm-act>'+t.act+ARR+'</span></a>';
   }
   function specRow(t){
-    return '<a class="cm-a cm-row"'+rowAttrs(t)+'>'+tile(t, 22)+
+    return '<a class="cm-a cm-row"'+rowAttrs(t)+'>'+tile(t, 19)+
       '<span class="cm-body"><span class="cm-nm"><span class="cm-name cm-pj">'+t.name+'</span>'+badge(t)+'</span>'+
       '<span class="cm-desc">'+t.desc+'</span>'+
-      '<span class="cm-cl">Certificate &middot; <span class="cm-cn">'+t.cert+'</span></span>'+
+      '<span class="cm-cl">Earns <span class="cm-cn">'+t.cert+'</span></span>'+
       '<span class="cm-act'+(t.soon ? ' cm-soon' : '')+'" data-cm-act>'+t.act+ARR+'</span></span></a>';
   }
   function featStart(){
     var t = T[0];
     return '<span class="cm-kick">01 &middot; Start here</span>'+
-      '<span class="cm-fh"><span class="cm-ftile">'+ico(t.icon, 24)+'</span><span class="cm-ft1 cm-pj">'+t.name+'</span></span>'+
+      '<span class="cm-fh"><span class="cm-ftile">'+ico(t.icon, 21)+'</span><span class="cm-ft1 cm-pj">'+t.name+'</span></span>'+
       '<span class="cm-fd">'+t.desc+'</span>'+
       '<span class="cm-fcert"><span class="cm-flab">Certificate</span><b>'+t.cert+'</b></span>'+
       '<a class="cm-a cm-fbtn cm-bottom" href="'+t.href+'" data-cm-track="foundations" data-cm-sf="1">Start free'+ARR+'</a>';
@@ -73,7 +73,7 @@
   function featCont(p){
     var t = BY[p.tk];
     return '<span class="cm-kick">Continue where you left off</span>'+
-      '<span class="cm-fh"><span class="cm-ftile">'+ico(t.icon, 24)+'</span><span class="cm-ft1 cm-pj">'+t.name+'</span></span>'+
+      '<span class="cm-fh"><span class="cm-ftile">'+ico(t.icon, 21)+'</span><span class="cm-ft1 cm-pj">'+t.name+'</span></span>'+
       '<span class="cm-prog"><span class="cm-pl"><span>Section '+p.sec+' of '+p.secs+'</span><span>'+p.pct+'%</span></span>'+
       '<span class="cm-bar" role="progressbar" aria-label="'+esc(t.name)+' progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p.pct+'"><i style="width:'+p.pct+'%"></i></span></span>'+
       '<a class="cm-a cm-fbtn" href="'+esc(p.resume)+'">Resume'+ARR+'</a>'+
@@ -358,7 +358,17 @@
       var hb = header.getBoundingClientRect(), wb = wrap.getBoundingClientRect(), lb = link.getBoundingClientRect();
       var top = Math.round(hb.bottom - wb.top + 10), left = Math.round((cw - w) / 2 - wb.left);
       drop.style.width = w + 'px'; drop.style.left = left + 'px'; drop.style.top = top + 'px';
-      drop.style.maxHeight = Math.max(260, Math.floor(window.innerHeight - hb.bottom - 26)) + 'px';
+      /* Stay inside the top two-thirds of the window (owner, 2026-10-05): measure the
+         natural height, scale down to at most 0.8 if needed, and only past that let the
+         panel scroll inside. Scaling is from the top centre, so the gap and centring hold. */
+      drop.style.maxHeight = 'none'; drop.style.setProperty('--cm-z', '1');
+      var avail = Math.max(220, Math.floor(window.innerHeight * 2 / 3 - hb.bottom - 10));
+      var natural = drop.offsetHeight, z = 1;
+      if (natural > avail) {
+        z = Math.max(0.8, avail / natural);
+        if (natural * z > avail + 1) drop.style.maxHeight = Math.floor(avail / z) + 'px';
+      }
+      drop.style.setProperty('--cm-z', String(Math.round(z * 1000) / 1000));
       // hover bridge over the gap between the link and the panel, centred on the link
       var bw = Math.min(w, 380), bl = Math.round(lb.left + lb.width / 2 - bw / 2 - wb.left);
       bl = Math.max(left, Math.min(bl, left + w - bw));
