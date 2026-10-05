@@ -8,14 +8,10 @@
 // joins; their first lesson arrives with the first daily run after go-live.
 
 import type { Env, RequestData } from "../../_middleware";
-import { userSig, unsubUrl } from "../../_lib/brain";
-import { getSeqPlan, seqSendable, seqUrl, renderSeqEmail, getSeqCopy, SEQ_ITEMS } from "../../_lib/nurture";
-import { sendMail, emailLive } from "../../_lib/email";
-import { SENDER, REPLY_TO } from "../../_lib/email-templates";
-import type { TemplateData } from "../../_lib/email-templates";
+import { userSig } from "../../_lib/brain";
+import { sendFirstLessonNow } from "../../_lib/first-lesson";
 
 type JoinEnv = Env & { EMAIL_UNSUB_SECRET?: string; EMAIL_TEST_ALLOWLIST?: string };
-const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";
 
 function page(title: string, body: string): Response {
   return new Response(
@@ -63,62 +59,9 @@ export const onRequestGet: PagesFunction<JoinEnv, string, RequestData> = async (
     ]);
   }
 
-  // Immediate first lesson. Every guard here fails SILENT on purpose: the
+  // Immediate first lesson (shared with the opt-in bar). Fails silent: the
   // join above already succeeded, and the daily run picks the user up.
-  let sentNow = false;
-  try {
-    const live = await emailLive(env);
-    const allow = new Set(
-      (env.EMAIL_TEST_ALLOWLIST || DEFAULT_ALLOWLIST).split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
-    );
-    const suppressed = !!(u.email_status && u.email_status !== "ok");
-    if ((live || allow.has((u.email || "").toLowerCase())) && !suppressed) {
-      const sent = (await env.DB.prepare(
-        "SELECT email_key FROM sent_emails WHERE user_id = ?1 AND email_key LIKE 'seq:%'",
-      ).bind(uid).all<{ email_key: string }>()).results ?? [];
-      const have = new Set(sent.map((r) => parseInt(r.email_key.slice(4), 10)));
-      const plan = await getSeqPlan(env.KV);
-      let next = -1;
-      for (const p of plan) {
-        if (!p.enabled) continue;
-        if (p.seq === 0 && (have.size > 0 || u.level_r !== "new")) continue;
-        if (!have.has(p.seq)) { next = p.seq; break; }
-      }
-      if (next >= 0 && SEQ_ITEMS[next] && seqSendable(next)) {
-        const key = "seq:" + next;
-        const ins = await env.DB.prepare(
-          "INSERT OR IGNORE INTO sent_emails (user_id, email_key, sent_at) VALUES (?1, ?2, ?3)",
-        ).bind(uid, key, now).run();
-        if ((ins.meta?.changes ?? 0) > 0) {
-          const dest = seqUrl(next, uid, sig);
-          const data: TemplateData = {
-            first_name: u.display_name || undefined,
-            unsubscribe_url: await unsubUrl(brainEnv, uid, key),
-            track: { uid, sig, key },
-          } as TemplateData;
-          const copy = await getSeqCopy(env.KV, next);
-          const r = dest ? renderSeqEmail(next, dest, data, copy) : null;
-          if (r) {
-            const res = await sendMail(env as unknown as Parameters<typeof sendMail>[0], {
-              to: { email: u.email, name: u.display_name || undefined },
-              subject: r.subject, htmlBody: r.html, textBody: r.text,
-              from: SENDER, replyTo: REPLY_TO,
-            });
-            if (res.ok) {
-              sentNow = true;
-              await env.DB.prepare(
-                "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, ?2, ?3, 'sent', ?4, 'joined via invitation; first lesson sent on click')",
-              ).bind(uid, u.email, key, now).run();
-            } else {
-              await env.DB.prepare("DELETE FROM sent_emails WHERE user_id = ?1 AND email_key = ?2").bind(uid, key).run();
-            }
-          } else {
-            await env.DB.prepare("DELETE FROM sent_emails WHERE user_id = ?1 AND email_key = ?2").bind(uid, key).run();
-          }
-        }
-      }
-    }
-  } catch { /* the join itself already succeeded */ }
+  const sentNow = await sendFirstLessonNow(env, u, "joined via invitation; first lesson sent on click");
 
   if (already) {
     return page("You are already in",

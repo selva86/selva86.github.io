@@ -41,6 +41,9 @@
   .brand span{font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:17px; letter-spacing:-.01em}
 
   .body{flex:1; width:100%; max-width:1280px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:72px; align-items:center; padding:24px 96px 64px}
+  .body[hidden]{display:none}
+  .claimed{flex:1; display:grid; align-content:center; justify-items:center; text-align:center; gap:14px; padding:24px 24px 96px}
+  .claimed[hidden]{display:none}
   .pitch{display:grid; gap:22px}
   h1{font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:54px; letter-spacing:-.035em; line-height:1.03; margin:0; text-wrap:balance}
   h1 em{font-style:italic; color:var(--acc)}
@@ -117,7 +120,7 @@
 <div class="page" id="page">
   <header class="top"><a class="brand" href="/"><img src="/logo-mark.svg" alt="" width="30" height="30"><span>r-statistics.co</span></a></header>
 
-  <main class="body">
+  <main class="body" id="main">
     <div class="pitch">
       <h1>Fifteen minutes of statistics, <em>six days a week</em></h1>
       <p class="lede">Each lesson takes one real problem and works it through in plain words, with R code you can run in your browser. They build on each other, so a month from now p-values, intervals and ARIMA output read like plain English.</p>
@@ -150,6 +153,12 @@
       </div>
     </div>
   </main>
+
+  <section class="claimed" id="claimed" hidden>
+    <h1>You&rsquo;re in</h1>
+    <p class="lede" id="claimed-t">Your first lesson is in your inbox now.</p>
+    <p class="fine">Monday to Saturday from here on. Taking you back to your page&hellip;</p>
+  </section>
 </div>
 
 <script>
@@ -216,7 +225,34 @@
   // screen must never trap a user (the dashboard card retries the ask later).
   // A 401 is the one exception: it goes to sign in instead.
   var AUTH = 'auth';
-  fetch('/api/me/email-optin', { headers: { Authorization: 'Bearer ' + tok } })
+
+  // The opt-in bar's confirmation: this reader typed their address into the
+  // bar on a tutorial page and has just signed in from that email. The server
+  // holds the intent (keyed by the verified address); claim it, say so, and
+  // take them back to the page they were reading. No intent: carry on below.
+  function claimBar(s){
+    return fetch('/api/me/optin-bar', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'claim' })
+    }).then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; })
+      .then(function(j){
+        if (j && j.claimed){
+          document.getElementById('claimed-t').textContent = j.sent_now
+            ? 'Your first lesson is in your inbox now.'
+            : 'Your first lesson arrives with the next send.';
+          document.getElementById('main').hidden = true;
+          document.getElementById('claimed').hidden = false;
+          page.classList.add('ready');
+          setTimeout(function(){ location.replace(next); }, 2400);
+          return;
+        }
+        return decide(s);
+      });
+  }
+
+  fetch('/api/me/email-optin?claim=1', { headers: { Authorization: 'Bearer ' + tok } })
     .then(function(r){
       if (r.status === 401){ location.replace('/signin.html?next=' + encodeURIComponent(next)); throw AUTH; }
       if (!r.ok) throw new Error('optin ' + r.status);
@@ -224,6 +260,11 @@
     })
     .then(function(s){
       if (!s) return;
+      return s.bar_pending ? claimBar(s) : decide(s);
+    })
+    .catch(function(err){ if (err !== AUTH) location.replace(next); });
+
+  function decide(s){
       if (s.decided){ location.replace(next); return; }
       // EU/EEA + UK get the toggle off by default; everyone else on. Same
       // region source as the cookie banner. Unknown region: off (safe side).
@@ -240,8 +281,7 @@
         setSw(false);
         page.classList.add('ready');
       });
-    })
-    .catch(function(err){ if (err !== AUTH) location.replace(next); });
+  }
 
   go.addEventListener('click', function(){
     go.disabled = true;

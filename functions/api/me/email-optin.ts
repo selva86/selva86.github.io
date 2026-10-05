@@ -1,4 +1,4 @@
-// GET  /api/me/email-optin  -> { decided, nurture, offers }
+// GET  /api/me/email-optin  -> { decided, nurture, offers, bar_pending }
 // POST /api/me/email-optin  { optin, surface?, default_state? }
 //
 // The post-signup opt-in screen's backend. One decision sets BOTH consent
@@ -10,6 +10,7 @@
 
 import type { Env, RequestData } from "../../_middleware";
 import { json, err401, jsonError } from "../../_lib/errors";
+import { intentKey } from "../optin-bar/intent";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   const u = context.data.user;
@@ -17,10 +18,17 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   const row = await context.env.DB.prepare(
     "SELECT email_optin_decided_at, email_nurture, email_offers FROM users WHERE id = ?1",
   ).bind(u.id).first<{ email_optin_decided_at: number | null; email_nurture: number; email_offers: number }>();
+  // The opt-in bar's pending confirmation: this address asked for the daily
+  // lesson from the bar and has now signed in. One KV read, only when the
+  // opt-in screen asks (?claim=1) and only for readers not yet subscribed.
+  // The opt-in screen then claims it (api/me/optin-bar).
+  const wantsClaim = new URL(context.request.url).searchParams.get("claim") === "1";
+  const barPending = wantsClaim && !row?.email_nurture && !!u.email && !!(await context.env.KV.get(intentKey(u.email)));
   return json({
     decided: !!row?.email_optin_decided_at,
     nurture: !!row?.email_nurture,
     offers: !!row?.email_offers,
+    bar_pending: barPending,
   });
 };
 

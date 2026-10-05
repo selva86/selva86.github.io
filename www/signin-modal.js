@@ -18,7 +18,9 @@
  *
  * Served with a short edge TTL (see _headers): edit in place, no ?v sweep.
  * Pages that are themselves auth surfaces (signin, email-optin, account) are
- * left alone. window.rsSignin.open({next, trigger}) is exposed for scripts.
+ * left alone. window.rsSignin.open({next, trigger}) is exposed for scripts,
+ * and window.rsSignin.magicLink(email, {next}) for the opt-in bar, which this
+ * file also loads on tutorial pages.
  */
 (function () {
   'use strict';
@@ -344,5 +346,41 @@
     });
   }, true);
 
-  window.rsSignin = { open: open, close: close };
+  // The daily-lesson opt-in bar's sign-up: the same magic link as the card,
+  // carrying the bar's attribution. Resolves once Supabase accepted the send;
+  // rejects with Supabase's error (rate limits included) for the bar to show.
+  function magicLink(email, opts) {
+    opts = opts || {};
+    state.next = safePath(opts.next) || currentPath();
+    state.trigger = opts.trigger || 'optin-bar';
+    state.src = opts.src || location.pathname;
+    parkSource();
+    var data = source();
+    return load().then(function (s) {
+      return s.auth.signInWithOtp({ email: email, options: { emailRedirectTo: callbackUrl(), data: data } });
+    }).then(function (r) {
+      if (r && r.error) throw r.error;
+      track('optin_bar_magic_sent');
+      return true;
+    });
+  }
+
+  window.rsSignin = { open: open, close: close, magicLink: magicLink };
+
+  // The opt-in bar (www/optin-bar.js, short edge TTL) rides on tutorial pages
+  // only: articles that are not interactive lessons or exercise hubs, outside
+  // the tools, roadmaps and other app sections.
+  (function () {
+    try {
+      var p = location.pathname;
+      if (/^\/(index\.html)?$|^\/(exercises|tools|roadmap|u|verify|admin|certificate|cert)\b/.test(p)) return;
+      var og = document.querySelector('meta[property="og:type"]');
+      if (!og || og.getAttribute('content') !== 'article') return;
+      if (document.querySelector('script[src*="lesson-mode"],script[src*="exercise-hub"]')) return;
+      var sc = document.createElement('script');
+      sc.src = '/www/optin-bar.js?v=1';
+      sc.defer = true;
+      document.head.appendChild(sc);
+    } catch (e) {}
+  })();
 })();
