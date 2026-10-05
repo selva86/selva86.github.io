@@ -93,7 +93,7 @@
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (x) {
           busy = false;
-          if (!x.ok) { if (email) { email.setCustomValidity(''); email.focus(); } if (done) { done.hidden = false; done.textContent = (x.j && x.j.message) || 'Please check the email address.'; } return; }
+          if (!x.ok) { if (email) { email.setCustomValidity(''); email.focus(); } if (done) { done.hidden = false; done.textContent = (x.j && x.j.error && x.j.error.message) || (x.j && x.j.message) || 'Please check the email address.'; } return; }
           finish(x.j);
         })
         .catch(function () { busy = false; if (done) { done.hidden = false; done.textContent = 'Something went wrong on my side. Please try again in a moment.'; } });
@@ -153,6 +153,80 @@
     });
     if (email) email.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (send) send.click(); } });
   }
-  function init() { Array.prototype.forEach.call(document.querySelectorAll('[data-palert]'), wire); }
+  /* Persistent mode ([data-palert-persist], the pricing page's "Still deciding?"):
+     the three answers stay on screen as chips, the first is pre-selected, tapping
+     one swaps in its [data-palert-answer] and records the objection. The email
+     field only appears for the answers that need a reply (price, unsure); a
+     signed-in reader gets a one-click button instead of a field, and nothing is
+     sent until they press it. */
+  function wirePersist(box) {
+    var reasons = box.querySelector('[data-palert-reasons]');
+    var form = box.querySelector('[data-palert-form]'), email = box.querySelector('[data-palert-email]');
+    var send = box.querySelector('[data-palert-send]'), done = box.querySelector('[data-palert-done]');
+    var surface = box.getAttribute('data-surface') || 'pricing';
+    var signedIn = !!readToken();
+    var EMAILS = { price: 1, unsure: 1 };
+    var sent = {}, busy = false;
+    var pre = reasons && reasons.querySelector('[aria-pressed="true"]');
+    var chosen = (pre && pre.getAttribute('data-palert-reason')) || 'no_time';
+    if (email && signedIn) email.hidden = true;
+    function show(reason) {
+      chosen = reason;
+      Array.prototype.forEach.call(reasons.querySelectorAll('[data-palert-reason]'), function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-palert-reason') === reason ? 'true' : 'false');
+      });
+      Array.prototype.forEach.call(box.querySelectorAll('[data-palert-answer]'), function (a) {
+        a.hidden = a.getAttribute('data-palert-answer') !== reason;
+      });
+      if (form) form.hidden = !EMAILS[reason] || !!sent[reason];
+      if (send) send.textContent = reason === 'unsure' ? 'Send me a lesson' : 'Email me';
+      if (done) { done.hidden = !sent[reason]; done.textContent = sent[reason] || ''; }
+    }
+    function message(res) {
+      if (chosen === 'unsure') return res && res.sent
+        ? 'Check your inbox. The lesson is on its way, and it is the only email you will get.'
+        : 'Noted. I will send that lesson over, and nothing after it.';
+      if (res && res.already) return 'You are already on the list. You will hear from me if there is ever a discount.';
+      if (res && res.sent) return 'Thanks. Check your inbox: one short question in it tells me when to send you a code.';
+      return 'Thanks. You will hear from me if there is ever a discount.';
+    }
+    if (reasons) reasons.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-palert-reason]'); if (!b) return;
+      var r = b.getAttribute('data-palert-reason') || 'price';
+      show(r);
+      signal(r);
+      ga('price_alert_reason', { surface: surface, reason: r });
+    });
+    if (send) send.addEventListener('click', function () {
+      if (busy) return;
+      var body = { surface: surface, reason: chosen, a: anonId() };
+      var hdrs = { 'Content-Type': 'application/json' };
+      var tok = readToken(); if (tok) hdrs['Authorization'] = 'Bearer ' + tok;
+      if (!tok) {
+        var v = email && email.value.trim();
+        if (!v || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) { if (email) email.focus(); return; }
+        body.email = v;
+      }
+      busy = true; send.disabled = true;
+      var reason = chosen;
+      fetch('/api/price-alert', { method: 'POST', headers: hdrs, body: JSON.stringify(body) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          busy = false; send.disabled = false;
+          if (!x.ok) { if (done) { done.hidden = false; done.textContent = (x.j && x.j.error && x.j.error.message) || (x.j && x.j.message) || 'Please check the email address.'; } return; }
+          sent[reason] = message(x.j);
+          ga('price_alert_optin', { surface: surface, sent: !!(x.j && x.j.sent), reason: reason });
+          if (chosen === reason) show(reason);
+        })
+        .catch(function () { busy = false; send.disabled = false; if (done) { done.hidden = false; done.textContent = 'Something went wrong on my side. Please try again in a moment.'; } });
+    });
+    if (email) email.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); if (send) send.click(); } });
+    show(chosen);
+  }
+  function init() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-palert]'), function (box) {
+      if (box.hasAttribute('data-palert-persist')) wirePersist(box); else wire(box);
+    });
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -97,7 +97,6 @@
   function link(text, href) { var a = document.createElement('a'); a.href = href; a.textContent = text; return a; }
   function btn(text, fn) { var b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.addEventListener('click', fn); return b; }
 
-  function foundingDate() { var el = $('[data-founding-date]'); return (el && el.textContent.trim()) || 'soon'; }
   function foundStrip(text, ctaText, ctaHref, dark, onClick) {
     var fin = $('.final'); if (!fin) return;
     var d = document.createElement('div'); d.className = 'found';
@@ -131,7 +130,7 @@
     document.body.classList.add('rs-member');
     if (h1) h1.innerHTML = 'Your <em>plan</em>.';
     var deks = {
-      single: 'Everything in the ' + (TRACK[plan.track] || 'your') + ' track is open to you. The rest of the catalog is one upgrade away.',
+      single: 'The Data Analyst core and the ' + (TRACK[plan.track] || 'your') + ' track are open to you. The rest of the catalog is one upgrade away.',
       allaccess: 'Every track, every tool, every certificate is open to you. Nothing to buy here unless you want Lifetime.',
       lifetime: 'Every track, every tool, every certificate, and everything added later. Nothing to renew, ever.',
       team: 'Your seat covers every track, every tool, every certificate. Billing is handled by your team admin.'
@@ -183,7 +182,7 @@
           }).catch(function () { up.removeAttribute('aria-busy'); armed = false; up.textContent = 'Upgrade to All-Access'; });
         }, true);
       }
-      foundStrip('Founding rates end ' + foundingDate() + '. Upgrading now keeps you on the founding price for All-Access.', 'Upgrade to All-Access', '#plans', false, function (e) { e.preventDefault(); var t = aa && $('.cta', aa); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
+      foundStrip('Upgrade to All-Access any time: you only pay the difference for the rest of your ' + (plan.term === 'month' ? 'month' : 'year') + ', and every track opens.', 'Upgrade to All-Access', '#plans', false, function (e) { e.preventDefault(); var t = aa && $('.cta', aa); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
     }
 
     if (kind === 'allaccess') {
@@ -221,11 +220,11 @@
 
     /* ---- Lifetime panel ---- */
     if (life) {
-      var lk = $('.lk', life), h3 = $('h3', life), p = $('p', life), amt = $('.lp b', life), sm = $('.lp span', life);
+      var lk = $('.lk', life), h3 = $('h2, h3', life), p = $('p', life), amt = $('.lp b', life), sm = $('.lp span', life);
       if (kind === 'lifetime') {
         if (lk) lk.textContent = 'Your plan';
         if (h3) h3.textContent = 'Lifetime Pro. Nothing to renew.';
-        if (p) p.textContent = 'You joined as a founding member. Every track, tool, and certificate, and everything added later, is yours for as long as the site is online. There is nothing to manage here.';
+        if (p) p.textContent = 'Every track, tool, and certificate, and everything added later, is yours for as long as the site is online. There is nothing to manage here.';
         if (amt) amt.style.display = 'none'; if (sm) sm.style.display = 'none';
         if (lifeCta) { var done = document.createElement('span'); done.className = 'lcta done'; done.textContent = 'This is your plan'; lifeCta.parentNode.replaceChild(done, lifeCta);
           var ln = document.createElement('span'); ln.className = 'lnote'; ln.innerHTML = 'Need an invoice or want to change your email? <a href="/account.html">Account</a>'; done.insertAdjacentElement('afterend', ln); }
