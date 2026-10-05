@@ -65,6 +65,10 @@ export interface Digest {
   order: string[][];      // metric keys, grouped into the sections below
   sections: string[];     // section titles, parallel to `order`
   alerts: string[];
+  /** The daily lesson run, audited: how many readers were owed a lesson
+      against how many received one. `owed` is null when the run never
+      recorded it, which itself means the run did not reach that point. */
+  lessons: { owed: number | null; sent: number; complete: boolean };
   quiet: boolean;         // nothing notable and nothing broken
   topPages: Array<{ path: string; visits: number }>;
   emailByTemplate: Array<{ key: string; sent: number; opened: number; clicked: number }>;
@@ -318,11 +322,46 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     for (const r of rows) intent.push({ signal: r.signal, n: Number(r.n || 0) });
   } catch { /* fine */ }
 
+  /* ---- the daily lesson run, audited
+   *
+   * On 2026-10-03, 242 readers were owed a lesson and 99 received one, and it
+   * went unnoticed for weeks because nothing compared the two numbers. The
+   * brain writes down what the day owed before it sends anything, so this can
+   * hold it to account whatever the cause, including causes nobody has thought
+   * of yet. `brain-daily-done` is stamped only by a run that worked through
+   * the whole list, so its absence says the batch never finished. */
+  const lessonsSentRow = await DB.prepare(
+    `SELECT COUNT(DISTINCT user_id) AS n FROM email_events
+      WHERE event = 'sent' AND email_key LIKE 'seq:%'
+        AND at >= ?1 AND at < ?2`,
+  ).bind(dayStartUTC(1), dayStartUTC(0)).first<{ n: number }>();
+  let owed: number | null = null;
+  let complete = false;
+  if (env.KV) {
+    try {
+      const raw = await env.KV.get(`brain-owed:${day}`);
+      if (raw !== null && raw !== "") owed = parseInt(raw, 10);
+      complete = (await env.KV.get(`brain-daily-done:${day}`)) === "done";
+    } catch { /* reported as not recorded, never as a wrong number */ }
+  }
+  const lessonRun = { owed, sent: lessonsSentRow?.n ?? 0, complete };
+
   /* ---- what, if anything, needs a human
    *
    * The bar is deliberately high. An alert that fires most days is furniture,
    * and furniture is what people stop reading. */
   const alerts: string[] = [];
+  if (lessonRun.owed !== null && lessonRun.owed - lessonRun.sent > 0) {
+    const missed = lessonRun.owed - lessonRun.sent;
+    alerts.push(
+      `${missed} of ${lessonRun.owed} readers owed a lesson did not get one` +
+      (lessonRun.complete
+        ? ". The run finished, so the shortfall is in the sending, not the clock."
+        : ". The run never finished the list, so the rest should have gone out in a later hour."),
+    );
+  } else if (lessonRun.owed === null && (lessonsSentRow?.n ?? 0) === 0 && weekdayOf(day) !== "Sun") {
+    alerts.push("No daily lessons went out and the run did not record what it owed. Check flag:email-engine and the cron Worker.");
+  }
   const yesterdayErrors = eError.get(day) ?? 0;
   if (yesterdayErrors > 0) {
     alerts.push(`${yesterdayErrors} email send ${yesterdayErrors === 1 ? "error" : "errors"}. Check the ZeptoMail token and the Worker log.`);
@@ -364,7 +403,7 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     day, weekday: weekdayOf(day), subject, headline, metrics,
     order: [g1, g2, g3, g4, g5],
     sections: ["Who arrived", "What they did", "Intent and money", "Email", "Earned"],
-    alerts, quiet, topPages, emailByTemplate, intent,
+    alerts, lessons: lessonRun, quiet, topPages, emailByTemplate, intent,
   };
 }
 
@@ -442,6 +481,25 @@ export function renderDigestHtml(d: Digest): string {
     const o = Math.round(100 * d.metrics.eOpen.value / d.metrics.eSent.value);
     const c = Math.round(100 * d.metrics.eClick.value / d.metrics.eSent.value);
     h.push(`<p style="font:400 12.5px Inter,Arial,sans-serif;color:#78808c;margin:8px 0 0">${o}% of yesterday's sends were opened, ${c}% clicked.</p>`);
+  }
+
+  /* The lesson run, held to account in one line. Green when the day balances,
+     amber when it does not, because a number you have to compare against
+     another number is a number nobody checks. */
+  {
+    const L = d.lessons;
+    const short = L.owed === null ? null : L.owed - L.sent;
+    const good = short === 0;
+    const text = L.owed === null
+      ? `${num(L.sent)} lesson${L.sent === 1 ? "" : "s"} sent. The run did not record what it owed.`
+      : good
+        ? `${num(L.owed)} readers owed a lesson, ${num(L.sent)} received one. The day balances.`
+        : `${num(L.owed)} readers owed a lesson, ${num(L.sent)} received one. ${num(short as number)} short.`;
+    h.push(`<div style="margin:12px 0 0;padding:10px 12px;border-left:3px solid ${good ? "#15803d" : "#b45309"};background:${good ? "#f0fdf4" : "#fdf6ec"};border-radius:0 6px 6px 0">
+      <div style="font:600 12.5px Inter,Arial,sans-serif;color:#454c58">Daily lessons</div>
+      <div style="font:400 13px Inter,Arial,sans-serif;color:#454c58;margin-top:2px">${esc(text)}</div>
+      ${L.owed !== null && !L.complete ? `<div style="font:400 12px Inter,Arial,sans-serif;color:#78808c;margin-top:3px">The run did not finish the list in one window.</div>` : ""}
+    </div>`);
   }
 
   if (d.emailByTemplate.length) {

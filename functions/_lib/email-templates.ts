@@ -381,6 +381,17 @@ Object.assign(LIFECYCLE, {
       keep_url: d.keep_url || PREFS_URL,
     }),
   },
+  /* The end of the silence ladder: asked twice and still nothing opened, so
+     the lessons stop. One link, because by this point a choice is just another
+     decision to ignore, and the link is the one that brings them back. */
+  "quiet-last-call": {
+    key: "quiet-last-call", category: "nurture", reason: "you turned on the daily lesson series",
+    linkTokens: ["keep_url"], required: ["keep_url"],
+    fills: (d: TemplateData) => ({
+      first_name: firstName(d),
+      keep_url: d.keep_url || PREFS_URL,
+    }),
+  },
 } as Record<string, LifecycleMeta>);
 
 export const TEMPLATES: Record<string, true> = Object.fromEntries(

@@ -202,6 +202,7 @@ export async function runBrain(
   };
 
   const candidates: Candidate[] = [];
+  const decisions: Decision[] = [];
   const dayStart = now - (now % 86400);
 
   // ONE ledger snapshot serves the seq walk, the per-candidate dedupe, and
@@ -518,20 +519,40 @@ export async function runBrain(
     }
   }
 
-  // ---- quiet-five-days probe (nurture, DAILY; flag:quiet-probe). A user
-  // whose last five lesson emails all went unopened gets one question instead
-  // of a sixth lesson: pause for two weeks, or keep going. Once ever (the
-  // ledger key), never for paused users, and it wins the day's one-email slot
-  // (priority 7 < seq 8) so it really does replace that day's lesson. Opens
-  // are read from the pixel/click rows; with Apple auto-opens in the mix,
-  // "five unopened" is a conservative, real signal of silence. -------------
+  /* ---- the silence ladder (nurture, DAILY; flag:quiet-probe).
+   *
+   * A reader who stops opening used to get one question, once, ever. Ignore
+   * it and the lessons kept arriving indefinitely: 31 opted-in readers had
+   * received lessons and never opened a single one. That is pointless for
+   * them and it is the thing that decides whether anyone else's email reaches
+   * an inbox at all, because a list full of never-opened mail is what a spam
+   * filter reads as a list worth distrusting.
+   *
+   * So the question repeats, and then it ends:
+   *
+   *   15 unopened lessons -> "should I pause these?"
+   *   30 unopened         -> the same question again
+   *   45 unopened         -> a final notice saying they stop
+   *   then                -> they stop, with one click to bring them back
+   *
+   * At one lesson a day, six days a week, that is first contact after about
+   * two and a half weeks of silence, and quiet after about seven and a half.
+   * Three emails over nearly two months is not nagging.
+   *
+   * The count is the UNBROKEN run of unopened lessons, newest first, so a
+   * single open anywhere resets the whole ladder to zero and a reader who
+   * comes back is never chased. Opens are read from the pixel and click rows
+   * over 180 days, which has to be longer than the ladder itself or an open
+   * at the start of it would scroll out of the window and be miscounted as
+   * silence. ------------------------------------------------------------- */
   if (flags.seq && dailyRun && (await env.KV.get("flag:quiet-probe")) === "on") {
-    const QUIET_N = 5;
+    const QUIET_STEP = 15;        // unopened lessons between rungs
+    const PARK_SECONDS = 3650 * 86400;
     const engagedKeys = new Set<string>();
     const ev = (await env.DB.prepare(
       `SELECT DISTINCT user_id, email_key FROM email_events
        WHERE event IN ('open','click') AND email_key LIKE 'seq:%' AND at >= ?1`,
-    ).bind(now - 45 * 86400).all<{ user_id: string; email_key: string }>()).results ?? [];
+    ).bind(now - 180 * 86400).all<{ user_id: string; email_key: string }>()).results ?? [];
     for (const r of ev) engagedKeys.add(`${r.user_id}|${r.email_key}`);
     const rows = await env.DB.prepare(
       `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
@@ -539,29 +560,93 @@ export async function runBrain(
               u.nurture_paused_until
        FROM users u
        WHERE u.deleted_at IS NULL AND u.email_nurture = 1
-         AND NOT EXISTS (SELECT 1 FROM sent_emails s WHERE s.user_id = u.id AND s.email_key = 'quiet-probe')
        LIMIT 2000`,
     ).all<UserRow & { nurture_paused_until: number | null }>();
     for (const u of rows.results ?? []) {
       if (u.nurture_paused_until && u.nurture_paused_until > now) continue;
+      const mine = ledger.get(u.id);
       const seqSends: Array<{ key: string; at: number }> = [];
-      for (const [k, at] of ledger.get(u.id) ?? []) if (k.startsWith("seq:")) seqSends.push({ key: k, at });
-      if (seqSends.length < QUIET_N) continue;
+      for (const [k, at] of mine ?? []) if (k.startsWith("seq:")) seqSends.push({ key: k, at });
+      if (seqSends.length < QUIET_STEP) continue;
       seqSends.sort((a, b) => b.at - a.at);
-      const lastN = seqSends.slice(0, QUIET_N);
-      if (now - lastN[0].at < 20 * 3600) continue; // give the newest email a day to be opened
-      if (lastN.some((s) => engagedKeys.has(`${u.id}|${s.key}`))) continue;
+      // give the newest lesson a day to be opened before counting it against them
+      if (now - seqSends[0].at < 20 * 3600) continue;
+      let unopened = 0;
+      for (const s of seqSends) {
+        if (engagedKeys.has(`${u.id}|${s.key}`)) break;
+        unopened += 1;
+      }
+      if (unopened < QUIET_STEP) continue;
+
+      /* Which rung are they on? The legacy `quiet-probe` key counts as the
+         first question, so the 96 readers who already had it are not asked
+         the same thing twice. */
+      const asked1 = !!(mine?.has("quiet-probe") || mine?.has("quiet-probe:1"));
+      const asked2 = !!mine?.has("quiet-probe:2");
+      const toldLast = !!mine?.has("quiet-last-call");
+
       const sig = await userSig(env, u.id);
       if (!sig) continue;
-      candidates.push({
-        u, key: "quiet-probe", template: "quiet-probe", category: "nurture", priority: 7,
-        data: {
-          first_name: u.display_name,
-          pause_url: `${SITE}/api/email/pause?u=${encodeURIComponent(u.id)}&t=${sig}&d=14`,
-          keep_url: `${SITE}/api/email/pause?u=${encodeURIComponent(u.id)}&t=${sig}&d=0`,
-        },
-        why: `last ${QUIET_N} lesson emails unopened`,
-      });
+      const base = `${SITE}/api/email/pause?u=${encodeURIComponent(u.id)}&t=${sig}`;
+
+      if (toldLast) {
+        /* They were warned and still have not opened anything. Stop. Consent
+           is untouched: they never withdrew it, so this parks the series
+           rather than opting them out, and the keep link below clears the
+           park and resumes them exactly where they left off. Being parked
+           excludes them from every block above, this one included, so it
+           happens once.
+
+           This is the one rung that is a state change rather than an email,
+           so unlike the rest of candidate collection it has to respect the
+           dry run: without this guard, opening the admin preview would park
+           people for real. */
+        if (!execute) {
+          decisions.push({
+            user_id: u.id, email: u.email, key: "quiet-stopped", template: "-",
+            category: "nurture", action: "would_send",
+            reason: `[dry-run] would stop the series: ${unopened} unopened after the final notice`,
+          });
+          continue;
+        }
+        try {
+          await env.DB.prepare("UPDATE users SET nurture_paused_until = ?1 WHERE id = ?2")
+            .bind(now + PARK_SECONDS, u.id).run();
+          await env.DB.prepare(
+            `INSERT INTO email_events (user_id, email, email_key, event, at, meta)
+             VALUES (?1, ?2, 'quiet-stopped', 'pause', ?3, ?4)`,
+          ).bind(u.id, u.email, now, `${unopened} unopened after the final notice`).run();
+        } catch { /* try again tomorrow */ }
+        continue;
+      }
+
+      if (asked2 && unopened >= 3 * QUIET_STEP) {
+        candidates.push({
+          u, key: "quiet-last-call", template: "quiet-last-call", category: "nurture", priority: 7,
+          data: { first_name: u.display_name, keep_url: `${base}&d=0` },
+          why: `${unopened} lesson emails unopened, final notice`,
+        });
+      } else if (asked1 && !asked2 && unopened >= 2 * QUIET_STEP) {
+        candidates.push({
+          u, key: "quiet-probe:2", template: "quiet-probe", category: "nurture", priority: 7,
+          data: {
+            first_name: u.display_name,
+            pause_url: `${base}&d=14`,
+            keep_url: `${base}&d=0`,
+          },
+          why: `${unopened} lesson emails unopened, asking a second time`,
+        });
+      } else if (!asked1) {
+        candidates.push({
+          u, key: "quiet-probe:1", template: "quiet-probe", category: "nurture", priority: 7,
+          data: {
+            first_name: u.display_name,
+            pause_url: `${base}&d=14`,
+            keep_url: `${base}&d=0`,
+          },
+          why: `${unopened} lesson emails unopened`,
+        });
+      }
     }
   }
 
@@ -599,8 +684,31 @@ export async function runBrain(
     }
   }
 
+  /* ---- write down what the day owes, BEFORE anything is sent.
+   *
+   * The starvation on 2026-10-03 went unnoticed for weeks because nothing
+   * compared what was due against what went out: 242 readers were owed a
+   * lesson, 99 got one, and no record of the first number existed anywhere.
+   * The daily digest now reports both, which is what makes any future
+   * divergence loud regardless of its cause.
+   *
+   * Recorded here rather than at the end so it survives a run that is cut
+   * off, which is exactly the case worth reporting. First write of the day
+   * wins: the catch-up runs after 13:00 see a shorter list and must not
+   * overwrite the day's total. ------------------------------------------- */
+  if (dailyRun && execute) {
+    const owedKey = `brain-owed:${dayStamp}`;
+    try {
+      if (!(await env.KV.get(owedKey))) {
+        const owed = new Set(
+          candidates.filter((c) => c.key.startsWith("seq:")).map((c) => c.u.id),
+        ).size;
+        await env.KV.put(owedKey, String(owed), { expirationTtl: 14 * 86400 });
+      }
+    } catch { /* the digest reports "not recorded" rather than a wrong number */ }
+  }
+
   // ---- arbitrate + send ---------------------------------------------------
-  const decisions: Decision[] = [];
   const byUser = new Map<string, Candidate[]>();
   for (const c of candidates) {
     if (!byUser.has(c.u.id)) byUser.set(c.u.id, []);
