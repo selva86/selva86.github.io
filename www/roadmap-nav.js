@@ -9,7 +9,7 @@
 (function(){
   if (window.__roadmapNav) return; window.__roadmapNav = 1;
 
-  var CSS_V = 2;
+  var CSS_V = 3;
   var R = '/roadmap/';
   /* Access labels follow what is published (courses.json, 2026-10-05): New to R
      is free in full; Data Analyst, Data Scientist and Forecaster open with a free
@@ -350,7 +350,7 @@
     function fixOn(){ var on = drop.querySelectorAll('a.on'); if (!on.length) return; on.forEach(function(a){ a.classList.remove('on'); }); link.classList.add('on'); }
     setTimeout(fixOn, 0); window.addEventListener('load', fixOn);
 
-    var open = false, via = '', closeT = null;
+    var open = false, via = '', closeT = null, hideT = null;
     function place(){
       var cw = document.documentElement.clientWidth || window.innerWidth;
       var w = Math.min(1160, cw - 48);
@@ -377,9 +377,12 @@
     }
     function setOpen(o, how){
       if (o === open) return;
-      clearTimeout(closeT);
+      clearTimeout(closeT); clearTimeout(hideT);
       open = o; via = o ? how : '';
-      if (o) { loadFonts(); place(); fillCompleted(); }
+      /* shown (display) first, then opened on the next style pass so the fade runs;
+         hidden again once the fade-out is over */
+      if (o) { wrap.classList.add('cm-shown'); loadFonts(); place(); fillCompleted(); void drop.offsetWidth; }
+      else hideT = setTimeout(function(){ if (!open) wrap.classList.remove('cm-shown'); }, 180);
       wrap.classList.toggle('rn-open', o);
       document.documentElement.classList.toggle('cm-dopen', o);   // lets the CSS park the feedback pill
       link.setAttribute('aria-expanded', o ? 'true' : 'false');

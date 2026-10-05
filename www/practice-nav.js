@@ -1,232 +1,292 @@
-/* practice-nav.js - upgrades the masthead "Exercises" link into a "Practice" mega-dropdown.
-   Two-pane catalog navigator: categories on the left, hover reveals that category's ordered
-   sub-topics + hubs on the right. Progressive enhancement: no JS / no hover -> the link still
-   goes to /exercises/. Loaded only on the template (tutorials) + home. Default state is the
-   non-signed-in visitor; swaps to a signed-in strip on auth-hydrated. */
+/* practice-nav.js - the navbar Practice menu (design handoff 2026-10, option 2b
+   "Practice by goal"). Upgrades the masthead Practice link (href /exercises/):
+   desktop (>980px) gets a panel with a personal sidebar (continue where you left
+   off, or a start-here suggestion), the featured sets by goal and the topics one
+   row below; phones get a full-screen sheet from the drawer's Practice row.
+   Progressive enhancement: with no JS the link still goes to /exercises/.
+
+   Data: /practice-menu.json, generated from www/exercise-catalog.json by
+   _build/gen_exercises_index.py on every build (counts are never typed by hand).
+   Progress: /api/me/practice for signed-in learners, fetched on the first open.
+   Styles: /www/practice-menu.css (CSS_V). Pages pin this script at ?v=16
+   (immutable cache): a change here needs a ?v bump across pages + emitters. */
 (function(){
   if (window.__practiceNav) return; window.__practiceNav = 1;
 
-  // ---- catalog (curated + validated against the 124 published hubs; see Scripts/gen_hubs.py) ----
-window.XN_HUBS=[
- ["Featured Problem Sets","STAR","/exercises/#featured",[["Interview prep",[["R Interview Questions (Top 50)","R-Interview-Questions"],["Statistics Interview Questions","Statistics-Interview-Questions"],["ML Interview Questions","ML-Interview-Questions-in-R"],["A/B Testing Interview Cases","AB-Testing-Interview-Cases"],["SQL to dplyr Translations","SQL-to-dplyr-Translations"],["Take-Home Simulator","Take-Home-Assignment-Simulator"]]],["Everyday fluency",[["Base R Speed Round","Base-R-Speed-Round"],["The Regex 20","Regex-Drills-in-R"],["Dates and Times Drills","Dates-and-Times-Drills-in-R"],["Error Triage Drills","Error-Triage-Drills-in-R"],["Data Cleaning Gauntlet","Data-Cleaning-Gauntlet"]]],["Statistics depth",[["Top 20 Bayesian Problems","Top-20-Bayesian-Problems-in-R"],["Probability Puzzles","Probability-Puzzles-for-Interviews"],["Top 25 Regression Problems","Top-25-Regression-Problems-in-R"],["Top 20 Time Series Problems","Top-20-Time-Series-Problems-in-R"],["The Resampling 15","Resampling-Problems-in-R"],["ggplot2 Recreation Challenge","ggplot2-Recreation-Challenge"]]]]],
- ["R Fundamentals","BRACKETS","/R-Basics-Exercises.html",[["First steps",[["Beginner drills","R-Beginner-Exercises"],["R basics","R-Basics-Exercises"],["Interview questions","R-Interview-Questions"]]],["Data structures",[["Vectors","R-Vectors-Exercises"],["Lists","R-Lists-Exercises"],["Data frames","R-Data-Frames-Exercises"],["Subsetting","R-Subsetting-Exercises"]]],["Logic and functions",[["Control flow","R-Control-Flow-Exercises"],["Functions","R-Functions-Exercises"],["The apply family","R-Apply-Exercises"],["Loops vs vectorization","Loops-vs-Vectorization-Exercises-in-R"]]]]],
- ["Data Wrangling","ROWS","/dplyr-Exercises-in-R.html",[["dplyr",[["dplyr basics","dplyr-Exercises-in-R"],["filter and select","dplyr-filter-select-Exercises"],["group and summarise","dplyr-group-by-summarise-Exercises"],["joins","dplyr-Joins-Exercises-in-R"],["window functions","dplyr-Window-Functions-Exercises-in-R"]]],["tidyr and friends",[["tidyr basics","tidyr-Exercises-in-R"],["pivot longer and wider","tidyr-Pivot-Exercises-in-R"],["nest and unnest","tidyr-Nest-Unnest-Exercises-in-R"],["reshaping","tidyr-Reshaping-Exercises"],["the tidyverse","tidyverse-Exercises-in-R"],["data.table","data.table-Exercises-in-R"]]],["Text, dates and factors",[["stringr","stringr-Exercises-in-R"],["base strings","R-String-Exercises"],["regular expressions","Regex-Exercises-in-R"],["lubridate","lubridate-Exercises-in-R"],["dates and times","R-Date-Time-Exercises"],["factors with forcats","forcats-Exercises-in-R"]]],["Import and clean",[["readr","readr-Exercises-in-R"],["data import","R-Data-Import-Exercises"],["SQL with dbplyr","dbplyr-SQL-Exercises-in-R"],["web scraping","Web-Scraping-Exercises-in-R"],["API calls","API-Calls-Exercises-in-R"],["data cleaning","Data-Cleaning-Exercises-in-R"],["missing data","Missing-Data-in-R-Exercises"],["wrangling project","Data-Wrangling-Exercises-in-R"]]]]],
- ["Visualization","CHART","/ggplot2-Exercises-in-R.html",[["ggplot2 core",[["ggplot2 basics","ggplot2-Exercises-in-R"],["aesthetics","ggplot2-Aesthetics-Exercises"],["geoms","ggplot2-Geom-Exercises"],["facets","ggplot2-Facets-Exercises-in-R"],["customization","ggplot2-Customization-Exercises"]]],["Chart craft",[["bar charts","ggplot2-Bar-Chart-Exercises-in-R"],["heatmaps","ggplot2-Heatmap-Exercises-in-R"],["color scales","ggplot2-Color-Scales-Exercises-in-R"],["themes","ggplot2-Themes-Exercises-in-R"]]],["Interactive and tables",[["plotly","plotly-Exercises-in-R"],["leaflet maps","leaflet-Exercises-in-R"],["gt tables","gt-Tables-Exercises-in-R"]]],["Put it together",[["visualization drills","Data-Visualization-Exercises-in-R"],["a full project","R-Visualization-Project"]]]]],
- ["Statistics","BELL","/Hypothesis-Testing-Exercises-in-R.html",[["Probability",[["probability","Probability-in-R-Exercises"],["distributions","Probability-Distributions-Exercises-in-R"],["binomial","Binomial-Distribution-Exercises-in-R"],["poisson","Poisson-Distribution-Exercises-in-R"],["central limit theorem","Central-Limit-Theorem-Exercises-in-R"]]],["Inference and tests",[["hypothesis testing","Hypothesis-Testing-Exercises-in-R"],["t-tests","T-Test-Exercises-in-R"],["chi-square","Chi-Square-Test-Exercises-in-R"],["correlation","Correlation-Exercises-in-R"],["confidence intervals","Confidence-Interval-Exercises-in-R"],["nonparametric tests","Nonparametric-Tests-Exercises-in-R"],["power analysis","Power-Analysis-Exercises-in-R"],["multiple testing","Multiple-Testing-Exercises-in-R"],["sampling","Sampling-Methods-Exercises-in-R"],["A/B testing","AB-Testing-Exercises-in-R"]]],["ANOVA and design",[["ANOVA","ANOVA-Exercises-in-R"],["post-hoc tests","Post-Hoc-Tests-Exercises-in-R"],["repeated measures","Repeated-Measures-Exercises-in-R"],["experimental design","Experimental-Design-Exercises-in-R"]]],["Regression",[["linear regression","Linear-Regression-Exercises-in-R"],["multiple regression","Multiple-Regression-Exercises-in-R"],["diagnostics","Regression-Diagnostics-Exercises-in-R"],["logistic regression","Logistic-Regression-Exercises-in-R"],["GLMs","GLM-Exercises-in-R"],["poisson regression","Poisson-Regression-Exercises-in-R"],["GAMs","GAM-Exercises-in-R"],["mixed-effects models","Mixed-Effects-Models-Exercises-in-R"]]],["Beyond the basics",[["exploratory analysis","EDA-Exercises-in-R"],["PCA","PCA-Exercises-in-R"],["bayesian statistics","Bayesian-Statistics-Exercises-in-R"],["structural equation models","SEM-Exercises-in-R"],["survival analysis","Survival-Analysis-Exercises-in-R"],["survey analysis","Survey-Analysis-in-R-Exercises"]]]]],
- ["Machine Learning","TARGET","/Machine-Learning-Exercises-in-R.html",[["Workflow",[["ML foundations","Machine-Learning-Exercises-in-R"],["data science drills","R-for-Data-Science-Exercises"],["cross-validation","Cross-Validation-Exercises-in-R"]]],["Models",[["decision trees","Decision-Tree-Exercises-in-R"],["random forests","Random-Forest-Exercises-in-R"],["XGBoost","XGBoost-Exercises-in-R"],["ridge and lasso","Ridge-and-Lasso-Exercises-in-R"],["clustering","Clustering-Exercises-in-R"]]],["Frameworks",[["caret","caret-Exercises-in-R"],["tidymodels","tidymodels-Exercises-in-R"],["tidy results with broom","broom-Exercises-in-R"]]]]],
- ["Advanced R","FUNC","/R-Functional-Programming-Exercises.html",[["Functional and OOP",[["functional programming","R-Functional-Programming-Exercises"],["purrr","purrr-Exercises-in-R"],["object-oriented R","R-OOP-Exercises"]]],["Robust code",[["debugging","R-Debugging-Exercises"],["testing with testthat","testthat-Exercises-in-R"]]],["Speed and scale",[["performance","R-Performance-Optimization-Exercises"],["parallel computing","Parallel-Computing-in-R-Exercises"]]],["Build and ship",[["package development","R-Package-Development-Exercises"],["shiny apps","Shiny-Exercises-in-R"],["R Markdown","R-Markdown-Exercises"]]]]],
- ["Specializations","SPEC","/R-for-Finance-Exercises.html",[["By field",[["finance","R-for-Finance-Exercises"],["biostatistics","R-for-Biostatistics-Exercises"],["genomics","R-for-Genomics-Exercises"],["healthcare","R-for-Healthcare-Exercises"],["marketing analytics","R-for-Marketing-Analytics-Exercises"],["sports analytics","R-for-Sports-Analytics-Exercises"]]],["By method",[["time series","Time-Series-Exercises-in-R"],["ARIMA","ARIMA-Exercises-in-R"],["text mining","Text-Mining-Exercises-in-R"],["network analysis","Network-Analysis-Exercises-in-R"],["spatial analysis","Spatial-Analysis-Exercises-in-R"]]]]],
-];
+  var CSS_V = 1;
+  var D = null, dataP = null, P = null, progAsked = false, signedIn = false, token = '';
+  var ARR = ' &rarr;';
+  var MEDAL = 'M12 14.5a5 5 0 1 1 0-10a5 5 0 1 1 0 10M12 7.3l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2-1.45-1.4 2-.3zM8.6 13.2L7 21l5-2.6 5 2.6-1.6-7.8';
 
-  // rail dot colors: the same topic colors the exercises page uses
-  var XN_COLOR={"Featured Problem Sets":"#a16207","R Fundamentals":"#2056d2","Data Wrangling":"#0f8a5f",
-    "Visualization":"#b3591c","Statistics":"#7c3aed","Machine Learning":"#be185d",
-    "Advanced R":"#4d7c0f","Specializations":"#475569","Mastery Quizzes":"#0e7490"};
-
-  function glyph(d){
-    switch(d){
-      case 'BRACKETS': return '<path d="M9 8 L6 12 L9 16 M15 8 L18 12 L15 16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-      case 'ROWS': return '<path d="M6 8 H18 M6 12 H15 M6 16 H18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>';
-      case 'CHART': return '<polyline points="6 16 10 11 14 14 18 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-      case 'BELL': return '<path d="M7 16 C7 10, 17 10, 17 16" stroke="currentColor" stroke-width="2" fill="none"/><line x1="12" y1="16" x2="12" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
-      case 'TARGET': return '<circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="2" fill="currentColor"/>';
-      case 'FUNC': return '<path d="M8.5 8 L6 12 L8.5 16 M15.5 8 L18 12 L15.5 16 M13 7 L11 17" stroke="currentColor" stroke-width="1.9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-      case 'SPEC': return '<polyline points="6 15 10 10 13 12 18 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-      case 'MEDAL': return '<circle cx="12" cy="10" r="5" stroke="currentColor" stroke-width="2" fill="none"/><polyline points="9 14 8 20 12 18 16 20 15 14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
-      case 'STAR': return '<path d="M12 4 L14.2 9.2 L19.8 9.7 L15.6 13.4 L16.9 18.9 L12 16 L7.1 18.9 L8.4 13.4 L4.2 9.7 L9.8 9.2 Z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>';
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+  function ico(d, s){ return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="'+d+'"/></svg>'; }
+  function data(){
+    dataP = dataP || fetch('/practice-menu.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ D = d; return d; }).catch(function(){ dataP = null; return null; });
+    return dataP;
+  }
+  function ensureCss(){
+    if (document.head.querySelector('link[data-pm-css]')) return;
+    var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-menu.css?v='+CSS_V;
+    l.setAttribute('data-pm-css', ''); document.head.appendChild(l);
+  }
+  var fontsDone = false;
+  function loadFonts(){
+    if (fontsDone) return; fontsDone = true;
+    if (!document.querySelector('link[href*="Plus+Jakarta+Sans"][href*="Source+Sans+3"]')){
+      var f = document.createElement('link'); f.rel = 'stylesheet';
+      f.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=Source+Sans+3:wght@400;600;700&display=swap';
+      document.head.appendChild(f);
     }
-    return '';
   }
-  var ARR = '<svg class="xn-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
-  function svg(d){ return '<svg viewBox="0 0 24 24" fill="none">'+glyph(d)+'</svg>'; }
-  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 
-  function catCount(cat){ var n=0; cat[3].forEach(function(sg){ n+=sg[1].length; }); return n; }
-  var TOTAL = window.XN_HUBS.reduce(function(a,c){ return a+catCount(c); }, 0);
-  // the 8th, special "Mastery Quizzes" rail item (timed, cert-bearing - not hubs)
-  var QUIZ = ["Mastery Quizzes","MEDAL","/certifications",null];
-
-  /* The category dots are gone. Nine categories in nine colours, where the
-     colour mapped to nothing a reader could use: it was decoration wearing the
-     costume of a legend. The category names are the information. */
-  function dot(){ return ''; }
-
-  /* Is there more of the pane below the fold? Drives the fade, and is recomputed
-     on scroll, on category change and on resize, so the fade is never left on at
-     the end of a short list. */
-  function xnPaneMore(root){
-    var pane = (root || document).querySelector('.xn-pane');
-    var body = (root || document).querySelector('.xn-body2');
-    if (!pane || !body) return;
-    var more = pane.scrollHeight - pane.clientHeight - pane.scrollTop > 4;
-    body.classList.toggle('xn-more', more);
+  /* ---------- shared pieces ---------- */
+  function hubSolved(slug, n){ var v = P && P.hubs && P.hubs[slug]; return v ? Math.min(n, v) : 0; }
+  function pill(slug, n){
+    var d = hubSolved(slug, n);
+    if (!signedIn || !P || !d) return '';
+    return d >= n ? '<span class="pm-pill pm-done">Done</span>' : '<span class="pm-pill">'+d+'/'+n+'</span>';
   }
-  function xnWatchPane(root){
-    var pane = (root || document).querySelector('.xn-pane');
-    if (!pane || pane.dataset.xnWatched) return;
-    pane.dataset.xnWatched = '1';
-    pane.addEventListener('scroll', function(){ xnPaneMore(root); }, { passive: true });
-    window.addEventListener('resize', function(){ xnPaneMore(root); });
-    xnPaneMore(root);
+  function quizRow(){
+    var q = D.quizzes;
+    return '<a class="pm-a pm-quiz" href="'+q.href+'"><span class="pm-qt">'+ico(q.icon || MEDAL, 16)+'</span>'+
+      '<span class="pm-qx"><b>Mastery quizzes</b><span>'+q.n+' timed, across '+q.topics+' topics</span></span><span class="pm-qc" aria-hidden="true">&rsaquo;</span></a>';
   }
-  function railHTML(){
-    var items = window.XN_HUBS.map(function(cat,i){
-      return '<button class="xn-cat" role="tab" data-i="'+i+'" aria-selected="'+(i===0?'true':'false')+'">'+
-        dot(cat[0])+'<span class="xn-cn">'+esc(cat[0])+'</span>'+
-        '<span class="xn-cc">'+catCount(cat)+'</span></button>';
+  /* the sidebar: continue where you left off (signed in, unfinished hub), else start here */
+  function cont(){
+    if (!signedIn || !P || !P.last || !D.hubs[P.last.slug]) return null;
+    var h = D.hubs[P.last.slug], total = P.last.total || h[1], solved = Math.min(total, P.last.solved || 0);
+    return { slug: P.last.slug, label: h[2], title: h[0], solved: solved, total: total, pct: Math.round(100 * solved / Math.max(total, 1)), streak: (P.streak && P.streak.current) || 0 };
+  }
+  function sideHTML(){
+    var c = cont();
+    if (c) return '<span class="pm-kick">Continue practicing</span>'+
+      '<span class="pm-sg">'+esc(c.label)+'</span><span class="pm-st pm-pj">'+esc(c.title)+'</span>'+
+      '<span class="pm-sr"><span>'+c.solved+' of '+c.total+' solved</span>'+(c.streak ? '<span>'+c.streak+'-day streak</span>' : '')+'</span>'+
+      '<span class="pm-bar" role="progressbar" aria-label="'+esc(c.title)+' progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+c.pct+'"><i style="width:'+c.pct+'%"></i></span>'+
+      '<a class="pm-a pm-btn" href="/'+esc(c.slug)+'.html">Resume'+ARR+'</a>'+quizRow();
+    var s = D.start, next = encodeURIComponent(location.pathname + location.search);
+    return '<span class="pm-kick">Start here</span>'+
+      '<span class="pm-sg">'+esc(s.goal)+'</span><span class="pm-st pm-pj">'+esc(s.t)+'</span>'+
+      (signedIn ? '<span class="pm-sc">Solve in the browser, no setup. Your progress is saved as you go.</span>'
+                : '<span class="pm-sc">Solve in the browser, no setup. <a class="pm-a pm-si" href="/signin.html?next='+next+'">Sign in</a> to save your progress.</span>')+
+      '<a class="pm-a pm-btn" href="'+esc(s.h)+'">Start solving'+ARR+'</a>'+quizRow();
+  }
+  function mainHTML(){
+    var goals = D.goals.map(function(g){
+      return '<div class="pm-goal"><div class="pm-gh"><span class="pm-tile">'+ico(g.icon, 17)+'</span><span class="pm-gn pm-pj">'+esc(g.name)+'</span></div>'+
+        '<div class="pm-gl">'+g.sets.map(function(s){
+          return '<a class="pm-a pm-set" href="'+esc(s.h)+'" data-pm-hub="'+esc(s.s)+'" data-n="'+s.n+'"><span class="pm-sn">'+esc(s.t)+'</span>'+pill(s.s, s.n)+'</a>';
+        }).join('')+'</div>'+
+        '<a class="pm-a pm-gf" href="'+esc(g.href)+'">'+esc(g.all)+ARR+'</a></div>';
     }).join('');
-    items += '<button class="xn-cat xn-cat-quiz" role="tab" data-i="quiz" aria-selected="false">'+
-      dot('Mastery Quizzes')+'<span class="xn-cn">Mastery Quizzes</span>'+
-      '<span class="xn-cc">11</span></button>';
-    return items;
+    var chips = D.topics.map(function(t){
+      return '<a class="pm-a pm-chip" href="'+esc(t.href)+'"><span class="pm-ci">'+ico(t.icon, 12)+'</span>'+esc(t.name)+' <span class="pm-cn">'+t.n+'</span></a>';
+    }).join('');
+    return '<div class="pm-goals">'+goals+'</div>'+
+      '<div class="pm-topics"><span class="pm-tl">Or by topic</span><div class="pm-chips">'+chips+'</div></div>';
   }
 
-  function paneHTML(idx){
-    if (idx === 'quiz'){
-      return '<div class="xn-pane-head"><span class="xn-ph-name">Mastery Quizzes</span><span class="xn-ph-n">timed and graded</span></div>'+
-        '<div class="xn-quizcard"><div class="xn-qz-t">Eleven timed quizzes, graded on real R you write.</div>'+
-        '<p class="xn-qz-p">Each quiz closes out a topic. Pass a track and you earn a verifiable certificate with your name on it.</p>'+
-        '<a class="xn-btn" href="/certifications">See how certification works '+ARR+'</a></div>';
+  /* ---------- progress (signed in): one call, first open, cached 5 minutes ---------- */
+  var drop = null, sheet = null;
+  function paint(){
+    if (!D) return;
+    if (drop){
+      drop.querySelector('[data-pm-side]').innerHTML = sideHTML();
+      drop.querySelector('[data-pm-body]').innerHTML = mainHTML();
     }
-    var cat = window.XN_HUBS[idx];
-    var featured = cat[0].indexOf('Featured') === 0;
-    var groups = cat[3].map(function(sg){
-      var hubs = sg[1].map(function(h){ return '<a class="xn-hub" href="/'+h[1]+'.html">'+esc(h[0])+'</a>'; }).join('');
-      return '<div class="xn-sg"><div class="xn-sgl">'+esc(sg[0])+'</div><div class="xn-hublist">'+hubs+'</div></div>';
+    if (sheet) sheetFill();
+  }
+  function progress(){
+    if (progAsked || !signedIn || !token) return; progAsked = true;
+    var c = null; try { c = JSON.parse(sessionStorage.getItem('pm-prog') || 'null'); } catch (e) {}
+    if (c && c.at > Date.now() - 300000 && c.P){ P = c.P; paint(); return; }
+    fetch('/api/me/practice', { headers: { Authorization: 'Bearer ' + token } }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+      if (!j) return; P = j;
+      try { sessionStorage.setItem('pm-prog', JSON.stringify({ at: Date.now(), P: j })); } catch (e) {}
+      paint();
+    }).catch(function(){});
+  }
+
+  /* ---------- phone sheet ---------- */
+  function sheetFill(){
+    var body = sheet.querySelector('[data-pm-sbody]'), c = cont();
+    if (!D){ body.innerHTML = '<a class="pm-srow" href="/exercises/">Browse the full library'+ARR+'</a>'; return; }
+    var html = '';
+    if (c) html += '<a class="pm-cont" href="/'+esc(c.slug)+'.html" aria-label="Continue '+esc(c.title)+', '+c.solved+' of '+c.total+' solved">'+
+      '<span class="pm-ck">Continue</span><span class="pm-cr"><span class="pm-cn2 pm-pj">'+esc(c.title)+'</span><span class="pm-cs">'+c.solved+' of '+c.total+'</span></span>'+
+      '<span class="pm-bar"><i style="width:'+c.pct+'%"></i></span></a>';
+    html += D.goals.map(function(g){
+      return '<div class="pm-card"><div class="pm-sch"><span class="pm-tile">'+ico(g.icon, 15)+'</span><span class="pm-pj">'+esc(g.name)+'</span></div>'+
+        g.sets.map(function(s){ return '<a class="pm-srow" href="'+esc(s.h)+'"><span>'+esc(s.t)+'</span>'+(pill(s.s, s.n) || '<span class="pm-scnt">'+s.n+'</span>')+'</a>'; }).join('')+
+        '<a class="pm-sall" href="'+esc(g.href)+'">'+esc(g.all)+ARR+'</a></div>';
     }).join('');
-    return '<div class="xn-pane-head"><span class="xn-ph-name">'+esc(cat[0])+'</span><span class="xn-ph-n">'+catCount(cat)+(featured?' curated sets':' hubs')+'</span>'+
-      '<a class="xn-ph-all" href="'+cat[2]+'">see all '+ARR+'</a></div>'+
-      '<div class="xn-groups">'+groups+'</div>';
+    html += '<div class="pm-card"><div class="pm-sch"><span class="pm-pj">By topic</span></div><div class="pm-schips">'+
+      D.topics.map(function(t){ return '<a class="pm-chip" href="'+esc(t.href)+'"><span class="pm-ci">'+ico(t.icon, 12)+'</span>'+esc(t.name)+' <span class="pm-cn">'+t.n+'</span></a>'; }).join('')+
+      '</div></div>';
+    html += '<div class="pm-card pm-qcard">'+quizRow().replace('pm-a pm-quiz', 'pm-quiz')+'</div>';
+    body.innerHTML = html;
+  }
+  var opener = null;
+  function openSheet(from){
+    ensureCss(); loadFonts();
+    if (!sheet){
+      sheet = document.createElement('div');
+      sheet.className = 'pm-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Practice');
+      sheet.innerHTML = '<div class="pm-top"><a class="pm-brand pm-pj" href="/"><img src="/logo-mark.svg" alt="" width="28" height="28">r-statistics.co</a>'+
+        '<button class="pm-x" type="button" aria-label="Close menu">&times;</button></div>'+
+        '<div class="pm-scroll" data-pm-sbody></div>'+
+        '<div class="pm-pin"><a class="pm-pinb" href="/exercises/">Browse the full library'+ARR+'</a></div>';
+      document.body.appendChild(sheet);
+      sheet.querySelector('.pm-x').addEventListener('click', function(){ closeSheet(true); });
+      sheet.addEventListener('keydown', function(e){
+        if (e.key !== 'Tab') return;
+        var f = Array.prototype.filter.call(sheet.querySelectorAll('a[href],button'), function(el){ return el.offsetParent !== null; });
+        if (!f.length) return;
+        if (e.shiftKey && document.activeElement === f[0]){ e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && document.activeElement === f[f.length - 1]){ e.preventDefault(); f[0].focus(); }
+      });
+    }
+    sheetFill();
+    data().then(function(){ if (sheet) sheetFill(); });
+    progress();
+    opener = from || null;
+    document.documentElement.classList.add('pm-lock');
+    sheet.classList.add('pm-open');
+    setTimeout(function(){ var x = sheet.querySelector('.pm-x'); if (x) x.focus(); }, 30);
+  }
+  function closeSheet(refocus){
+    if (!sheet || !sheet.classList.contains('pm-open')) return;
+    sheet.classList.remove('pm-open');
+    document.documentElement.classList.remove('pm-lock');
+    if (refocus && opener && opener.focus) opener.focus();
   }
 
-  function panelHTML(){
-    return ''+
-    '<div class="xn-hd"><b>Practice</b><a href="/exercises/">Browse the full library '+ARR+'</a></div>'+
-    '<div class="xn-body2"><div class="xn-rail" role="tablist">'+railHTML()+'</div><div class="xn-pane" id="xn-pane"></div></div>'+
-    '<div class="xn-foot" data-xn-strip><span class="xn-tot">Free to attempt. Sign in to keep your streak, XP and solved problems.</span>'+
-      '<span class="xn-fl"><a href="/R-Basics-Exercises.html">Start with R Basics '+ARR+'</a></span></div>';
-  }
+  /* ---------- desktop panel ---------- */
+  function desktop(link){
+    ensureCss();
+    var wrap = document.createElement('div'); wrap.className = 'pm-wrap';
+    link.parentNode.insertBefore(wrap, link); wrap.appendChild(link);
+    link.classList.add('pm-trigger');
+    // One label sitewide: some older pages bake "Exercises" into the markup.
+    for (var ci = 0; ci < link.childNodes.length; ci++){
+      var tn = link.childNodes[ci];
+      if (tn.nodeType === 3 && /^\s*Exercises\s*$/.test(tn.nodeValue)) tn.nodeValue = tn.nodeValue.replace('Exercises', 'Practice');
+    }
+    // One chevron: tutorials-nav.js adds the same .nav-car when it loads.
+    if (!link.querySelector('.ex-caret') && !link.querySelector('svg')){
+      link.insertAdjacentHTML('beforeend', '<svg class="nav-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>');
+    }
+    drop = document.createElement('div');
+    drop.className = 'pm-drop'; drop.id = 'pm-practice';
+    drop.setAttribute('role', 'region'); drop.setAttribute('aria-label', 'Practice');
+    drop.innerHTML = '<div class="pm-side" data-pm-side></div>'+
+      '<div class="pm-main"><div class="pm-hd"><span class="pm-h2 pm-pj">What are you practicing for?</span>'+
+      '<a class="pm-a pm-lib" href="/exercises/">Browse the full library'+ARR+'</a></div><div class="pm-body" data-pm-body></div></div>';
+    var bridge = document.createElement('div'); bridge.className = 'pm-bridge'; bridge.setAttribute('aria-hidden', 'true');
+    wrap.appendChild(bridge); wrap.appendChild(drop);
+    link.setAttribute('aria-haspopup', 'true'); link.setAttribute('aria-expanded', 'false'); link.setAttribute('aria-controls', 'pm-practice');
+    function fixOn(){ var on = drop.querySelectorAll('a.on'); if (!on.length) return; on.forEach(function(a){ a.classList.remove('on'); }); link.classList.add('on'); }
+    setTimeout(fixOn, 0); window.addEventListener('load', fixOn);
 
-  // ---- mobile sheet: a full-screen, tap-to-expand version of the same catalog ----
-  function mobileSheetHTML(){
-    var cats = window.XN_HUBS.map(function(cat,i){
-      var groups = cat[3].map(function(sg){
-        var hubs = sg[1].map(function(h){ return '<a class="xn-shub" href="/'+h[1]+'.html">'+esc(h[0])+'</a>'; }).join('');
-        return '<div class="xn-ssgl">'+esc(sg[0])+'</div><div class="xn-shubs">'+hubs+'</div>';
-      }).join('');
-      return '<div class="xn-scatw"><button class="xn-scat" data-i="'+i+'" aria-expanded="false">'+
-        '<span class="xn-cg">'+svg(cat[1])+'</span><span class="xn-scn">'+esc(cat[0])+'</span>'+
-        '<span class="xn-cc">'+catCount(cat)+'</span>'+
-        '<svg class="xn-schev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>'+
-        '<div class="xn-spanel" hidden>'+groups+'</div></div>';
-    }).join('');
-    return '<div class="xn-sheet-hd"><span class="xn-sheet-t">Practice</span><button class="xn-sheet-x" aria-label="Close">&times;</button></div>'+
-      '<div class="xn-sheet-strip">Short problems with instant feedback. Free to attempt.</div>'+
-      '<div class="xn-sheet-body">'+cats+
-        '<div class="xn-scatw"><a class="xn-scat xn-scat-q" href="/certifications"><span class="xn-cg">'+svg('MEDAL')+'</span><span class="xn-scn">Mastery Quizzes</span><span class="xn-cc">11</span>'+ARR+'</a></div>'+
-      '</div>'+
-      '<a class="xn-sheet-foot" href="/exercises/">Browse the full library '+ARR+'</a>';
-  }
-
-  function userStrip(streak, xp){
-    var k = (streak && streak > 0) ? (streak + '-day streak' + (xp ? (', ' + Number(xp).toLocaleString() + ' XP') : ''))
-                                   : (xp ? (Number(xp).toLocaleString() + ' XP earned') : 'Your progress is saved');
-    return '<span class="xn-tot"><b>'+k+'</b>. Solves, streaks and XP are saved to your account.</span>'+
-      '<span class="xn-fl"><a href="/exercises/">Continue practicing '+ARR+'</a></span>';
+    var open = false, via = '', closeT = null, hideT = null;
+    function place(){
+      var cw = document.documentElement.clientWidth || window.innerWidth;
+      var w = Math.min(1180, cw - 64);
+      var header = link.closest('.sitenav') || link.closest('nav') || link.closest('header') || wrap.parentNode;
+      var hb = header.getBoundingClientRect(), wb = wrap.getBoundingClientRect(), lb = link.getBoundingClientRect();
+      var top = Math.round(hb.bottom - wb.top + 10), left = Math.round((cw - w) / 2 - wb.left);
+      drop.style.width = w + 'px'; drop.style.left = left + 'px'; drop.style.top = top + 'px';
+      /* the top two-thirds of the window: scale down (not below 0.8), then scroll inside */
+      drop.style.maxHeight = 'none'; drop.style.setProperty('--pm-z', '1');
+      var avail = Math.max(220, Math.floor(window.innerHeight * 2 / 3 - hb.bottom - 10));
+      var natural = drop.offsetHeight, z = 1;
+      if (natural > avail){
+        z = Math.max(0.8, avail / natural);
+        if (natural * z > avail + 1) drop.style.maxHeight = Math.floor(avail / z) + 'px';
+      }
+      drop.style.setProperty('--pm-z', String(Math.round(z * 1000) / 1000));
+      var bw = Math.min(w, 380), bl = Math.round(lb.left + lb.width / 2 - bw / 2 - wb.left);
+      bl = Math.max(left, Math.min(bl, left + w - bw));
+      var bt = Math.round(lb.bottom - wb.top);
+      bridge.style.left = bl + 'px'; bridge.style.width = bw + 'px'; bridge.style.top = bt + 'px'; bridge.style.height = Math.max(0, top - bt) + 'px';
+    }
+    function setOpen(o, how){
+      if (o === open) return;
+      clearTimeout(closeT); clearTimeout(hideT);
+      open = o; via = o ? how : '';
+      if (o){
+        wrap.classList.add('pm-shown');
+        loadFonts();
+        if (!D) data().then(function(){ paint(); if (open) place(); });
+        paint(); progress(); place(); void drop.offsetWidth;
+      }
+      else hideT = setTimeout(function(){ if (!open) wrap.classList.remove('pm-shown'); }, 180);
+      wrap.classList.toggle('pm-open', o);
+      document.documentElement.classList.toggle('pm-dopen', o);
+      link.setAttribute('aria-expanded', o ? 'true' : 'false');
+      if (o && how === 'key') setTimeout(function(){ var f = drop.querySelector('a[href]'); if (f) f.focus(); }, 60);
+    }
+    function canHover(){ return window.innerWidth > 980 && window.matchMedia('(hover:hover)').matches; }
+    wrap.addEventListener('mouseenter', function(){ if (canHover()){ clearTimeout(closeT); data(); setOpen(true, 'hover'); } });
+    wrap.addEventListener('mouseleave', function(){ if (canHover() && open) closeT = setTimeout(function(){ setOpen(false); }, 160); });
+    link.addEventListener('click', function(e){
+      if (window.innerWidth <= 980) return;
+      e.preventDefault();
+      if (e.detail === 0){ setOpen(!open, 'key'); return; }
+      if (open && via === 'hover') return;
+      setOpen(!open, 'click');
+    });
+    link.addEventListener('keydown', function(e){
+      if (window.innerWidth <= 980) return;
+      if (e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); setOpen(!open, 'key'); }
+      else if (e.key === 'ArrowDown'){ e.preventDefault(); if (!open) setOpen(true, 'key'); else { var f = drop.querySelector('a[href]'); if (f) f.focus(); } }
+    });
+    document.addEventListener('click', function(e){ if (open && !wrap.contains(e.target)) setOpen(false); });
+    document.addEventListener('keydown', function(e){
+      if (e.key !== 'Escape' || !open) return;
+      var inside = wrap.contains(document.activeElement);
+      setOpen(false); if (inside) link.focus();
+    });
+    wrap.addEventListener('focusout', function(e){ if (open && e.relatedTarget && !wrap.contains(e.relatedTarget)) setOpen(false); });
+    window.addEventListener('resize', function(){ if (open){ if (window.innerWidth <= 980) setOpen(false); else place(); } });
+    window.addEventListener('pageshow', function(e){ if (e.persisted && open) setOpen(false); });   // route change via back/forward cache
+    if (canHover()){
+      var idle = window.requestIdleCallback || function(f){ return setTimeout(f, 1500); };
+      window.addEventListener('load', function(){ idle(function(){ data(); loadFonts(); }); });
+    }
   }
 
   function init(){
     var link = document.querySelector('.sitenav .snav-links a[href="/exercises/"]') || document.querySelector('.masthead-nav-link[href="/exercises/"]') || document.querySelector('.nav a[href="/exercises/"]');
-    if (!link || link.closest('.xn-wrap')) return;
-
-    if (!document.querySelector('link[data-xn-css]')){
-      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/www/practice-nav.css?v=12';
-      l.setAttribute('data-xn-css', ''); document.head.appendChild(l);
-    }
-
-    var wrap = document.createElement('div'); wrap.className = 'xn-wrap';
-    link.parentNode.insertBefore(wrap, link); wrap.appendChild(link);
-    link.classList.add('xn-trigger');
-    link.setAttribute('aria-haspopup', 'true'); link.setAttribute('aria-expanded', 'false');
-    // The caret is a markup glyph (.ex-caret) supplied by the nav template so
-    // it survives with no JS / no CSS-escape mangling. Only inject the legacy
-    // SVG caret as a fallback when the markup glyph is absent (avoids doubles).
-    if (!link.querySelector('.ex-caret')){
-      link.insertAdjacentHTML('beforeend', ' <svg class="xn-car" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
-    }
-
-    var drop = document.createElement('div'); drop.className = 'xn-drop'; drop.setAttribute('role', 'menu');
-    drop.innerHTML = panelHTML(); wrap.appendChild(drop);
-
-    // two-pane: rail selects the right pane
-    var pane = drop.querySelector('#xn-pane');
-    var rail = drop.querySelector('.xn-rail');
-    var cats = rail.querySelectorAll('.xn-cat');
-    function activate(el){
-      cats.forEach(function(c){ c.setAttribute('aria-selected', c===el ? 'true':'false'); });
-      var i = el.getAttribute('data-i');
-      pane.innerHTML = paneHTML(i === 'quiz' ? 'quiz' : parseInt(i,10));
-      /* New category, new length: reset to the top and recompute whether there
-         is anything below, or a short list inherits the previous one's fade. */
-      pane.scrollTop = 0;
-      xnPaneMore(drop);
-    }
-    cats.forEach(function(c){
-      c.addEventListener('mouseenter', function(){ activate(c); });
-      c.addEventListener('focus', function(){ activate(c); });
-      c.addEventListener('click', function(e){ e.preventDefault(); activate(c); });
-    });
-    activate(cats[0]);
-
-    var open = false, closeT;
-    function setOpen(o){ open = o; wrap.classList.toggle('xn-open', o); link.setAttribute('aria-expanded', o ? 'true' : 'false');
-      /* Heights are only measurable once the panel is actually visible. */
-      if (o) xnWatchPane(drop); }
-    function canPanel(){ return window.innerWidth > 980 && window.matchMedia('(hover:hover)').matches; }
-    wrap.addEventListener('mouseenter', function(){ if (canPanel()){ clearTimeout(closeT); setOpen(true); } });
-    wrap.addEventListener('mouseleave', function(){ if (canPanel()){ closeT = setTimeout(function(){ setOpen(false); }, 140); } });
-    link.addEventListener('click', function(e){ if (window.innerWidth > 980){ e.preventDefault(); setOpen(!open); } });
-    document.addEventListener('click', function(e){ if (open && !wrap.contains(e.target)) setOpen(false); });
-    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && open) setOpen(false); });
-
-    // mobile: tap the hamburger "Exercises" -> full-screen catalog sheet (tap-to-expand)
-    var sheet = null;
-    function ensureSheet(){
-      if (sheet) return;
-      sheet = document.createElement('div'); sheet.className = 'xn-sheet'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Practice catalog');
-      sheet.innerHTML = mobileSheetHTML(); document.body.appendChild(sheet);
-      sheet.querySelector('.xn-sheet-x').addEventListener('click', closeSheet);
-      sheet.querySelectorAll('.xn-scat[data-i]').forEach(function(b){
-        b.addEventListener('click', function(){
-          var pnl = b.nextElementSibling, on = b.getAttribute('aria-expanded') === 'true';
-          b.setAttribute('aria-expanded', on ? 'false' : 'true'); if (pnl) pnl.hidden = on;
-        });
-      });
-    }
-    function openSheet(){ ensureSheet(); document.documentElement.classList.add('xn-lock'); sheet.classList.add('xn-sheet-open'); }
-    function closeSheet(){ if (sheet) sheet.classList.remove('xn-sheet-open'); document.documentElement.classList.remove('xn-lock'); }
-    // the drawer Exercises rows carry the same caret pill as the desktop trigger
+    if (link && !link.closest('.pm-wrap') && !link.closest('.xn-wrap')) desktop(link);
+    // phones: the Practice row in any drawer opens the sheet
     Array.prototype.forEach.call(document.querySelectorAll('.mnav-link[href="/exercises/"]'), function(a){
       if (!a.querySelector('.ex-caret')) a.insertAdjacentHTML('beforeend', ' <span class="ex-caret" aria-hidden="true">&#9662;</span>');
     });
-    // delegated so the lazily-built generic drawer (site-nav.js .snav-dlink) is covered too
     document.addEventListener('click', function(e){
       var a = e.target && e.target.closest && e.target.closest('.mnav-link[href="/exercises/"],.snav-dlink[href="/exercises/"]');
-      if (!a || window.innerWidth > 980) return;
-      e.preventDefault(); openSheet();
+      if (!a || window.innerWidth > 1023) return;
+      e.preventDefault(); openSheet(a);
     });
-    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeSheet(); });
-
-    // personalization: default is visitor; swap to signed-in when authenticated.
-    var strip = drop.querySelector('[data-xn-strip]');
-    function showUser(streak, xp){ if (strip){ strip.className = 'xn-foot xn-user'; strip.innerHTML = userStrip(streak, xp); } }
-    document.addEventListener('auth-hydrated', function(e){
-      var me = e && e.detail && e.detail.me;
-      if (me && me.user) showUser(me.current_streak_days || me.user.current_streak_days, me.total_xp || me.user.total_xp);
-    });
-    if (document.body.classList.contains('state-pro')) showUser(0, 0);
+    // Esc closes one layer (the sheet), not the drawer under it
+    window.addEventListener('keydown', function(e){
+      if (e.key !== 'Escape' || !sheet || !sheet.classList.contains('pm-open')) return;
+      e.stopPropagation(); closeSheet(true);
+    }, true);
   }
 
-  if (document.readyState !== 'loading') init();
-  else document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('auth-hydrated', function(e){
+    var d = e && e.detail, me = d && d.me;
+    if (d && d.token) token = d.token;
+    var was = signedIn;
+    signedIn = !!(me && me.user);
+    if (!signedIn){ P = null; try { sessionStorage.removeItem('pm-prog'); } catch (x) {} }
+    if (was !== signedIn) paint();
+  });
+  function boot(){
+    init();
+    if (document.body && document.body.classList.contains('state-pro')) signedIn = true;
+  }
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot);
 })();

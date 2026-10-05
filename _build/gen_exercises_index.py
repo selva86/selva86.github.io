@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Generate exercises/index.html (the live exercises catalog page).
+"""Generate exercises/index.html (the Practice library) and practice-menu.json (the
+navbar Practice menu's data). Design: design_handoff_practice_library + practice_menu
+(2026-10).
 
-Design: the approved A3 workbook. One page: hero with a self-solving demo of the
-real exercise UI, bench (Continue / Suggested next / Today), The Exercises Wall
-(every problem as a difficulty-tinted square), sticky topic chips with scroll-spy
-and search, then the full syllabus (every hub row server-rendered and crawlable,
-expandable to real section titles + per-problem index chips that deep-link).
+Everything structural is server-rendered from www/exercise-catalog.json so the page
+reads and crawls without JavaScript (every hub row is a plain link). The page script
+only fills in what belongs to the visitor: progress from /api/me/practice, the free
+plan allowance from /api/me/meter, the activity calendar. Signed-out visitors see the
+honest zero state. No invented numbers anywhere: counts come from the catalog, the
+free allowance from functions/_lib/meter.ts.
 
-State is honest: the server renders the signed-out, fresh-visitor view. All
-progress UI hydrates client-side from the same localStorage the hub engine
-(exercise-hub.js) writes: rsc-exercise-hub-v1:<path> {solved:{id:true}},
-rsc-streak-v1 {days}, rsc-daily-v1 {date,count}. Signed-in users additionally
-get total XP + streak from /api/me/stats. No invented numbers anywhere.
-
-Data: www/exercise-catalog.json (Scripts/build_exercise_catalog.py). Rebuild
-that first when hubs change, then rerun this.
+Data: www/exercise-catalog.json (Scripts/build_exercise_catalog.py). Rebuild that
+first when hubs change, then rerun this. CI runs it through gen_sections.py.
 
 Run: python _build/gen_exercises_index.py    (from the repo root)
 """
@@ -25,739 +22,683 @@ os.chdir(ROOT)
 
 DATA = json.load(open('www/exercise-catalog.json', encoding='utf-8'))
 CATS = DATA['categories']; QUIZZES = DATA['quizzes']; TOT = DATA['totals']
-CAT_HASH = hashlib.md5(io.open('www/exercise-catalog.json', encoding='utf-8').read().encode()).hexdigest()[:8]
+shell = io.open('_build/exercises-shell.html', encoding='utf-8').read()
 
-SHELL = '_build/exercises-shell.html'
-if not os.path.exists(SHELL):
-    live = io.open('exercises/index.html', encoding='utf-8').read()
-    pre = live[:live.index('<main class="wrap">')]
-    suf = live[live.index('</main>'):]
-    suf = suf.replace('  <script defer src="/www/exercises-page.js?v=3"></script>\n', '')
-    suf = re.sub(r'[ ]*<script defer src="/www/signin-nudge\.js[^>]*></script>\n?', '', suf)
-    if '/www/webr.min.css' not in pre:
-        pre = pre.replace('<link rel="stylesheet" href="/www/site-nav.css?v=19">',
-                          '<link rel="stylesheet" href="/www/site-nav.css?v=19">\n<link rel="stylesheet" href="/www/webr.min.css">', 1)
-    io.open(SHELL, 'w', encoding='utf-8', newline='\n').write(pre + '<!--EXBODY-->' + suf)
-    print('bootstrapped', SHELL, 'from the previous live page')
-shell = io.open(SHELL, encoding='utf-8').read()
+# The free allowance is enforced in functions/_lib/meter.ts; quote the same number.
+_m = re.search(r'export const METER_LIMIT = (\d+);', io.open('functions/_lib/meter.ts', encoding='utf-8').read())
+assert _m, 'METER_LIMIT not found in functions/_lib/meter.ts'
+METER_LIMIT = int(_m.group(1))
 
 FEATURED = 'Featured Problem Sets'
-ACC = {FEATURED:'#a16207','R Fundamentals':'#2056d2','Data Wrangling':'#0f8a5f','Visualization':'#b3591c',
- 'Statistics':'#7c3aed','Time Series':'#0e7490','Machine Learning':'#be185d',
- 'Advanced R':'#4d7c0f','Reporting':'#92590e','Specializations':'#475569','Other':'#475569'}
-# shelf ring colors by set family: interview prep / everyday fluency / statistics depth
-RING_BLUE, RING_GREEN, RING_AMBER = '#7faaff', '#34d399', '#fbbf24'
-RING = {
- 'R-Interview-Questions': RING_BLUE, 'Statistics-Interview-Questions': RING_BLUE,
- 'ML-Interview-Questions-in-R': RING_BLUE, 'AB-Testing-Interview-Cases': RING_BLUE,
- 'SQL-to-dplyr-Translations': RING_BLUE, 'Take-Home-Assignment-Simulator': RING_BLUE,
- 'Base-R-Speed-Round': RING_GREEN, 'Regex-Drills-in-R': RING_GREEN,
- 'Dates-and-Times-Drills-in-R': RING_GREEN, 'Error-Triage-Drills-in-R': RING_GREEN,
- 'Data-Cleaning-Gauntlet': RING_GREEN,
- 'Top-20-Bayesian-Problems-in-R': RING_AMBER, 'Probability-Puzzles-for-Interviews': RING_AMBER,
- 'Top-25-Regression-Problems-in-R': RING_AMBER, 'Top-20-Time-Series-Problems-in-R': RING_AMBER,
- 'Resampling-Problems-in-R': RING_AMBER, 'ggplot2-Recreation-Challenge': RING_AMBER,
+# Topic colour, short id, one-line description (design handoff), menu icon.
+TOPIC_META = {
+    'R Fundamentals':   ('fund', '#1F6B4A', 'Vectors, data frames, functions, and the base R muscle memory everything else builds on.', 'M5 8l4 4-4 4M12 16h7'),
+    'Data Wrangling':   ('wrangle', '#2E9C74', 'Import, clean, reshape, and join real datasets with dplyr, tidyr, and friends.', 'M4 6h16M7 12h10M10 18h4'),
+    'Visualization':    ('viz', '#2F7FA0', 'Charts that read clearly, from a first ggplot2 bar chart to themed, faceted figures.', 'M4 20h16M6 20v-6M10 20V9M14 20v-8M18 20V5'),
+    'Statistics':       ('stats', '#5A6FB5', 'Probability, tests, confidence intervals, and regression, practiced until the output makes sense.', 'M3 19h18M4 18c3 0 4-11 8-11s5 11 8 11'),
+    'Time Series':      ('ts', '#7A5CA8', 'Dates, decomposition, and ARIMA forecasting drills.', 'M3 17l5-5 4 3 6-7M14 8h4v4'),
+    'Machine Learning': ('ml', '#3F9DA0', 'Train, validate, and tune models: trees, forests, boosting, clustering.', 'M8 7a2 2 0 1 1-4 0a2 2 0 1 1 4 0M20 7a2 2 0 1 1-4 0a2 2 0 1 1 4 0M14 17a2 2 0 1 1-4 0a2 2 0 1 1 4 0M8 7h8M7 9l4 6M17 9l-4 6'),
+    'Advanced R':       ('adv', '#4A5560', 'Performance, packages, testing, and Shiny apps.', 'M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM4 7.5l8 4.5 8-4.5M12 12v9'),
+    'Reporting':        ('report', '#7C9A3A', 'R Markdown documents and publication tables.', 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5'),
+    'Specializations':  ('spec', '#9A5A8A', 'Domain practice: finance, genomics, healthcare, marketing, spatial, text.', 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'),
 }
-INTRO = {
- FEATURED:'Curated problem sets with a clear promise: interview prep, drills, and challenges.',
- 'R Fundamentals':'Vectors, data frames, functions, and the base R muscle memory everything else builds on.',
- 'Data Wrangling':'Import, clean, reshape, and join real datasets with dplyr, tidyr, and friends.',
- 'Visualization':'Charts that read clearly, from a first ggplot2 bar chart to themed, faceted figures.',
- 'Statistics':'Probability, tests, confidence intervals, and regression, practiced until the output makes sense.',
- 'Time Series':'Dates, decomposition, and ARIMA forecasting drills.',
- 'Machine Learning':'Train, validate, and tune models: trees, forests, boosting, clustering.',
- 'Advanced R':'Performance, packages, testing, and Shiny apps.',
- 'Reporting':'R Markdown documents and publication tables.',
- 'Specializations':'Domain practice: finance, genomics, healthcare, marketing, spatial, text.',
- 'Other':'More practice sets.'}
-QUIZMAP = {
- 'R Fundamentals': ['R-Beginner-Exercises-quiz', 'R-Functional-Programming-Exercises-quiz', 'R-Interview-Questions-quiz'],
- 'Data Wrangling': ['dplyr-Exercises-in-R-quiz', 'tidyr-Exercises-in-R-quiz'],
- 'Visualization': ['ggplot2-Exercises-in-R-quiz'],
- 'Statistics': ['Hypothesis-Testing-Exercises-in-R-quiz', 'Linear-Regression-Exercises-in-R-quiz'],
- 'Time Series': ['Time-Series-Exercises-in-R-quiz'],
- 'Machine Learning': ['Machine-Learning-Exercises-in-R-quiz'],
- 'Advanced R': ['Shiny-Exercises-in-R-quiz'],
+# Featured sets by goal (the families the old shelf rings used), in display order.
+GOALS = [
+    ('interview-prep', 'Interview prep', 'M4 8h16v11H4zM9 8V5h6v3M4 13h16', 'All interview sets',
+     ['R-Interview-Questions', 'Statistics-Interview-Questions', 'ML-Interview-Questions-in-R', 'AB-Testing-Interview-Cases',
+      'SQL-to-dplyr-Translations', 'Take-Home-Assignment-Simulator']),
+    ('everyday-fluency', 'Everyday fluency', 'M13 3L5 14h6l-1 7 8-11h-6l1-7z', 'All fluency drills',
+     ['Base-R-Speed-Round', 'Regex-Drills-in-R', 'Dates-and-Times-Drills-in-R', 'Error-Triage-Drills-in-R', 'Data-Cleaning-Gauntlet']),
+    ('statistics-depth', 'Statistics depth', 'M3 19h18M4 18c3 0 4-11 8-11s5 11 8 11', 'All statistics sets',
+     ['Top-20-Bayesian-Problems-in-R', 'Probability-Puzzles-for-Interviews', 'Top-25-Regression-Problems-in-R',
+      'Top-20-Time-Series-Problems-in-R', 'Resampling-Problems-in-R', 'ggplot2-Recreation-Challenge']),
+]
+# Quiz -> topic as the design groups them (the interview quiz belongs to a featured
+# set, which is not a topic; the design files it under R Fundamentals).
+QUIZ_TOPIC = {'R Interview Readiness Quiz': 'R Fundamentals'}
+QUIZ_ICONS = {
+    'R Fundamentals Quiz': 'M5 8l4 4-4 4M12 16h7',
+    'Functional Programming Quiz': 'M8 4c-2 0-3 1-3 3v2c0 1-1 2-2 3 1 1 2 2 2 3v2c0 2 1 3 3 3M16 4c2 0 3 1 3 3v2c0 1 1 2 2 3-1 1-2 2-2 3v2c0 2-1 3-3 3',
+    'R Interview Readiness Quiz': 'M4 8h16v11H4zM9 8V5h6v3M4 13h16',
+    'dplyr Quiz': 'M4 5h16l-6 7v6l-4 2v-8z',
+    'tidyr Quiz': 'M4 4h16v16H4zM4 10h16M10 4v16',
+    'ggplot2 Quiz': 'M4 20h16M6 20v-6M10 20V9M14 20v-8M18 20V5',
+    'Hypothesis Testing Quiz': 'M3 19h18M4 18c3 0 4-11 8-11s5 11 8 11',
+    'Linear Regression Quiz': 'M4 19L20 6M6 15h.01M9 14h.01M12 10h.01M15 9h.01M17 11h.01',
+    'Time Series Quiz': 'M3 17l5-5 4 3 6-7M14 8h4v4',
+    'Machine Learning Quiz': 'M8 7a2 2 0 1 1-4 0a2 2 0 1 1 4 0M20 7a2 2 0 1 1-4 0a2 2 0 1 1 4 0M14 17a2 2 0 1 1-4 0a2 2 0 1 1 4 0M8 7h8M7 9l4 6M17 9l-4 6',
+    'Shiny Quiz': 'M3 5h18v14H3zM3 9h18M6.5 7h.01M9 7h.01',
 }
+MEDAL = 'M12 14.5a5 5 0 1 1 0-10a5 5 0 1 1 0 10M12 7.3l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2-1.45-1.4 2-.3zM8.6 13.2L7 21l5-2.6 5 2.6-1.6-7.8'
 
-def esc(s): return s.replace('&','&amp;').replace('<','&lt;').replace('"','&quot;')
-def tmins(m): return f'~{m} min' if m < 60 else (f'~{m/60:.1f} h'.replace('.0 h',' h'))
-def out(s): return f'<p class="a2-out"><span class="pr">#&gt;</span>{s}</p>'
-def aid(name): return re.sub(r'[^a-z]+','-', name.lower()).strip('-')
-def dmix(h):
-    parts = []
-    for cls, n, name in (('g', h['b'], 'beginner'), ('o', h['i'], 'intermediate'), ('r', h['a'], 'advanced')):
-        if n:
-            parts.append(f'<span class="{cls}" title="{n} {name}"><i></i>{n}</span>')
-    return '<span class="dmix">' + ''.join(parts) + '</span>'
+
+def esc(s): return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('"', '&quot;')
+def num(n): return '{:,}'.format(n)
+def url(href): return '/' + href.lstrip('/')
+def ico(d, s=24, cls=''):
+    return (f'<svg{" class=" + chr(34) + cls + chr(34) if cls else ""} width="{s}" height="{s}" viewBox="0 0 24 24" fill="none" '
+            f'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="{d}"/></svg>')
+def clean_title(t):
+    t = re.sub(r' \((\d+)\)$', '', t)                 # "Error Triage Drills (20)" -> count shows in the pill
+    t = re.sub(r' \(\d+ ([A-Za-z]+)\)$', r' \1', t)   # "SQL to dplyr (30 Translations)" -> "SQL to dplyr Translations"
+    return t
+
+
+# ---------------- data ----------------
+feat_cat = next(c for c in CATS if c['name'] == FEATURED)
+TOPICS = [c for c in CATS if c['name'] != FEATURED]
+assert set(TOPIC_META) == {c['name'] for c in TOPICS}, 'a topic is missing from TOPIC_META: %r' % ({c['name'] for c in TOPICS} ^ set(TOPIC_META))
+feat_by_slug = {h['slug']: h for h in feat_cat['hubs']}
+goal_slugs = [s for g in GOALS for s in g[4]]
+assert sorted(goal_slugs) == sorted(feat_by_slug), 'featured sets and GOALS disagree: %r' % (set(goal_slugs) ^ set(feat_by_slug))
+hub_topic = {h['slug']: c['name'] for c in CATS for h in c['hubs']}
+ALL_HUBS = [h for c in CATS for h in c['hubs']]
+assert sum(h['n'] for h in ALL_HUBS) == TOT['exercises'] and len(ALL_HUBS) == TOT['hubs']
+DIFF_TOT = {'beginner': sum(h['b'] for h in ALL_HUBS), 'intermediate': sum(h['i'] for h in ALL_HUBS), 'advanced': sum(h['a'] for h in ALL_HUBS)}
+TOPIC_HUBS = sum(len(c['hubs']) for c in TOPICS)
+
+quiz_by_topic = {c['name']: [] for c in TOPICS}
+for q in QUIZZES:
+    base = q['slug'][:-5] if q['slug'].endswith('-quiz') else q['slug']
+    t = QUIZ_TOPIC.get(q['title']) or hub_topic.get(base)
+    assert t in quiz_by_topic, 'quiz %r has no topic' % q['title']
+    quiz_by_topic[t].append(q)
+QUIZ_ORDER = [q for c in TOPICS for q in quiz_by_topic[c['name']]]
+QUIZ_TOPICS = sum(1 for c in TOPICS if quiz_by_topic[c['name']])
+_qm = sorted({q['mins'] for q in QUIZZES})
+QUIZ_MINS = ('%d minutes' % _qm[0]) if len(_qm) == 1 else ('%d to %d minutes' % (_qm[0], _qm[-1]))
+
+# ---------------- page sections ----------------
+def runs_bar():
+    return (f'<div class="exl-runs" id="exlRuns" data-v="anon" role="region" aria-label="Free plan">'
+            f'<div class="exl-in">'
+            f'<span class="exl-pill" data-anon>Free account</span>'
+            f'<span class="exl-rt" data-anon><b>{METER_LIMIT} graded exercises a month</b>, with your XP and progress saved</span>'
+            f'<span class="exl-pill" data-free>Free plan</span>'
+            f'<span class="exl-rt" data-free><b id="exlLeft">{METER_LIMIT} of {METER_LIMIT}</b> left this month <span class="exl-rr" id="exlReset"></span></span>'
+            f'<span class="exl-rgap"></span>'
+            f'<span class="exl-rn" data-free>Hubs you start stay open all month</span>'
+            f'<a class="exl-rl" href="/signin.html?next=%2Fexercises%2F" data-anon>Sign in</a>'
+            f'<a class="exl-rb" href="/signin.html?next=%2Fexercises%2F" data-anon>Create free account</a>'
+            f'<a class="exl-rb" href="/pricing.html" data-free>Go unlimited</a>'
+            f'</div></div>')
+
+
+def hero():
+    jumps = [('start', 'New to R', '/R-Beginner-Exercises.html', 'M5 8l4 4-4 4M12 16h7')] + \
+            [(g[0], g[1], '/exercises/#goal-' + g[0], g[2]) for g in GOALS]
+    tiles = ''.join(f'<a class="exl-jt" href="{h}" data-jt="{k}"><span class="exl-jti">{ico(d, 15)}</span><span class="exl-jtl">{esc(n)}</span></a>'
+                    for k, n, h, d in jumps)
+    return (
+        '<section class="exl-hero" aria-labelledby="exlH1"><div class="exl-hin">'
+        '<div class="exl-hl">'
+        '<h1 id="exlH1">The practice workbook</h1>'
+        '<p class="exl-lead">R sticks when you write it, not when you read about it. Each problem here checks your answer '
+        'the moment you run it, so you always know which skills you own and which need another rep.</p>'
+        f'<div class="exl-jump" id="exlJump">{tiles}</div>'
+        '</div>'
+        '<div class="exl-hright">'
+        '<div class="exl-back" aria-hidden="true"></div>'
+        '<div class="exl-photo"><img src="/www/img/practice-hero-1.jpg" width="1120" height="880" alt="" fetchpriority="high" decoding="async">'
+        '<span class="exl-duo" aria-hidden="true"></span><span class="exl-scrim" aria-hidden="true"></span></div>'
+        f'<span class="exl-chip"><span class="exl-chipi">{ico("M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 7v5l3 2", 13)}</span>7 minutes, between lectures</span>'
+        '<div class="exl-card" aria-label="Example problem">'
+        '<div class="exl-cr"><span>Predict the output</span><span class="exl-hard">Hard</span></div>'
+        '<pre class="exl-code"><code>x &lt;- c("10", "5", "20")\nas.numeric(factor(x))</code></pre>'
+        '<div class="exl-cr"><code class="exl-out">[1] 1 3 2</code><span class="exl-ok">Correct &middot; +50 XP</span></div>'
+        '</div>'
+        '</div>'
+        '</div></section>')
+
+
+def featured():
+    cards = []
+    for gid, gname, gicon, _all, slugs in GOALS:
+        hubs = [feat_by_slug[s] for s in slugs]
+        rows = ''.join(f'<a class="exl-gr" href="{url(h["href"])}" data-hub="{h["slug"]}" data-n="{h["n"]}">'
+                       f'<span class="exl-grt">{esc(clean_title(h["title"]))}</span><span class="exl-cnt">{h["n"]}</span></a>' for h in hubs)
+        cards.append(
+            f'<div class="exl-goal" id="goal-{gid}">'
+            f'<div class="exl-gh"><span class="exl-tile">{ico(gicon, 20)}</span><span><b class="exl-pj">{esc(gname)}</b>'
+            f'<span class="exl-meta">{len(hubs)} sets &middot; {num(sum(h["n"] for h in hubs))} problems</span></span></div>'
+            f'<div class="exl-gl">{rows}</div>'
+            f'<a class="exl-gf" href="{url(hubs[0]["href"])}" data-goal-first="{gid}">Open {esc(gname)} &rarr;</a></div>')
+    return ('<section class="exl-sec" id="featured" aria-labelledby="exlFeat">'
+            '<h2 id="exlFeat" class="exl-h2">Featured problem sets</h2>'
+            f'<p class="exl-sub">{len(feat_cat["hubs"])} hand-picked sets, grouped by what you&#39;re practicing for.</p>'
+            f'<div class="exl-goals">{"".join(cards)}</div></section>')
+
+
+def wall():
+    diff_rows = ''.join(
+        f'<div class="exl-dr"><span class="exl-dn"><i style="background:{col}"></i>{lab}</span>'
+        f'<span class="exl-dv"><b data-diff="{k}">0</b> / {num(DIFF_TOT[k])}</span>'
+        f'<span class="exl-bar"><i data-diffbar="{k}" style="background:{col}"></i></span></div>'
+        for k, lab, col in (('beginner', 'Easy', '#9FD3B6'), ('intermediate', 'Medium', '#4DB384'), ('advanced', 'Hard', '#0F3F2A')))
+    topics = ''.join(
+        f'<a class="exl-bti" href="#topic-{TOPIC_META[c["name"]][0]}" data-topic-link="{TOPIC_META[c["name"]][0]}">'
+        f'<span class="exl-btn"><i style="background:{TOPIC_META[c["name"]][1]}"></i>{esc(c["name"])}</span>'
+        f'<span class="exl-btv"><b data-tsolved="{TOPIC_META[c["name"]][0]}">0</b> / {num(sum(h["n"] for h in c["hubs"]))}</span>'
+        f'<span class="exl-bar"><i data-tbar="{TOPIC_META[c["name"]][0]}" style="background:{TOPIC_META[c["name"]][1]}"></i></span></a>'
+        for c in TOPICS)
+    return ('<section class="exl-sec" id="wall" aria-labelledby="exlWall">'
+            '<h2 id="exlWall" class="exl-h2">The Exercises Wall</h2>'
+            '<p class="exl-sub" id="exlWallSub">Sign in and every solve shows up here, by difficulty, by day and by topic.</p>'
+            '<div class="exl-wallc">'
+            '<div class="exl-tot">'
+            '<div class="exl-ring"><svg viewBox="0 0 140 140" aria-hidden="true"><circle cx="70" cy="70" r="60" class="exl-rt0"/>'
+            '<circle cx="70" cy="70" r="60" class="exl-rt1" id="exlRing" stroke-dasharray="0 377"/></svg>'
+            f'<span class="exl-rc"><b id="exlTot" class="exl-pj">0</b><span>of {num(TOT["exercises"])} solved</span></span></div>'
+            f'<div class="exl-diffs">{diff_rows}</div></div>'
+            '<div class="exl-cal"><div class="exl-calh"><b class="exl-pj" id="exlCalT">0 solves in the last 6 months</b>'
+            '<span id="exlCalM">0 active days &middot; longest streak 0 days</span></div>'
+            '<div class="exl-calg" id="exlCal" role="img" aria-label="Daily solves over the last 26 weeks"></div>'
+            '<div class="exl-leg"><span>Less</span><i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span>More</span></div></div>'
+            f'<div class="exl-bt"><span class="exl-btt">By topic</span><div class="exl-btg">{topics}</div></div>'
+            '</div></section>')
+
+
+def browse():
+    chips = ''.join(f'<a class="exl-chipt" href="#topic-{TOPIC_META[c["name"]][0]}" data-topic-link="{TOPIC_META[c["name"]][0]}">'
+                    f'<i style="background:{TOPIC_META[c["name"]][1]}"></i>{esc(c["name"])} <span>{len(c["hubs"])}</span></a>' for c in TOPICS)
+    cards = []
+    for ti, c in enumerate(TOPICS, 1):
+        tid, col, desc, _ = TOPIC_META[c['name']]
+        hubs = c['hubs']
+        probs = sum(h['n'] for h in hubs); xp = sum(h['xp'] for h in hubs)
+        rows = ''.join(
+            f'<a class="exl-hr" href="{url(h["href"])}" data-hub="{h["slug"]}" data-n="{h["n"]}" data-q="{esc(h["title"].lower())}">'
+            f'<span class="exl-hn">{ti}.{hi}</span>'
+            f'<span class="exl-hname"><span>{esc(h["title"])}</span></span>'
+            f'<span class="exl-db" aria-label="{h["b"]} easy, {h["i"]} medium, {h["a"]} hard">'
+            f'<i class="e" style="flex:{h["b"]}"></i><i class="m" style="flex:{h["i"]}"></i><i class="h" style="flex:{h["a"]}"></i></span>'
+            f'<span class="exl-hd"><b>0</b>/{h["n"]}</span><span class="exl-hx">{num(h["xp"])} XP</span></a>'
+            for hi, h in enumerate(hubs, 1))
+        quiz = ''.join(
+            f'<div class="exl-qs"><span class="exl-qsi">{ico(MEDAL, 17)}</span>'
+            f'<span class="exl-qst">Finished here? Take the <b>{esc(q["title"])}</b> ({q["mins"]} min) to check what stuck.</span>'
+            f'<a class="exl-qsb" href="{url(q["href"])}">Start quiz &rarr;</a></div>' for q in quiz_by_topic[c['name']])
+        cards.append(
+            f'<details class="exl-topic" id="topic-{tid}" data-topic="{tid}" style="--tc:{col}"{" open" if ti == 1 else ""}>'
+            f'<summary class="exl-th"><span class="exl-tn">{ti}</span><span class="exl-tt">'
+            f'<span class="exl-ttl"><b class="exl-pj">{esc(c["name"])}</b><span class="exl-meta">{len(hubs)} hubs &middot; {num(probs)} problems &middot; {num(xp)} XP</span></span>'
+            f'<span class="exl-td">{esc(desc)}</span>'
+            f'<span class="exl-tp"><span class="exl-bar"><i data-tbar2="{tid}"></i></span><span class="exl-tpv"><b data-tsolved2="{tid}">0</b> / {num(probs)} solved</span></span>'
+            f'</span><span class="exl-chev" aria-hidden="true"></span></summary>'
+            f'<div class="exl-tb"><div class="exl-thead" aria-hidden="true"><span>#</span><span>Hub</span>'
+            f'<span class="exl-dl"><i class="e"></i>Easy <i class="m"></i>Med <i class="h"></i>Hard</span><span>Done</span><span>XP</span></div>'
+            f'{rows}{quiz}</div></details>')
+    return ('<section class="exl-sec" id="browse" aria-labelledby="exlBrowse">'
+            '<h2 id="exlBrowse" class="exl-h2">Browse by topic</h2>'
+            f'<p class="exl-sub">{TOPIC_HUBS} hubs in {len(TOPICS)} topics. {QUIZ_TOPICS} of them end with a timed mastery quiz.</p>'
+            '<div class="exl-tool" id="exlTool">'
+            '<label class="exl-srch"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>'
+            f'<input id="exlQ" type="search" placeholder="Search {TOPIC_HUBS} hubs" aria-label="Search hubs" autocomplete="off"><kbd aria-hidden="true">/</kbd></label>'
+            f'<div class="exl-chips">{chips}</div></div>'
+            '<p class="exl-none" id="exlNone" hidden>No hub matches that search.</p>'
+            f'<div class="exl-topics">{"".join(cards)}</div></section>')
+
+
+def quizzes():
+    cards = ''.join(
+        f'<a class="exl-qc" href="{url(q["href"])}">{ico(QUIZ_ICONS.get(q["title"], MEDAL), 24, "exl-qci")}'
+        f'<span class="exl-qct"><b>{esc(q["title"])}</b><span>{esc(next(t for t, qs in quiz_by_topic.items() if q in qs))} &middot; {q["mins"]} min</span></span>'
+        f'<span class="exl-qcc" aria-hidden="true">&rsaquo;</span></a>' for q in QUIZ_ORDER)
+    return ('<section class="exl-quizzes" id="mastery-quizzes" aria-labelledby="exlQuiz">'
+            '<div class="exl-qh"><h2 id="exlQuiz" class="exl-h2">Mastery quizzes</h2>'
+            f'<p>{len(QUIZ_ORDER)} timed quizzes, {QUIZ_MINS} each. Each one also appears at the end of its topic above.</p></div>'
+            f'<div class="exl-qg">{cards}</div></section>')
+
+
+BODY = runs_bar() + hero() + '<div class="exl-wrap">' + featured() + wall() + browse() + quizzes() + '</div>'
+
+# Hub totals + topic for the client (progress math); a few KB.
+HUBDATA = {h['slug']: [h['n'], TOPIC_META[hub_topic[h['slug']]][0] if hub_topic[h['slug']] != FEATURED else ''] for h in ALL_HUBS}
 
 CSS = r"""
-:root{--chunk:#f8fafd;--sq:8px}
-html.dark{--chunk:#131b30}
-.a2-out{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--faint);font-feature-settings:"tnum";margin:0}
-.a2-out .pr{color:var(--green);opacity:.75;margin-right:6px;user-select:none}
-.pen{display:inline-flex;flex:none;color:var(--green)}
-.pen svg{width:15px;height:13px;overflow:visible}
-.pen path{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-.dmix{display:inline-flex;gap:9px;align-items:baseline;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mut);font-feature-settings:"tnum";justify-self:end}
-.dmix i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:3px}
-.dmix .g i{background:var(--green)}.dmix .o i{background:#e08a00}.dmix .r i{background:#c04343}
+:root{--exl-ink:#151816;--exl-body:#363D39;--exl-mut:#59605C;--exl-sub:#868C89;--exl-faint:#A6ADA9;
+ --exl-line:#E3E6E4;--exl-line2:#ECEEED;--exl-line3:#F0F2F1;--exl-s1:#FAFBFA;--exl-page:#F6F8F7;--exl-s3:#EEF1EF;--exl-card:#fff;
+ --exl-brand:#1F6B4A;--exl-brandh:#17553A;--exl-deep:#0F3F2A;--exl-mint:#E3F1E9;--exl-mint2:#CFE5D8;--exl-acc:#4DB384;
+ --exl-okbg:#E5F3EA;--exl-ok:#226B47;--exl-err:#A33B2E;--exl-nav:63px;--exl-runsh:0px;--exl-toolh:66px}
+html.dark{--exl-ink:#E8ECE9;--exl-body:#C9D1CC;--exl-mut:#AAB4AE;--exl-sub:#8D9791;--exl-faint:#6F7A74;
+ --exl-line:#26302B;--exl-line2:#1F2823;--exl-line3:#1B231F;--exl-s1:#0F1512;--exl-page:#0B110E;--exl-s3:#1B2620;--exl-card:#111714;
+ --exl-mint:#163322;--exl-mint2:#24503A;--exl-okbg:#163322;--exl-ok:#8FE0B4;--exl-brand:#6FCF9B;--exl-brandh:#8FE0B4}
+body{background:var(--exl-page)}
+footer.rsft h4{font-family:'IBM Plex Sans',-apple-system,'Segoe UI',Roboto,Arial,sans-serif}
+main.exl{display:block;font-family:'Source Sans 3',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;font-size:17px;line-height:1.55;color:var(--exl-ink);-webkit-font-smoothing:antialiased}
+main.exl *{box-sizing:border-box}
+main.exl a{color:inherit;text-decoration:none}
+main.exl a:focus-visible,main.exl summary:focus-visible,main.exl input:focus-visible{outline:2px solid var(--exl-brand);outline-offset:2px;border-radius:6px}
+main.exl svg{display:block;flex:none}
+.exl-pj,main.exl h1,main.exl .exl-h2{font-family:'Plus Jakarta Sans','Inter Tight',Inter,system-ui,sans-serif}
+.exl-wrap{max-width:1264px;margin:0 auto;padding:0 32px}
+.exl-sec{margin-top:80px;scroll-margin-top:calc(var(--exl-nav) + var(--exl-runsh) + 16px)}
+.exl-h2{font-weight:800;font-size:clamp(28px,3.4vw,38px);letter-spacing:-.02em;line-height:1.1;margin:0;color:var(--exl-ink)}
+.exl-sub{font-size:17.5px;color:var(--exl-mut);margin:8px 0 26px}
+.exl-meta{font-size:14px;color:var(--exl-sub);font-weight:400}
+.exl-bar{display:block;height:5px;border-radius:999px;background:var(--exl-s3);overflow:hidden}
+.exl-bar i{display:block;height:100%;width:0;border-radius:999px;background:var(--exl-brand);transition:width .5s ease}
 
-.a2-hero{padding:44px 0 0;display:grid;grid-template-columns:1.2fr .95fr;gap:40px;align-items:center}
-.a2-hero h1{font-family:'Inter Tight','Inter',sans-serif;font-size:40px;font-weight:700;letter-spacing:-.028em;margin:0}
-.a2-hero .dek{font-size:17px;color:var(--mut);margin:15px 0 0;max-width:32em;line-height:1.55}
-.a2-hero .a2-out{margin-top:16px;font-size:13px}
+/* runs bar (sticky under the navbar) */
+.exl-runs{position:sticky;top:var(--exl-nav);z-index:40;background:#0F3F2A;color:#fff;height:46px;white-space:nowrap;overflow:hidden}
+.exl-runs[data-v="none"]{display:none}
+body.state-pro .exl-runs[data-v="anon"]{display:none}
+.exl-runs .exl-in{max-width:1264px;margin:0 auto;padding:0 32px;height:100%;display:flex;align-items:center;gap:20px}
+.exl-runs[data-v="anon"] [data-free],.exl-runs[data-v="free"] [data-anon]{display:none!important}
+.exl-pill{font-size:12.5px;font-weight:700;border:1px solid rgba(255,255,255,.28);color:#CFE5D8;border-radius:999px;padding:3px 10px;flex:none}
+.exl-rt{font-size:15px;color:#CFE5D8;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.exl-rt b{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:16px;color:#fff}
+.exl-rt b.low{color:#F6B3AA}
+.exl-rr{color:#8FB9A2}
+.exl-rgap{margin-left:auto}
+.exl-rn{font-size:14px;color:#8FB9A2}
+.exl-rl{font-size:14.5px;color:#CFE5D8;font-weight:600}
+main.exl .exl-rl:hover{color:#fff}
+.exl-rb{background:#fff;color:#0F3F2A!important;font-size:14px;font-weight:700;padding:6px 14px;border-radius:9px;flex:none}
+.exl-rb:hover{background:#E3F1E9}
 
-.a3-demo{background:transparent;border:0;border-radius:0;padding:0}
-.a3-demo .webr-container{filter:drop-shadow(0 26px 40px rgba(13,20,38,.28))}
-.a3-demo .webr-code-block{border:1px solid #1e2a44;overflow:hidden}
-.a3-demo-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}
-.a3-demo-task{font-size:13.5px;color:var(--mut);line-height:1.5;margin:0 0 10px}
-.a3-demo-task strong{color:var(--ink)}
-.a3-demo .webr-code-block{border-radius:0}
-.a3-demo .webr-editor{min-height:52px;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.6;color:#e2e8f0;background:#0f172a;padding:10px 13px;white-space:pre-wrap}
-.a3-demo .webr-output{margin:0;border-top:.8px solid rgba(51,65,85,.5);background:#0f172a;color:#86efac;font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:8px 13px;white-space:pre-wrap}
-.a3-demo .webr-run-btn.pressed{transform:translateY(1px);filter:brightness(1.25)}
-.a3-demo-fb{margin-top:9px;font-size:13px;font-weight:600;color:var(--faint);min-height:19px;transition:color .4s}
-.a3-demo-fb.ok{color:var(--green)}
-.dc-caret{display:inline-block;width:8px;height:14px;background:#94a3b8;vertical-align:-2px;animation:dcblink 1.05s steps(1) infinite}
-@keyframes dcblink{50%{opacity:0}}
-.dc-dots{display:inline-flex;gap:4px;align-items:center;margin-left:auto}
-.dc-dots i{width:5px;height:5px;border-radius:50%;background:var(--line);transition:background .3s}
-.dc-dots i.on{background:var(--accent)}
-@media(prefers-reduced-motion:reduce){.dc-caret{display:none}}
+/* hero */
+.exl-hero{background-color:#121815;background-image:radial-gradient(rgba(77,179,132,.16) 1px,transparent 1.3px);background-size:14px 14px;color:#fff;padding:36px 0 44px}
+.exl-hin{max-width:1264px;margin:0 auto;padding:0 32px;display:flex;flex-wrap:wrap;gap:36px;align-items:center}
+.exl-hl{flex:1 1 320px;min-width:0}
+main.exl h1{font-weight:800;font-size:clamp(38px,5vw,56px);letter-spacing:-.03em;line-height:1.02;margin:0;color:#fff}
+.exl-lead{font-size:19px;color:#B8C7BF;max-width:540px;margin:18px 0 26px;line-height:1.5}
+.exl-jump{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-width:460px}
+.exl-jt{display:flex;align-items:center;gap:10px;background:#1B2620;border:1px solid #26332C;border-radius:12px;padding:8px 10px 8px 8px;transition:border-color .15s}
+.exl-jt:hover{border-color:#4DB384}
+.exl-jti{width:28px;height:28px;border-radius:8px;background:#121815;border:1px solid #26332C;color:#8FE0B4;display:grid;place-items:center;flex:none}
+.exl-jtl{font-size:14.5px;font-weight:700;line-height:1.25;color:#fff}
+.exl-hright{position:relative;flex:1.25 1 420px;max-width:560px;height:440px}
+.exl-back{position:absolute;top:-14px;right:-14px;width:62%;height:58%;border-radius:22px;background-color:#1F6B4A;background-image:radial-gradient(rgba(255,255,255,.22) 1px,transparent 1.3px);background-size:12px 12px}
+.exl-photo{position:absolute;inset:0;border-radius:22px;overflow:hidden;background:#0F3F2A;box-shadow:0 40px 80px -30px rgba(0,0,0,.7)}
+.exl-photo::after{content:'';position:absolute;inset:0;border-radius:22px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.exl-photo img{width:100%;height:100%;object-fit:cover;object-position:50% 48%;filter:grayscale(1) contrast(1.08) brightness(1.06);display:block}
+.exl-duo{position:absolute;inset:0;background:#2E8A5E;mix-blend-mode:color;opacity:.9}
+.exl-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(15,63,42,0) 55%,rgba(11,26,18,.55) 100%)}
+.exl-chip{position:absolute;top:18px;left:-18px;display:inline-flex;align-items:center;gap:8px;background:#fff;color:#151816;border-radius:999px;padding:7px 14px 7px 8px;font-size:14px;font-weight:600;box-shadow:0 14px 30px -12px rgba(0,0,0,.5)}
+.exl-chipi{width:22px;height:22px;border-radius:50%;background:#1F6B4A;color:#fff;display:grid;place-items:center}
+.exl-card{position:absolute;bottom:22px;left:-22px;width:min(270px,calc(100% - 20px));background:#fff;color:#151816;border-radius:16px;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;box-shadow:0 30px 60px -20px rgba(0,0,0,.6)}
+.exl-cr{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;font-weight:600;color:#59605C}
+.exl-hard{color:#A33B2E}
+main.exl .exl-code{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.6;background:#F6F8F7;border-radius:8px;padding:6px 10px;margin:0;white-space:pre;overflow:hidden;color:#151816}
+.exl-out{font-family:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;font-size:14px;font-weight:500;color:#151816;background:none;padding:0}
+.exl-ok{font-size:13px;font-weight:700;background:#E5F3EA;color:#226B47;border-radius:999px;padding:3px 10px;white-space:nowrap}
 
-.a2-bench{display:grid;grid-template-columns:1.35fr 1fr .82fr;gap:15px;margin:26px 0 0;align-items:stretch}
-.a2-card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:0;padding:15px 17px;display:flex;flex-direction:column;gap:8px}
-.a2-card[hidden]{display:none}
-.a2-card .k{font-size:12.5px;font-weight:600;color:var(--faint)}
-.a2-card .t{font-family:'Inter Tight','Inter',sans-serif;font-size:17px;font-weight:600;line-height:1.3}
-.a2-card .s{font-size:12.5px;color:var(--mut)}
-.a2-card .row{display:flex;align-items:center;gap:10px;margin-top:auto}
-.a2-mini{display:flex;gap:3px;flex-wrap:wrap}
-.a2-mini i{width:12px;height:12px;border-radius:2px;border:1px solid var(--border);display:inline-block}
-.a2-mini i.s{background:var(--green);border-color:var(--green)}
-.a2-goal{display:flex;align-items:center;gap:13px}
-.a2-goal .nums{font-size:12px;color:var(--mut);line-height:1.7}
-.a2-goal .nums b{font-family:'Inter Tight','Inter',sans-serif;font-size:15px;color:var(--ink)}
+/* featured */
+.exl-goals{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px}
+.exl-goal{background:var(--exl-card);border:1px solid var(--exl-line);border-radius:18px;padding:22px 20px 18px;display:flex;flex-direction:column;scroll-margin-top:calc(var(--exl-nav) + var(--exl-runsh) + 16px)}
+.exl-goal.exl-flash{animation:exlflash 1.6s ease}
+@keyframes exlflash{0%,40%{box-shadow:0 0 0 3px var(--exl-acc)}100%{box-shadow:0 0 0 0 transparent}}
+.exl-gh{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.exl-gh b{display:block;font-size:19px;font-weight:800;letter-spacing:-.01em;line-height:1.2}
+.exl-tile{width:44px;height:44px;border-radius:11px;background:var(--exl-mint);border:1px solid var(--exl-mint2);color:#0F3F2A;display:grid;place-items:center;flex:none}
+html.dark .exl-tile{color:#CFEEDD}
+.exl-gl{border-top:1px solid var(--exl-line2)}
+.exl-gr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--exl-line2);font-size:15.5px;font-weight:600;color:var(--exl-body)}
+main.exl .exl-gr:hover{color:var(--exl-brand)}
+.exl-cnt{font-size:12px;font-weight:700;border-radius:999px;padding:1px 8px;background:var(--exl-s3);color:var(--exl-mut);flex:none}
+.exl-cnt.prog{background:var(--exl-okbg);color:var(--exl-ok)}
+.exl-cnt.done{background:var(--exl-brand);color:#fff}
+html.dark .exl-cnt.done{color:#0B110E}
+.exl-gf{margin-top:auto;padding-top:14px;font-size:15px;font-weight:700;color:var(--exl-brand)!important}
 
-.a2-wallwrap{margin:36px 0 0;background:var(--card);border:1px solid var(--line);border-radius:0;padding:20px 24px 22px;text-align:center}
-.a2-wallwrap h2{font-family:'Inter Tight','Inter',sans-serif;font-size:23px;font-weight:700;margin:0;letter-spacing:-.02em}
-.a2-wallwrap .a2-out{margin:6px 0 0}
-.a2-legend{display:flex;gap:15px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--faint);margin:12px 0 16px;flex-wrap:wrap;justify-content:center}
-.a2-legend i{width:10px;height:10px;border-radius:2.5px;display:inline-block;margin-right:5px;vertical-align:-1px}
-.a2-wall-clip{max-height:270px;overflow:hidden;position:relative;min-height:120px;text-align:left}
-.a2-wallwrap.open .a2-wall-clip{max-height:none}
-.a2-wall-clip::after{content:'';position:absolute;left:0;right:0;bottom:0;height:56px;background:linear-gradient(to bottom,transparent,var(--card));pointer-events:none}
-.a2-wallwrap.open .a2-wall-clip::after{display:none}
-.a2-wall-more{margin:10px 0 0;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--card);font:inherit;font-size:12.5px;font-weight:600;color:var(--mut);border-radius:0;padding:6px 14px;cursor:pointer}
-.a2-wall-more:hover{border-color:var(--accent);color:var(--accent)}
-.a2-wband{margin:0 0 10px}
-.a2-wband .wh{display:flex;align-items:baseline;gap:10px;margin:0 0 5px}
-.a2-wband .wh a{font-family:'Inter Tight','Inter',sans-serif;font-size:14px;font-weight:600}
-.a2-wband .wh a:hover{color:var(--accent)}
-.a2-wband .wh .a2-out{font-size:10.5px}
-.a2-sqs{display:flex;flex-wrap:wrap;gap:2px}
-.a2-sqs a{width:var(--sq);height:var(--sq);border-radius:2.5px;display:block}
-.a2-wallwrap{--sqe:color-mix(in srgb,var(--ink) 8%,var(--card))}
-.a2-sqs a.b,.a2-sqs a.i,.a2-sqs a.a{background:var(--sqe)}
-.a2-sqs a.s{background:var(--wc,var(--green))}
-.a2-sqs a:hover{outline:2px solid var(--accent);outline-offset:1px}
-@media (prefers-reduced-motion: no-preference){
-.a2-wallwrap.wave .a2-sqs a:not(.s){animation:sqwave .9s ease both}
+/* wall */
+.exl-wallc{background:var(--exl-card);border:1px solid var(--exl-line);border-radius:18px;display:flex;flex-wrap:wrap;overflow:hidden}
+.exl-tot{flex:1 1 340px;padding:26px;border-right:1px solid var(--exl-line2);display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+.exl-ring{position:relative;width:140px;height:140px;flex:none}
+.exl-ring svg{width:140px;height:140px;transform:rotate(-90deg)}
+.exl-rt0{fill:none;stroke:var(--exl-s3);stroke-width:10}
+.exl-rt1{fill:none;stroke:var(--exl-brand);stroke-width:10;stroke-linecap:round;transition:stroke-dasharray .6s ease}
+.exl-rt1[stroke-dasharray^="0 "]{visibility:hidden}
+.exl-rc{position:absolute;inset:0;display:grid;place-content:center;text-align:center;line-height:1.1}
+.exl-rc b{font-size:30px;font-weight:800}
+.exl-rc span{font-size:13px;color:var(--exl-sub);margin-top:2px}
+.exl-diffs{flex:1 1 180px;display:grid;gap:14px;min-width:0}
+.exl-dr{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+.exl-dn{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.exl-dn i,.exl-btn i{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none}
+.exl-dv{font-size:14px;color:var(--exl-sub)}
+.exl-dv b{color:var(--exl-ink)}
+.exl-dr .exl-bar{grid-column:1/-1}
+.exl-cal{flex:2 1 460px;padding:24px 26px;min-width:0}
+.exl-calh{display:flex;justify-content:space-between;align-items:baseline;gap:6px 16px;flex-wrap:wrap;margin-bottom:14px}
+.exl-calh b{font-size:18px;font-weight:800}
+.exl-calh span{font-size:14px;color:var(--exl-sub)}
+.exl-calg{display:grid;grid-template-columns:30px repeat(26,minmax(0,1fr));grid-template-rows:auto repeat(7,auto);gap:3px;min-height:150px}
+.exl-calg .exl-mo{grid-row:1;font-size:11.5px;color:var(--exl-sub);white-space:nowrap;line-height:1.4}
+.exl-calg .exl-dy{grid-column:1;font-size:11.5px;color:var(--exl-sub);line-height:1;align-self:center}
+.exl-calg .c{aspect-ratio:1;border-radius:3px;background:var(--exl-s3)}
+.exl-calg .c.f{background:transparent}
+.exl-calg .c.l1,.exl-leg .l1{background:#CFE5D8}
+.exl-calg .c.l2,.exl-leg .l2{background:#8FCCAA}
+.exl-calg .c.l3,.exl-leg .l3{background:#3E9B6E}
+.exl-calg .c.l4,.exl-leg .l4{background:#0F3F2A}
+html.dark .exl-calg .c.l4,html.dark .exl-leg .l4{background:#8FE0B4}
+.exl-calg .c.t{box-shadow:inset 0 0 0 1.5px var(--exl-brand)}
+.exl-leg{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:10px;font-size:12px;color:var(--exl-sub)}
+.exl-leg i{width:11px;height:11px;border-radius:3px;background:var(--exl-s3);display:inline-block}
+.exl-leg span{margin:0 3px}
+.exl-bt{flex:1 1 100%;border-top:1px solid var(--exl-line2);padding:20px 26px 22px}
+.exl-btt{display:block;font-weight:700;font-size:15px;margin-bottom:12px}
+.exl-btg{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px 32px}
+.exl-bti{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+.exl-btn{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14.5px}
+.exl-btv{font-size:13.5px;color:var(--exl-sub)}
+.exl-btv b{color:var(--exl-ink);font-weight:600}
+.exl-bti .exl-bar{grid-column:1/-1;height:4px}
+main.exl .exl-bti:hover .exl-btn{color:var(--exl-brand)}
+
+/* browse */
+.exl-tool{position:sticky;top:calc(var(--exl-nav) + var(--exl-runsh));z-index:30;background:var(--exl-page);padding:12px 0;border-bottom:1px solid var(--exl-line);display:flex;gap:12px 16px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.exl-srch{position:relative;flex:1 1 260px;max-width:320px;display:flex;align-items:center;height:42px;border:1px solid var(--exl-line);border-radius:12px;background:var(--exl-card);padding:0 10px 0 36px}
+.exl-srch svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--exl-sub)}
+.exl-srch input{border:0;outline:0;background:transparent;font:inherit;font-size:15.5px;color:var(--exl-ink);width:100%;min-width:0;height:100%}
+.exl-srch kbd{font-family:inherit;font-size:12px;border:1px solid var(--exl-line);border-radius:6px;padding:0 6px;color:var(--exl-sub);background:var(--exl-s1)}
+.exl-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 400px}
+.exl-chipt{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--exl-line);background:var(--exl-card);border-radius:999px;padding:4px 11px;font-size:14px;font-weight:600;white-space:nowrap}
+.exl-chipt i{width:9px;height:9px;border-radius:3px}
+.exl-chipt span{color:var(--exl-sub);font-weight:400}
+main.exl .exl-chipt:hover{border-color:var(--exl-brand)}
+.exl-none{color:var(--exl-mut);margin:6px 0 18px}
+.exl-topics{display:grid;gap:12px}
+.exl-topic{background:var(--exl-card);border:1px solid var(--exl-line);border-radius:18px;overflow:hidden;scroll-margin-top:calc(var(--exl-nav) + var(--exl-runsh) + var(--exl-toolh) + 12px)}
+.exl-topic[hidden]{display:none}
+.exl-th{list-style:none;cursor:pointer;display:grid;grid-template-columns:48px minmax(0,1fr) 36px;gap:18px;align-items:center;padding:20px 22px}
+.exl-th::-webkit-details-marker{display:none}
+.exl-tn{width:48px;height:48px;border-radius:12px;background:var(--tc);color:#fff;display:grid;place-items:center;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:19px}
+.exl-tt{display:grid;gap:4px;min-width:0}
+.exl-ttl{display:flex;align-items:baseline;gap:6px 12px;flex-wrap:wrap}
+.exl-ttl b{font-size:21px;font-weight:800;letter-spacing:-.01em}
+.exl-td{font-size:15.5px;color:var(--exl-mut)}
+.exl-tp{display:flex;align-items:center;gap:12px;margin-top:4px}
+.exl-tp .exl-bar{flex:0 1 320px;height:6px}
+.exl-tp .exl-bar i{background:var(--tc)}
+.exl-tpv{font-size:13.5px;color:var(--exl-sub);white-space:nowrap}
+.exl-tpv b{color:var(--exl-ink);font-weight:600}
+.exl-chev{width:36px;height:36px;border:1px solid var(--exl-line);border-radius:10px;position:relative}
+.exl-chev::before{content:'';position:absolute;left:50%;top:50%;width:7px;height:7px;border-right:1.8px solid var(--exl-mut);border-bottom:1.8px solid var(--exl-mut);transform:translate(-50%,-70%) rotate(45deg);transition:transform .2s}
+.exl-topic[open] .exl-chev::before{transform:translate(-50%,-30%) rotate(-135deg)}
+.exl-tb{border-top:1px solid var(--exl-line2)}
+.exl-thead,.exl-hr{display:grid;grid-template-columns:52px minmax(0,1fr) 170px 76px 84px;gap:12px;align-items:center;padding:0 22px}
+.exl-thead{background:var(--exl-s1);font-size:12.5px;font-weight:700;color:var(--exl-sub);height:38px;border-bottom:1px solid var(--exl-line2)}
+.exl-thead span:nth-child(4),.exl-thead span:nth-child(5){text-align:right}
+.exl-dl{display:flex;align-items:center;gap:5px;font-weight:600}
+.exl-dl i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-left:4px}
+.exl-dl i:first-child{margin-left:0}
+.exl-db .e,.exl-dl .e{background:#9FD3B6}.exl-db .m,.exl-dl .m{background:#4DB384}.exl-db .h,.exl-dl .h{background:#0F3F2A}
+html.dark .exl-db .h,html.dark .exl-dl .h{background:#8FE0B4}
+.exl-hr{min-height:48px;border-bottom:1px solid var(--exl-line3);font-size:15.5px;transition:background .12s}
+main.exl .exl-hr:hover{background:#F6FAF7}
+html.dark main.exl .exl-hr:hover{background:#151E19}
+.exl-hr[hidden]{display:none}
+.exl-hn{font-size:13px;color:var(--exl-sub);font-weight:600}
+.exl-hname{display:flex;align-items:center;gap:8px;min-width:0;font-weight:600;color:var(--exl-ink)}
+.exl-hname>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exl-done{font-size:11.5px;font-weight:700;background:var(--exl-brand);color:#fff;border-radius:999px;padding:1px 8px;flex:none}
+html.dark .exl-done{color:#0B110E}
+.exl-db{display:flex;gap:2px;height:8px;border-radius:999px;overflow:hidden}
+.exl-db i{display:block;height:100%}
+.exl-hd{text-align:right;font-size:14.5px;color:var(--exl-sub)}
+.exl-hd b{font-weight:600}
+.exl-hd.done{color:var(--exl-brand);font-weight:700}
+.exl-hd.done b{font-weight:700}
+.exl-hx{text-align:right;font-size:14px;color:var(--exl-sub)}
+.exl-qs{display:flex;align-items:center;gap:14px;margin:12px 22px;background-color:#121815;background-image:radial-gradient(rgba(77,179,132,.16) 1px,transparent 1.3px);background-size:14px 14px;color:#E1EAE5;border-radius:14px;padding:14px 16px 14px 18px}
+.exl-qs+.exl-qs{margin-top:-2px}
+.exl-qs:last-child{margin-bottom:22px}
+.exl-qsi{width:34px;height:34px;border-radius:9px;background:#1B2620;border:1px solid #26332C;color:#4DB384;display:grid;place-items:center;flex:none}
+.exl-qst{flex:1;font-size:15px;min-width:0}
+.exl-qst b{color:#fff}
+.exl-qsb{background:#fff;color:#0F3F2A!important;font-size:14px;font-weight:700;padding:8px 14px;border-radius:9px;white-space:nowrap;flex:none}
+.exl-qsb:hover{background:#E3F1E9}
+
+/* mastery quizzes */
+.exl-quizzes{margin-top:80px;background-color:#121815;background-image:radial-gradient(rgba(77,179,132,.16) 1px,transparent 1.3px);background-size:14px 14px;border-radius:24px;padding:40px 36px;color:#fff;scroll-margin-top:calc(var(--exl-nav) + var(--exl-runsh) + 16px)}
+.exl-quizzes .exl-h2{color:#fff}
+.exl-qh p{color:#B8C7BF;font-size:17px;margin:10px 0 26px;max-width:640px}
+.exl-qg{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:10px}
+.exl-qc{display:flex;align-items:center;gap:14px;background:#1B2620;border:1px solid #26332C;border-radius:14px;padding:16px 16px 16px 18px;transition:border-color .15s}
+.exl-qc:hover{border-color:#4DB384}
+.exl-qci{color:#4DB384}
+.exl-qct{flex:1;min-width:0;display:grid;line-height:1.3}
+.exl-qct b{font-size:15.5px;font-weight:700;color:#fff}
+.exl-qct span{font-size:13.5px;color:#8FA79A;margin-top:3px}
+.exl-qcc{color:#8FA79A;font-size:20px}
+
+/* responsive */
+@media (max-width:900px){.exl-tot{border-right:0;border-bottom:1px solid var(--exl-line2)}}
+@media (max-width:850px){
+ .exl-hright{flex:1 1 100%;max-width:none;height:360px;margin:0 8px 0 14px}
 }
-@keyframes sqwave{0%,100%{background:var(--sqe)}45%{background:var(--wc)}}
-
-.sh-wrap{margin:34px calc(50% - 50vw) 0;padding:28px calc(50vw - 50%) 30px;background:#101b33;position:relative}
-.sh-wrap::after{content:"";position:absolute;inset:0;background:radial-gradient(700px 260px at 85% -30%,rgba(127,170,255,.15),transparent);pointer-events:none}
-.sh-head,.sh-rail{position:relative;z-index:1}
-body{overflow-x:clip}
-body.searching .sh-wrap{display:none}
-.sh-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
-.sh-head h2{font-family:'Inter Tight','Inter',sans-serif;font-size:20px;font-weight:700;margin:0;letter-spacing:-.01em;color:#fff}
-.sh-rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:10px;scrollbar-color:rgba(255,255,255,.22) rgba(255,255,255,.05);scrollbar-width:thin}
-.sh-rail::-webkit-scrollbar{height:8px}
-.sh-rail::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:4px}
-.sh-rail::-webkit-scrollbar-track{background:rgba(255,255,255,.05)}
-.sh-card{scroll-snap-align:start;flex:0 0 205px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:0;padding:13px 15px;display:flex;flex-direction:column;gap:7px;transition:border-color .15s,background .15s}
-.sh-card:hover{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.085)}
-.sh-card .t{font-family:'Inter Tight','Inter',sans-serif;font-size:14.5px;font-weight:600;line-height:1.3;color:#fff;text-decoration:none}
-.sh-card .t:hover{color:#9dbbff}
-.sh-card .n{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b9cc0}
-.sh-ring{width:40px;height:40px;position:relative}
-.sh-ring svg{transform:rotate(-90deg)}
-.sh-ring svg circle:first-of-type{stroke:rgba(255,255,255,.18)}
-.sh-ring svg circle:last-of-type{stroke:var(--rc,#7faaff)}
-.sh-ring .v{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#cdd9f2}
-.sh-ring .v.ok{color:#34d399;font-size:13px;font-weight:700}
-
-.xp-fly{position:fixed;z-index:200;background:#0f8a5f;color:#fff;font:600 12px 'IBM Plex Mono',monospace;padding:4px 10px;border-radius:99px;transition:transform .95s cubic-bezier(.45,-.05,.25,1),opacity .95s ease;pointer-events:none;box-shadow:0 6px 18px rgba(15,138,95,.35)}
-.a2-card.xp-hit{border-color:#0f8a5f;box-shadow:0 0 0 3px rgba(15,138,95,.22);transition:box-shadow .3s,border-color .3s}
-.tdfly{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#0f8a5f;font-weight:700;opacity:1;transition:opacity 1.4s ease .4s}
-.tdfly.out{opacity:0}
-
-.a2-catnav{position:sticky;top:62px;z-index:40;background:var(--mast);backdrop-filter:blur(8px);margin:30px -24px 0;padding:9px 24px;border-bottom:1px solid var(--line);display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:none}
-.a2-catnav::-webkit-scrollbar{display:none}
-.a2-catnav a.chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;font-size:12.5px;font-weight:600;color:var(--mut);border:1px solid transparent;white-space:nowrap}
-.a2-catnav a.chip .d{width:8px;height:8px;border-radius:50%;flex:none}
-.a2-catnav a.chip .c{font-family:'IBM Plex Mono',monospace;font-weight:400;font-size:11px;color:var(--faint)}
-.a2-catnav a.chip:hover{background:var(--navy-soft)}
-.a2-catnav a.chip.on{border-color:var(--border);background:var(--card);color:var(--ink)}
-.a2-qwrap{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:99px;padding:5px 12px;flex:none}
-.a2-qwrap svg{color:var(--faint);flex:none}
-.a2-qwrap input{border:0;outline:0;background:none;font:inherit;font-size:13px;color:var(--ink);width:190px}
-.a2-qwrap kbd{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 5px}
-.a2-qcount{display:none;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--faint);margin:14px 0 0}
-body.searching .a2-qcount{display:block}
-
-.a2-sec{margin:40px 0 0;background:var(--card);border:1px solid var(--line);border-radius:0;padding:0 24px 18px;overflow:hidden;scroll-margin-top:120px}
-.a2-sech{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;--acc:transparent;margin:0 -24px 0;padding:18px 24px 13px;background:color-mix(in srgb,var(--acc) 6%,var(--card));border-bottom:1px solid var(--line)}
-.a2-sech .d{width:10px;height:10px;border-radius:50%;flex:none;align-self:center}
-.a2-sech h2{font-family:'Inter Tight','Inter',sans-serif;font-size:22px;font-weight:700;margin:0;letter-spacing:-.02em}
-.a2-sech .a2-out{margin-left:2px}
-.a2-sech .bar{flex-basis:100%;height:3px;border-radius:99px;background:var(--line);margin-top:9px;overflow:hidden}
-.a2-sech .bar i{display:block;height:100%;border-radius:99px;width:0%}
-.a2-intro{color:var(--mut);font-size:14px;margin:13px 0 8px;max-width:56em}
-.a2-rows{position:relative;padding-left:34px}
-.a2-hub{border-bottom:1px solid var(--line)}
-.a2-hub:last-child{border-bottom:0}
-.a2-hubrow{display:grid;grid-template-columns:16px minmax(0,1fr) 100px 64px 80px 30px;gap:10px;align-items:center;padding:10px 2px;position:relative}
-.a2-hubrow .mnum{position:absolute;left:-34px;width:22px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--faint);font-feature-settings:"tnum";user-select:none}
-.a2-tog{width:28px;height:28px;border:1px solid var(--border);background:var(--card);border-radius:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--mut);padding:0}
-.a2-tog:hover{border-color:var(--accent);color:var(--accent)}
-.a2-tog svg{width:13px;height:13px;transition:transform .16s var(--ease)}
-.a2-hub.open .a2-tog svg{transform:rotate(180deg)}
-.a2-hubrow .st{width:14px;height:14px;border:1.4px solid var(--border);border-radius:50%}
-.a2-hubrow .st.part{border-color:var(--accent);background:conic-gradient(var(--accent) var(--pct),transparent 0)}
-.a2-hubrow .t{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.a2-hubrow .t a:hover{color:var(--accent);text-decoration:underline}
-.a2-hubrow .num{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--faint);text-align:right;font-feature-settings:"tnum";white-space:nowrap}
-.a2-hub.done .a2-hubrow .t{color:var(--faint);font-weight:500}
-.a2-hub.done .a2-hubrow .mnum{text-decoration:line-through;opacity:.6}
-.a2-hd{display:grid;grid-template-columns:16px minmax(0,1fr) 100px 64px 80px 30px;gap:10px;padding:4px 2px 6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
-.a2-hd span:nth-child(n+3){text-align:right}
-
-.a2-body{display:none;margin:0 2px 13px;background:var(--chunk);border:1px solid var(--line);border-radius:0;padding:13px 15px}
-.a2-hub.open .a2-body{display:block}
-.a2-blurb{font-size:13px;color:var(--mut);line-height:1.55;max-width:56em;margin:0 0 10px}
-.a2-cs{margin:0 0 10px}
-.a2-cs .sh{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--faint);margin:0 0 6px}
-.a2-cs .sh .h{color:var(--ink);font-weight:600}
-.a2-chips{display:flex;flex-wrap:wrap;gap:2px 6px}
-.a2-chips a{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 2px;border-radius:4px;font-feature-settings:"tnum";opacity:0;animation:a2in .18s var(--ease) forwards}
-@keyframes a2in{to{opacity:1}}
-@media(prefers-reduced-motion:reduce){.a2-chips a{animation:none;opacity:1}}
-.a2-chips a .br{color:var(--faint);opacity:.55}
-.a2-chips a.b{color:var(--green)}.a2-chips a.i{color:var(--amber)}.a2-chips a.a{color:var(--red)}
-.a2-chips a.solved{background:var(--green);color:#fff;padding:3px 6px}
-.a2-chips a.solved .br{color:#fff;opacity:.7}
-.a2-chips a:hover{text-decoration:underline}
-.a2-act{display:flex;gap:11px;align-items:center;margin-top:11px}
-.a2-act .open-hub{font-size:12.5px;font-weight:600;color:var(--accent)}
-.a2-act .a2-out{margin-left:auto}
-
-.a2-pmatch{margin:0 0 10px 30px;padding:0;list-style:none}
-.a2-pmatch li{margin:0 0 5px}
-.a2-pmatch a{display:flex;gap:8px;align-items:baseline;font-size:13px;color:var(--mut)}
-.a2-pmatch a:hover{color:var(--accent)}
-.a2-pmatch .pn{font-family:'IBM Plex Mono',monospace;font-size:10.5px;flex:none;min-width:28px;text-align:right}
-.a2-pmatch mark{background:var(--accent-soft);color:var(--ink);border-radius:2px;padding:0}
-.a2-pmatch .pn.b{color:var(--green)}.a2-pmatch .pn.i{color:var(--amber)}.a2-pmatch .pn.a{color:var(--red)}
-
-.a2-quiz{display:flex;align-items:center;gap:12px;border:1px dashed var(--border);border-radius:0;padding:11px 14px;margin:14px 0 0}
-.a2-quiz svg{color:var(--amber);flex:none}
-.a2-quiz .qt{font-size:13.5px}.a2-quiz .qt b{font-family:'Inter Tight','Inter',sans-serif}
-.a2-quiz .go{margin-left:auto;flex:none}
-body.searching .a2-hub.qhide,body.searching .a2-sec.qhide,body.searching .a2-quiz,body.searching .a2-wallwrap,body.searching .a2-bench,body.searching .a2-hero .a3-demo{display:none}
-.a2-note{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--faint);margin:14px 0 0}
-
-@media(max-width:900px){.a2-hero{grid-template-columns:1fr;gap:26px}.a2-bench{grid-template-columns:1fr}}
-@media(max-width:860px){
-.a2-hd{display:none}
-.a2-hubrow{grid-template-columns:16px minmax(0,1fr) 74px 30px;row-gap:3px}
-.a2-hubrow .dmix,.a2-hubrow .num:not(.probs){display:none}
-.a2-hubrow .num.probs::after{content:' problems'}
-.a2-rows{padding-left:0}.a2-hubrow .mnum{display:none}
-.a2-qwrap input{width:120px}
-.a2-sec{padding:0 14px 16px}.a2-sech{margin:0 -14px 0;padding:16px 14px 12px}
+@media (max-width:720px){
+ .exl-wrap,.exl-hin,.exl-runs .exl-in{padding-left:16px;padding-right:16px}
+ .exl-runs .exl-in{gap:12px}
+ .exl-rn{display:none!important}
+ .exl-rl{display:none!important}
+ .exl-chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;flex-basis:100%;padding-bottom:2px}
+ .exl-chips::-webkit-scrollbar{display:none}
+ .exl-srch{max-width:none}
+ .exl-th{grid-template-columns:40px minmax(0,1fr) 30px;gap:12px;padding:16px}
+ .exl-tn{width:40px;height:40px;font-size:16px}
+ .exl-chev{width:30px;height:30px}
+ .exl-quizzes{padding:30px 18px;border-radius:18px}
+ .exl-qs{flex-wrap:wrap;margin:12px 16px}
+ .exl-tot,.exl-cal,.exl-bt{padding-left:18px;padding-right:18px}
+ .exl-sec,.exl-quizzes{margin-top:56px}
 }
-"""
-
-PEN = '<span class="pen"><svg viewBox="0 0 15 13"><path d="M2 7.4 L5.6 11 L13 2.6"/></svg></span>'
-
-def demo_block():
-    return """
-<div class="a3-demo" id="demoCard" aria-label="Live demo: a real exercise solving itself">
-  <div class="a3-demo-head">
-    <span class="dc-dots" aria-hidden="true"><i class="on"></i><i></i><i></i></span>
-  </div>
-  <p class="a3-demo-task"><strong>Task:</strong> <span id="dcQ">Keep only the values greater than 10, then return their mean.</span></p>
-  <div class="webr-container">
-    <div class="webr-code-block">
-      <div class="webr-header">
-        <div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn</span></div>
-        <div class="webr-header-right"><button class="btn btn-sm btn-primary webr-run-btn" id="dcRun" type="button">&#9654; Run</button></div>
-      </div>
-      <div class="webr-editor" data-language="r"><span class="cl" id="dcSetup">x &lt;- c(4, 19, 7, 42, 23)</span>
-<span class="cl"><span id="dcTyped"></span><span class="dc-caret" id="dcCaret"></span></span></div>
-      <pre class="webr-output" id="dcOut" hidden></pre>
-    </div>
-  </div>
-  <div class="a3-demo-fb" id="dcVerdict" role="status" aria-live="off">&nbsp;</div>
-</div>"""
-
-def bench():
-    # suggested first hub: the most beginner-leaning set in the catalog
-    sug = None
-    best = -1.0
-    for c in CATS:
-        for h in c['hubs']:
-            if h['n'] and (h['b'] / h['n']) > best:
-                best = h['b'] / h['n']
-                sug = (c, h)
-    sc, sh = sug
-    return f"""
-<section class="a2-bench reveal" aria-label="Your desk">
-  <div class="a2-card" id="benchCont" hidden>
-    <span class="k">Continue where you left off</span>
-    <span class="t" id="bcT"></span>
-    <span class="s" id="bcS"></span>
-    <div class="a2-mini" id="bcMini" aria-hidden="true"></div>
-    <div class="row"><a class="btn btn-primary btn-sm" id="bcGo" href="#">Resume <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a>
-    <span class="a2-out" id="bcXp"></span></div>
-  </div>
-  <div class="a2-card" id="benchStart">
-    <span class="t">Start with {esc(sh['title'])}</span>
-    <span class="s">{sh['b']} of {sh['n']} problems are beginner level. A gentle first set in {sc['name']}. Free, no account needed.</span>
-    <div class="row"><a class="btn btn-primary btn-sm" href="/{sh['href']}">Start solving <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a></div>
-  </div>
-  <div class="a2-card" id="benchFeat">
-    <span class="t">R Interview Questions (Top 50)</span>
-    <span class="s">The 50 problems interviewers actually ask, from vector gotchas to model output. All auto-graded.</span>
-    <div class="row"><a class="btn btn-primary btn-sm" href="/R-Interview-Questions.html">Take it on <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a></div>
-  </div>
-  <div class="a2-card" id="benchToday">
-    <span class="t" id="tdT">Start your streak</span>
-    <span class="s" id="tdS">Anything you solve today counts here.</span>
-    <div class="a2-goal">
-      <div class="nums" id="tdNums"></div>
-    </div>
-  </div>
-</section>"""
-
-def shelf():
-    feat = next((c for c in CATS if c['name'] == FEATURED), None)
-    if not feat:
-        return ''
-    # shelf order = family order (RING insertion order): interview prep, fluency, depth
-    order = {s: i for i, s in enumerate(RING)}
-    hubs = sorted(feat['hubs'], key=lambda h: order.get(h['slug'], len(order)))
-    cards = []
-    for h in hubs:
-        rc = RING.get(h['slug'], RING_BLUE)
-        cards.append(f"""<div class="sh-card" style="--rc:{rc}"><div class="sh-ring" data-href="{h['href']}" data-n="{h['n']}"><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--border)" stroke-width="3.5"/><circle cx="20" cy="20" r="16" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-dasharray="0 100.5"/></svg><span class="v"></span></div><a class="t" href="/{h['href']}">{esc(h['title'])}</a><span class="n" data-shn>{h['n']} problems</span></div>""")
-    return ('\n<section class="sh-wrap reveal" id="featured" aria-label="Featured problem sets">'
-            '<div class="sh-head"><h2>Featured Problem Sets</h2></div>'
-            '<div class="sh-rail">' + '\n'.join(cards) + '</div></section>')
-
-def sections_html():
-    secs = []
-    # the Featured sets live on the shelf band; the syllabus is the topic curriculum
-    for ci, c in enumerate([c for c in CATS if c['name'] != FEATURED]):
-        a = aid(c['name'])
-        n = sum(h['n'] for h in c['hubs']); xp = sum(h['xp'] for h in c['hubs'])
-        rows = []
-        for hi, h in enumerate(c['hubs']):
-            rows.append(f"""<div class="a2-hub" data-slug="{h['slug']}" data-href="{h['href']}" data-n="{h['n']}" data-title="{esc(h['title'].lower())}">
-<div class="a2-hubrow">
-  <span class="mnum">{ci+1}.{hi+1}</span>
-  <span class="st"></span>
-  <span class="t"><a href="/{h['href']}">{esc(h['title'])}</a></span>
-  {dmix(h)}
-  <span class="num probs" data-done>{h['n']}</span>
-  <span class="num">{h['xp']:,} XP</span>
-  <button class="a2-tog" type="button" aria-expanded="false" aria-label="Show the problems in {esc(h['title'])}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
-</div>
-<div class="a2-body" data-hydrate="0"></div>
-<ul class="a2-pmatch" hidden></ul>
-</div>""")
-        quiz_slips = ''
-        for qs in QUIZMAP.get(c['name'], []):
-            q = next((x for x in QUIZZES if x['slug'] == qs), None)
-            if q:
-                mins = f" ({q['mins']} min)" if q.get('mins') else ''
-                quiz_slips += (f'<div class="a2-quiz"><svg class="ic"><use href="#i-award"/></svg>'
-                    f'<span class="qt">Finished here? Take the <b>{esc(q["title"])}</b>{mins} and bank credit toward the certificate.</span>'
-                    f'<a class="btn btn-ghost btn-sm go" href="/{q["href"]}">Start quiz</a></div>')
-        secs.append(f"""
-<section class="a2-sec reveal" id="{a}" data-spysec="{a}" data-cat="{ci}">
-  <div class="a2-sech" style="--acc:{ACC.get(c['name'], '#475569')}">
-    <span class="d" style="background:{ACC.get(c['name'], '#475569')}"></span>
-    <h2>{c['name']}</h2>
-    <p class="a2-out"><span class="pr">#&gt;</span>{len(c['hubs'])} hubs &middot; {n} problems &middot; <span data-catsolved>0</span>/{n} solved &middot; {xp:,} XP</p>
-    <span class="bar"><i data-catbar style="background:{ACC.get(c['name'], '#475569')}"></i></span>
-  </div>
-  <p class="a2-intro">{INTRO.get(c['name'], '')}</p>
-  <div class="a2-hd"><span></span><span>Hub</span><span style="text-align:right" title="beginner, intermediate, advanced problem counts">Difficulty</span><span style="text-align:right">Done</span><span style="text-align:right">XP</span><span></span></div>
-  <div class="a2-rows">{''.join(rows)}</div>
-  {quiz_slips}
-</section>""")
-    return ''.join(secs)
-
-chips_nav = ''.join(
-    f'<a class="chip" href="#{aid(c["name"])}" data-spy="{aid(c["name"])}"><span class="d" style="background:{ACC.get(c["name"], "#475569")}"></span>{c["name"]} <span class="c">{len(c["hubs"])}</span></a>'
-    for c in CATS if c['name'] != FEATURED)
-
-quiz_chips = ''.join(
-    f'<a style="display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:99px;padding:7px 13px;font-size:13px;font-weight:500" href="/{q["href"]}"><svg class="ic ic-sm" style="color:var(--amber)"><use href="#i-award"/></svg> {esc(q["title"])}</a>'
-    for q in QUIZZES)
-
-BODY = f"""
-<section class="a2-hero reveal">
-  <div>
-    <h1>The practice workbook</h1>
-    <p class="dek">R sticks when you write it, not when you read about it. Each problem here checks your answer the moment you run it, so you always know which skills you own and which need another rep.</p>
-  </div>
-  {demo_block()}
-</section>
-{bench()}
-{shelf()}
-<section class="a2-wallwrap reveal" id="wall">
-  <h2>The Exercises Wall</h2>
-  <div class="a2-legend"><span><i style="background:color-mix(in srgb,var(--ink) 8%,var(--card))"></i>unsolved</span>
-  <span><i style="background:#0f8a5f"></i>solved, in its topic color</span>
-  <span>+10 to +50 XP per problem</span></div>
-  <div class="a2-wall-clip" id="a2Clip"><div id="a2Wall"><p class="a2-note">One square per problem. Loading the wall...</p></div></div>
-  <button class="a2-wall-more" id="a2More" type="button" hidden>Show the full wall</button>
-</section>
-<nav class="a2-catnav" aria-label="Topics">
-  {chips_nav}
-  <span class="a2-qwrap"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg><input id="a2Q" type="search" placeholder="Search {TOT['exercises']:,} problems" aria-label="Search hubs and problems"><kbd>/</kbd></span>
-</nav>
-<p class="a2-qcount" id="a2Count"></p>
-{sections_html()}
-<section class="a2-sec reveal" id="quizzes" data-spysec="quizzes" style="padding-bottom:22px">
-  <div class="a2-sech"><svg class="ic" style="color:var(--amber)"><use href="#i-award"/></svg><h2>Mastery quizzes</h2>
-  {out(f"{len(QUIZZES)} assessments &middot; timed &middot; count toward the certificate")}</div>
-  <p class="a2-intro">Each quiz also appears at the end of its topic above. Pass one and it counts toward the certificate.</p>
-  <div style="display:flex;flex-wrap:wrap;gap:8px">{quiz_chips}</div>
-</section>
-<section class="a2-sec reveal" style="padding-bottom:22px">
-  <div class="a2-sech"><h2>Keep what you earn</h2></div>
-  <p class="a2-intro">Attempts are free without an account. Sign in and every solve, streak day, and XP point is saved to your profile, and finished topics count toward the certificate.</p>
-  <a class="btn btn-primary" href="/signin.html">Sign in free <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a>
-  <a class="btn btn-ghost" style="margin-left:8px" href="/pricing.html">See certification</a>
-</section>
+@media (max-width:640px){
+ .exl-thead,.exl-hr{grid-template-columns:40px minmax(0,1fr) 60px 70px;padding:0 16px}
+ .exl-db,.exl-dl{display:none!important}
+ .exl-hr{font-size:15px}
+}
+@media (max-width:480px){
+ .exl-runs .exl-pill{display:none!important}
+ .exl-card{left:-8px}
+ .exl-chip{left:-8px}
+ .exl-hright{height:300px}
+ .exl-rt{font-size:14px}
+}
+@media (prefers-reduced-motion:reduce){.exl-bar i,.exl-rt1{transition:none}.exl-goal.exl-flash{animation:none}}
 """
 
 JS = r"""
-var XPD={b:10,i:25,a:50},DN={b:'beginner',i:'intermediate',a:'advanced'};
-var CATS=null,HUBIX={},PEN='__PEN__',WC=__WCMAP__,FEATAID='__FEATAID__';
-function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
+(function(){
+  'use strict';
+  var HUBS = __HUBDATA__, LIMIT = __LIMIT__;
+  var $ = function(s, r){ return (r || document).querySelector(s); };
+  var $$ = function(s, r){ return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var root = document.documentElement, runs = $('#exlRuns'), tool = $('#exlTool');
 
-/* honest progress: the same localStorage the hub engine writes */
-function solvedFor(href){
-  try{var d=JSON.parse(localStorage.getItem('rsc-exercise-hub-v1:/'+href));
-    return (d&&d.solved)||{}}catch(e){return{}}
-}
-function solvedCount(href){var s=solvedFor(href),n=0;for(var k in s)if(s[k])n++;return n}
+  /* sticky stack: navbar -> runs bar -> topic toolbar; anchors offset by it */
+  function stack(){
+    var nav = document.querySelector('.sitenav');
+    root.style.setProperty('--exl-nav', (nav ? Math.round(nav.getBoundingClientRect().height) : 0) + 'px');
+    var rh = runs && getComputedStyle(runs).display !== 'none' ? runs.offsetHeight : 0;
+    root.style.setProperty('--exl-runsh', rh + 'px');
+    if (tool) root.style.setProperty('--exl-toolh', tool.offsetHeight + 'px');
+  }
+  stack(); window.addEventListener('resize', stack);
 
-fetch('/www/exercise-catalog.json?v=__CATHASH__').then(function(r){return r.json()}).then(function(d){
-  CATS=d.categories;
-  CATS.forEach(function(c){c.hubs.forEach(function(h){HUBIX[h.slug]=h})});
-  buildWall();hydrateShelf();hydrateAll();wireRows();wireSearch();
-}).catch(function(){
-  document.getElementById('a2Wall').innerHTML='<p class="a2-note">The catalog data could not be loaded. The syllabus below still works.</p>';
-  wireRows();
-});
-
-function buildWall(){
-  var html='',totalSolved=0;
-  CATS.forEach(function(c){
-    var n=0,dex=0,sqs='';
-    c.hubs.forEach(function(h){var sv=solvedFor(h.href);n+=h.n;
-      (h.sections||[]).forEach(function(sec){sec.problems.forEach(function(p){
-        var solved=!!sv[p.id];if(solved)dex++;
-        sqs+='<a class="'+(solved?'s':p.d)+'" href="/'+h.href+'#'+p.id+'" title="'+esc(h.title+': '+(p.t||('problem '+p.n))+' ('+DN[p.d]+')')+'"></a>';})})});
-    totalSolved+=dex;
-    var a=c.name.toLowerCase().replace(/[^a-z]+/g,'-');
-    html+='<div class="a2-wband" style="--wc:'+(WC[a]||'var(--green)')+'"><div class="wh"><a href="'+(a===FEATAID?'#featured':'#'+a)+'">'+c.name+'</a>'+
-    '<span class="a2-out"><span class="pr">#&gt;</span>'+c.hubs.length+' hubs &middot; '+n+' problems &middot; '+dex+' solved</span></div>'+
-    '<div class="a2-sqs">'+sqs+'</div></div>';});
-  document.getElementById('a2Wall').innerHTML=html;
-  var ws=document.getElementById('wallSolved');if(ws)ws.textContent=totalSolved;
-  /* one diagonal color sweep the first time the wall scrolls into view */
-  try{
-    if(!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)){
-      var sq=document.querySelectorAll('#a2Wall .a2-sqs a'),pos=[],i;
-      for(i=0;i<sq.length;i++)pos.push(sq[i].offsetLeft+sq[i].offsetTop*1.6);
-      for(i=0;i<sq.length;i++)sq[i].style.animationDelay=Math.round(pos[i]*1.05)+'ms';
-      if('IntersectionObserver' in window){
-        var io=new IntersectionObserver(function(en){en.forEach(function(e){
-          if(e.isIntersecting){document.getElementById('wall').classList.add('wave');io.disconnect()}})},{threshold:.15});
-        io.observe(document.getElementById('wall'));
+  /* calendar: 26 weeks to today (UTC days, the same days the server counts) */
+  var DAY = 864e5, MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function lvl(n){ return n <= 0 ? '' : n === 1 ? ' l1' : n <= 3 ? ' l2' : n <= 5 ? ' l3' : ' l4'; }
+  function calendar(days){
+    var g = $('#exlCal'); if (!g) return;
+    var counts = {}; (days || []).forEach(function(x){ counts[x.d] = x.n; });
+    var now = new Date(), t0 = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    var dow = (new Date(t0).getUTCDay() + 6) % 7, start = t0 - (dow + 25 * 7) * DAY;
+    var html = '', prevM = -1, total = 0, active = 0, run = 0, best = 0;
+    ['Mon', '', 'Wed', '', 'Fri', '', ''].forEach(function(l, i){ if (l) html += '<span class="exl-dy" style="grid-row:' + (i + 2) + '">' + l + '</span>'; });
+    for (var w = 0; w < 26; w++){
+      var mt = new Date(start + w * 7 * DAY).getUTCMonth();
+      if (mt !== prevM && w < 25) html += '<span class="exl-mo" style="grid-column:' + (w + 2) + '">' + MONTHS[mt] + '</span>';
+      prevM = mt;
+      for (var d = 0; d < 7; d++){
+        var t = start + (w * 7 + d) * DAY, pos = 'grid-column:' + (w + 2) + ';grid-row:' + (d + 2);
+        if (t > t0){ html += '<span class="c f" style="' + pos + '"></span>'; continue; }
+        var key = new Date(t).toISOString().slice(0, 10), n = counts[key] || 0, dt = new Date(t);
+        total += n; if (n){ active++; run++; if (run > best) best = run; } else run = 0;
+        html += '<span class="c' + lvl(n) + (t === t0 ? ' t' : '') + '" style="' + pos + '" title="' + dt.getUTCDate() + ' ' + MONTHS[dt.getUTCMonth()] + ': ' + n + ' solved"></span>';
       }
     }
-  }catch(e){}
-  var wrap=document.querySelector('.a2-wallwrap'),clip=document.getElementById('a2Clip'),btn=document.getElementById('a2More');
-  if(document.getElementById('a2Wall').scrollHeight>clip.clientHeight+40){btn.hidden=false;
-    btn.addEventListener('click',function(){var open=wrap.classList.toggle('open');
-      btn.textContent=open?'Collapse the wall':'Show the full wall';});}
-}
-
-/* shelf rings: real progress from the same localStorage as the hubs */
-function hydrateShelf(){
-  document.querySelectorAll('.sh-ring[data-href]').forEach(function(ring){
-    var href=ring.getAttribute('data-href'),n=+ring.getAttribute('data-n')||0;
-    var k=solvedCount(href);if(!k)return;
-    var arc=ring.querySelectorAll('circle')[1],v=ring.querySelector('.v');
-    var frac=Math.min(k/Math.max(n,1),1);
-    arc.setAttribute('stroke-dasharray',(frac*100.5).toFixed(1)+' 100.5');
-    if(k>=n&&n>0){arc.setAttribute('stroke','#34d399');v.classList.add('ok');v.innerHTML='&#10003;'}
-    else{v.textContent=Math.round(frac*100)+'%'}
-    var lab=ring.parentNode.querySelector('[data-shn]');
-    if(lab)lab.innerHTML=n+' problems &middot; '+k+' solved';
-  });
-}
-
-function hydrateAll(){
-  var cont=null,contFrac=0;
-  document.querySelectorAll('.a2-sec[data-cat]').forEach(function(sec){
-    var catSolved=0,catN=0;
-    sec.querySelectorAll('.a2-hub').forEach(function(hub){
-      var href=hub.getAttribute('data-href'),n=+hub.getAttribute('data-n')||0;
-      var k=solvedCount(href);catN+=n;catSolved+=k;
-      var st=hub.querySelector('.st'),done=hub.querySelector('[data-done]');
-      if(k>=n&&n>0){hub.classList.add('done');
-        if(st)st.outerHTML=PEN;
-        if(done)done.textContent=n;}
-      else if(k>0){st.classList.add('part');st.style.setProperty('--pct',Math.round(360*k/Math.max(n,1))+'deg');
-        if(done)done.textContent=k+'/'+n;
-        var f=k/Math.max(n,1);if(f>contFrac&&f<1){contFrac=f;cont={slug:hub.getAttribute('data-slug'),k:k,n:n}}}
-    });
-    var cs=sec.querySelector('[data-catsolved]'),cb=sec.querySelector('[data-catbar]');
-    if(cs)cs.textContent=catSolved;
-    if(cb)cb.style.width=Math.round(100*catSolved/Math.max(catN,1))+'%';
-  });
-  /* the featured sets live on the shelf, not in the syllabus rows: include them */
-  if(CATS)CATS.forEach(function(c){
-    if(c.name.toLowerCase().replace(/[^a-z]+/g,'-')!==FEATAID)return;
-    c.hubs.forEach(function(h){var k=solvedCount(h.href);
-      if(k>0&&k<h.n){var f=k/Math.max(h.n,1);if(f>contFrac){contFrac=f;cont={slug:h.slug,k:k,n:h.n}}}});
-  });
-  /* Continue card from the most advanced unfinished hub on this device */
-  if(cont){
-    var h=HUBIX[cont.slug];
-    if(h){document.getElementById('bcT').textContent=h.title;
-      document.getElementById('bcS').textContent='Problem '+(cont.k+1)+' of '+h.n;
-      document.getElementById('bcGo').setAttribute('href','/'+h.href);
-      var sv=solvedFor(h.href),mini='',i=0;
-      (h.sections||[]).forEach(function(sec){sec.problems.forEach(function(p){
-        if(i++<60)mini+='<i class="'+(sv[p.id]?'s':'')+'"></i>'})});
-      document.getElementById('bcMini').innerHTML=mini;
-      var left=0;(h.sections||[]).forEach(function(sec){sec.problems.forEach(function(p){if(!sv[p.id])left+=XPD[p.d]})});
-      document.getElementById('bcXp').innerHTML='<span class="pr">#&gt;</span>'+left+' XP left in this hub';
-      document.getElementById('benchCont').hidden=false;
-      document.getElementById('benchStart').hidden=true;}
+    g.innerHTML = html;
+    $('#exlCalT').textContent = total.toLocaleString('en-US') + (total === 1 ? ' solve' : ' solves') + ' in the last 6 months';
+    $('#exlCalM').textContent = active + (active === 1 ? ' active day' : ' active days') + ' · longest streak ' + best + (best === 1 ? ' day' : ' days');
   }
-  /* Today card: real local counters, plus account stats when signed in */
-  try{
-    var daily=JSON.parse(localStorage.getItem('rsc-daily-v1')||'null');
-    var streak=JSON.parse(localStorage.getItem('rsc-streak-v1')||'null');
-    var today=(daily&&daily.date===new Date().toISOString().slice(0,10))?daily.count:0;
-    var days=(streak&&streak.days)||0;
-    if(today>0||days>0){
-      todayMode();
-      document.getElementById('tdNums').innerHTML='<b>'+today+' solved today</b><br>'+
-        (days>0?('<span style="color:var(--amber)">&#9650;</span> '+days+'-day streak'):'keep the streak alive');
+  calendar([]);
+
+  /* progress: /api/me/practice for signed-in learners */
+  function pct(a, b){ return b ? Math.min(100, 100 * a / b) : 0; }
+  function hydrate(P){
+    var H = P.hubs || {}, topics = {};
+    $$('[data-hub]').forEach(function(el){
+      var s = el.getAttribute('data-hub'), n = +el.getAttribute('data-n'), d = Math.min(n, H[s] || 0);
+      if (el.classList.contains('exl-gr')){
+        var c = $('.exl-cnt', el);
+        if (d >= n){ c.textContent = 'Done'; c.className = 'exl-cnt done'; }
+        else if (d > 0){ c.textContent = d + '/' + n; c.className = 'exl-cnt prog'; }
+      } else if (el.classList.contains('exl-hr')){
+        var hd = $('.exl-hd', el); hd.innerHTML = '<b>' + d + '</b>/' + n; hd.classList.toggle('done', d >= n && n > 0);
+        var nm = $('.exl-hname', el), pill = $('.exl-done', nm);
+        if (d >= n && n > 0 && !pill) nm.insertAdjacentHTML('beforeend', '<span class="exl-done">Done</span>');
       }
-  }catch(e){}
-  document.addEventListener('auth-hydrated',function(ev){
-    var me=ev.detail&&ev.detail.me;if(!me||!me.user)return;
-    fetch('/api/me/stats',{headers:ev.detail.token?{Authorization:'Bearer '+ev.detail.token}:{}})
-      .then(function(r){return r.ok?r.json():null}).then(function(s){
-        if(!s)return;
-        var el=document.getElementById('tdNums');
-        var extra='<span style="color:var(--faint)">'+(s.total_xp||0).toLocaleString()+' XP total</span>';
-        if(el&&el.innerHTML)el.innerHTML+='<br>'+extra;
-        else{el.innerHTML='<b>'+(s.current_streak_days||0)+'-day streak</b><br>'+extra;
-          todayMode();}
-      }).catch(function(){});
-  });
-}
-
-function todayMode(){
-  var t=document.getElementById('tdT'),s=document.getElementById('tdS');
-  if(t)t.textContent='Today';
-  if(s)s.hidden=true;
-}
-
-function hydrateBody(hub){
-  var body=hub.querySelector('.a2-body');
-  if(body.getAttribute('data-hydrate')==='1')return;
-  var h=HUBIX&&HUBIX[hub.getAttribute('data-slug')];if(!h){body.innerHTML='<p class="a2-note">Open the hub to see its problems.</p>';return}
-  var sv=solvedFor(h.href),k=solvedCount(h.href);
-  var secs=(h.sections||[]).map(function(sec){
-    return '<div class="a2-cs"><p class="sh">## Section '+sec.num+'. <span class="h">'+esc(sec.title)+'</span> ('+sec.problems.length+')</p>'+
-    '<div class="a2-chips">'+sec.problems.map(function(p,ix){
-      var cls=p.d+(sv[p.id]?' solved':'');
-      var tip=(p.t?p.t+' ':'problem '+p.n+' ')+'('+DN[p.d]+', +'+XPD[p.d]+' XP)';
-      return '<a class="'+cls+'" style="animation-delay:'+Math.min(ix*14,420)+'ms" href="/'+h.href+'#'+p.id+'" title="'+esc(tip)+'"><span class="br">[</span>'+p.n+'<span class="br">]</span></a>';}).join('')+'</div></div>';}).join('');
-  var act=(k>0&&k<h.n)?('Resume at problem '+(k+1)):(k>=h.n&&h.n>0?'Review the set':'Start at problem 1');
-  body.innerHTML='<p class="a2-blurb">'+esc(h.blurb||'')+'</p>'+secs+
-  '<div class="a2-act"><a class="btn btn-primary btn-sm" href="/'+h.href+'">'+act+' <svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></a>'+
-  '<a class="open-hub" href="/'+h.href+'">Open the full hub</a>'+
-  '<span class="a2-out"><span class="pr">#&gt;</span>solved: '+k+'/'+h.n+'</span></div>';
-  body.setAttribute('data-hydrate','1');
-}
-
-function wireRows(){
-  document.querySelectorAll('.a2-hub').forEach(function(hub){
-    var btn=hub.querySelector('.a2-tog');
-    function tog(){hydrateBody(hub);hub.classList.toggle('open');
-      btn.setAttribute('aria-expanded',hub.classList.contains('open')?'true':'false')}
-    btn.addEventListener('click',tog);
-  });
-}
-
-function wireSearch(){
-  var inp=document.getElementById('a2Q'),count=document.getElementById('a2Count');
-  function apply(){
-    var q=inp.value.trim().toLowerCase();
-    document.body.classList.toggle('searching',!!q);
-    if(!q){
-      document.querySelectorAll('.a2-hub.qhide,.a2-sec.qhide').forEach(function(el){el.classList.remove('qhide')});
-      document.querySelectorAll('.a2-pmatch').forEach(function(ul){ul.hidden=true;ul.innerHTML=''});
-      return;}
-    var re=new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig');
-    var hubHits=0,pHits=0;
-    document.querySelectorAll('.a2-sec[data-spysec]').forEach(function(sec){
-      var any=false;
-      sec.querySelectorAll('.a2-hub').forEach(function(hub){
-        var slug=hub.getAttribute('data-slug');if(!slug){hub.classList.add('qhide');return}
-        var h=HUBIX[slug];var tm=hub.getAttribute('data-title').indexOf(q)>=0;
-        var pm=[];if(h)(h.sections||[]).forEach(function(s){s.problems.forEach(function(p){
-          if(p.t&&p.t.toLowerCase().indexOf(q)>=0)pm.push(p)})});
-        var ul=hub.querySelector('.a2-pmatch');
-        if(tm||pm.length){hub.classList.remove('qhide');any=true;hubHits++;pHits+=pm.length;
-          if(pm.length&&h){ul.hidden=false;ul.innerHTML=pm.slice(0,4).map(function(p){
-            return '<li><a href="/'+h.href+'#'+p.id+'"><span class="pn '+p.d+'">['+p.n+']</span>'+
-            esc(p.t).replace(re,'<mark>$1</mark>')+'</a></li>'}).join('')+
-            (pm.length>4?('<li><a href="/'+h.href+'"><span class="pn"></span>and '+(pm.length-4)+' more in this hub</a></li>'):'');}
-          else{ul.hidden=true;ul.innerHTML=''}}
-        else{hub.classList.add('qhide');ul.hidden=true;ul.innerHTML=''}});
-      sec.classList.toggle('qhide',!any);});
-    count.textContent=hubHits+' hubs, '+pHits+' matching problems for "'+q+'"';
+    });
+    Object.keys(HUBS).forEach(function(s){ var t = HUBS[s][1]; if (!t) return; topics[t] = topics[t] || [0, 0]; topics[t][0] += Math.min(HUBS[s][0], H[s] || 0); topics[t][1] += HUBS[s][0]; });
+    Object.keys(topics).forEach(function(t){
+      var v = topics[t], p = pct(v[0], v[1]) + '%';
+      $$('[data-tsolved="' + t + '"],[data-tsolved2="' + t + '"]').forEach(function(b){ b.textContent = v[0].toLocaleString('en-US'); });
+      $$('[data-tbar="' + t + '"],[data-tbar2="' + t + '"]').forEach(function(b){ b.style.width = p; });
+    });
+    var tot = P.solved || 0, all = __TOTAL__;
+    $('#exlTot').textContent = tot.toLocaleString('en-US');
+    $('#exlRing').setAttribute('stroke-dasharray', (3.7699 * pct(tot, all)).toFixed(1) + ' 377');
+    var DT = __DIFFTOT__;
+    ['beginner', 'intermediate', 'advanced'].forEach(function(k){
+      var v = (P.diff && P.diff[k]) || 0;
+      $('[data-diff="' + k + '"]').textContent = v.toLocaleString('en-US');
+      $('[data-diffbar="' + k + '"]').style.width = pct(v, DT[k]) + '%';
+    });
+    $('#exlWallSub').textContent = 'Everything you have solved, by difficulty, by day and by topic.';
+    calendar(P.days);
+    var L = P.last, jt = $('[data-jt="start"]');
+    if (L && L.slug && jt){ jt.setAttribute('href', '/' + L.slug + '.html'); $('.exl-jtl', jt).textContent = 'Continue'; jt.querySelector('.exl-jti').innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>'; }
+    $$('[data-goal-first]').forEach(function(a){
+      var card = a.closest('.exl-goal'), next = $$('.exl-gr', card).filter(function(r){ return Math.min(+r.getAttribute('data-n'), H[r.getAttribute('data-hub')] || 0) < +r.getAttribute('data-n'); })[0];
+      if (next) a.setAttribute('href', next.getAttribute('href'));
+    });
   }
-  inp.addEventListener('input',apply);
-  document.addEventListener('keydown',function(e){
-    if(e.key==='/'&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA'){e.preventDefault();inp.focus()}
-    if(e.key==='Escape'){inp.value='';apply()}});
-}
 
-/* scroll-spy */
-(function(){var links=document.querySelectorAll('.a2-catnav a[data-spy]');
-var secs=document.querySelectorAll('[data-spysec]');
-function on(){var y=window.scrollY+150,cur=null;
-secs.forEach(function(s){if(s.offsetTop<=y)cur=s.getAttribute('data-spysec')});
-links.forEach(function(l){l.classList.toggle('on',l.getAttribute('data-spy')===cur)});}
-window.addEventListener('scroll',on,{passive:true});on();})();
-
-/* hero demo: a real exercise block solving itself, slowly */
-(function(){
-var P=[
- {q:'Keep only the values greater than 10, then return their mean.',
-  setup:'x <- c(4, 19, 7, 42, 23)',ans:'mean(x[x > 10])',out:'#> [1] 28',fb:'Correct. +10 XP'},
- {q:'Count the gear values among cars with mpg above 25.',
-  setup:'library(dplyr)',ans:'mtcars %>% filter(mpg > 25) %>% count(gear)',out:'#>   gear n\n#> 1    4 5\n#> 2    5 1',fb:'Correct. +25 XP'},
- {q:'How many characters are in each of these words?',
-  setup:'w <- c("mean", "median", "mode")',ans:'nchar(w)',out:'#> [1] 4 6 4',fb:'Correct. +10 XP'}
-];
-var card=document.getElementById('demoCard');if(!card)return;
-var elQ=document.getElementById('dcQ'),elS=document.getElementById('dcSetup'),elTy=document.getElementById('dcTyped'),
-    elO=document.getElementById('dcOut'),elV=document.getElementById('dcVerdict'),elR=document.getElementById('dcRun'),
-    dots=card.querySelectorAll('.dc-dots i');
-var rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
-if(rm){var p0=P[0];elTy.textContent=p0.ans;elO.hidden=false;elO.textContent=p0.out;
-  elV.textContent=p0.fb;elV.classList.add('ok');return}
-var ix=0,paused=false;
-card.addEventListener('mouseenter',function(){paused=true});
-card.addEventListener('mouseleave',function(){paused=false});
-function wait(ms){return new Promise(function(r){setTimeout(r,ms)})}
-function unpaused(){return new Promise(function(r){(function c(){if(!paused)return r();setTimeout(c,300)})()})}
-function typeAns(a){return new Promise(function(r){var i=0;(function step(){
-  if(paused){setTimeout(step,300);return}
-  elTy.textContent=a.slice(0,++i);
-  if(i<a.length)setTimeout(step,34+Math.random()*46);else r();})()})}
-function setP(p,k){elQ.textContent=p.q;elS.textContent=p.setup;
-  elTy.textContent='';elO.hidden=true;elO.textContent='';
-  elV.innerHTML='&nbsp;';elV.classList.remove('ok');
-  dots.forEach(function(d,i){d.classList.toggle('on',i===k)});}
-/* the graded verdict banks somewhere: fly the XP chip into the Today card, once */
-var flew=false;
-function flyXP(fb){
-  if(flew)return;
-  var m=fb.match(/\+\d+ XP/);var target=document.getElementById('benchToday');
-  if(!m||!target)return;
-  var r1=elV.getBoundingClientRect(),r2=target.getBoundingClientRect();
-  if(r1.top<0||r2.top>innerHeight||r2.bottom<0)return;
-  flew=true;card.setAttribute('data-flew','1');
-  var chip=document.createElement('span');chip.className='xp-fly';chip.textContent=m[0];
-  chip.style.left=r1.left+'px';chip.style.top=(r1.top-4)+'px';
-  document.body.appendChild(chip);
-  var dx=r2.left+r2.width/2-r1.left-30,dy=r2.top+24-r1.top;
-  requestAnimationFrame(function(){requestAnimationFrame(function(){
-    chip.style.transform='translate('+dx+'px,'+dy+'px) scale(.5)';chip.style.opacity='0';})});
-  setTimeout(function(){chip.remove();target.classList.add('xp-hit');target.setAttribute('data-landed','1');
-    var goal=target.querySelector('.a2-goal');
-    if(goal){var b=document.createElement('span');b.className='tdfly';b.textContent=m[0]+' banked';
-      goal.appendChild(b);
-      requestAnimationFrame(function(){requestAnimationFrame(function(){b.classList.add('out')})});
-      setTimeout(function(){b.remove()},2100);}
-    setTimeout(function(){target.classList.remove('xp-hit')},900)},980);
-}
-(async function loop(){
-  for(;;){
-    var p=P[ix%P.length];setP(p,ix%P.length);
-    await wait(1500);await unpaused();
-    await typeAns(p.ans);
-    await wait(500);await unpaused();
-    elR.classList.add('pressed');await wait(220);elR.classList.remove('pressed');
-    await wait(300);
-    elO.hidden=false;elO.textContent=p.out;
-    await wait(500);
-    elV.textContent=p.fb;elV.classList.add('ok');
-    flyXP(p.fb);
-    await wait(3600);await unpaused();
-    ix++;
+  /* free plan allowance: /api/me/meter (display only; the attempt endpoint enforces) */
+  function fmtReset(iso){ var d = new Date(iso + 'T00:00:00Z'); return isNaN(d) ? '' : d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; }
+  function meter(M){
+    if (!M || !M.metered){ runs.setAttribute('data-v', 'none'); stack(); return; }
+    var b = $('#exlLeft'); b.textContent = M.left + ' of ' + M.limit; b.classList.toggle('low', M.left <= 5);
+    $('#exlReset').textContent = M.resets ? '· resets ' + fmtReset(M.resets) : '';
+    runs.setAttribute('data-v', 'free'); stack();
   }
-})();
+
+  var token = '', me = null, lastLoad = 0;
+  function get(path){ return fetch(path, { headers: { Authorization: 'Bearer ' + token } }).then(function(r){ return r.ok ? r.json() : null; }); }
+  function load(){
+    lastLoad = Date.now();
+    get('/api/me/practice').then(function(P){ if (P) hydrate(P); }).catch(function(){});
+    if (me && me.pro){ runs.setAttribute('data-v', 'none'); stack(); }
+    else get('/api/me/meter').then(meter).catch(function(){});
+  }
+  document.addEventListener('auth-hydrated', function(e){
+    var d = e && e.detail; me = d && d.me; token = (d && d.token) || '';
+    if (me && me.user && token) load();
+    else { runs.setAttribute('data-v', 'anon'); stack(); }
+  });
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible' && token && me && me.user && Date.now() - lastLoad > 30000) load();
+  });
+
+  /* search: filter hub rows by name, hide topics with no match */
+  var q = $('#exlQ'), saved = null;
+  if (q){
+    q.addEventListener('input', function(){
+      var v = q.value.trim().toLowerCase(), any = false;
+      if (v && !saved) saved = $$('.exl-topic').map(function(t){ return t.open; });
+      $$('.exl-topic').forEach(function(t, i){
+        var hit = 0;
+        $$('.exl-hr', t).forEach(function(r){ var ok = !v || r.getAttribute('data-q').indexOf(v) >= 0; r.hidden = !ok; if (ok) hit++; });
+        $$('.exl-qs', t).forEach(function(x){ x.hidden = !!v; });
+        t.hidden = !!v && !hit;
+        if (v && hit) t.open = true;
+        if (!v && saved) t.open = saved[i];
+        if (hit) any = true;
+      });
+      if (!v) saved = null;
+      $('#exlNone').hidden = !v || any;
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      var a = document.activeElement, tag = a && a.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (a && a.isContentEditable)) return;
+      e.preventDefault(); q.focus();
+    });
+  }
+
+  /* topic links: open the topic, then scroll to it (scroll-margin covers the sticky stack) */
+  function goTopic(id, focus){
+    var t = document.getElementById('topic-' + id); if (!t) return;
+    if (t.hidden && q){ q.value = ''; q.dispatchEvent(new Event('input')); }
+    t.open = true; stack();
+    t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (focus) t.querySelector('summary').focus({ preventScroll: true });
+  }
+  $$('[data-topic-link]').forEach(function(a){
+    a.addEventListener('click', function(e){ e.preventDefault(); goTopic(a.getAttribute('data-topic-link'), true); history.replaceState(null, '', '#topic-' + a.getAttribute('data-topic-link')); });
+  });
+
+  /* arriving from the navbar menu: #goal-*, ?goal=*, #topic-* */
+  function arrive(){
+    var m = /^#topic-([a-z]+)$/.exec(location.hash);
+    if (m){ goTopic(m[1], false); return; }
+    var g = (/[?&]goal=([a-z-]+)/.exec(location.search) || [])[1] || (/^#goal-([a-z-]+)$/.exec(location.hash) || [])[1];
+    var card = g && document.getElementById('goal-' + g);
+    if (card){ stack(); card.scrollIntoView({ block: 'start' }); card.classList.add('exl-flash'); setTimeout(function(){ card.classList.remove('exl-flash'); }, 1700); }
+  }
+  if (document.readyState === 'complete') setTimeout(arrive, 50); else window.addEventListener('load', function(){ setTimeout(arrive, 50); });
+  window.addEventListener('hashchange', arrive);
 })();
 """
 
-reveal = """
-<script>(function(){var els=document.querySelectorAll('.reveal');
-if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('in')});return}
-var io=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target)}})},{rootMargin:'0px 0px -8% 0px'});
-els.forEach(function(e){io.observe(e)});})();</script>"""
+js = (JS.replace('__HUBDATA__', json.dumps(HUBDATA, separators=(',', ':')))
+        .replace('__LIMIT__', str(METER_LIMIT))
+        .replace('__TOTAL__', str(TOT['exercises']))
+        .replace('__DIFFTOT__', json.dumps(DIFF_TOT, separators=(',', ':'))))
 
-WCMAP = json.dumps({aid(k): v for k, v in ACC.items()})
-js = (JS.replace('__PEN__', PEN.replace("'", "\\'")).replace('__CATHASH__', CAT_HASH)
-        .replace('__WCMAP__', WCMAP).replace('__FEATAID__', aid(FEATURED)))
-page = shell.replace('<!--EXBODY-->',
-    '<main class="wrap">\n<style>' + CSS + '</style>\n' + BODY + '\n' + reveal + '\n<script>' + js + '</script>\n')
-# The three meta descriptions carry the exercise and hub counts, and they were
-# typed by hand: they said 2,904 across 127 hubs against a real 3,461 across
-# 147, so every search result undersold the page by a fifth. Rewritten from
-# the catalogue on every build, and loud if the sentence ever moves, because a
-# silent no-op here is how the numbers drifted in the first place.
+page = shell.replace('<!--EXBODY-->', '<main class="exl" id="main">\n<style>' + CSS + '</style>\n' + BODY + '\n<script>' + js + '</script>\n')
+
+# The three meta descriptions carry the exercise and hub counts. Rewritten from the
+# catalogue on every build, and loud if the sentence ever moves.
 _count_pat = re.compile(r'[\d,]+ auto-graded R exercises across \d+ hubs')
-_count_txt = '{:,} auto-graded R exercises across {} hubs'.format(
-    TOT['exercises'], TOT['hubs'])
+_count_txt = '{:,} auto-graded R exercises across {} hubs'.format(TOT['exercises'], TOT['hubs'])
 page, _n = _count_pat.subn(_count_txt, page)
 assert _n == 3, 'expected 3 meta count sentences in the shell, patched %d' % _n
 
 assert chr(8212) not in CSS + BODY + js, 'em dash found'
-assert page.count('<main class="wrap">') == 1
+assert 'WebR' not in BODY and 'webr' not in BODY.lower(), 'WebR in public copy'
+assert page.count('<main class="exl" id="main">') == 1
 io.open('exercises/index.html', 'w', encoding='utf-8', newline='\n').write(page)
-print('exercises/index.html written:', len(page)//1024, 'KB | catalog hash', CAT_HASH)
+
+# ---------------- navbar Practice menu data (/practice-menu.json) ----------------
+menu = {
+    'v': 1,
+    'goals': [{'id': gid, 'name': gname, 'icon': gicon, 'all': gall, 'href': '/exercises/#goal-' + gid,
+               'sets': [{'t': clean_title(feat_by_slug[s]['title']), 'h': url(feat_by_slug[s]['href']), 's': s, 'n': feat_by_slug[s]['n']} for s in slugs[:4]]}
+              for gid, gname, gicon, gall, slugs in GOALS],
+    'topics': [{'id': TOPIC_META[c['name']][0], 'name': c['name'], 'icon': TOPIC_META[c['name']][3], 'n': len(c['hubs']),
+                'href': '/exercises/#topic-' + TOPIC_META[c['name']][0]} for c in TOPICS],
+    'quizzes': {'n': len(QUIZ_ORDER), 'topics': QUIZ_TOPICS, 'href': '/exercises/#mastery-quizzes', 'icon': MEDAL},
+    'start': {'goal': GOALS[0][1], 't': clean_title(feat_by_slug[GOALS[0][4][0]]['title']), 'h': url(feat_by_slug[GOALS[0][4][0]]['href'])},
+    # every hub: [title, problems, goal or topic name] so "Continue" can name any hub
+    'hubs': {h['slug']: [clean_title(h['title']), h['n'],
+                         next((g[1] for g in GOALS if h['slug'] in g[4]), hub_topic[h['slug']])] for h in ALL_HUBS},
+}
+_mj = json.dumps(menu, separators=(',', ':'), ensure_ascii=False)
+assert chr(8212) not in _mj
+io.open('practice-menu.json', 'w', encoding='utf-8', newline='\n').write(_mj)
+print('exercises/index.html written:', len(page) // 1024, 'KB | practice-menu.json', len(_mj.encode()) // 1024, 'KB')

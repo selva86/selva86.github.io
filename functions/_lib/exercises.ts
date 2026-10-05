@@ -59,6 +59,12 @@ export function hubExists(hubSlug: string): boolean {
   return Object.prototype.hasOwnProperty.call(manifest.hubs, hubSlug);
 }
 
+// Number of graded exercises in a hub (0 for an unknown hub).
+export function hubSize(hubSlug: string): number {
+  const h = manifest.hubs[hubSlug];
+  return h ? Object.keys(h).length : 0;
+}
+
 // Returns difficulty for a (hub, exercise) pair, or null if unknown.
 // Server callers should treat null as "exercise does not exist" → 400.
 export function lookupDifficulty(hubSlug: string, exerciseId: string): string | null {
