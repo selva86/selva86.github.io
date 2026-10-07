@@ -16,7 +16,10 @@ import { json } from "../_lib/errors";
 import { getUserById, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
 import { resolvePro } from "../_lib/entitlement";
 import { resolvePass } from "../_lib/pass";
-import { notifyNewSignup, flushPendingSignup } from "../_lib/notify";
+import { flushPendingSignup } from "../_lib/notify";
+import { settleFirstSight } from "../_lib/signup-claim";
+import { extractToken } from "../_lib/auth";
+import { SITE_KEY } from "../_lib/site-key";
 import { ensureHandle, ensureProfileColumns } from "../_lib/profile";
 import { sweepRecapEmails } from "../_lib/recap";
 import { describePlan } from "../_lib/plan";
@@ -26,7 +29,8 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   let u = context.data.user;
   const payload = context.data.payload;
 
-  // Lazy-create case: JWT valid (payload set) but no D1 row.
+  // Lazy-create case: JWT valid (payload set) but no D1 row. The middleware
+  // normally created it already; this is the fallback when that failed.
   if (!u && payload?.sub && payload.email) {
     try {
       const meta = (payload.user_metadata ?? {}) as Record<string, unknown>;
@@ -41,18 +45,15 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
         country: context.request.headers.get("CF-IPCountry") || undefined,
       });
       u = await getUserById(context.env.DB, payload.sub);
-      // Fallback admin signup notification for webhook-missed signups. A valid
-      // JWT means the user is authenticated/confirmed. KV-deduped against the
-      // webhook path so we never double-notify.
-      if (u) {
-        const meta2 = (payload.app_metadata ?? {}) as Record<string, unknown>;
-        context.waitUntil(
-          notifyNewSignup(context.env, {
-            id: u.id,
-            email: u.email,
-            provider: meta2.provider as string | undefined,
-          }),
-        );
+      // Shared Supabase project: whether this is a signup here (attribution
+      // and the owner's email) is decided from the Supabase account, never
+      // from the mere absence of a row (an ML+ account visiting is not a new
+      // signup here). See _lib/signup-site.ts.
+      const token = extractToken(context.request);
+      if (u && token) {
+        context.data.lazy_created = true;
+        context.waitUntil(settleFirstSight(context.env, SITE_KEY,
+          { id: u.id, email: u.email, created_at: u.created_at }, token));
       }
     } catch (e) {
       console.error(`[api/me] lazy-create failed for ${payload.sub}: ${(e as Error).message}`);
@@ -75,6 +76,14 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   if (u.created_at && Date.now() / 1000 - u.created_at < 48 * 3600) {
     const uid = u.id;
     context.waitUntil(flushPendingSignup(context.env, uid));
+    // First-sight retry: a fresh row still unattributed whose first attempt
+    // failed (Supabase unreachable). KV-guarded inside, so at steady state
+    // this is one KV read, and only during the account's first 48 hours here.
+    const token = u.signup_site == null && !context.data.lazy_created ? extractToken(context.request) : null;
+    if (token) {
+      context.waitUntil(settleFirstSight(context.env, SITE_KEY,
+        { id: u.id, email: u.email, created_at: u.created_at }, token));
+    }
   }
 
   // Verified GitHub link for the learner profile: users who authenticated via

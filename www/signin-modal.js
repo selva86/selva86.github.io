@@ -108,7 +108,10 @@
     return u.toString();
   }
   function source() {
-    return { signup_page: state.src, signup_trigger: state.trigger, signup_next: state.next };
+    // `site` tags the signup for the Supabase project shared with
+    // machinelearningplus.com: each site's auth webhook mirrors and notifies
+    // only its own tag (functions/_lib/signup-site.ts, site-key.ts).
+    return { signup_page: state.src, signup_trigger: state.trigger, signup_next: state.next, site: 'rstatistics' };
   }
   function parkSource() {
     try { localStorage.setItem('rsc-signup-src', JSON.stringify(Object.assign({ ts: Date.now() }, source()))); } catch (e) {}

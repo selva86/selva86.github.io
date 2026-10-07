@@ -10,7 +10,9 @@
 //   don't write to D1 on every single page load.
 
 import { extractToken, verifyJWT, type JWTPayload } from "./_lib/auth";
-import { getUserById, isSessionRevoked, upsertSession, type User } from "./_lib/db";
+import { getUserById, isSessionRevoked, upsertSession, upsertUserFromSupabase, type User } from "./_lib/db";
+import { settleFirstSight } from "./_lib/signup-claim";
+import { SITE_KEY } from "./_lib/site-key";
 import { parseDeviceLabel } from "./_lib/devices";
 import { resolveScope, scopeCovers } from "./_lib/entitlement";
 import { claimPass, PASS_TRACK } from "./_lib/pass";
@@ -237,6 +239,7 @@ export interface RequestData {
   user: User | null;
   payload: JWTPayload | null;
   session_id: string | null;
+  lazy_created?: boolean;  // this request created the D1 row (first sight); /api/me skips its retry
   // PagesFunction's Data generic is constrained to Record<string, unknown>;
   // without this index signature every endpoint using RequestData raises
   // TS2344. Type-only; no runtime effect.
@@ -374,6 +377,37 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   context.data.payload = payload;
   context.data.session_id = sessionId;
   context.data.user = await getUserById(context.env.DB, payload.sub);
+
+  // Shared Supabase project (machinelearningplus.com signs in with the same
+  // accounts): the auth webhook mirrors only this site's tagged signups, so an
+  // untagged account (Google, GitHub, one-tap) or one from the sister site has
+  // a valid session here but no D1 row yet. Create it on the first
+  // authenticated request of any kind, not only on /api/me, so no endpoint
+  // answers 401 to a signed-in person (ML+ found that loop on 2026-10-06).
+  // settleFirstSight then reads the account from Supabase and decides whether
+  // it signed up here (attribution, tag write-back and the owner's email;
+  // _lib/signup-site.ts).
+  if (!context.data.user && payload.email) {
+    try {
+      const meta = (payload.user_metadata ?? {}) as Record<string, unknown>;
+      await upsertUserFromSupabase(context.env.DB, {
+        id: payload.sub,
+        email: payload.email,
+        display_name: (meta.full_name as string) || (meta.name as string) || payload.email.split("@")[0],
+        avatar_url: (meta.avatar_url as string) || undefined,
+        country: context.request.headers.get("CF-IPCountry") || undefined,
+      });
+      context.data.user = await getUserById(context.env.DB, payload.sub);
+      const fresh = context.data.user;
+      if (fresh) {
+        context.data.lazy_created = true;
+        context.waitUntil(settleFirstSight(context.env, SITE_KEY,
+          { id: fresh.id, email: fresh.email, created_at: fresh.created_at }, token));
+      }
+    } catch (e) {
+      console.error(`[auth] lazy user create failed for ${payload.sub}: ${(e as Error).message}`);
+    }
+  }
 
   // Throttled session upsert: avoid 1 D1 write per page load by skipping if
   // we touched this session within the last 60s. KV is the throttle store

@@ -22,8 +22,10 @@
 
 import type { Env } from "../../_middleware";
 import { json, jsonError, err401 } from "../../_lib/errors";
-import { upsertUserFromSupabase, recordNewsletterOptIn } from "../../_lib/db";
+import { getUserById, upsertUserFromSupabase, recordNewsletterOptIn } from "../../_lib/db";
 import { notifyNewSignup } from "../../_lib/notify";
+import { siteTag, webhookPlan } from "../../_lib/signup-site";
+import { SITE_KEY } from "../../_lib/site-key";
 
 interface SupabaseAuthRecord {
   id: string;
@@ -108,13 +110,33 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const ts = target.updated_at || target.created_at || "unknown";
   const eventId = `supabase:${target.id}:${payload.type}:${ts}`;
 
+  // 3b. Shared Supabase project with machinelearningplus.com (rules in
+  //     _lib/signup-site.ts): both sites' webhooks receive every auth.users
+  //     change. A magic-link signup carries user_metadata.site (signin.html,
+  //     signin-modal.js); only the matching site creates the row, notifies and
+  //     syncs the opt-in. An UPDATE for anyone else (legacy untagged accounts,
+  //     ML+ accounts) refreshes the row only if this site already has it, so
+  //     existing members stay current. Untagged new accounts (Google, GitHub,
+  //     one-tap, the sign-in nudge's magic link) are mirrored by no webhook:
+  //     each site creates them on their first authenticated request and
+  //     decides there whether they signed up here (_lib/signup-claim.ts).
+  //     DELETE always applies: an account removed in Supabase is removed
+  //     everywhere.
+  const signupTag = siteTag(payload.record?.raw_user_meta_data);
+  const plan = webhookPlan(payload.type, signupTag, SITE_KEY);
+  const ownSignup = plan.own;
+
   // 4. Apply change FIRST (so we don't mark processed before success),
   //    then atomically insert the dedup record. Race-safe via INSERT OR IGNORE.
   try {
     if (payload.type === "INSERT" || payload.type === "UPDATE") {
-      if (!payload.record?.email) {
+      if (plan.mirror === "skip") {
+        console.log(`[webhook.supabase] ${payload.type} for site "${signupTag || "(untagged)"}" skipped on ${SITE_KEY}: ${target.id}`);
+      } else if (!payload.record?.email) {
         // Email-less users not supported (Supabase provider config blocks them).
         console.warn(`[webhook.supabase] user without email: ${target.id}`);
+      } else if (plan.mirror === "refresh" && !(await getUserById(context.env.DB, payload.record.id))) {
+        console.log(`[webhook.supabase] UPDATE for site "${signupTag || "(untagged)"}" skipped on ${SITE_KEY} (no row here): ${target.id}`);
       } else {
         const meta = payload.record.raw_user_meta_data ?? {};
         await upsertUserFromSupabase(context.env.DB, {
@@ -125,6 +147,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             (meta.name as string) ||
             payload.record.email.split("@")[0],
           avatar_url: (meta.avatar_url as string) || undefined,
+          // Set only for this site's own signups; a refresh never attributes.
+          signup_site: ownSignup ? SITE_KEY : undefined,
         });
       }
     } else if (payload.type === "DELETE") {
@@ -194,15 +218,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       .run()
       .catch((e) => console.warn(`[webhook.supabase] audit_log insert failed: ${e}`));
 
-    // 7. Admin "new signup" notification — on a CONFIRMED signup only.
-    //    INSERT with email already confirmed = OAuth (Google/GitHub).
+    // 7. Admin "new signup" notification: on a CONFIRMED signup only, and only
+    //    for this site's tag (OAuth accounts arrive untagged and are notified
+    //    at first sight instead, by _lib/signup-claim.ts).
+    //    INSERT with email already confirmed = pre-confirmed tagged signup.
     //    UPDATE that flips email_confirmed_at null -> set = magic-link confirm.
     //    Raw INSERTs without confirmation (unclicked magic links / typos) are
     //    intentionally skipped. notifyNewSignup() is flag-gated + KV-deduped.
     const rec = payload.record;
-    const justConfirmed =
+    const justConfirmed = ownSignup && (
       (payload.type === "INSERT" && !!rec?.email_confirmed_at) ||
-      (payload.type === "UPDATE" && !!rec?.email_confirmed_at && !payload.old_record?.email_confirmed_at);
+      (payload.type === "UPDATE" && !!rec?.email_confirmed_at && !payload.old_record?.email_confirmed_at));
     if (justConfirmed && rec?.email) {
       const provider = (rec.raw_app_meta_data?.provider as string) || undefined;
       // Signup attribution: signin.html stamps these into user_metadata on the

@@ -21,6 +21,7 @@ export interface User {
   last_active_date: string | null;
   role: string;
   pass_claimed_at?: number | null;  // DA pass claim moment (claim-to-start)
+  signup_site?: string | null;      // site key the account signed up on (shared Supabase project); NULL = legacy or unknown
   deleted_at: number | null;
 }
 
@@ -48,24 +49,50 @@ async function ensureAvatarKeyColumn(db: D1Database): Promise<void> {
   avatarKeyEnsured = true;
 }
 
+// users.signup_site (shared Supabase project with machinelearningplus.com, see
+// signup-site.ts): which site an account signed up on. Added at runtime like
+// avatar_key; NULL for every account older than the column (all rsc's own).
+let signupSiteEnsured = false;
+export async function ensureSignupSiteColumn(db: D1Database): Promise<void> {
+  if (signupSiteEnsured) return;
+  try { await db.prepare("ALTER TABLE users ADD COLUMN signup_site TEXT").run(); } catch { /* exists */ }
+  signupSiteEnsured = true;
+}
+
+// Record where an account signed up, once. Returns true only for the request
+// that set it, so the first-sight side effects (tag write-back, owner email)
+// run exactly once even when several first requests race, and never after the
+// webhook attributed it.
+export async function claimSignupSite(db: D1Database, id: string, site: string): Promise<boolean> {
+  await ensureSignupSiteColumn(db);
+  const res = await db
+    .prepare("UPDATE users SET signup_site = ?1 WHERE id = ?2 AND signup_site IS NULL")
+    .bind(site, id)
+    .run();
+  return (res.meta?.changes ?? 0) === 1;
+}
+
 export async function upsertUserFromSupabase(
   db: D1Database,
-  row: { id: string; email: string; display_name?: string; avatar_url?: string; country?: string },
+  row: { id: string; email: string; display_name?: string; avatar_url?: string; country?: string; signup_site?: string },
 ): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
+  await ensureSignupSiteColumn(db);
   // avatar_key set = the learner uploaded their own picture; the OAuth
   // provider picture must never clobber it on later sign-ins.
   await ensureAvatarKeyColumn(db);
   const sql =
-    `INSERT INTO users (id, email, display_name, avatar_url, country, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO users (id, email, display_name, avatar_url, country, created_at, signup_site)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        email        = excluded.email,
        display_name = COALESCE(excluded.display_name, users.display_name),
        avatar_url   = CASE WHEN users.avatar_key IS NOT NULL THEN users.avatar_url
                            ELSE COALESCE(excluded.avatar_url, users.avatar_url) END,
-       country      = COALESCE(excluded.country, users.country)`;
-  const bind = [row.id, row.email, row.display_name ?? null, row.avatar_url ?? null, row.country ?? null, now];
+       country      = COALESCE(excluded.country, users.country),
+       signup_site  = COALESCE(users.signup_site, excluded.signup_site)`;
+  const bind = [row.id, row.email, row.display_name ?? null, row.avatar_url ?? null, row.country ?? null, now, row.signup_site ?? null];
+  const bindLegacy = bind.slice(0, 6);
   try {
     await db.prepare(sql).bind(...bind).run();
   } catch {
@@ -79,7 +106,7 @@ export async function upsertUserFromSupabase(
          display_name = COALESCE(excluded.display_name, users.display_name),
          avatar_url   = COALESCE(excluded.avatar_url, users.avatar_url),
          country      = COALESCE(excluded.country, users.country)`,
-    ).bind(...bind).run();
+    ).bind(...bindLegacy).run();
   }
 }
 

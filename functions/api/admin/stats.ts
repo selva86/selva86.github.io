@@ -30,6 +30,8 @@ import { json, err401, err403, err500 } from "../../_lib/errors";
 import { ensureIntentTable } from "../signal";
 import { sweepAbandonedCheckouts } from "../../_lib/cartrecovery";
 import { sweepRenewalReminders } from "../../_lib/fulfilment";
+import { ensureSignupSiteColumn } from "../../_lib/db";
+import { SITE_KEY } from "../../_lib/site-key";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 const IST_OFFSET = 19800; // +5:30 in seconds
@@ -65,6 +67,10 @@ async function d1Stats(DB: D1Database, now: number, range: RangeKey) {
   const live5m = now - 300;
   const seriesN = SERIES_DAYS[range];
   const seriesStart = istDayStart(now - (seriesN - 1) * 86400);
+  // Signups = accounts that signed up here: this site's tag, or NULL (every
+  // account older than users.signup_site). ML+ accounts get a row on their
+  // first visit but are members here, not signups; users_total counts them.
+  await ensureSignupSiteColumn(DB);
 
   const [liveUsers, signins, signups, totals, attempts, xp, topHubs, recent, sSignups, sSignins, sPassed, sXp] =
     await Promise.all([
@@ -73,8 +79,8 @@ async function d1Stats(DB: D1Database, now: number, range: RangeKey) {
       ).bind(live5m).first<{ n: number }>(),
       DB.prepare("SELECT COUNT(*) AS n FROM sessions WHERE created_at >= ?1")
         .bind(rs).first<{ n: number }>(),
-      DB.prepare("SELECT COUNT(*) AS n FROM users WHERE created_at >= ?1")
-        .bind(rs).first<{ n: number }>(),
+      DB.prepare("SELECT COUNT(*) AS n FROM users WHERE created_at >= ?1 AND (signup_site IS NULL OR signup_site = ?2)")
+        .bind(rs, SITE_KEY).first<{ n: number }>(),
       DB.prepare(
         "SELECT COUNT(*) AS total, SUM(CASE WHEN pro_until = -1 OR pro_until > ?1 THEN 1 ELSE 0 END) AS pro FROM users"
       ).bind(now).first<{ total: number; pro: number }>(),
@@ -90,12 +96,12 @@ async function d1Stats(DB: D1Database, now: number, range: RangeKey) {
         "WHERE submitted_at >= ?1 GROUP BY hub_slug ORDER BY attempts DESC LIMIT 8"
       ).bind(rs).all<{ hub_slug: string; attempts: number; passed: number }>(),
       DB.prepare(
-        "SELECT email, display_name, created_at FROM users ORDER BY created_at DESC LIMIT 10"
-      ).all<{ email: string; display_name: string | null; created_at: number }>(),
+        "SELECT email, display_name, created_at FROM users WHERE (signup_site IS NULL OR signup_site = ?1) ORDER BY created_at DESC LIMIT 10"
+      ).bind(SITE_KEY).all<{ email: string; display_name: string | null; created_at: number }>(),
       // per-IST-day series for the trend lines
       DB.prepare(
-        "SELECT (created_at + ?2) / 86400 AS day, COUNT(*) AS n FROM users WHERE created_at >= ?1 GROUP BY day"
-      ).bind(seriesStart, IST_OFFSET).all<{ day: number; n: number }>(),
+        "SELECT (created_at + ?2) / 86400 AS day, COUNT(*) AS n FROM users WHERE created_at >= ?1 AND (signup_site IS NULL OR signup_site = ?3) GROUP BY day"
+      ).bind(seriesStart, IST_OFFSET, SITE_KEY).all<{ day: number; n: number }>(),
       DB.prepare(
         "SELECT (created_at + ?2) / 86400 AS day, COUNT(*) AS n FROM sessions WHERE created_at >= ?1 GROUP BY day"
       ).bind(seriesStart, IST_OFFSET).all<{ day: number; n: number }>(),
