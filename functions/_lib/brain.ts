@@ -29,6 +29,7 @@ import { meterMonth, METER_LIMIT } from "./meter";
 import { sendMail, emailLive } from "./email";
 import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
 import { seqSendable, seqUrl, renderSeqEmail, getSeqCopy, getSeqPlan, SEQ_ITEMS } from "./nurture";
+import { SITE_KEY } from "./site-key";
 
 export interface BrainEnv {
   DB: D1Database;
@@ -228,9 +229,13 @@ export async function runBrain(
        FROM users u
        WHERE u.deleted_at IS NULL
          AND u.created_at BETWEEN ?1 AND ?2
+         -- Shared Supabase project: a row also appears when a machinelearningplus.com
+         -- member visits for the first time (signup_site = 'mlplus'). Only rsc's own
+         -- signups (legacy rows have NULL) get rsc's welcome.
+         AND (u.signup_site IS NULL OR u.signup_site = ?3)
          AND NOT EXISTS (SELECT 1 FROM sent_emails s WHERE s.user_id = u.id AND s.email_key = 'welcome')
        LIMIT 200`,
-    ).bind(now - 48 * 3600, now - 30 * 60).all<UserRow>();
+    ).bind(now - 48 * 3600, now - 30 * 60, SITE_KEY).all<UserRow>();
     for (const u of rows.results ?? []) {
       const gate = (u.signup_gate || "").toLowerCase();
       const template =
