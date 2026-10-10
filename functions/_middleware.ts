@@ -265,6 +265,29 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
     return new Response("Not Found", { status: 404 });
   }
 
+  // --- The production pages.dev alias duplicates the whole site ---
+  // r-statistics-co.pages.dev serves every page with no noindex (Cloudflare
+  // noindexes only branch and hash previews), so search engines could index a
+  // second copy. Readers and crawlers get a 301 to the same path on the custom
+  // domain. /api/* and /.well-known/* are left alone in case a webhook or
+  // integration still calls this host. Previews (<branch>.r-statistics-co.
+  // pages.dev) do not match. Assets excluded in _routes.json never reach this
+  // line; _headers gives them X-Robots-Tag: noindex on this host instead.
+  // robots.txt stays open on purpose: crawlers must fetch pages to see the 301.
+  const reqUrl = new URL(context.request.url);
+  if (reqUrl.hostname === "r-statistics-co.pages.dev"
+      && (context.request.method === "GET" || context.request.method === "HEAD")
+      && !path.startsWith("/api/") && !path.startsWith("/.well-known/")) {
+    return new Response(null, {
+      status: 301,
+      headers: {
+        "Location": "https://r-statistics.co" + reqUrl.pathname + reqUrl.search,
+        "X-Robots-Tag": "noindex",
+        "Cache-Control": "public, max-age=86400",
+      },
+    });
+  }
+
   // --- Static assets: no user context needed ---
   // Belt to _routes.json's braces: any asset request that still reaches the
   // Function skips auth entirely. Assets carry the session cookie (browsers
