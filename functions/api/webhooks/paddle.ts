@@ -13,7 +13,9 @@
 // plans (Single Track / All-Access / Lifetime) fulfill through _lib/billing.ts:
 // subscription.* -> users.pro_until + subscriptions mirror; transaction.completed
 // -> lifetime grant; customer.created/updated -> users.paddle_customer_id link.
-// Everything else is acknowledged and ignored.
+// Everything else is acknowledged and ignored. Which plan was bought is read
+// from the item price ids only (_lib/paddle-plan.ts); custom_data comes from
+// the buyer's browser and only routes the purchase (user_id, email, track).
 
 import type { Env } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
@@ -34,6 +36,7 @@ import {
   resolveSubscriptionUser, mirrorSubscription, applyIndividualEntitlement,
   applyLifetimePurchase, linkPaddleCustomer,
 } from "../../_lib/billing";
+import { individualPlan, isPriceLock, teamsSeatQuantity, planLabel } from "../../_lib/paddle-plan";
 
 interface PaddlePrice {
   id?: string;
@@ -76,51 +79,8 @@ interface PaddleEvent {
   data?: PaddleSubscriptionData;
 }
 
-// Which individual plan a non-teams subscription or transaction is for, as
-// '<plan>_<term>' (e.g. 'allaccess_year'). Prefers the checkout custom_data we
-// set ourselves; falls back to matching item price ids against the configured
-// PADDLE_PRICE_* env vars. Null = not one of ours (do not entitle anything).
-function individualPlan(data: PaddleSubscriptionData, env: Env): string | null {
-  const plan = (data.custom_data?.plan as string | undefined) || "";
-  const term = (data.custom_data?.term as string | undefined) || "";
-  if (plan === "single" || plan === "allaccess") return `${plan}_${term || "year"}`;
-  if (plan === "lifetime") return "lifetime";
-  const byPrice: Record<string, string | undefined> = {
-    single_month: env.PADDLE_PRICE_SINGLE_MONTH,
-    single_year: env.PADDLE_PRICE_SINGLE_YEAR,
-    allaccess_month: env.PADDLE_PRICE_AA_MONTH,
-    allaccess_year: env.PADDLE_PRICE_AA_YEAR,
-    lifetime: env.PADDLE_PRICE_LIFETIME,
-    /* The price-lock prices are the same plans with the first charge pushed
-       out 60 days, so they resolve to the same plan keys. What differs is only
-       WHEN entitlement starts, which isPriceLock decides. */
-    single_year_lock: env.PADDLE_PRICE_SINGLE_YEAR_LOCK,
-    allaccess_year_lock: env.PADDLE_PRICE_AA_YEAR_LOCK,
-  };
-  for (const item of data.items || []) {
-    const pid = item.price?.id;
-    if (!pid) continue;
-    for (const [key, envId] of Object.entries(byPrice)) {
-      if (envId && envId === pid) return key.replace(/_lock$/, "");
-    }
-  }
-  return null;
-}
-
-/* Is this subscription a price lock, i.e. bought now to start later? Two
-   independent signals, because the answer decides whether somebody reads paid
-   lessons for free: what checkout stamped into custom_data, and the price id
-   itself. Either is sufficient; neither is trusted alone. */
-function isPriceLock(data: PaddleSubscriptionData, env: Env): boolean {
-  if (data.custom_data?.price_lock === true || data.custom_data?.price_lock === "true") return true;
-  const locks = [env.PADDLE_PRICE_SINGLE_YEAR_LOCK, env.PADDLE_PRICE_AA_YEAR_LOCK].filter(Boolean);
-  if (!locks.length) return false;
-  for (const item of data.items || []) {
-    const pid = item.price?.id;
-    if (pid && locks.includes(pid)) return true;
-  }
-  return false;
-}
+// Plan resolution (individualPlan, isPriceLock, teamsSeatQuantity) lives in
+// _lib/paddle-plan.ts: price ids only, never the buyer-writable custom_data.
 
 function isoToUnix(iso?: string | null): number | null {
   if (!iso) return null;
@@ -143,27 +103,6 @@ function mapStatus(paddle?: string): string {
     default:
       return "past_due"; // unknown -> conservative (no entitlement)
   }
-}
-
-// Identify a Teams subscription + its seat quantity. Teams is flagged by
-// custom_data.plan === 'teams' on the checkout OR on the price, or by an
-// explicit PADDLE_TEAMS_PRICE_ID env match. Returns null if not a teams sub.
-function teamsSeatQuantity(data: PaddleSubscriptionData, teamsPriceId?: string): number | null {
-  const subPlan = (data.custom_data?.plan as string | undefined) || undefined;
-  let seats: number | null = null;
-  for (const item of data.items || []) {
-    const pricePlan = (item.price?.custom_data?.plan as string | undefined) || undefined;
-    const isTeamsItem =
-      pricePlan === "teams" ||
-      (!!teamsPriceId && item.price?.id === teamsPriceId) ||
-      (subPlan === "teams"); // whole-subscription flag: treat its item(s) as seats
-    if (isTeamsItem) seats = (seats ?? 0) + (item.quantity ?? 0);
-  }
-  if (subPlan === "teams" && seats === null) {
-    // teams flagged but no per-item match: sum all item quantities as a fallback.
-    seats = (data.items || []).reduce((n, it) => n + (it.quantity ?? 0), 0) || null;
-  }
-  return seats;
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
@@ -444,8 +383,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const currency = data.details?.totals?.currency_code || "";
     const money = total != null && total !== "" && currency
       ? `${(parseInt(String(total), 10) / 100).toFixed(2)} ${currency}` : "";
-    const plan = (data.custom_data?.plan as string | undefined) || "";
-    const term = (data.custom_data?.term as string | undefined) || "";
+    // The plan actually paid for (price id), not the buyer-writable custom_data.
+    const plan = planLabel(data, context.env,
+      (context.env as unknown as { PADDLE_TEAMS_PRICE_ID?: string }).PADDLE_TEAMS_PRICE_ID);
     const NOTIFY: Record<string, string> = {
       "transaction.completed": "Payment received",
       "transaction.payment_failed": "Payment FAILED",
@@ -457,11 +397,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const headline = NOTIFY[eventType];
     if (headline) {
       context.waitUntil(notifyAdminEvent(context.env, {
-        subject: `[r-statistics.co] ${headline}${money ? ": " + money : ""}${plan ? " (" + plan + (term ? " " + term : "") + ")" : ""}`,
+        subject: `[r-statistics.co] ${headline}${money ? ": " + money : ""}${plan ? " (" + plan + ")" : ""}`,
         headline,
         rows: [
           ["Event", eventType],
-          ...(plan ? [["Plan", plan + (term ? " / " + term : "")] as [string, string]] : []),
+          ...(plan ? [["Plan", plan] as [string, string]] : []),
           ...(normalizeTrack(data.custom_data?.track) ? [["Track", normalizeTrack(data.custom_data?.track)] as [string, string]] : []),
           ...(money ? [["Amount", money] as [string, string]] : []),
           ...(buyer ? [["Customer", buyer] as [string, string]] : []),
