@@ -400,6 +400,29 @@ CREATE INDEX IF NOT EXISTS idx_email_events_user ON email_events(user_id, at);
 --   ALTER TABLE users ADD COLUMN level_ml TEXT;       -- none|concepts|hands_on
 --   ALTER TABLE users ADD COLUMN level_ts TEXT;       -- none|some|regular
 
+-- ===== contact_actions (the contact centre's memory, 2026-10-14) =====
+-- What the owner did about a person: an email sent by hand (kind 'outreach',
+-- email_key outreach:<template>:<id> is its tracking key), a note, a snooze
+-- (until_at), 'done' for a queue reason, 'replied' (ref = the outreach it
+-- answers) or 'reopen'. Created on first use by functions/_lib/contacts.ts,
+-- together with an email_events (email_key, at) index for the reactions.
+CREATE TABLE IF NOT EXISTS contact_actions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    TEXT NOT NULL,
+  kind       TEXT NOT NULL,     -- outreach | note | snooze | done | replied | reopen
+  ref        INTEGER,           -- the outreach a follow-up or a reply belongs to
+  template   TEXT,
+  email_key  TEXT,
+  subject    TEXT,
+  body       TEXT,
+  until_at   INTEGER,
+  reason     TEXT,              -- the queue reason a 'done' dismissed
+  at         INTEGER NOT NULL,
+  actor      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_contact_actions_user ON contact_actions(user_id, at);
+CREATE INDEX IF NOT EXISTS idx_email_events_key ON email_events(email_key, at);
+
 -- ===== price_alerts (the "email me if there's ever a discount" flow, 2026-08-29) =====
 -- One row per address that asked to hear about discounts. The row IS the
 -- state machine: intent (today/week/month/someday) sets offer_due_at; the

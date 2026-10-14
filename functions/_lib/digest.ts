@@ -26,6 +26,13 @@
 // Everything is derived from tables that already exist. No new writes, no
 // schema change, and the whole thing is roughly a dozen grouped queries
 // against bounded date ranges.
+//
+// 2026-10-14: the contact centre's queue rides along ("Contacts who need
+// you"), read from the same functions the page uses so the email and the page
+// always name the same people. A failure there drops the block, never the
+// digest.
+
+import { loadContacts, loadThreads, buildQueue } from "./contacts";
 
 const SITE = "https://r-statistics.co";
 
@@ -73,6 +80,9 @@ export interface Digest {
   topPages: Array<{ path: string; visits: number }>;
   emailByTemplate: Array<{ key: string; sent: number; opened: number; clicked: number }>;
   intent: Array<{ signal: string; n: number }>;
+  /** The contact centre's queue: who needs the owner today. null when it
+      could not be built. */
+  attention: { total: number; byReason: Array<{ label: string; n: number }>; top: Array<{ who: string; label: string; detail: string }> } | null;
 }
 
 /* ---------------------------------------------------------------- helpers */
@@ -396,6 +406,24 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     bits.push(`${metrics.purchases.value} purchase${metrics.purchases.value === 1 ? "" : "s"}`);
   }
   if (alerts.length) bits.push(`${alerts.length} to look at`);
+
+  let attention: Digest["attention"] = null;
+  try {
+    const L = await loadContacts(DB);
+    const q = await buildQueue(DB, L, await loadThreads(DB, L));
+    const by = new Map<string, number>();
+    for (const it of q) by.set(it.label, (by.get(it.label) || 0) + 1);
+    attention = {
+      total: q.length,
+      byReason: [...by.entries()].map(([label, n]) => ({ label, n })),
+      // First names only: this goes to an inbox.
+      top: q.slice(0, 5).map((it) => ({
+        who: (it.name || "").trim().split(/\s+/)[0] || it.email.split("@")[0],
+        label: it.label, detail: it.detail,
+      })),
+    };
+  } catch { /* the digest never fails because of the queue */ }
+  if (attention && attention.total > 0) bits.push(`${attention.total} contact${attention.total === 1 ? "" : "s"} waiting`);
   const headline = bits.join(", ");
   const subject = `r-statistics.co ${day} · ${headline}`;
 
@@ -403,7 +431,8 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     day, weekday: weekdayOf(day), subject, headline, metrics,
     order: [g1, g2, g3, g4, g5],
     sections: ["Who arrived", "What they did", "Intent and money", "Email", "Earned"],
-    alerts, lessons: lessonRun, quiet, topPages, emailByTemplate, intent,
+    alerts, lessons: lessonRun, quiet: quiet && !(attention && attention.total > 0), topPages, emailByTemplate, intent,
+    attention,
   };
 }
 
@@ -466,6 +495,16 @@ export function renderDigestHtml(d: Digest): string {
       <ul style="margin:0;padding-left:18px;font:400 13.5px Inter,Arial,sans-serif;color:#454c58">`);
     for (const a of d.alerts) h.push(`<li style="margin:3px 0">${esc(a)}</li>`);
     h.push(`</ul></div>`);
+  }
+
+  if (d.attention && d.attention.total > 0) {
+    const A = d.attention;
+    h.push(`<div style="margin:16px 0 0;padding:14px 16px;background:#eef6f1;border-left:3px solid #1f7a55;border-radius:0 8px 8px 0">
+      <div style="font:700 13px Inter,Arial,sans-serif;color:#1f7a55;margin-bottom:6px">Contacts who need you: ${A.total}</div>
+      <div style="font:400 12.5px Inter,Arial,sans-serif;color:#454c58;margin-bottom:6px">${A.byReason.map((r) => `${esc(r.label)} ${r.n}`).join(" &middot; ")}</div>
+      <ul style="margin:0;padding-left:18px;font:400 13.5px Inter,Arial,sans-serif;color:#454c58">`);
+    for (const t of A.top) h.push(`<li style="margin:3px 0"><b>${esc(t.who)}</b>: ${esc(t.label.toLowerCase())}, ${esc(t.detail)}</li>`);
+    h.push(`</ul><div style="margin-top:8px"><a href="${SITE}/admin/contacts.html" style="font:600 13px Inter,Arial,sans-serif;color:#1f7a55;text-decoration:none">Open the contact centre</a></div></div>`);
   }
 
   /* One table for the lot, so the three column headings are written once
@@ -552,6 +591,13 @@ export function renderDigestText(d: Digest): string {
   if (d.alerts.length) {
     L.push("WORTH A LOOK");
     for (const a of d.alerts) L.push("  - " + a);
+    L.push("");
+  }
+  if (d.attention && d.attention.total > 0) {
+    L.push(`CONTACTS WHO NEED YOU: ${d.attention.total}`);
+    L.push("  " + d.attention.byReason.map((r) => `${r.label} ${r.n}`).join(", "));
+    for (const t of d.attention.top) L.push(`  - ${t.who}: ${t.label.toLowerCase()}, ${t.detail}`);
+    L.push(`  ${SITE}/admin/contacts.html`);
     L.push("");
   }
   const pad = (s: string, n: number) => s.padStart(n);
