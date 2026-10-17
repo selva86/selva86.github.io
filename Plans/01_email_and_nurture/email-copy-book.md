@@ -12,7 +12,7 @@ Voice pass v2 (2026-08-13, owner: v1 read mechanical). The additions:
 
 - **Two sender personas (owner, 2026-10-18).** Akshay <akshay@r-statistics.co>
   sends the lessons and the knowledge: daily lessons, nurture, welcomes,
-  progress and account notes. Guyen <guyen@r-statistics.co> looks after buying
+  progress and account notes. Guyen <guyenmai@r-statistics.co> looks after buying
   and support: every `offers` email (pass arc, wall, price alerts, closed
   lessons), cart recovery and the contact centre. From-names "Akshay from
   r-statistics.co" / "Guyen from r-statistics.co", reply-to the same address,

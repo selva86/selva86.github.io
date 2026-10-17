@@ -25,8 +25,8 @@ export type EmailCategory = "account" | "progress" | "nurture" | "offers";
 // new sender needs its rule before it sends, or replies vanish.
 export const SENDER = { email: "akshay@r-statistics.co", name: "Akshay from r-statistics.co" };
 export const REPLY_TO = { email: "akshay@r-statistics.co", name: "Akshay" };
-export const SALES_SENDER = { email: "guyen@r-statistics.co", name: "Guyen from r-statistics.co" };
-export const SALES_REPLY_TO = { email: "guyen@r-statistics.co", name: "Guyen" };
+export const SALES_SENDER = { email: "guyenmai@r-statistics.co", name: "Guyen from r-statistics.co" };
+export const SALES_REPLY_TO = { email: "guyenmai@r-statistics.co", name: "Guyen" };
 
 export function senderFor(category: EmailCategory): { from: typeof SENDER; replyTo: typeof REPLY_TO } {
   return category === "offers"

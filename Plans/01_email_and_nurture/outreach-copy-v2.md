@@ -32,7 +32,7 @@ each is written to be the second, more human touch rather than a repeat.
 
 ### What this site's own rules add
 
-- From Guyen, plain personal note, reply-to guyen@ (owner, 2026-10-18:
+- From Guyen, plain personal note, reply-to guyenmai@ (owner, 2026-10-18:
   Akshay sends the lessons and knowledge, Guyen looks after buying and
   support). Voice as in the copy book, voice v2.
 - Owner voice pack: contractions, sincere not slick, no copywriter fragments,
