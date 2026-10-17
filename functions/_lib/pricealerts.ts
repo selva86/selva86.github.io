@@ -30,7 +30,7 @@
 
 import type { Env } from "../_middleware";
 import { sendMail, emailLive } from "./email";
-import { renderEmail, SENDER, REPLY_TO, type TemplateData } from "./email-templates";
+import { renderEmail, senderFor, type TemplateData } from "./email-templates";
 import { createPaddleDiscount, hasPurchased } from "./cartrecovery";
 
 const SITE = "https://r-statistics.co";
@@ -144,7 +144,7 @@ async function sendTemplate(env: AlertEnv, row: AlertRow, template: string, key:
   if (!r) return false;
   const res = await sendMail(env, {
     to: { email: row.email, name: row.display_name || undefined },
-    subject: r.subject, htmlBody: r.html, textBody: r.text, from: SENDER, replyTo: REPLY_TO,
+    subject: r.subject, htmlBody: r.html, textBody: r.text, ...senderFor(r.category),
   });
   await logEvent(env, row, key, res.ok ? "sent" : "error", res.ok ? why : (res.error || String(res.status)));
   return res.ok;

@@ -20,7 +20,7 @@ each is written to be the second, more human touch rather than a repeat.
 |---|---|---|
 | Emails of 50 to 125 words get the most replies (about 50% in a 40M-email study); 75 to 100 is the sweet spot | Boomerang, 40M emails | Every template is 50 to 125 words. Nothing longer. |
 | Writing at a 3rd-grade reading level gets 36% more replies than college level | Boomerang | Short sentences, ordinary words, one idea per paragraph. |
-| Plain-text emails got more clicks than HTML in every test; heavier HTML did worst | HubSpot A/B tests | They go as the plain personal-note shell, from Akshay, with one inline link. No buttons, no logo. |
+| Plain-text emails got more clicks than HTML in every test; heavier HTML did worst | HubSpot A/B tests | They go as the plain personal-note shell, from Guyen, with one inline link. No buttons, no logo. |
 | A question that asks for interest gets about twice the response of a hard ask; one clear CTA beats several | Smartlead, Martal | The main ask is a question they can answer in one line. The link is secondary. |
 | Referencing a prior interaction lifts response | sales follow-up studies (Martal) | Each email names the one thing they did that they know they did (a checkout, the track they reached), never a count of their visits. |
 | Speed matters most for hot leads: response within minutes converts many times better than within hours | speed-to-lead studies | The Needs action tab puts checkouts and walls at the top with how long ago, and the digest names them every morning. |
@@ -32,7 +32,9 @@ each is written to be the second, more human touch rather than a repeat.
 
 ### What this site's own rules add
 
-- From Akshay, plain personal note, reply-to akshay@ (copy book, voice v2).
+- From Guyen, plain personal note, reply-to guyen@ (owner, 2026-10-18:
+  Akshay sends the lessons and knowledge, Guyen looks after buying and
+  support). Voice as in the copy book, voice v2.
 - Owner voice pack: contractions, sincere not slick, no copywriter fragments,
   no stacked qualifiers.
 - No em or en dashes. No eyebrows, no stat triplets, no emoji.
@@ -86,7 +88,7 @@ Which was it for you? One line back is plenty.
 
 [Your checkout is still here when you're ready -> https://r-statistics.co/pricing.html]
 
-Akshay
+Guyen
 ```
 
 #### wall-goal: Reached the paid part
@@ -112,7 +114,7 @@ If you do decide to go further, the monthly plan is the easy way to try it, and 
 
 [See the plans in your currency -> https://r-statistics.co/pricing.html]
 
-Akshay
+Guyen
 ```
 
 #### plan-help: Weighing up the plans
@@ -140,7 +142,7 @@ Tell me what you're working towards and I'll say honestly which one I'd pick, ev
 
 [Compare the plans -> https://r-statistics.co/pricing.html]
 
-Akshay
+Guyen
 ```
 
 "The one most people pick" is true today: 10 of the 16 subscriptions are
@@ -168,7 +170,7 @@ Want me to send anything over? Just reply to this email.
 
 [See the plans, including teams -> https://r-statistics.co/pricing.html]
 
-Akshay
+Guyen
 ```
 
 **Owner check before the first send:** confirm what Paddle's receipt shows
@@ -193,7 +195,7 @@ Following up on my note from {last_note_date}. Is there one thing standing betwe
 
 And if now isn't the right time, that's completely fine. Say so and I won't chase.
 
-Akshay
+Guyen
 ```
 
 ### Customers
@@ -221,7 +223,7 @@ If something's in the way, or it isn't what you expected, reply and tell me.
 
 {refund_line}
 
-Akshay
+Guyen
 ```
 
 #### review: Ask for a review
@@ -245,7 +247,7 @@ Would you tell me what you make of it? Two questions, if it helps: what were you
 
 If you're happy for a line of it to go on the site with your name and role, tell me and I'll send you the exact wording first. Nothing goes up without your yes.
 
-Akshay
+Guyen
 ```
 
 #### stay: Plan set to cancel
@@ -268,7 +270,7 @@ Could I ask what made you decide? Reply with a number if that's easier: 1, the p
 
 If it's 1 or 2, tell me, because there may be a plan that suits you better. Either way, thank you for being a member.
 
-Akshay
+Guyen
 ```
 
 #### billing: Payment failing
@@ -291,7 +293,7 @@ You can update your card here. It takes about a minute:
 
 If anything looks wrong on our side, reply and I'll look into it.
 
-Akshay
+Guyen
 ```
 
 #### upgrade: Single Track, reaching other tracks
@@ -316,7 +318,7 @@ In case it's useful: you can switch to All-Access from the pricing page, and you
 
 If you're not sure it's worth it for you, ask me and I'll tell you honestly.
 
-Akshay
+Guyen
 ```
 
 ### Bring back
@@ -338,7 +340,7 @@ That's usually one of two things: life got busy, or something here was harder or
 
 One line back is plenty. It helps me more than you'd think.
 
-Akshay
+Guyen
 ```
 
 #### welcome-back: Dormant, with a record
@@ -362,7 +364,7 @@ All of it is still on your profile, along with your XP.
 
 If you'd rather I pointed you at the right next thing, reply and tell me what you're working towards.
 
-Akshay
+Guyen
 ```
 
 ---

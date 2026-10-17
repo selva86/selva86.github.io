@@ -27,7 +27,7 @@ import { resolvePass, passCoupon, mintPassCoupon } from "./pass";
 import proLessonsJson from "../_data/pro-lessons.json";
 import { meterMonth, METER_LIMIT } from "./meter";
 import { sendMail, emailLive } from "./email";
-import { renderEmail, SENDER, REPLY_TO, type TemplateData, type EmailCategory } from "./email-templates";
+import { renderEmail, senderFor, type TemplateData, type EmailCategory } from "./email-templates";
 import { seqSendable, seqUrl, renderSeqEmail, getSeqCopy, getSeqPlan, SEQ_ITEMS } from "./nurture";
 import { SITE_KEY } from "./site-key";
 
@@ -238,16 +238,23 @@ export async function runBrain(
     ).bind(now - 48 * 3600, now - 30 * 60, SITE_KEY).all<UserRow>();
     for (const u of rows.results ?? []) {
       const gate = (u.signup_gate || "").toLowerCase();
+      const pass = await resolvePass(env, u as unknown as User, now).catch(() => null);
+      const slug = (u.signup_slug || "").replace(/\.html$/, "");
+      // "Pick up where you left off" only when that lesson really is open to
+      // them now: a free lesson, or an analyst one while the pass runs.
+      const track = PRO_LESSON_TRACK[slug];
+      const lessonOpen = gate === "lesson" && !!slug &&
+        (!track || (track === "analyst" && !!pass && (!pass.claimed || pass.active)));
       const template =
         gate === "exercise" ? "welcome-exercise" :
-        gate === "lesson" ? "welcome-lesson" : "welcome-browsing";
-      const pass = await resolvePass(env, u as unknown as User, now).catch(() => null);
+        lessonOpen ? "welcome-lesson" : "welcome-browsing";
       candidates.push({
         u, key: "welcome", template, category: "account", priority: 0,
         data: {
           first_name: u.display_name,
           pass_end_date: pass && pass.claimed ? fmtDate(pass.ends_at) : undefined,
-          hub_url: u.signup_slug ? `/${u.signup_slug.replace(/\.html$/, "")}.html` : undefined,
+          hub_url: slug ? `/${slug}.html` : undefined,
+          next_lesson_url: lessonOpen ? `/${slug}.html` : undefined,
         },
         why: `signup ${Math.round((now - u.created_at) / 60)}min ago, gate=${gate || "none"}`,
       });
@@ -883,7 +890,7 @@ export async function runBrain(
       const res = await sendMail(env, {
         to: { email: u.email, name: u.display_name || undefined },
         subject: r.subject, htmlBody: r.html, textBody: r.text,
-        from: SENDER, replyTo: REPLY_TO,
+        ...senderFor(r.category),
       });
       if (res.ok) {
         sends += 1;

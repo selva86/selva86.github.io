@@ -10,8 +10,7 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
 import { recoveryEmail, reminderEmail } from "../../_lib/cartrecovery";
 import { sendMail } from "../../_lib/email";
-const RECOVERY_SENDER = { email: "support@r-statistics.co", name: "r-statistics.co support" };
-const RECOVERY_REPLY_TO = { email: "support@r-statistics.co", name: "r-statistics.co support" };
+import { SALES_SENDER as RECOVERY_SENDER, SALES_REPLY_TO as RECOVERY_REPLY_TO } from "../../_lib/email-templates";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
 const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";

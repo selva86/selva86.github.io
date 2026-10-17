@@ -5,7 +5,8 @@
 // then mirror here.
 //
 // THE RULES THESE ARE WRITTEN TO
-//  - A personal note from Akshay, 50 to 125 words, plain paragraphs, one link
+//  - A personal note from Guyen (buying and support; Akshay sends the
+//    lessons), 50 to 125 words, plain paragraphs, one link
 //    at most. Short personal plain-text mail is what gets replies and stays out
 //    of the Promotions tab.
 //  - The ask is a question they can answer in one line. A reply is worth more
@@ -56,7 +57,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "When this happens it's nearly always one of three things: the card or the currency, needing an invoice your employer can pay, or not being sure which plan is right. I can sort out any of those over email.",
       "Which was it for you? One line back is plenty.",
       `[Your checkout is still here when you're ready -> ${SITE}/pricing.html]`,
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -73,7 +74,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "Can I ask what you're learning R for? A job, a thesis, a project at work? Tell me in a line and I'll point you to the lessons that will matter most for it, free ones included.",
       "If you do decide to go further, the monthly plan is the easy way to try it, and every plan comes with a 14-day full refund.",
       `[See the plans in your currency -> ${SITE}/pricing.html]`,
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -91,7 +92,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "Every plan comes with a 14-day full refund, no questions asked.",
       "Tell me what you're working towards and I'll say honestly which one I'd pick, even if the answer is that free covers it for now.",
       `[Compare the plans -> ${SITE}/pricing.html]`,
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -108,7 +109,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "If that might be you, I'm happy to help with the paperwork: a receipt your finance team will accept, or a short note for your manager on what the course covers. And if a few of you want to learn together, there's a team plan with a single invoice.",
       "Want me to send anything over? Just reply to this email.",
       `[See the plans, including teams -> ${SITE}/pricing.html]`,
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -123,7 +124,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "Hi {first_name},",
       "Following up on my note from {last_note_date}. Is there one thing standing between you and getting started? Tell me what it is and I'll give you a straight answer.",
       "And if now isn't the right time, that's completely fine. Say so and I won't chase.",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -141,7 +142,7 @@ export const OUTREACH: OutreachTemplate[] = [
       `[Pick up your track -> ${SITE}/dashboard.html]`,
       "If something's in the way, or it isn't what you expected, reply and tell me.",
       "{refund_line}",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -157,7 +158,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "You've {progress_phrase} here, so you've seen enough to have a real opinion.",
       "Would you tell me what you make of it? Two questions, if it helps: what were you hoping to get from it, and has it done that? The critical parts are the most useful to me.",
       "If you're happy for a line of it to go on the site with your name and role, tell me and I'll send you the exact wording first. Nothing goes up without your yes.",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -173,7 +174,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "I saw your plan is set to end on {access_end_date}. You keep everything until then, and your progress stays on your profile afterwards.",
       "Could I ask what made you decide? Reply with a number if that's easier: 1, the price. 2, not enough time to use it. 3, it was missing something. 4, you got what you came for.",
       "If it's 1 or 2, tell me, because there may be a plan that suits you better. Either way, thank you for being a member.",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -190,7 +191,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "You can update your card here. It takes about a minute:",
       `[Update your payment details -> ${SITE}/account-billing.html]`,
       "If anything looks wrong on our side, reply and I'll look into it.",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -207,7 +208,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "In case it's useful: you can switch to All-Access from the pricing page, and you only pay the difference for the time left on your plan. Everything you've done carries over.",
       `[See the switch on the pricing page -> ${SITE}/pricing.html]`,
       "If you're not sure it's worth it for you, ask me and I'll tell you honestly.",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -223,7 +224,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "You were going well, you'd {progress_phrase}, and then it went quiet.",
       "That's usually one of two things: life got busy, or something here was harder or duller than it should have been. If it's the second, I'd really like to know which bit.",
       "One line back is plenty. It helps me more than you'd think.",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
   {
@@ -240,7 +241,7 @@ export const OUTREACH: OutreachTemplate[] = [
       "All of it is still on your profile, along with your XP.",
       `[Pick up where you left off -> ${SITE}/dashboard.html]`,
       "If you'd rather I pointed you at the right next thing, reply and tell me what you're working towards.",
-      "Akshay",
+      "Guyen",
     ].join("\n\n"),
   },
 ];

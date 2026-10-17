@@ -146,10 +146,14 @@ export const onRequestGet: PagesFunction<Env & { CRON_SECRET?: string; ADMIN_EMA
     ev.push({ at: a.last, cat: "practice", text: `Practised ${words(a.hub_slug)}`, link: page(a.hub_slug), extra: bits.join(", ") });
   }
   for (const x of xp) ev.push({ at: x.at, cat: "practice", text: `Earned ${x.xp} XP: ${x.action.replace(/[._]/g, " ")}`, extra: x.ref || undefined });
+  // Cart recovery since 2026-10-18 is also in the email ledger (with its opens
+  // and clicks), so its intent_signals marker would be the same send twice.
+  const logged = new Set(mails.filter((m) => m.event === "sent").map((m) => m.email_key || ""));
   for (const s of sigs) {
     const cat: Cat = s.signal === "lesson_start" || s.signal === "lesson_complete" ? "learning"
       : s.signal.startsWith("recovery") ? "email" : BUYING.has(s.signal) ? "buying" : "learning";
     if (s.signal === "recovery_code") continue;
+    if (s.path !== "skipped:purchased" && ((s.signal === "recovery_sent" && logged.has("cart-recovery")) || (s.signal === "recovery2_sent" && logged.has("cart-recovery-2")))) continue;
     const slug = slugOfPath(s.path);
     ev.push({ at: s.at, cat, text: describeSignal(s.signal, s.path, s.meta), link: slug && cat !== "email" ? page(slug) : undefined });
   }

@@ -18,17 +18,14 @@ import type { Env } from "../_middleware";
 import { ensureIntentTable } from "../api/signal";
 import { paddleApiBase } from "./paddle";
 import { sendMail } from "./email";
-import { renderPersonalNote, SENDER as RSENDER, REPLY_TO as RREPLY } from "./email-templates";
-// Recovery mail is store operations (a discount + "did checkout break?"),
-// so it sends from the support address: role-appropriate, keeps the author
-// brand out of discount nags, and signals a real operation at the moment a
-// buyer decides whether to trust the site with money. Akshay keeps the
-// lifecycle/series mail; Selva's name stays on the teaching.
-// From a person, like every other non-receipt email on this site. A support
-// alias offering a coupon reads as marketing; a note from Akshay asking what
-// went wrong reads as a question, and it is the reply that is actually useful.
-const RECOVERY_SENDER = RSENDER;
-const RECOVERY_REPLY_TO = RREPLY;
+import { renderPersonalNote, SALES_SENDER, SALES_REPLY_TO, type TemplateData } from "./email-templates";
+// Recovery mail is part of buying, so it comes from Guyen, who looks after
+// buying and support (owner, 2026-10-18; Akshay keeps the lessons). From a
+// person, like every other non-receipt email on this site: a support alias
+// offering a coupon reads as marketing, a note from a person asking what went
+// wrong reads as a question, and it is the reply that is actually useful.
+const RECOVERY_SENDER = SALES_SENDER;
+const RECOVERY_REPLY_TO = SALES_REPLY_TO;
 import { notifyAdminEvent } from "./notify";
 
 const SWEEP_INTERVAL = 1800;          // seconds between real runs
@@ -132,7 +129,40 @@ async function createDiscount(
   } catch (_) { return false; }
 }
 
-export function recoveryEmail(code: string): { subject: string; html: string; text: string } {
+/* Opens, clicks and a one-click unsubscribe, like every other email here, so
+   the contact centre can show what a recovery note led to. Only for a lead
+   with an account on this site: the open and click ledger is keyed by account,
+   so a checkout email that matches no account goes out untracked, as before.
+   Same signature as the brain's (userSig); computed here because brain.ts
+   reaches this file through pass.ts, and importing it back would be a cycle. */
+type TrackEnv = { DB: D1Database; EMAIL_UNSUB_SECRET?: string };
+
+async function accountFor(env: TrackEnv, userId: string | null, email: string): Promise<string | null> {
+  if (userId) return userId;
+  const r = await env.DB.prepare("SELECT id FROM users WHERE email = ?1 COLLATE NOCASE AND deleted_at IS NULL LIMIT 1")
+    .bind(email).first<{ id: string }>().catch(() => null);
+  return r?.id ?? null;
+}
+
+async function trackData(env: TrackEnv, uid: string | null, key: string): Promise<TemplateData> {
+  if (!uid || !env.EMAIL_UNSUB_SECRET) return {};
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.EMAIL_UNSUB_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const raw = await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(uid));
+  const sig = [...new Uint8Array(raw)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return {
+    track: { uid, sig, key },
+    unsubscribe_url: `https://r-statistics.co/api/email/unsubscribe?u=${encodeURIComponent(uid)}&t=${sig}&k=${encodeURIComponent(key)}`,
+  };
+}
+
+async function logSent(env: TrackEnv, uid: string | null, email: string, key: string, meta: string): Promise<void> {
+  if (!uid) return;
+  await env.DB.prepare(
+    "INSERT INTO email_events (user_id, email, email_key, event, at, meta) VALUES (?1, ?2, ?3, 'sent', ?4, ?5)",
+  ).bind(uid, email, key, Math.floor(Date.now() / 1000), meta.slice(0, 180)).run().catch(() => {});
+}
+
+export function recoveryEmail(code: string, data: TemplateData = {}): { subject: string; html: string; text: string } {
   const link = `https://r-statistics.co/pricing.html?code=${encodeURIComponent(code)}&src=recovery`;
   /* Names the three real reasons someone stops at a checkout instead of
      assuming it was the price. Leading with the discount answers a question
@@ -153,19 +183,19 @@ export function recoveryEmail(code: string): { subject: string; html: string; te
     "",
     "If it was one of the other two, reply and tell me what happened. I read every one.",
     "",
-    "Akshay",
+    "Guyen",
   ].join("\n");
   const r = renderPersonalNote({
     key: "cart-recovery", category: "offers",
     reason: "you started a checkout at r-statistics.co",
     subject: "Did something go wrong at checkout?",
     preheader: "There is a 15% code in here if the price was the sticking point.",
-    body, data: {},
+    body, data,
   });
   return { subject: r.subject, html: r.html, text: r.text };
 }
 
-export function reminderEmail(code: string, hoursLeft = 3): { subject: string; html: string; text: string } {
+export function reminderEmail(code: string, hoursLeft = 3, data: TemplateData = {}): { subject: string; html: string; text: string } {
   const link = `https://r-statistics.co/pricing.html?code=${encodeURIComponent(code)}&src=recovery2`;
   const body = [
     "Hi,",
@@ -178,14 +208,14 @@ export function reminderEmail(code: string, hoursLeft = 3): { subject: string; h
     "",
     "If the price was never the problem, that is genuinely fine and you can ignore this. But if something about the checkout itself did not work, reply and tell me what happened. Every reply gets read.",
     "",
-    "Akshay",
+    "Guyen",
   ].join("\n");
   const r = renderPersonalNote({
     key: "cart-recovery-2", category: "offers",
     reason: "you started a checkout at r-statistics.co",
     subject: "That 15% code runs out in a few hours",
     preheader: "One note, then I will stop.",
-    body, data: {},
+    body, data,
   });
   return { subject: r.subject, html: r.html, text: r.text };
 }
@@ -217,7 +247,8 @@ async function sweepExpiryReminders(env: Env & PaddleEnv, now: number): Promise<
     // Real hours left, not a fixed phrase: the band is two hours wide, so a
     // hardcoded number would be wrong at one end of it.
     const hoursLeft = Math.max(1, Math.round((d.sent_at + CODE_HOURS * 3600 - now) / 3600));
-    const mail = reminderEmail(d.code, hoursLeft);
+    const uid = await accountFor(env, d.user_id, email);
+    const mail = reminderEmail(d.code, hoursLeft, await trackData(env, uid, "cart-recovery-2"));
     const res = await sendMail(env, {
       to: { email },
       subject: mail.subject,
@@ -226,6 +257,7 @@ async function sweepExpiryReminders(env: Env & PaddleEnv, now: number): Promise<
       from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
     });
     if (!res.ok) continue;   // no marker: retried on a later sweep inside the band
+    await logSent(env, uid, email, "cart-recovery-2", `code ${d.code}, ${hoursLeft}h left`);
     await env.DB.prepare(
       "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?, ?, ?, 'recovery2_sent', ?, ?)"
     ).bind(now, d.user_id, d.anon_id, d.code, email).run().catch(() => {});
@@ -284,7 +316,8 @@ export async function sweepAbandonedCheckouts(env: Env & PaddleEnv): Promise<voi
         // no marker: retried on a later sweep
         continue;
       }
-      const mail = recoveryEmail(code);
+      const uid = await accountFor(env, lead.user_id, email);
+      const mail = recoveryEmail(code, await trackData(env, uid, "cart-recovery"));
       const res = await sendMail(env, {
         to: { email },
         subject: mail.subject,
@@ -293,6 +326,7 @@ export async function sweepAbandonedCheckouts(env: Env & PaddleEnv): Promise<voi
         from: RECOVERY_SENDER, replyTo: RECOVERY_REPLY_TO,
       });
       if (!res.ok) continue;   // no marker: retried later
+      await logSent(env, uid, email, "cart-recovery", `code ${code}, ${priceId || "any plan"}`);
 
       sent++;
       await env.DB.prepare(

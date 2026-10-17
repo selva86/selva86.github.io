@@ -3,12 +3,14 @@
 // Receives the signup attribution (page, trigger, next) that signin.html
 // parked in localStorage before an OAuth redirect. Stored briefly in KV so
 // the admin "new signup" email (fired by the Supabase webhook, which has no
-// access to client context on OAuth signups) can pick it up. Best-effort and
+// access to client context on OAuth signups) can pick it up, and saved onto
+// the account for a new signup (_lib/signup-source.ts). Best-effort and
 // informational; always 204 for authenticated callers.
 
 import type { Env, RequestData } from "../../_middleware";
 import { err401 } from "../../_lib/errors";
 import { flushPendingSignup } from "../../_lib/notify";
+import { recordSignupSource } from "../../_lib/signup-source";
 
 const FIELD_CAP = 300;
 
@@ -25,6 +27,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
       // If the webhook already fired without attribution, the notification is
       // parked — send it now with the source passed directly (no KV race).
       context.waitUntil(flushPendingSignup(context.env, u.id, src));
+      await recordSignupSource(context.env.DB, u.id, src).catch(() => {});
     }
   } catch (_) { /* informational only */ }
   return new Response(null, { status: 204 });

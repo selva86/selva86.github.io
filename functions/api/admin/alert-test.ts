@@ -12,8 +12,7 @@ import { json, jsonError } from "../../_lib/errors";
 import { previewAlertEmail, offerExpiry, formatOfferExpiry, type AlertEnv } from "../../_lib/pricealerts";
 import { sendMail } from "../../_lib/email";
 
-const SENDER = { email: "akshay@r-statistics.co", name: "Akshay from r-statistics.co" };
-const REPLY_TO = { email: "akshay@r-statistics.co", name: "Akshay" };
+import { SALES_SENDER, SALES_REPLY_TO } from "../../_lib/email-templates";
 const SITE = "https://r-statistics.co";
 
 const DEFAULT_ADMIN = "selva86@gmail.com";
@@ -67,7 +66,7 @@ export const onRequestGet: PagesFunction<
     const res = await sendMail(env, {
       to: { email: to },
       subject: r.subject, htmlBody: r.html, textBody: r.text,
-      from: SENDER, replyTo: REPLY_TO,
+      from: SALES_SENDER, replyTo: SALES_REPLY_TO,
     });
     out.push({ template, ok: res.ok, subject: r.subject, ...(res.ok ? {} : { error: res.error || String(res.status) }) });
   }

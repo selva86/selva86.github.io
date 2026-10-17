@@ -33,7 +33,7 @@
 import type { Env, RequestData } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
 import { requireAdmin } from "../../_lib/admin-auth";
-import { renderPersonalNote, SENDER, REPLY_TO, type TemplateData } from "../../_lib/email-templates";
+import { renderPersonalNote, SALES_SENDER, SALES_REPLY_TO, type TemplateData } from "../../_lib/email-templates";
 import { sendMail } from "../../_lib/email";
 import { userSig, unsubUrl } from "../../_lib/brain";
 import { ensureContactTables, trackOfSlug, slugOfPath, planLabel, fmtDay, DAY, type Reason } from "../../_lib/contacts";
@@ -215,6 +215,7 @@ export const onRequest: PagesFunction<OEnv, string, RequestData> = async (contex
       // figures baked in.
       editable: copy,
       preview: { subject: rendered.subject, preheader: rendered.preheader, text: rendered.text },
+      from: `${SALES_SENDER.name} <${SALES_SENDER.email}>`,
       safety: {
         suppressed, opted_out: p.optedOut, blocked: suppressed || blockedOptOut || missing.length > 0,
         sent_last_24h: last24, notes,
@@ -249,7 +250,7 @@ export const onRequest: PagesFunction<OEnv, string, RequestData> = async (contex
     const r = render(tpl, copy, p.tokens, {});
     const res = await sendMail(context.env, {
       to: { email: gate.admin }, subject: `[test] ${r.subject}`,
-      htmlBody: r.html, textBody: r.text, from: SENDER, replyTo: REPLY_TO,
+      htmlBody: r.html, textBody: r.text, from: SALES_SENDER, replyTo: SALES_REPLY_TO,
     });
     if (!res.ok) return jsonError(502, "send_failed", res.error || `status ${res.status}`);
     return json({ sent: true, mode, to: gate.admin, template: key, subject: r.subject, saved: body.save === true });
@@ -270,7 +271,7 @@ export const onRequest: PagesFunction<OEnv, string, RequestData> = async (contex
   const r = render(tpl, copy, p.tokens, data);
   const res = await sendMail(context.env, {
     to: { email: p.email }, subject: r.subject,
-    htmlBody: r.html, textBody: r.text, from: SENDER, replyTo: REPLY_TO,
+    htmlBody: r.html, textBody: r.text, from: SALES_SENDER, replyTo: SALES_REPLY_TO,
   });
   if (!res.ok) {
     await DB.prepare("DELETE FROM contact_actions WHERE id = ?1").bind(id).run().catch(() => {});

@@ -247,7 +247,8 @@ export async function loadContacts(DB: D1Database, now = Math.floor(Date.now() /
       .all<{ user_id: string; last: number }>(),
     DB.prepare(
       "SELECT user_id, signal, COUNT(*) n, MAX(at) last FROM intent_signals " +
-      "WHERE user_id IS NOT NULL GROUP BY user_id, signal",
+      // A recovery row marked skipped:purchased records that no email went.
+      "WHERE user_id IS NOT NULL AND NOT (signal LIKE 'recovery%' AND path = 'skipped:purchased') GROUP BY user_id, signal",
     ).all<{ user_id: string; signal: string; n: number; last: number }>(),
     DB.prepare("SELECT user_id, COUNT(*) n, MAX(sent_at) last FROM sent_emails GROUP BY user_id")
       .all<{ user_id: string; n: number; last: number }>(),
@@ -653,8 +654,8 @@ export async function buildQueue(DB: D1Database, L: Loaded, threads: Thread[]): 
 
   /* What the system already said to each of them in the last fortnight, so the
      owner never writes "did something go wrong at checkout?" an hour after the
-     machine did. Cart recovery logs to intent_signals, everything else to the
-     email ledger. */
+     machine did. Everything is in the email ledger; cart recovery sent before
+     2026-10-18 (or to an address with no account) is only in intent_signals. */
   if (items.length) {
     const ids = JSON.stringify(items.map((i) => i.user_id));
     const since = now - 14 * DAY;
@@ -670,6 +671,7 @@ export async function buildQueue(DB: D1Database, L: Loaded, threads: Thread[]): 
     ]);
     const R = new Set((react.results ?? []).map((x) => `${x.user_id}|${x.email_key}|${x.event}`));
     const by = new Map(items.map((i) => [i.user_id, i]));
+    const cartLogged = new Set((sent.results ?? []).filter((x) => x.email_key.startsWith("cart-recovery")).map((x) => x.user_id));
     for (const x of sent.results ?? []) {
       const it = by.get(x.user_id);
       const label = autoLabel(x.email_key);
@@ -680,7 +682,7 @@ export async function buildQueue(DB: D1Database, L: Loaded, threads: Thread[]): 
     }
     for (const it of items) {
       const a = L.agg.get(it.user_id);
-      if (a && a.last_recovery && now - a.last_recovery < 14 * DAY && it.automation.length < 4) {
+      if (a && a.last_recovery && now - a.last_recovery < 14 * DAY && it.automation.length < 4 && !cartLogged.has(it.user_id)) {
         it.automation.unshift(`Cart recovery note with a 15% code, ${ago(a.last_recovery, now)}`);
       }
     }
@@ -710,7 +712,8 @@ export interface Insights {
 }
 
 const GATE_LABEL: Record<string, string> = {
-  exercise: "Saved an exercise solve", lesson: "Reached a lesson wall", browsing: "Signed up while browsing",
+  exercise: "Saved an exercise solve", lesson: "Signed up at a lesson", browsing: "Signed up while browsing",
+  pricing: "Signed up on the way to the plans", optin: "Joined the daily lessons",
 };
 export function gateLabel(g: string | null): string {
   if (!g) return "Before sign-up sources were recorded";
@@ -842,8 +845,8 @@ export function describeSignal(signal: string, path: string | null, meta: string
     case "paywall_hit": return `Hit the paywall on ${page}`;
     case "cert_view": return "Looked at certificates";
     case "track_view": return `Looked at a track: ${page}`;
-    case "recovery_sent": return "Was sent the cart recovery note (15% code)";
-    case "recovery2_sent": return "Was sent the cart recovery reminder";
+    case "recovery_sent": return path === "skipped:purchased" ? "Had already bought, so no cart recovery note went" : "Was sent the cart recovery note (15% code)";
+    case "recovery2_sent": return path === "skipped:purchased" ? "Had already bought, so no cart recovery reminder went" : "Was sent the cart recovery reminder";
     case "recovery_code": return "A recovery code was created";
     default: return `${signal.replace(/_/g, " ")}${path ? ` on ${page}` : ""}`;
   }

@@ -4,7 +4,7 @@
 //
 // Voice pass v2 (2026-08-13, owner feedback): these render as PLAIN PERSONAL
 // NOTES, not marketing mail. No card chrome, no logo header, no button - a
-// short note from a person (Akshay) with inline links, exactly what a human
+// short note from a person (Akshay or Guyen, below) with inline links, exactly what a human
 // would send from their mail client. That is both the voice fix and the
 // Gmail-Promotions fix: buttons, benefit bullets, and branded shells are what
 // the tab classifier keys on. The styled emailShell stays in use for receipts
@@ -16,10 +16,23 @@ import lifecycleJson from "../_data/lifecycle-emails.json";
 
 export type EmailCategory = "account" | "progress" | "nurture" | "offers";
 
-// The person these emails come from. The mailbox akshay@r-statistics.co must
-// exist (Cloudflare Email Routing rule) BEFORE flag:email-live flips, or replies bounce.
+// The two people these emails come from (owner, 2026-10-18): Akshay sends the
+// lessons and the knowledge, Guyen looks after buying and support. So every
+// "offers" email (the pass arc, the wall note, price alerts, closed lessons),
+// cart recovery and the contact centre come from Guyen; daily lessons,
+// nurture, welcomes and account notes from Akshay. Each mailbox is a
+// Cloudflare Email Routing rule; the catch-all DROPS any other address, so a
+// new sender needs its rule before it sends, or replies vanish.
 export const SENDER = { email: "akshay@r-statistics.co", name: "Akshay from r-statistics.co" };
 export const REPLY_TO = { email: "akshay@r-statistics.co", name: "Akshay" };
+export const SALES_SENDER = { email: "guyen@r-statistics.co", name: "Guyen from r-statistics.co" };
+export const SALES_REPLY_TO = { email: "guyen@r-statistics.co", name: "Guyen" };
+
+export function senderFor(category: EmailCategory): { from: typeof SENDER; replyTo: typeof REPLY_TO } {
+  return category === "offers"
+    ? { from: SALES_SENDER, replyTo: SALES_REPLY_TO }
+    : { from: SENDER, replyTo: REPLY_TO };
+}
 
 export interface RenderedEmail {
   subject: string;

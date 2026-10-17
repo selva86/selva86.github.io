@@ -10,9 +10,16 @@ fulfilment + renewal + signup-admin (live).
 
 Voice pass v2 (2026-08-13, owner: v1 read mechanical). The additions:
 
-- **Sender persona: Akshay <akshay@r-statistics.co>**, from-name "Akshay from
-  r-statistics.co", reply-to akshay@, signatures "Akshay". The mailbox must
-  exist (Cloudflare Email Routing rule) before flag:email-live flips, or replies bounce.
+- **Two sender personas (owner, 2026-10-18).** Akshay <akshay@r-statistics.co>
+  sends the lessons and the knowledge: daily lessons, nurture, welcomes,
+  progress and account notes. Guyen <guyen@r-statistics.co> looks after buying
+  and support: every `offers` email (pass arc, wall, price alerts, closed
+  lessons), cart recovery and the contact centre. From-names "Akshay from
+  r-statistics.co" / "Guyen from r-statistics.co", reply-to the same address,
+  signatures "Akshay" / "Guyen". In code: `senderFor(category)` in
+  `functions/_lib/email-templates.ts`. Each mailbox is a Cloudflare Email
+  Routing rule, and the catch-all drops every other address, so a new sender
+  needs its rule before it sends, or replies vanish.
 - **Personal-note rendering.** No card chrome, no logo header, no CTA button:
   plain paragraphs, default font stack, links inline. What a person sends
   from a mail client. This is also the Gmail-Promotions defense - buttons,
@@ -34,10 +41,9 @@ Voice pass v2 (2026-08-13, owner: v1 read mechanical). The additions:
   the sentence carrying the token is dropped, never faked.
 - No em dashes anywhere. Subjects state facts; no clickbait, no "You won't
   believe", no comma-hinged slogans.
-- Sender: **"Akshay from r-statistics.co" <akshay@r-statistics.co>** for every
-  lifecycle email; `noreply@r-statistics.co` stays for receipts/fulfilment.
-  Reply-to on EVERYTHING: `akshay@r-statistics.co` (replies are wanted; they
-  are the support channel).
+- Sender: Akshay or Guyen by category, as above; `noreply@r-statistics.co`
+  stays for receipts/fulfilment. Reply-to is always the sender's own address
+  (replies are wanted; they are the support channel).
 - Every non-account email ends with a footer whose first line states the
   SPECIFIC reason it sent, then the links:
   `You get this because <reason, e.g. "your Data Analyst pass ends this week">. [Email preferences] · [Unsubscribe]`
@@ -207,7 +213,7 @@ around {finish_date_at_pace}.
 
 Everything you finish stays finished, whatever happens after the pass.
 
-Akshay
+Guyen
 ```
 
 ## 2b. Day 23: one-week warning
@@ -229,7 +235,7 @@ If you've got momentum, this is the week to use it.
 
 [Carry on with the track -> {next_lesson_url}]
 
-Akshay
+Guyen
 ```
 
 ## 2c. Day 27: the coupon (72 hours, genuinely one-time)
@@ -256,7 +262,7 @@ and there is no "extended by popular demand" email coming later. One code,
 If Pro is not right for you now, that is fine. The New to R course and all
 tutorials stay free, and your progress is not going anywhere.
 
-Akshay
+Guyen
 ```
 
 ## 2d. Day 30: final day
@@ -278,7 +284,7 @@ If you're mid-lesson, finish it tonight. It stays finished forever.
 
 Your XP, streak, and free practice aren't going anywhere either way.
 
-Akshay
+Guyen
 ```
 
 `{coupon_line}` = `Your 23% code {coupon_code} still works until {coupon_expiry}.`
@@ -307,7 +313,7 @@ where you left off. Nothing resets.
 And if there's something I can help with in the meantime, you know where
 the reply button is.
 
-Akshay
+Guyen
 ```
 
 `{coupon_last_call}` = `One practical note: your 23% code {coupon_code} is
@@ -390,7 +396,7 @@ work".
 If something specific is holding you back, reply and ask me directly.
 I would rather answer a hard question than have you guess.
 
-Akshay
+Guyen
 ```
 
 ## 3d. Cap hit (category: progress, flag: cap-email)
@@ -448,7 +454,7 @@ are free, and so is everything you have already done.
 
 Stuck on whether it is worth it? Reply and ask me the hard question.
 
-Akshay
+Guyen
 ```
 
 ---
@@ -810,7 +816,7 @@ Current plans are on the pricing page if the timing is ever right:
 
 Either way, the free side is yours for good. Good luck with the R work.
 
-Akshay
+Guyen
 ```
 
 ---

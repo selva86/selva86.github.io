@@ -25,6 +25,7 @@ import { json, jsonError, err401 } from "../../_lib/errors";
 import { getUserById, upsertUserFromSupabase, recordNewsletterOptIn } from "../../_lib/db";
 import { notifyNewSignup } from "../../_lib/notify";
 import { siteTag, webhookPlan } from "../../_lib/signup-site";
+import { recordSignupSource } from "../../_lib/signup-source";
 import { SITE_KEY } from "../../_lib/site-key";
 
 interface SupabaseAuthRecord {
@@ -241,6 +242,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       };
       context.waitUntil(
         notifyNewSignup(context.env, { id: rec.id, email: rec.email, provider }, source),
+      );
+      // The same source, saved onto the account (set once): the magic link may
+      // be opened on another device, where no parked source exists.
+      context.waitUntil(
+        recordSignupSource(context.env.DB, rec.id, source).catch((e) =>
+          console.warn(`[webhook.supabase] signup source not saved: ${e}`),
+        ),
       );
       // 8. Newsletter consent sync (Phase 6/A): the sign-in nudge records the
       //    opt-in as marketing_opt_in in user_metadata on the magic-link path.
