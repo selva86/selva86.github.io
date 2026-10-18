@@ -12,6 +12,12 @@
 //                     trigger, so the terms are stated at purchase time and
 //                     again ~7 days before the charge (sweepRenewalReminders).
 //
+// THE PRICE HOLDS. Since 2026-10-18 every discount this site mints recurs, so
+// the renewal figure equals the amount just paid and the email says so. That
+// sentence is computed from Paddle's own next-charge record, never assumed: if
+// the two figures ever diverge the claim removes itself. See
+// functions/_lib/cartrecovery.ts for the rule it depends on.
+//
 // GATING. Every customer send is behind KV flag `flag:fulfilment-email`
 // (`flag:renewal-reminder` for the reminder), DEFAULT OFF until the 2026-09-08
 // launch. While the flag is off nothing is sent, but the full rendered message
@@ -56,6 +62,13 @@ const SITE = "https://r-statistics.co";
 const DASHBOARD_URL = `${SITE}/dashboard.html`;
 const BILLING_URL = `${SITE}/account-billing.html`;
 const SIGNATURE = "Selva\nr-statistics.co";
+
+/* Stated at purchase, not buried on a policy page. Someone who cannot find how
+   to ask for their money back asks their bank instead, and a chargeback costs
+   the fee, the revenue and a mark against the merchant account. */
+const REFUND_LINE =
+  "You have 14 days from today to ask for a full refund, for any reason or none at all. "
+  + `Reply to this email and say so, or write to ${SUPPORT_EMAIL} with \"Refund request\" in the subject line.`;
 
 // Roadmap destination per Single-track scope key (matches the TRACK_KEYS set
 // in webhooks/paddle.ts and the pricing-page chips).
@@ -211,9 +224,18 @@ export interface ReminderArgs {
   renewalMoney: string;
 }
 
-function greeting(name?: string | null): string {
+/* A display name is whatever the account was created with, which for a lot of
+   sign-ups is just the local part of the email address. "Hi
+   nuno.b.mooc.conjoined235," is worse than no name at all: it reads as a mail
+   merge that misfired. A digit, a dot, an underscore or an @ means a handle
+   rather than a first name, so drop it and greet them plainly. Matching the
+   address is NOT disqualifying on its own: plenty of people really are ana at
+   ana@example.com. The email argument is kept because it costs nothing and the
+   next person to tighten this rule will want it. */
+function greeting(name?: string | null, _email?: string | null): string {
   const first = (name || "").trim().split(/\s+/)[0];
-  return first && first.length <= 40 ? `Hi ${first},` : "Hi,";
+  if (!first || first.length > 40 || /[0-9._@]/.test(first)) return "Hi,";
+  return `Hi ${first.charAt(0).toUpperCase()}${first.slice(1)},`;
 }
 
 function para(text: string): string {
@@ -225,7 +247,7 @@ function link(url: string): string {
 }
 
 export function buildLifetimeEmail(args: LifetimeArgs): RenderedEmail {
-  const hi = greeting(args.name);
+  const hi = greeting(args.name, args.email);
   const bought = args.money
     ? `You bought lifetime access to r-statistics.co for ${args.money}.`
     : "You bought lifetime access to r-statistics.co.";
@@ -245,6 +267,8 @@ export function buildLifetimeEmail(args: LifetimeArgs): RenderedEmail {
     "",
     "Your receipt and invoice come from Paddle, who handle payments for us.",
     "",
+    REFUND_LINE,
+    "",
     `If anything does not work, or your account still looks locked, write to ${SUPPORT_EMAIL} or reply to this email. I read both.`,
     "",
     SIGNATURE,
@@ -259,6 +283,7 @@ export function buildLifetimeEmail(args: LifetimeArgs): RenderedEmail {
     link(args.startUrl),
     para(args.startLine),
     para("Your receipt and invoice come from Paddle, who handle payments for us."),
+    para(REFUND_LINE),
     para(`If anything does not work, or your account still looks locked, write to ${SUPPORT_EMAIL} or reply to this email. I read both.`),
     para("Selva"),
   ].join("\n");
@@ -276,7 +301,7 @@ export function buildLifetimeEmail(args: LifetimeArgs): RenderedEmail {
 }
 
 export function buildSubscriptionEmail(args: SubscriptionArgs): RenderedEmail {
-  const hi = greeting(args.name);
+  const hi = greeting(args.name, args.email);
   const suffix = args.planTerm ? `, ${args.planTerm}` : "";
   const bought = args.money
     ? `You bought ${args.planNoun} for ${args.money}${suffix}.`
@@ -285,10 +310,18 @@ export function buildSubscriptionEmail(args: SubscriptionArgs): RenderedEmail {
   // Renewal terms, stated plainly. Every bullet is dropped rather than guessed
   // when the underlying value is missing.
   const terms: string[] = [];
+  /* Say the price holds only when Paddle's own next-charge figure says it does.
+     It is the single most reassuring sentence in this email and the easiest one
+     to turn into a lie, so it is derived rather than asserted: a discount that
+     does not recur, or a tax change, makes the two figures differ and the
+     sentence disappears on its own. */
+  const priceHolds = !!args.renewalMoney && args.renewalMoney === args.money;
   if (args.renewalDate) {
     terms.push(
       args.renewalMoney
-        ? `It renews automatically on ${args.renewalDate} for ${args.renewalMoney}.`
+        ? (priceHolds
+            ? `It renews automatically on ${args.renewalDate} for ${args.renewalMoney}, the same as today. We do not put the price up on a plan you already hold.`
+            : `It renews automatically on ${args.renewalDate} for ${args.renewalMoney}.`)
         : `It renews automatically on ${args.renewalDate}.`,
     );
   } else {
@@ -321,6 +354,8 @@ export function buildSubscriptionEmail(args: SubscriptionArgs): RenderedEmail {
     "",
     "Your receipt and invoice come from Paddle, who handle payments for us.",
     "",
+    REFUND_LINE,
+    "",
     `If anything does not work, or your account still looks locked, write to ${SUPPORT_EMAIL} or reply to this email. I read both.`,
     "",
     SIGNATURE,
@@ -339,6 +374,7 @@ export function buildSubscriptionEmail(args: SubscriptionArgs): RenderedEmail {
     link(args.startUrl),
     para(args.startLine),
     para("Your receipt and invoice come from Paddle, who handle payments for us."),
+    para(REFUND_LINE),
     para(`If anything does not work, or your account still looks locked, write to ${SUPPORT_EMAIL} or reply to this email. I read both.`),
     para("Selva"),
   ].join("\n");
