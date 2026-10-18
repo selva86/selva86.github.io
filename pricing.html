@@ -682,12 +682,55 @@ window.addEventListener('load', function(){ rsSignal('pricing_view', document.re
 /* Recovery emails land here with ?code=BACK15XXXXX - apply it to checkout automatically. */
 var recoveryCode = (function(){ try { var c = new URLSearchParams(location.search).get('code');
   return (c && /^[A-Z0-9]{6,20}$/.test(c)) ? c : null; } catch (e) { return null; } })();
+/* THE CODE USED TO BE LOST ON THE WAY TO SIGN-IN. A signed-out visitor who
+   clicks a plan is sent to /signin.html, and the return trip was hardcoded to a
+   bare /pricing.html, so the ?code= in the URL was dropped and the discount
+   quietly vanished. It never surfaced because everyone who had been sent a code
+   by email was already signed in. The homepage offer bar sends signed-out
+   visitors by design, so every one of them would have lost it.
+   Two defences: the sign-in round trip now carries the whole query string, and
+   the bar also writes its code to localStorage with the window's real deadline,
+   which survives a magic link that opens in a different tab. */
+if (!recoveryCode) recoveryCode = (function(){
+  try {
+    var v = JSON.parse(localStorage.getItem('rs-offer-code') || 'null');
+    if (!v || !v.c || !/^[A-Z0-9]{6,20}$/.test(v.c)) return null;
+    if (!v.e || v.e * 1000 <= Date.now()) { localStorage.removeItem('rs-offer-code'); return null; }
+    return v.c;
+  } catch (e) { return null; }
+})();
+function backHere(hash){ return encodeURIComponent(location.pathname + location.search + (hash || '')); }
+/* SAVE* and PRO* codes are minted restricted to the two annual prices. Paddle
+   refuses a whole checkout when the code cannot apply to anything in it, so
+   carrying one into a monthly, lifetime or Teams checkout would break the
+   purchase rather than just fail to discount it. Drop it instead. */
+function codeFor(term){
+  if (!recoveryCode) return undefined;
+  if (/^(SAVE|PRO)\d/.test(recoveryCode) && term !== 'year') return undefined;
+  return recoveryCode;
+}
+/* The server-rendered CTAs carry their own ?next=, and they are what gets
+   clicked whenever Paddle has not finished loading. Same treatment. */
+(function(){
+  try {
+    if (!location.search) return;
+    var as = document.querySelectorAll('a[href^="/signin.html?next=%2Fpricing.html"]');
+    for (var i = 0; i < as.length; i++) {
+      var h = as[i].getAttribute('href');
+      as[i].setAttribute('href', '/signin.html?next=' + backHere(h.indexOf('%23') > -1 ? '#' + h.split('%23')[1] : ''));
+    }
+  } catch (e) {}
+})();
 /* Price-alert offer emails land here with ?code=PRO23...&src=alert&exp=<unix>. The
    banner is plain text; Paddle enforces the real expiry, exp is display only. */
 (function(){
   try {
     var q = new URLSearchParams(location.search);
-    if (!recoveryCode || q.get('src') !== 'alert') return;
+    var src = q.get('src');
+    if (!recoveryCode || (src !== 'alert' && src !== 'offerbar')) return;
+    // Read the percent off the code itself so the banner cannot drift from the
+    // discount Paddle will actually apply.
+    var pct = (recoveryCode.match(/^(?:SAVE|PRO|PASS|BACK)(\d{1,2})/) || [0, '23'])[1];
     var exp = parseInt(q.get('exp') || '0', 10) * 1000;
     var host = document.querySelector('.tiers');
     if (!host) return;
@@ -696,12 +739,12 @@ var recoveryCode = (function(){ try { var c = new URLSearchParams(location.searc
     el.style.cssText = 'margin:0 0 18px;padding:12px 16px;border:1px solid #BFD9CB;background:#E3F1E9;color:#0F3F2A;border-radius:12px;font-size:15px;line-height:1.5';
     function words(){
       var left = exp ? exp - Date.now() : 0;
-      if (!exp) return 'Your 23% code ' + recoveryCode + ' is applied at checkout on either annual plan.';
+      if (!exp) return 'Your ' + pct + '% code ' + recoveryCode + ' is applied at checkout on either annual plan.';
       if (left <= 0) return 'The code ' + recoveryCode + ' has expired. The regular prices below still carry the 14-day money-back guarantee.';
       var h = Math.floor(left / 36e5), m = Math.floor((left % 36e5) / 6e4);
       var when = new Date(exp).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' });
       var tail = h >= 24 ? 'It works until ' + when + '.' : (h > 0 ? 'About ' + h + (h === 1 ? ' hour' : ' hours') + ' left, until ' + when + '.' : 'About ' + m + ' minutes left.');
-      return 'Your 23% code ' + recoveryCode + ' is applied at checkout on either annual plan. ' + tail;
+      return 'Your ' + pct + '% code ' + recoveryCode + ' is applied at checkout on either annual plan. ' + tail;
     }
     el.textContent = words();
     host.parentNode.insertBefore(el, host);
@@ -931,7 +974,7 @@ function readToken() {
     var priceId = plan === "single" ? L.single : L.allaccess;
     if (!priceId || !ready) { location.href = "/pricing.html#plans"; return; }
     var tok = readToken();
-    if (!tok) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html"); return; }
+    if (!tok) { location.href = "/signin.html?next=" + backHere(); return; }
     var claims = jwtClaims(tok);
     var cd = {
       user_id: claims.sub || "", plan: plan === "single" ? "single" : "allaccess",
@@ -1033,11 +1076,11 @@ function readToken() {
         var priceId = planPrice(plan);
         if (!priceId || !ready) { location.href = "/pricing.html#plans"; return; }
         var tok = readToken();
-        if (!tok) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html"); return; }
+        if (!tok) { location.href = "/signin.html?next=" + backHere(); return; }
         var claims = jwtClaims(tok);
         try {
           window.Paddle.Checkout.open({
-            discountCode: extraCode || recoveryCode || undefined,
+            discountCode: extraCode || codeFor(plan === "lifetime" ? "once" : (window.mode === "monthly" ? "month" : "year")),
             items: [{ priceId: priceId, quantity: 1 }],
             customer: claims.email ? { email: claims.email } : undefined,
             customData: (function () {
@@ -1053,7 +1096,7 @@ function readToken() {
             })(),
             settings: { displayMode: "overlay", variant: "one-page", successUrl: location.origin + "/welcome.html" },
           });
-        } catch (err) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html"); }
+        } catch (err) { location.href = "/signin.html?next=" + backHere(); }
   }
   window.rsOpenCheckout = openCheckout;
 
@@ -1165,17 +1208,17 @@ function readToken() {
     if (!ready || !paddle.teamsPriceId) return; // not provisioned -> CTA follows its href
     e.preventDefault(); e.stopImmediatePropagation();
     var tok = readToken();
-    if (!tok) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html#teams"); return; }
+    if (!tok) { location.href = "/signin.html?next=" + backHere("#teams"); return; }
     var claims = jwtClaims(tok);
     try {
       window.Paddle.Checkout.open({
-        discountCode: recoveryCode || undefined,
+        discountCode: codeFor("teams"),
         items: [{ priceId: paddle.teamsPriceId, quantity: seats() }],
         customer: claims.email ? { email: claims.email } : undefined,
         customData: { user_id: claims.sub || "", plan: "teams" },
         settings: { displayMode: "overlay", variant: "one-page", successUrl: location.origin + "/team.html" },
       });
-    } catch (err) { location.href = "/signin.html?next=" + encodeURIComponent("/pricing.html#teams"); }
+    } catch (err) { location.href = "/signin.html?next=" + backHere("#teams"); }
   }, true);
 })();
 </script>

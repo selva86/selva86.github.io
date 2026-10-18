@@ -24,6 +24,12 @@
   if (!mount) return;
 
   var K_DISMISS = 'rs-offer-dismissed';   // value: the window id we hid for
+  /* The code, kept where the pricing page can find it again. A signed-out
+     visitor has to sign in before checkout, and a magic link can land in a
+     fresh tab, which loses the query string the bar put on the link. Stored
+     with the window's real deadline so it expires exactly when the discount
+     does, rather than haunting a later visit with a code Paddle will refuse. */
+  var K_CODE = 'rs-offer-code';
   var timer = null;
 
   function track(name, extra) {
@@ -49,6 +55,9 @@
   function remember(id) {
     try { localStorage.setItem(K_DISMISS, String(id)); } catch (e) {}
   }
+  function keepCode(code, endsAt) {
+    try { localStorage.setItem(K_CODE, JSON.stringify({ c: code, e: endsAt })); } catch (e) {}
+  }
 
   function teardown() {
     if (timer) { clearInterval(timer); timer = null; }
@@ -61,7 +70,8 @@
     var left = Math.round((endsAt - Date.now()) / 1000);
     if (left <= 0) { teardown(); return; }
 
-    var href = '/pricing.html?code=' + encodeURIComponent(d.code) + '&src=offerbar';
+    var href = '/pricing.html?code=' + encodeURIComponent(d.code) + '&src=offerbar&exp=' + d.endsAt;
+    keepCode(d.code, d.endsAt);
 
     mount.hidden = false;
     mount.innerHTML =
