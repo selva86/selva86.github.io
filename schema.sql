@@ -1,7 +1,18 @@
--- r-statistics.co D1 schema. Apply with:
+-- Apply with:
 --   wrangler d1 execute r-stats-prod --remote --file schema.sql
 --   wrangler d1 execute r-stats-dev  --remote --file schema.sql
 -- Idempotent (uses IF NOT EXISTS). Safe to re-run after a column add.
+--
+-- THIS FILE IS THE TRUTH, AND IT HAS TO STAY THAT WAY. It drifted badly once:
+-- by 2026-10-18 the live users table had 44 columns and this file created 23,
+-- six whole tables existed only in production, and a database built from here
+-- could not serve the site at all (/api/admin/contacts died on a missing
+-- email_status). Reconciled that day by diffing sqlite_master against prod.
+-- If you ALTER a live table, add the column here in the same commit.
+--
+-- CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so
+-- re-running this file never adds a column to a live database. New columns on
+-- an existing table need an explicit ALTER, recorded in the notes below.
 
 -- ===== users (mirrored from Supabase Auth via webhook) =====
 CREATE TABLE IF NOT EXISTS users (
@@ -25,19 +36,44 @@ CREATE TABLE IF NOT EXISTS users (
   last_active_date         TEXT,         -- YYYY-MM-DD
   role          TEXT DEFAULT 'user',     -- 'user' | 'admin'
   deleted_at    INTEGER,                 -- GDPR soft-delete
+  -- Public profile (functions/_lib/profile.ts)
+  profile_json  TEXT,                    -- bio, links, pinned work
+  github_login  TEXT,
+  prev_handle   TEXT,                    -- old slug, kept so the old URL redirects
+  recap_opt_out INTEGER DEFAULT 0,
+  avatar_key    TEXT,                    -- R2 object key in the AVATARS bucket
+  work_verified_domain TEXT,             -- verified employer domain
+  edu_verified_domain  TEXT,             -- verified .edu domain
+  streak_freezes INTEGER DEFAULT 0,
+  -- Where the account came from
   signup_gate   TEXT,                    -- 'exercise' | 'lesson' | 'browsing' | magnet id; set once, never overwritten
   signup_slug   TEXT,                    -- the page/hub/lesson that gated them
+  signup_site   TEXT,                    -- which property signed them up
+  -- Email state. email_status is the hard stop (bounced/complained/
+  -- unsubscribed); the three flags below are per-stream consent, read by
+  -- functions/_lib/brain.ts before any send.
+  email_status  TEXT,
+  email_progress INTEGER DEFAULT 1,      -- the daily lesson series
+  email_nurture  INTEGER DEFAULT 0,
+  email_offers   INTEGER DEFAULT 0,
+  email_optin_decided_at INTEGER,        -- when they last chose, so we stop asking
+  nurture_paused_until   INTEGER,        -- quiet-probe "pause for two weeks"
+  -- Onboarding answers, used to pick a track and pitch the right plan
+  persona       TEXT,
+  job_role      TEXT,
+  job_role_other TEXT,
+  level_r       TEXT,
+  level_ml      TEXT,
+  level_ts      TEXT,
   pass_claimed_at INTEGER                -- DA pass claim-to-start moment (applied 2026-08-16 to dev+prod)
 );
--- Existing-deploy migration for signup context (applied 2026-08-10 to dev+prod):
---   ALTER TABLE users ADD COLUMN signup_gate TEXT
---   ALTER TABLE users ADD COLUMN signup_slug TEXT
 CREATE INDEX IF NOT EXISTS idx_users_pro_until ON users(pro_until);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_handle ON users(handle);
 -- Existing-deploy migration for profiles (applied lazily by functions/_lib/profile.ts):
 --   ALTER TABLE users ADD COLUMN handle TEXT
 --   ALTER TABLE users ADD COLUMN public_profile INTEGER DEFAULT 1
 CREATE INDEX IF NOT EXISTS idx_users_country   ON users(country);
+CREATE INDEX IF NOT EXISTS idx_users_prev_handle ON users(prev_handle);
 
 -- ===== subscriptions (Paddle + Razorpay mirrored) =====
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -355,6 +391,7 @@ CREATE TABLE IF NOT EXISTS badges_earned (
   badge     TEXT NOT NULL,
   public_id TEXT NOT NULL UNIQUE,
   earned_at INTEGER NOT NULL,
+  meta_json TEXT,                       -- what earned it, for the badge page
   PRIMARY KEY (user_id, badge)
 );
 CREATE INDEX IF NOT EXISTS idx_badges_public ON badges_earned(public_id);
@@ -446,7 +483,8 @@ CREATE TABLE IF NOT EXISTS price_alerts (
   last30_sent_at    INTEGER,
   closed_sent_at    INTEGER,
   purchased_at      INTEGER,
-  unsubscribed_at   INTEGER
+  unsubscribed_at   INTEGER,
+  reason            TEXT                  -- free text from the "why are you waiting" field
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_alerts_email ON price_alerts(email);
 -- Applied 2026-08-29 to dev+prod, together with:
@@ -495,3 +533,83 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_payments_user    ON payments(user_id, billed_at);
 CREATE INDEX IF NOT EXISTS idx_payments_sub     ON payments(subscription_id, billed_at);
 CREATE INDEX IF NOT EXISTS idx_payments_billed  ON payments(billed_at);
+
+-- ===== assessments (branch `assessments`, live on prod since 2026-08) =====
+-- Question banks and attempt records for the section assessments. The bank is
+-- never served whole: answer_json stays server-side and only the prompt and
+-- options go to the browser.
+CREATE TABLE IF NOT EXISTS assessment_questions (
+  id            TEXT PRIMARY KEY,        -- <assessment_id>:<n>, e.g. ts-1:07
+  assessment_id TEXT NOT NULL,           -- ts-1, stats-4, ...
+  kind          TEXT NOT NULL,           -- single | multi | output
+  prompt        TEXT NOT NULL,
+  code          TEXT,                    -- optional R block shown above options
+  options_json  TEXT NOT NULL,           -- [{key,text}, ...] order randomised at serve
+  answer_json   TEXT NOT NULL,           -- ["b"] or ["a","c"] - NEVER sent to client
+  why           TEXT,                    -- shown only after a pass
+  chapter_slug  TEXT NOT NULL,           -- where to reread
+  chapter_title TEXT NOT NULL,
+  difficulty    TEXT,                    -- intermediate | hard
+  active        INTEGER NOT NULL DEFAULT 1,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_aq_assessment ON assessment_questions(assessment_id, active);
+
+CREATE TABLE IF NOT EXISTS assessment_attempts (
+  id            TEXT PRIMARY KEY,        -- attempt token (also the replay guard)
+  assessment_id TEXT NOT NULL,
+  user_id       TEXT,                    -- NULL for anonymous takers
+  signed_name   TEXT,                    -- honour-code signature, audit trail
+  served_json   TEXT NOT NULL,           -- question ids served, in order
+  answers_json  TEXT,                    -- what they submitted
+  score         INTEGER,
+  total         INTEGER NOT NULL,
+  passed        INTEGER,
+  first_attempt INTEGER NOT NULL DEFAULT 0,
+  duration_seconds INTEGER,
+  started_at    INTEGER NOT NULL,
+  submitted_at  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_aa_user ON assessment_attempts(user_id, assessment_id, submitted_at);
+CREATE INDEX IF NOT EXISTS idx_aa_dist ON assessment_attempts(assessment_id, first_attempt, submitted_at);
+
+-- ===== purchase-intent beacons (/api/signal -> admin dashboard) =====
+-- One row per intent signal (pricing viewed, checkout opened, plan toggled).
+-- Anonymous visitors carry anon_id instead of user_id.
+CREATE TABLE IF NOT EXISTS intent_signals (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  at      INTEGER NOT NULL,
+  user_id TEXT,
+  anon_id TEXT,
+  signal  TEXT NOT NULL,
+  path    TEXT,
+  meta    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_intent_at        ON intent_signals (at);
+CREATE INDEX IF NOT EXISTS idx_intent_signal_at ON intent_signals (signal, at);
+CREATE INDEX IF NOT EXISTS idx_intent_user_at   ON intent_signals (user_id, at);
+
+-- ===== profile counters =====
+CREATE TABLE IF NOT EXISTS profile_views (
+  handle TEXT NOT NULL,
+  day    TEXT NOT NULL,                  -- YYYY-MM-DD
+  n      INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (handle, day)
+);
+CREATE TABLE IF NOT EXISTS rank_history (
+  user_id TEXT NOT NULL,
+  week    TEXT NOT NULL,                 -- ISO year-week
+  rank    INTEGER NOT NULL,
+  PRIMARY KEY (user_id, week)
+);
+
+-- ===== badges awarded =====
+-- Distinct from badges_earned, which carries the shareable public_id. This is
+-- the plain award ledger the profile reads.
+CREATE TABLE IF NOT EXISTS user_badges (
+  user_id    TEXT NOT NULL,
+  badge_id   TEXT NOT NULL,
+  awarded_at INTEGER NOT NULL,
+  meta_json  TEXT,
+  PRIMARY KEY (user_id, badge_id)
+);
