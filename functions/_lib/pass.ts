@@ -67,7 +67,7 @@ export async function mintPassCoupon(
   const priceIds = [env.PADDLE_PRICE_SINGLE_MONTH, env.PADDLE_PRICE_SINGLE_YEAR, env.PADDLE_PRICE_AA_MONTH, env.PADDLE_PRICE_AA_YEAR]
     .filter((x): x is string => !!x);
   const ok = await createPaddleDiscount(env, {
-    code, percent: PASS_COUPON_PERCENT, expiresAt, priceIds,
+    code, percent: PASS_COUPON_PERCENT, expiresAt, priceIds, recur: true,
     description: `Data Analyst pass day-27 code for user ${userId}`,
   });
   if (!ok) return null;

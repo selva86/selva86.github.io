@@ -271,7 +271,7 @@ export async function sweepPriceAlerts(
         const expires = offerExpiry(now);
         const priceIds = [env.PADDLE_PRICE_SINGLE_YEAR, env.PADDLE_PRICE_AA_YEAR].filter((x): x is string => !!x);
         const ok = await createPaddleDiscount(env, {
-          code, percent: OFFER_PERCENT, expiresAt: expires, priceIds,
+          code, percent: OFFER_PERCENT, expiresAt: expires, priceIds, recur: true,
           description: `Price alert offer (auto) for alert #${row.id}`,
         });
         if (!ok) continue; // retried next sweep

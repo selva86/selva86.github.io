@@ -78,10 +78,18 @@ export async function hasPurchased(env: PaddleEnv, email: string): Promise<boole
   return rows.some((t) => ["completed", "paid", "billed"].includes(t.status || ""));
 }
 
+/* RENEWAL PRICE LOCK (owner decision 2026-10-18). Every discount here can
+   create a subscription, and every one of them recurs, so a renewal charges
+   what the customer first paid. Paddle defaults `recur` to false, which turns
+   a welcome discount into a silent price rise at the first renewal: a 30% code
+   is a 43% jump a year later, arriving with no warning and no conversation.
+   `recur` is a required field rather than an optional one so that a new caller
+   has to make the decision rather than inherit Paddle's. */
 // Generic single-use percentage code (shared with the price-alert flow).
 export async function createPaddleDiscount(
   env: PaddleEnv,
-  o: { code: string; percent: string; expiresAt: number; priceIds?: string[]; description: string },
+  o: { code: string; percent: string; expiresAt: number; priceIds?: string[]; description: string;
+       recur: boolean },
 ): Promise<boolean> {
   try {
     const body: Record<string, unknown> = {
@@ -91,6 +99,8 @@ export async function createPaddleDiscount(
       enabled_for_checkout: true,
       code: o.code,
       usage_limit: 1,
+      recur: o.recur,
+      maximum_recurring_intervals: null,   // null = for as long as they stay
       expires_at: new Date(o.expiresAt * 1000).toISOString(),
     };
     if (o.priceIds && o.priceIds.length) body.restrict_to = o.priceIds;
@@ -114,6 +124,8 @@ async function createDiscount(
       enabled_for_checkout: true,
       code,
       usage_limit: 1,
+      recur: true,
+      maximum_recurring_intervals: null,
       expires_at: new Date(Date.now() + CODE_HOURS * 3600 * 1000).toISOString(),
     };
     if (priceId) { body.restrict_to = [priceId]; }

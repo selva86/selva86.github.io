@@ -167,6 +167,12 @@ export async function ensureWindowCode(
         code,
         // No usage limit: this one is public by design, unlike the single-use
         // codes the outreach emails carry. The deadline is the only limit.
+        //
+        // It recurs forever. Whoever takes this offer keeps this price at every
+        // renewal, which is the owner's standing rule and also the only honest
+        // reading of a bar that says "off every annual plan".
+        recur: true,
+        maximum_recurring_intervals: null,
         expires_at: new Date(win.endsAt * 1000).toISOString(),
         restrict_to: prices,
       }),
@@ -234,6 +240,7 @@ export async function mintPersonalOffer(
   const ok = await createPaddleDiscount(env, {
     code,
     percent: String(o.percent),
+    recur: true,
     expiresAt,
     priceIds: prices,
     description: `One-time ${o.percent}% annual for ${o.email}, from the contact centre ${new Date().toISOString().slice(0, 10)}`,
@@ -250,7 +257,8 @@ export async function mintPersonalOffer(
 export function offerParagraph(o: PersonalOffer, expiryWords: string): string {
   return [
     `If price is the sticking point, here is ${o.percent}% off an annual plan: ${o.code}. `
-      + `It works once and it stops working on ${expiryWords}.`,
+      + `It works once and it stops working on ${expiryWords}. The ${o.percent}% then stays `
+      + `on every renewal, so the price you start at is the price you keep.`,
     "",
     o.url,
   ].join("\n");

@@ -72,7 +72,7 @@
         '</span>' +
         '<span class="ofb-tx"><b>' + d.percent + '% off every annual plan.</b> ' +
           'Ends in <span class="ofb-cd" aria-live="off">' + parts(left) + '</span></span>' +
-        '<a class="ofb-go" href="' + href + '">Get ' + d.percent + '% off</a>' +
+        '<a class="ofb-go" href="' + href + '">Lock in the price</a>' +
         '<button type="button" class="ofb-x" aria-label="Hide this offer">' +
           '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round">' +
           '<path d="M6 6l12 12M18 6L6 18"></path></svg>' +
