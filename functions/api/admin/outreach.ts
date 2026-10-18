@@ -35,12 +35,19 @@ import { json, jsonError } from "../../_lib/errors";
 import { requireAdmin } from "../../_lib/admin-auth";
 import { renderPersonalNote, SALES_SENDER, SALES_REPLY_TO, type TemplateData } from "../../_lib/email-templates";
 import { sendMail } from "../../_lib/email";
+import { mintPersonalOffer, offerParagraph, annualPriceIds } from "../../_lib/offer";
 import { userSig, unsubUrl } from "../../_lib/brain";
 import { ensureContactTables, trackOfSlug, slugOfPath, planLabel, fmtDay, DAY, type Reason } from "../../_lib/contacts";
 import {
   OUTREACH, OUTREACH_BY_KEY, fillCopy, fillLine, utmLinks, missingRequired, progressPhrase,
   type OutreachTemplate, type Tokens,
 } from "../../_lib/outreach-copy";
+
+/* The one-time code a note can carry. 20% matches the homepage window, so
+   nobody who gets a personal email can feel short-changed by the public bar,
+   and 24 hours is short enough to be a reason to act today. */
+const OFFER_PERCENT = 20;
+const OFFER_HOURS = 24;
 
 type OEnv = Env & {
   CRON_SECRET?: string; ADMIN_EMAIL?: string;
@@ -177,7 +184,7 @@ export const onRequest: PagesFunction<OEnv, string, RequestData> = async (contex
   if (!tpl) return jsonError(404, "no_template", `Unknown template. Have: ${OUTREACH.map((t) => t.key).join(", ")}`);
 
   const saved = await savedCopy(context.env.KV, key);
-  const copy = {
+  let copy = {
     subject: String(body.subject ?? saved?.subject ?? tpl.subject),
     preheader: String(body.preheader ?? saved?.preheader ?? tpl.preheader),
     body: String(body.body ?? saved?.body ?? tpl.body),
@@ -216,6 +223,15 @@ export const onRequest: PagesFunction<OEnv, string, RequestData> = async (contex
       editable: copy,
       preview: { subject: rendered.subject, preheader: rendered.preheader, text: rendered.text },
       from: `${SALES_SENDER.name} <${SALES_SENDER.email}>`,
+      // Whether the composer may offer to attach a one-time annual code.
+      // False when Paddle is not configured or the annual price ids are
+      // missing, because a code restricted to nothing would discount the
+      // entire catalogue.
+      offer: {
+        available: !!context.env.PADDLE_API_KEY && annualPriceIds(context.env).length > 0,
+        percent: OFFER_PERCENT,
+        hours: OFFER_HOURS,
+      },
       safety: {
         suppressed, opted_out: p.optedOut, blocked: suppressed || blockedOptOut || missing.length > 0,
         sent_last_24h: last24, notes,
@@ -246,6 +262,25 @@ export const onRequest: PagesFunction<OEnv, string, RequestData> = async (contex
     await context.env.KV.put(`outreach:${key}`, JSON.stringify(copy));
   }
 
+  /* An optional one-time discount, minted only when the owner ticks the box
+     and only on a real send or test. Previews do not mint: the composer is
+     opened constantly and each mint is a permanent Paddle discount record.
+     A test mints a real code on purpose, so the offer can be redeemed end to
+     end before anyone sends it to a customer. */
+  let offer: Awaited<ReturnType<typeof mintPersonalOffer>> = null;
+  if (body.offer === true) {
+    offer = await mintPersonalOffer(context.env, {
+      email: mode === "test" ? gate.admin : p.email,
+      percent: OFFER_PERCENT,
+      hours: OFFER_HOURS,
+      siteOrigin: context.env.SITE_ORIGIN,
+    });
+    if (!offer) return jsonError(502, "offer_failed", "Could not create the discount in Paddle. Nothing was sent.");
+    copy = { ...copy, body: `${copy.body}
+
+${offerParagraph(offer, fmtDay(offer.expiresAt))}` };
+  }
+
   if (mode === "test") {
     const r = render(tpl, copy, p.tokens, {});
     const res = await sendMail(context.env, {
@@ -253,7 +288,10 @@ export const onRequest: PagesFunction<OEnv, string, RequestData> = async (contex
       htmlBody: r.html, textBody: r.text, from: SALES_SENDER, replyTo: SALES_REPLY_TO,
     });
     if (!res.ok) return jsonError(502, "send_failed", res.error || `status ${res.status}`);
-    return json({ sent: true, mode, to: gate.admin, template: key, subject: r.subject, saved: body.save === true });
+    return json({
+      sent: true, mode, to: gate.admin, template: key, subject: r.subject, saved: body.save === true,
+      offer: offer ? { code: offer.code, percent: offer.percent, expires_at: offer.expiresAt, url: offer.url } : null,
+    });
   }
 
   /* The action row first: its id is part of the tracking key, which is what
