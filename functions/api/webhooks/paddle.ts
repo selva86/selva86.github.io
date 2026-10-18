@@ -468,16 +468,25 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
        things from the owner, so they get different subjects: a renewal is
        retention holding, a first sale is a new customer to welcome. */
     const isRenewal = eventType === "transaction.completed" && paymentKind === "renewal";
+    /* A card update posts a zero-value transaction.completed. It is not a
+       payment, the ledger skips it, and announcing it as "Payment received:
+       0.00 USD" is pure inbox noise that teaches you to ignore the subject. */
+    const zeroValueTxn = eventType === "transaction.completed"
+      && (intOrNull(T?.grand_total ?? T?.total) ?? 0) <= 0;
+    // An adjustment knows its own amount and which way the money went.
+    const adjMoney = money(intOrNull(data.totals?.total), data.currency_code || null);
+    const adjLabel = data.action === "chargeback" ? "Chargeback"
+      : data.action === "credit" ? "Credit issued" : "Refund issued";
     const NOTIFY: Record<string, string> = {
       "transaction.completed": isRenewal ? "Renewal charged" : "Payment received",
       "transaction.payment_failed": "Payment FAILED",
       "subscription.created": "New subscription",
       "subscription.canceled": "Subscription canceled",
       "subscription.past_due": "Subscription past due",
-      "adjustment.updated": "Adjustment (refund?) updated",
-      "adjustment.created": "Refund or credit issued",
+      "adjustment.updated": adjLabel,
+      "adjustment.created": adjLabel,
     };
-    const headline = NOTIFY[eventType];
+    const headline = zeroValueTxn ? undefined : NOTIFY[eventType];
     if (headline) {
       /* Built inside waitUntil because the extra context costs a DB read or
          two, and the webhook response must not wait for an email. */
@@ -523,9 +532,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           console.warn(`[webhook.paddle] notification context lookup failed: ${(e as Error).message}`);
         }
 
-        const subjectTail = eventType === "subscription.canceled"
-          ? (plan ? `: ${plan}` : "") + (extra.find((r) => r[0] === "Was paying") ? `, was ${extra.find((r) => r[0] === "Was paying")![1]}` : "")
-          : `${moneyStr ? ": " + moneyStr : ""}${plan ? " (" + plan + ")" : ""}`;
+        let subjectTail: string;
+        if (eventType === "subscription.canceled") {
+          const wasPaying = extra.find((r) => r[0] === "Was paying");
+          subjectTail = (plan ? `: ${plan}` : "") + (wasPaying ? `, was ${wasPaying[1]}` : "");
+        } else if (eventType.startsWith("adjustment.")) {
+          subjectTail = adjMoney ? `: ${adjMoney}` : "";
+          if (data.transaction_id) extra.push(["Against transaction", data.transaction_id]);
+          if (processedNote === "adjustment_no_matching_payment") {
+            extra.push(["Warning", "no matching charge in the ledger, so nothing was marked refunded"]);
+          }
+        } else {
+          subjectTail = `${moneyStr ? ": " + moneyStr : ""}${plan ? " (" + plan + ")" : ""}`;
+        }
 
         await notifyAdminEvent(context.env, {
           subject: `[r-statistics.co] ${headline}${subjectTail}`,

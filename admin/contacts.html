@@ -154,6 +154,14 @@
   .flagline{display:flex;gap:7px;align-items:flex-start;margin-top:8px;font-size:12.5px;color:var(--ink2)}
   .flagline b{flex:none;font-weight:600;color:var(--red)}
   .flagline.w b{color:var(--amber)}
+  /* On a phone the four-column customer header crushes the email to three
+     lines, so it stacks instead. */
+  @media (max-width:760px){
+    .cust>.ch{grid-template-columns:minmax(0,1fr) auto;row-gap:7px}
+    .cust .cp{grid-column:1/-1}
+    .cust .cn{grid-column:1/-1;text-align:left}
+    .cust .cn span{display:inline;margin-left:6px}
+  }
 
   /* the person panel */
   .pscrim{position:fixed;inset:0;background:rgba(15,20,28,.18);z-index:40}
@@ -604,7 +612,7 @@
     if(M.upcoming.length){
       h.push('<h2 class="sec">Next renewals</h2>');
       h.push('<div class="tw"><table><thead><tr><th>Due</th><th>When</th><th>Customer</th><th>Plan</th>'+
-        '<th class="num">Charges</th><th class="num">Net</th><th>Which</th></tr></thead><tbody>'+
+        '<th class="num">Gross</th><th class="num">Net</th><th>Which</th></tr></thead><tbody>'+
         M.upcoming.map(function(u){
           return '<tr><td class="nowrap">'+dt(u.at)+'</td><td class="nowrap small">'+esc(inDays(u.at))+'</td>'+
             '<td style="overflow-wrap:anywhere">'+esc(u.email)+'</td><td>'+esc(planName(u.plan))+'</td>'+
@@ -656,13 +664,17 @@
       else what='Mid-term charge';
       if(p.discount) what+=' (after '+cash(p.discount,p.currency)+' off)';
       var refunded=p.refunded&&p.refunded>0;
-      if(refunded) what+=' , refunded';
-      var k=refunded?' class="strike"':'';
+      if(refunded) what+=refunded&&p.gross&&p.refunded<p.gross
+        ? ', part refunded ('+cash(p.refunded,p.currency)+')' : ', refunded in full';
+      // One class attribute, not two: a second one is silently ignored, which
+      // is how the strike-through on a refunded charge went missing.
+      var k='num'+(refunded?' strike':'');
       return '<tr><td class="nowrap">'+dt(p.billed_at)+'</td><td>'+esc(what)+'</td>'+
-        '<td class="num"'+k+'>'+esc(cash(p.gross,p.currency))+'</td>'+
-        '<td class="num"'+k+'>'+usd(p.earnings)+'</td>'+
+        '<td class="'+k+'">'+esc(cash(p.gross,p.currency))+'</td>'+
+        '<td class="'+k+'">'+usd(p.earnings)+'</td>'+
         '<td class="small">'+esc(p.invoice_number||'')+'</td></tr>';
     });
+    var allRefunded=s.payments.length>0&&s.payments.every(function(p){return p.refunded&&p.refunded>0;});
     if(s.next_due){
       rows.push('<tr><td class="nowrap due">'+dt(s.next_due)+'</td><td class="due">Next charge due, '+esc(inDays(s.next_due))+
         (s.cancel_at_period_end?' (auto-renew is off, so it will not charge)':'')+'</td>'+
@@ -691,7 +703,10 @@
       '<div class="paytab"><table><thead><tr><th>Date</th><th>What</th><th class="num">Gross</th>'+
       '<th class="num">Net</th><th>Invoice</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
 
-    if(s.status==='canceled'&&s.renewals_charged===0&&s.cycle!=='once'){
+    if(allRefunded){
+      h+='<div class="flagline"><b>Refunded</b><span>Every charge on this subscription was refunded, so it earned nothing. '+
+        'Access was not revoked: a refund leaves the paid-through date alone, which is your policy rather than an oversight.</span></div>';
+    } else if(s.status==='canceled'&&s.renewals_charged===0&&s.cycle!=='once'){
       h+='<div class="flagline w"><b>Churn</b><span>Cancelled before the first renewal, so this subscription produced exactly one charge.</span></div>';
     }
     return h+'</div>';
