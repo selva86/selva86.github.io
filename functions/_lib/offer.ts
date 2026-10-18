@@ -131,6 +131,13 @@ export async function ensureWindowCode(
   if (cached) return cached;
   if (!env.PADDLE_API_KEY) return null;
 
+  /* Negative cache. This runs on an ordinary homepage request, so without it
+     a Paddle outage during a window would turn every visit into another
+     failing create call. A few thousand a day is a bad way to treat someone
+     else's API, and the answer is the same every time anyway: show nothing. */
+  const failKey = `offer:fail:${win.id}`;
+  if (await env.KV.get(failKey).catch(() => null)) return null;
+
   const prices = annualPriceIds(env);
   if (!prices.length) {
     console.error("[offer] no annual price ids configured; refusing to mint an unrestricted code");
