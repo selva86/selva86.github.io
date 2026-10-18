@@ -118,6 +118,13 @@ export interface OfferState {
   reason?: string;       // why it is not showing, for the admin preview
 }
 
+/* Remember a failed mint for five minutes. Long enough that an outage does not
+   become thousands of calls, short enough that the window recovers on its own
+   once Paddle does. */
+async function holdOff(env: { KV: KVNamespace }, failKey: string): Promise<void> {
+  await env.KV.put(failKey, "1", { expirationTtl: 300 }).catch(() => {});
+}
+
 /* Mint (or reuse) the discount for a window. Deterministic code means two
    concurrent first-visitors converge on the same one: whoever loses the race
    gets a duplicate-code error from Paddle, which is success in disguise. */
@@ -141,6 +148,7 @@ export async function ensureWindowCode(
   const prices = annualPriceIds(env);
   if (!prices.length) {
     console.error("[offer] no annual price ids configured; refusing to mint an unrestricted code");
+    await holdOff(env, failKey);
     return null;
   }
 
@@ -169,11 +177,13 @@ export async function ensureWindowCode(
       // Either way the code exists with the right terms, so use it.
       if (!/already|duplicate|conflict/i.test(text)) {
         console.error(`[offer] discount create failed ${resp.status}: ${text.slice(0, 200)}`);
+        await holdOff(env, failKey);
         return null;
       }
     }
   } catch (e) {
     console.error(`[offer] discount create threw: ${(e as Error).message}`);
+    await holdOff(env, failKey);
     return null;
   }
 
