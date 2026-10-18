@@ -37,6 +37,7 @@ import {
   applyLifetimePurchase, linkPaddleCustomer,
 } from "../../_lib/billing";
 import { individualPlan, isPriceLock, teamsSeatQuantity, planLabel } from "../../_lib/paddle-plan";
+import { recordPayment, recordAdjustment, subHistory, money, ordinal, type PaymentKind } from "../../_lib/payments";
 
 interface PaddlePrice {
   id?: string;
@@ -57,14 +58,29 @@ interface PaddleSubscriptionData {
   custom_data?: Record<string, unknown> | null;
   // transaction.* fields (same envelope shape, different entity)
   subscription_id?: string | null;
-  details?: { totals?: { total?: string; currency_code?: string } } | null;
+  details?: {
+    totals?: {
+      total?: string; grand_total?: string; tax?: string; discount?: string;
+      earnings?: string; currency_code?: string;
+    };
+    // What Paddle actually pays out, after tax and fees. Usually USD, and so
+    // usually a different currency from totals.currency_code.
+    payout_totals?: { earnings?: string; currency_code?: string } | null;
+  } | null;
   // How the transaction came about. 'subscription_recurring' = a renewal, and
   // renewals must never re-trigger the customer welcome email.
   origin?: string;
   currency_code?: string;
   billing_period?: { starts_at?: string; ends_at?: string } | null;
+  invoice_number?: string | null;
+  billed_at?: string | null;
+  discount_id?: string | null;
   // customer.* fields
   email?: string;
+  // adjustment.* fields
+  action?: string;
+  transaction_id?: string;
+  totals?: { total?: string; currency_code?: string } | null;
 }
 
 // Transaction origins that represent a purchase worth confirming to the buyer.
@@ -86,6 +102,15 @@ function isoToUnix(iso?: string | null): number | null {
   if (!iso) return null;
   const t = Date.parse(iso);
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
+}
+
+// Paddle sends every amount as a minor-unit string ("1499"). Absent, empty
+// and unparseable all mean "no figure", never 0: a stored 0 would read in the
+// ledger as a free charge.
+function intOrNull(v?: string | null): number | null {
+  if (v == null || v === "") return null;
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 // Map Paddle subscription status -> our org.status. active/trialing grant seats;
@@ -163,6 +188,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   // and dispatched below only when this delivery is not a replay. Kept out of
   // the try so the send decision survives the routing block's scope.
   let fulfilment: FulfilmentPlan | null = null;
+  // What the ledger made of this charge ('renewal', 'first', ...), so the
+  // owner notification below can say which it was instead of calling every
+  // charge "Payment received".
+  let paymentKind: PaymentKind | null = null;
   try {
     if (eventType.startsWith("subscription.") && subId) {
       const teamsPriceId = (context.env as unknown as { PADDLE_TEAMS_PRICE_ID?: string }).PADDLE_TEAMS_PRICE_ID;
@@ -277,6 +306,41 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       const user = await resolveSubscriptionUser(context.env.DB, {
         subId: data.subscription_id || data.id, userId, customerId: data.customer_id || null, email,
       });
+
+      /* Record the money first, before any fulfilment branching. Every
+         completed transaction lands in the ledger, including renewals (which
+         fulfil nothing) and charges whose buyer we could not match to an
+         account (user_id NULL, so the row is still there to reconcile). A
+         failure here must never cost the customer their entitlement, so it
+         is caught and logged rather than thrown. */
+      try {
+        const T = data.details?.totals;
+        paymentKind = await recordPayment(context.env.DB, {
+          txnId: data.id,
+          userId: user?.id || null,
+          customerId: data.customer_id || null,
+          subscriptionId: data.subscription_id || null,
+          plan: plan || (teamsSeatQuantity(data, (context.env as unknown as { PADDLE_TEAMS_PRICE_ID?: string }).PADDLE_TEAMS_PRICE_ID) !== null ? "teams" : null),
+          origin: data.origin || "web",
+          status: data.status || "completed",
+          currency: T?.currency_code || data.currency_code || null,
+          gross: intOrNull(T?.grand_total ?? T?.total),
+          tax: intOrNull(T?.tax),
+          discount: intOrNull(T?.discount),
+          earnings: intOrNull(data.details?.payout_totals?.earnings ?? T?.earnings),
+          earningsCurrency: data.details?.payout_totals?.currency_code || T?.currency_code || null,
+          discountId: data.discount_id || null,
+          invoiceNumber: data.invoice_number || null,
+          country: user?.country || null,
+          billedAt: isoToUnix(data.billed_at) ?? occurredAt,
+          periodStart: isoToUnix(data.billing_period?.starts_at),
+          periodEnd: isoToUnix(data.billing_period?.ends_at),
+          nowSec: now,
+        });
+      } catch (e) {
+        console.error(`[webhook.paddle] payments insert failed for ${data.id}: ${(e as Error).message}`);
+      }
+
       if (plan === "lifetime") {
         if (!user) {
           console.error(`[webhook.paddle] UNRESOLVED lifetime txn ${data.id} (customer=${data.customer_id})`);
@@ -338,6 +402,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           subscriptionId: data.subscription_id || null,
         };
       }
+    } else if (eventType.startsWith("adjustment.") && data.transaction_id) {
+      /* A refund, credit or chargeback. Paddle sends it as its own entity, so
+         without this branch the ledger would keep showing the original charge
+         as money we still have. Entitlement is deliberately NOT revoked here:
+         a refunded customer keeping access to the end of the period they paid
+         for is the owner's stated policy, and reversing it silently from a
+         webhook is not a decision this code should make. */
+      const applied = await recordAdjustment(context.env.DB, {
+        txnId: data.transaction_id,
+        action: data.action || "refund",
+        total: intOrNull(data.totals?.total),
+        at: occurredAt,
+      });
+      processedNote = applied ? `adjustment_${data.action || "refund"}_recorded` : "adjustment_no_matching_payment";
     } else if ((eventType === "customer.created" || eventType === "customer.updated") && data.id && data.email) {
       // Customer entity: link paddle_customer_id to the account with that email.
       const user = await getUserByEmail(context.env.DB, data.email).catch(() => null);
@@ -379,38 +457,94 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     // the response so webhook latency is unaffected; replays never re-notify.
     const buyer = (data.custom_data?.email as string | undefined)
       || (data.email as string | undefined) || "";
-    const total = data.details?.totals?.total;
-    const currency = data.details?.totals?.currency_code || "";
-    const money = total != null && total !== "" && currency
-      ? `${(parseInt(String(total), 10) / 100).toFixed(2)} ${currency}` : "";
+    const T = data.details?.totals;
+    const moneyStr = money(intOrNull(T?.grand_total ?? T?.total), T?.currency_code || data.currency_code || null);
     // The plan actually paid for (price id), not the buyer-writable custom_data.
     const plan = planLabel(data, context.env,
       (context.env as unknown as { PADDLE_TEAMS_PRICE_ID?: string }).PADDLE_TEAMS_PRICE_ID);
+
+    /* A renewal and a first sale both arrive as transaction.completed, and
+       both used to be announced as "Payment received". They need different
+       things from the owner, so they get different subjects: a renewal is
+       retention holding, a first sale is a new customer to welcome. */
+    const isRenewal = eventType === "transaction.completed" && paymentKind === "renewal";
     const NOTIFY: Record<string, string> = {
-      "transaction.completed": "Payment received",
+      "transaction.completed": isRenewal ? "Renewal charged" : "Payment received",
       "transaction.payment_failed": "Payment FAILED",
       "subscription.created": "New subscription",
       "subscription.canceled": "Subscription canceled",
       "subscription.past_due": "Subscription past due",
       "adjustment.updated": "Adjustment (refund?) updated",
+      "adjustment.created": "Refund or credit issued",
     };
     const headline = NOTIFY[eventType];
     if (headline) {
-      context.waitUntil(notifyAdminEvent(context.env, {
-        subject: `[r-statistics.co] ${headline}${money ? ": " + money : ""}${plan ? " (" + plan + ")" : ""}`,
-        headline,
-        rows: [
-          ["Event", eventType],
-          ...(plan ? [["Plan", plan] as [string, string]] : []),
-          ...(normalizeTrack(data.custom_data?.track) ? [["Track", normalizeTrack(data.custom_data?.track)] as [string, string]] : []),
-          ...(money ? [["Amount", money] as [string, string]] : []),
-          ...(buyer ? [["Customer", buyer] as [string, string]] : []),
-          ...(subId ? [["Subscription", subId] as [string, string]] : []),
-          ["Ref", data.id || eventId],
-          ["Note", processedNote],
-        ],
-        ...(buyer ? { replyTo: buyer } : {}),
-      }));
+      /* Built inside waitUntil because the extra context costs a DB read or
+         two, and the webhook response must not wait for an email. */
+      context.waitUntil((async () => {
+        const extra: Array<[string, string]> = [];
+        const ledgerSub = data.subscription_id || (eventType.startsWith("subscription.") ? subId : "");
+        try {
+          if (ledgerSub) {
+            const h = await subHistory(context.env.DB, ledgerSub);
+            if (h) {
+              if (isRenewal) {
+                extra.push(["Charge number", `${ordinal(h.charges)} charge on this subscription`]);
+                const nextAt = isoToUnix(data.billing_period?.ends_at);
+                if (nextAt) {
+                  extra.push(["Next renewal", `${new Date(nextAt * 1000).toISOString().slice(0, 10)}${moneyStr ? ", " + moneyStr : ""}`]);
+                }
+              }
+              if (eventType === "subscription.canceled") {
+                if (h.lastGross != null) extra.push(["Was paying", money(h.lastGross, h.lastCurrency)]);
+                extra.push(["Charges collected", String(h.charges)]);
+                if (h.earnings) extra.push(["Collected to date", money(h.earnings, "USD") + " net"]);
+                if (h.firstAt) {
+                  const days = Math.max(1, Math.round((now - h.firstAt) / 86400));
+                  extra.push(["Customer since", `${new Date(h.firstAt * 1000).toISOString().slice(0, 10)} (${days} days)`]);
+                }
+              }
+            }
+            /* What the customer keeps. A cancellation never claws back the
+               period already paid for, so the useful fact is when access
+               actually stops, not that the plan ended today. */
+            if (eventType === "subscription.canceled") {
+              const row = await context.env.DB
+                .prepare(`SELECT u.pro_until FROM subscriptions s JOIN users u ON u.id = s.user_id
+                           WHERE s.provider = 'paddle' AND s.external_id = ?`)
+                .bind(ledgerSub)
+                .first<{ pro_until: number | null }>()
+                .catch(() => null);
+              if (row?.pro_until === -1) extra.push(["Access", "lifetime, unaffected"]);
+              else if (row?.pro_until) extra.push(["Access ends", new Date(row.pro_until * 1000).toISOString().slice(0, 10)]);
+            }
+          }
+        } catch (e) {
+          console.warn(`[webhook.paddle] notification context lookup failed: ${(e as Error).message}`);
+        }
+
+        const subjectTail = eventType === "subscription.canceled"
+          ? (plan ? `: ${plan}` : "") + (extra.find((r) => r[0] === "Was paying") ? `, was ${extra.find((r) => r[0] === "Was paying")![1]}` : "")
+          : `${moneyStr ? ": " + moneyStr : ""}${plan ? " (" + plan + ")" : ""}`;
+
+        await notifyAdminEvent(context.env, {
+          subject: `[r-statistics.co] ${headline}${subjectTail}`,
+          headline,
+          rows: [
+            ["Event", eventType],
+            ...(plan ? [["Plan", plan] as [string, string]] : []),
+            ...(normalizeTrack(data.custom_data?.track) ? [["Track", normalizeTrack(data.custom_data?.track)] as [string, string]] : []),
+            ...(moneyStr ? [["Amount", moneyStr] as [string, string]] : []),
+            ...(buyer ? [["Customer", buyer] as [string, string]] : []),
+            ...extra,
+            ...(subId ? [["Subscription", subId] as [string, string]] : []),
+            ["Ref", data.id || eventId],
+            ["Note", processedNote],
+            ["Ledger", "https://r-statistics.co/admin/contacts.html#tab=money"],
+          ],
+          ...(buyer ? { replyTo: buyer } : {}),
+        });
+      })());
     }
 
     // Customer-facing purchase email, alongside (never instead of) the owner

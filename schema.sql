@@ -451,3 +451,47 @@ CREATE TABLE IF NOT EXISTS price_alerts (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_price_alerts_email ON price_alerts(email);
 -- Applied 2026-08-29 to dev+prod, together with:
 --   ALTER TABLE users ADD COLUMN nurture_paused_until INTEGER;  -- quiet-probe "pause for two weeks"
+
+-- ===== payments (one row per Paddle transaction that moved money) =====
+-- WHY THIS EXISTS. subscriptions mirrors the CURRENT state of a plan, so it
+-- answers "what are they on" but never "what did they pay, and when". The
+-- subscription.* webhook payload carries no money at all, which is why
+-- subscriptions.amount sat NULL on 18 of 19 rows and the digest could not
+-- report revenue. Every charge arrives instead on transaction.completed, so
+-- that is what this table records: the first charge, every renewal, and the
+-- refunds against them.
+--
+-- Money is stored in minor units, exactly as Paddle sends it. `gross` is in
+-- `currency` (what the customer was charged, their currency, tax included);
+-- `earnings` is in `earnings_currency` (what Paddle actually pays out, after
+-- tax and fees). The two are different currencies on most rows, so never add
+-- a gross to an earnings.
+CREATE TABLE IF NOT EXISTS payments (
+  id                TEXT PRIMARY KEY,     -- Paddle transaction id (txn_...)
+  provider          TEXT NOT NULL DEFAULT 'paddle',
+  user_id           TEXT,                 -- resolved account; NULL = unmatched buyer
+  customer_id       TEXT,                 -- paddle customer id
+  subscription_id   TEXT,                 -- sub_...; NULL for one-time (lifetime)
+  plan              TEXT,                 -- single_month | allaccess_year | lifetime | teams
+  kind              TEXT NOT NULL,        -- first | renewal | one_time | other
+  origin            TEXT,                 -- paddle origin (web, subscription_recurring, ...)
+  status            TEXT,                 -- completed | billed | past_due
+  currency          TEXT,                 -- currency of `gross`, `tax`, `discount`
+  gross             INTEGER,              -- grand total charged, minor units
+  tax               INTEGER,
+  discount          INTEGER,
+  earnings          INTEGER,              -- payout earnings after fees, minor units
+  earnings_currency TEXT,
+  discount_id       TEXT,
+  invoice_number    TEXT,
+  country           TEXT,
+  billed_at         INTEGER,
+  period_start      INTEGER,
+  period_end        INTEGER,
+  refunded          INTEGER NOT NULL DEFAULT 0,  -- minor units refunded, in `currency`
+  refunded_at       INTEGER,
+  created_at        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payments_user    ON payments(user_id, billed_at);
+CREATE INDEX IF NOT EXISTS idx_payments_sub     ON payments(subscription_id, billed_at);
+CREATE INDEX IF NOT EXISTS idx_payments_billed  ON payments(billed_at);
