@@ -569,13 +569,38 @@
       var price = g.querySelector('.lm-gate-price');
       var fine = g.querySelector('.lm-gate-fine');
       var c = gateCoupon();
-      if (price) price.textContent = c ? 'Your 23% code ' + c.code + ' is applied at checkout.' : '$129 a year, or $14 a month.';
+      /* Read the percent out of the code rather than hardcoding it. The pass
+         coupon and the price-alert code are set in two different files, and a
+         wall that says 23% over a code worth something else is a broken promise
+         printed in the one place somebody is about to pay. */
+      var cPct = c ? (String(c.code).match(/^(?:PASS|PRO|SAVE|BACK)(\d{1,2})/) || [0, '23'])[1] : '';
+      if (price) price.textContent = c ? 'Your ' + cPct + '% code ' + c.code + ' is applied at checkout.' : '$129 a year, or $14 a month.';
       if (fine) fine.textContent = '14-day full refund, no questions asked. Cancel anytime.';
+      /* THE WALL MAY ASK, IT MAY NOT BROADCAST (2026-10-19). This is the highest
+         intent surface on the site: somebody wanted one specific locked lesson.
+         It still gets no countdown and no code of its own. It offers the email
+         route, and only when the visitor has no coupon already and the server
+         says this person may be told about a discount at all, which is never
+         true of somebody who already pays. */
+      if (!c && fine) {
+        fetch('/api/offer', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) {
+            if (!d || !d.enabled || !d.percent) return;
+            var ask = document.createElement('a');
+            ask.className = 'lm-gate-alt';
+            ask.href = '/pricing.html?ask=price#deciding';
+            ask.textContent = 'Is the price the problem? I will email you a ' + d.percent
+              + '% code for the annual plans';
+            fine.insertAdjacentElement('beforebegin', ask);
+          })
+          .catch(function () {});
+      }
       if (!document.getElementById('rs-checkout-js')) {
         var sc = document.createElement('script'); sc.id = 'rs-checkout-js'; sc.src = '/www/checkout.js?v=1'; sc.defer = true;
         sc.onload = function () { if (window.rsCheckout) window.rsCheckout.ready(function (p) {
           var y = p.price('allaccess', 'year'), m = p.price('allaccess', 'month');
-          if (price && y) price.textContent = (c ? 'Your 23% code ' + c.code + ' comes off ' : '') + y + ' a year' + (m ? ', or ' + m + ' a month' : '') + (c ? ' at checkout.' : '.');
+          if (price && y) price.textContent = (c ? 'Your ' + cPct + '% code ' + c.code + ' comes off ' : '') + y + ' a year' + (m ? ', or ' + m + ' a month' : '') + (c ? ' at checkout.' : '.');
         }); };
         document.head.appendChild(sc);
       }

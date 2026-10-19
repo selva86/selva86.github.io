@@ -1801,13 +1801,49 @@ def lesson_callout_html(slug):
     e = LESSON_LINKS.get(slug[:-5] if slug.endswith('.html') else slug)
     if not e:
         return ''
-    return ('<div class="callout callout-lesson" style="margin:18px 0;padding:13px 16px;border:1px solid #cfe6d8;'
-            "border-left:4px solid #1f7a55;border-radius:10px;background:#f2faf5\">"
-            "<div style=\"font:600 11px/1 ui-monospace,monospace;letter-spacing:.08em;"
-            'text-transform:uppercase;color:#1f7a55;margin-bottom:5px">Interactive lesson</div>'
-            '<div style="font-size:15px;line-height:1.55;color:#243349">Prefer to learn by doing? Work through the free '
-            'interactive lesson <a href="/' + e['slug'] + '.html" style="color:#1f7a55;font-weight:600">'
-            + _esc_html(e['title']) + ' &rarr;</a> - guided steps, live R you can run, and graded checks.</div></div>')
+    # Written to match end_of_post_html exactly. The version that sat here
+    # unused carried an uppercase mono eyebrow reading "Interactive lesson",
+    # which breaks two standing rules at once: mono is for R code only, and
+    # eyebrows are on the list of tells the owner hunts. It was harmless while
+    # nothing called it; it is not harmless now that every mapped tutorial
+    # renders it.
+    return ('<div class="callout callout-next" style="margin:30px 0 0;padding:14px 16px;border:1px solid #DCE3DE;'
+            'border-left:4px solid #1f7a55;border-radius:10px;background:#F7FAF8">'
+            '<div style="font-size:15px;line-height:1.55;color:#243349">Prefer to learn by doing? Work through the '
+            'free interactive lesson <a href="/' + e['slug'] + '.html" style="color:#1f7a55;font-weight:600">'
+            + _esc_html(e['title']) + '</a>, where you write the R yourself and the page tells you when it is '
+            'wrong.</div></div>')
+
+
+def end_of_post_html(slug):
+    """The one line at the end of a tutorial. Static, no clock, no price.
+
+    Added 2026-10-19. The site's only commercial surface had drifted to the
+    page with the least traffic: a homepage bar seen by about a dozen people a
+    day, on 3 to 5% of visits, while the 1,900 tutorial pages carry the other
+    95%. Those pages are also the ones linked from university course pages, so
+    a countdown or a percentage here is the single change most likely to cost
+    both rankings and academic goodwill. This names what is free and then stops.
+
+    Where lesson-links.json knows the matching interactive lesson, say which one
+    (17 tutorials so far, worth extending). Otherwise point at the roadmap,
+    which is true of every page: section 1 of every track is free.
+    """
+    # Nothing at all when the page already carries the lesson callout under its
+    # byline (build_post injects it there for every tutorial lesson-links.json
+    # maps). That placement is better than the foot of the page and it names a
+    # specific lesson, so a roadmap line underneath would be the same nudge
+    # twice. This is what made the mapped pages render it in both places on the
+    # first build.
+    if lesson_callout_html(slug):
+        return ''
+    return (
+        '<div class="callout callout-next" style="margin:30px 0 0;padding:14px 16px;border:1px solid #DCE3DE;'
+        'border-left:4px solid #1f7a55;border-radius:10px;background:#F7FAF8">'
+        '<div style="font-size:15px;line-height:1.55;color:#243349">Prefer to learn by doing? Every track on the '
+        '<a href="/roadmap/" style="color:#1f7a55;font-weight:600">learning roadmap</a> opens with a free section of '
+        'interactive lessons, where you write the R yourself and the page tells you when it is wrong.</div></div>'
+    )
 
 
 def build_post(
@@ -2259,9 +2295,14 @@ def build_post(
         cert_bottom = make_cert_final(hub_short, quiz_url, hub_slug,
                                        topics=topics, issuance_base=issuance_base,
                                        quiz_available=quiz_exists)
-    else:
+    elif _is_lesson:
+        # A lesson is already the interactive thing; pointing it at itself, from
+        # under the full-screen player, is noise nobody would ever see.
         cert_top = ''
         cert_bottom = ''
+    else:
+        cert_top = ''
+        cert_bottom = end_of_post_html(slug)
     page_html = page_html.replace('{{CERT_RIBBON_TOP}}', cert_top)
     page_html = page_html.replace('{{CERT_RIBBON_BOTTOM}}', cert_bottom)
 
