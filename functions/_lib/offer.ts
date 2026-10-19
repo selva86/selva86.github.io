@@ -1,79 +1,60 @@
-// The homepage timed offer: a discount that is genuinely live for part of the
-// day and genuinely gone for the rest of it.
+// The discount programme: one percentage, one delivery route, and no clock on
+// any public page.
 //
-// WHY THE WINDOW IS GLOBAL AND COMPUTED FROM THE CLOCK. A countdown that
-// restarts per visitor, or resets when you clear cookies, is a lie told with a
-// clock face. This one is derived from UTC alone: every visitor anywhere sees
-// the same deadline, and when it passes the offer really is unavailable until
-// the next window opens. Nothing is stored per person, so there is nothing to
-// reset and nothing to game.
+// WHAT CHANGED ON 2026-10-19, AND WHY. This file used to run a timed homepage
+// bar: a window open 12:00 to 20:00 UTC, a fresh Paddle code minted per window,
+// and a countdown ticking toward the deadline. Three measurements retired it.
 //
-// WHY THE CODE CANNOT OUTLIVE THE WINDOW. Each window mints one Paddle
-// discount whose `expires_at` is the window's own end. Enforcement is Paddle's,
-// not ours: a code copied out of the page stops working at the deadline even if
-// someone reaches checkout by another route. Outside a window no code exists at
-// all, so there is nothing to leak.
+//   Reach. The bar was homepage-only, and the homepage is 3 to 5% of traffic
+//   (34 visits on the day it launched, against roughly a thousand site-wide).
+//   Eight hours on and sixteen off left about a dozen impressions a day. Three
+//   windows ran; all three codes finished with times_used = 0.
+//
+//   Honesty. The window reopened every single day, so "Ends in 04h 57m" was
+//   true of the code and false of the offer. A countdown that resets at
+//   midnight is manufactured scarcity, and under the Unfair Commercial
+//   Practices Directive (Annex I, point 7) falsely stating that something is
+//   available only for a very limited time is prohibited outright, with no
+//   case-by-case defence. The homepage is also the page a lecturer reads before
+//   linking a course page, so the exposure was worst exactly where the reach
+//   was thinnest.
+//
+//   Where the money actually leaks. 160 people viewed pricing in nine days and
+//   5 opened a checkout. The ones who leave are anonymous and unreachable, so a
+//   discount shown on the page changes nothing for them: they have already seen
+//   a price and gone. Their own answers say price is the top objection, 14 of 28.
+//
+// So the discount is asked for rather than broadcast, and it arrives by email as
+// a personal single-use code. That makes the deadline real instead of
+// theatrical: one recipient, one redemption, an expiry Paddle itself enforces.
+// The clock lives in an inbox, where a deadline is ordinary, rather than on a
+// public page where it is a dark pattern. `price_alerts` is the state machine
+// (pricealerts.ts); this file owns the percentage and the minting.
 
 import { createPaddleDiscount } from "./cartrecovery";
 
+/* One number, in one place. Every surface that names a discount reads it from
+   here: the pricing page's answer to "the price", the Pro wall, the outreach
+   note and the price-alert emails. They used to disagree (the bar said 20, the
+   price-alert flow said 23) which is a promise waiting to be compared by
+   someone who received both. */
 export interface OfferConfig {
-  percent: number;      // whole percent off
-  onHours: number;      // how long a window stays open
-  offHours: number;     // the gap before the next one
-  anchorHour: number;   // UTC hour the first window of the cycle opens
+  percent: number;      // whole percent off, annual plans only
+  hours: number;        // how long a personal code stays alive
 }
 
-// 20% off the annual plans, open 12:00 to 20:00 UTC daily. That window is the
-// US morning, the UK afternoon and the Indian evening at once, which is the
-// best single slot for where the readers actually are.
+/* 23, not the retired bar's 20, because 23 is what the price-alert emails have
+   been sending all along and this merge must not change anyone's price. One
+   KV write moves every surface at once:
+     wrangler kv key put --namespace-id <prod> offer:config '{"percent":20}' --remote */
 export const DEFAULT_OFFER: OfferConfig = {
-  percent: 20,
-  onHours: 8,
-  offHours: 16,
-  anchorHour: 12,
+  percent: 23,
+  hours: 7 * 24,
 };
 
-export interface OfferWindow {
-  active: boolean;
-  startsAt: number;      // unix, the window containing or preceding `now`
-  endsAt: number;
-  nextStartsAt: number;  // when the next window opens (equals startsAt if active)
-  id: string;            // stable per window, used in the code and the KV keys
-}
-
-/* The cycle repeats every onHours + offHours. Anchored to the Unix epoch plus
-   anchorHour so the maths never depends on what "today" means in any timezone. */
-export function offerWindow(nowSec: number, cfg: OfferConfig): OfferWindow {
-  const cycle = Math.max(1, Math.round((cfg.onHours + cfg.offHours) * 3600));
-  const on = Math.max(1, Math.round(cfg.onHours * 3600));
-  const anchor = Math.round(cfg.anchorHour * 3600);
-
-  // Index of the cycle `now` sits in, counting from the anchored epoch.
-  const since = nowSec - anchor;
-  const idx = Math.floor(since / cycle);
-  const startsAt = anchor + idx * cycle;
-  const endsAt = startsAt + on;
-  const active = nowSec < endsAt;
-  return {
-    active,
-    startsAt,
-    endsAt,
-    nextStartsAt: active ? startsAt : startsAt + cycle,
-    id: String(startsAt),
-  };
-}
-
-/* Readable, unambiguous, and impossible to confuse with a hand-issued code.
-   No vowels, so no window can accidentally spell something. */
-const ALPHABET = "BCDFGHJKLMNPQRSTVWXZ23456789";
-export function offerCode(percent: number, windowId: string): string {
-  let n = 0;
-  for (let i = 0; i < windowId.length; i++) n = (n * 31 + windowId.charCodeAt(i)) >>> 0;
-  let tail = "";
-  for (let i = 0; i < 5; i++) { tail += ALPHABET[n % ALPHABET.length]; n = Math.floor(n / ALPHABET.length) + 7; }
-  return `SAVE${percent}${tail}`;
-}
-
+/* KV `offer:config` overrides either field with no deploy. It may still hold
+   the retired window keys (onHours, offHours, anchorHour); they are ignored
+   rather than rejected so an old value cannot break the read. */
 export async function readOfferConfig(env: { KV: KVNamespace }): Promise<OfferConfig> {
   try {
     const raw = await env.KV.get("offer:config");
@@ -81,12 +62,13 @@ export async function readOfferConfig(env: { KV: KVNamespace }): Promise<OfferCo
     const p = JSON.parse(raw) as Partial<OfferConfig>;
     const cfg: OfferConfig = {
       percent: Number(p.percent) > 0 ? Math.round(Number(p.percent)) : DEFAULT_OFFER.percent,
-      onHours: Number(p.onHours) > 0 ? Number(p.onHours) : DEFAULT_OFFER.onHours,
-      offHours: Number(p.offHours) >= 0 ? Number(p.offHours) : DEFAULT_OFFER.offHours,
-      anchorHour: Number.isFinite(Number(p.anchorHour)) ? Number(p.anchorHour) : DEFAULT_OFFER.anchorHour,
+      hours: Number(p.hours) > 0 ? Math.round(Number(p.hours)) : DEFAULT_OFFER.hours,
     };
     // A 100% code would hand the catalogue away; a 0% one is noise.
     if (cfg.percent < 1 || cfg.percent > 60) cfg.percent = DEFAULT_OFFER.percent;
+    // Under an hour cannot be honoured by an hourly cron; over 30 days is not a
+    // deadline, it is a price change.
+    if (cfg.hours < 1 || cfg.hours > 30 * 24) cfg.hours = DEFAULT_OFFER.hours;
     return cfg;
   } catch (_) {
     return DEFAULT_OFFER;
@@ -94,7 +76,7 @@ export async function readOfferConfig(env: { KV: KVNamespace }): Promise<OfferCo
 }
 
 /* The annual price ids this offer is allowed to touch. Monthly is deliberately
-   excluded: discounting it trains people to wait for the bar on the plan with
+   excluded: discounting it trains people to wait for a sale on the plan with
    the worst retention, and the owner chose annual-only. An empty list would
    mean "every price", so a missing env var must disable the offer rather than
    silently widen it. */
@@ -108,108 +90,27 @@ export function annualPriceIds(env: OfferPriceEnv): string[] {
     .filter((v): v is string => typeof v === "string" && v.length > 0);
 }
 
+/* What /api/offer answers. No code and no deadline: a page can say what the
+   discount is worth and how to ask for it, and nothing more. Handing a live
+   code to anyone who loads a page is what made the old bar leaky. */
 export interface OfferState {
-  enabled: boolean;      // the kill switch
-  active: boolean;       // a window is open AND this visitor should see it
+  enabled: boolean;      // the programme is on and this visitor may be told
   percent: number;
-  endsAt: number | null;
-  nextStartsAt: number | null;
-  code: string | null;
+  hours: number;
   reason?: string;       // why it is not showing, for the admin preview
 }
 
-/* Remember a failed mint for five minutes. Long enough that an outage does not
-   become thousands of calls, short enough that the window recovers on its own
-   once Paddle does. */
-async function holdOff(env: { KV: KVNamespace }, failKey: string): Promise<void> {
-  await env.KV.put(failKey, "1", { expirationTtl: 300 }).catch(() => {});
-}
-
-/* Mint (or reuse) the discount for a window. Deterministic code means two
-   concurrent first-visitors converge on the same one: whoever loses the race
-   gets a duplicate-code error from Paddle, which is success in disguise. */
-export async function ensureWindowCode(
-  env: { KV: KVNamespace; PADDLE_API_KEY?: string } & OfferPriceEnv,
-  win: OfferWindow,
-  cfg: OfferConfig,
-): Promise<string | null> {
-  const key = `offer:code:${win.id}`;
-  const cached = await env.KV.get(key).catch(() => null);
-  if (cached) return cached;
-  if (!env.PADDLE_API_KEY) return null;
-
-  /* Negative cache. This runs on an ordinary homepage request, so without it
-     a Paddle outage during a window would turn every visit into another
-     failing create call. A few thousand a day is a bad way to treat someone
-     else's API, and the answer is the same every time anyway: show nothing. */
-  const failKey = `offer:fail:${win.id}`;
-  if (await env.KV.get(failKey).catch(() => null)) return null;
-
-  const prices = annualPriceIds(env);
-  if (!prices.length) {
-    console.error("[offer] no annual price ids configured; refusing to mint an unrestricted code");
-    await holdOff(env, failKey);
-    return null;
-  }
-
-  const code = offerCode(cfg.percent, win.id);
-  const base = env.PADDLE_API_KEY.startsWith("pdl_sdbx_")
-    ? "https://sandbox-api.paddle.com" : "https://api.paddle.com";
-  try {
-    const resp = await fetch(`${base}/discounts`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${env.PADDLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        description: `Homepage timed offer, window ending ${new Date(win.endsAt * 1000).toISOString()}`,
-        type: "percentage",
-        amount: String(cfg.percent),
-        enabled_for_checkout: true,
-        code,
-        // No usage limit: this one is public by design, unlike the single-use
-        // codes the outreach emails carry. The deadline is the only limit.
-        //
-        // It recurs forever. Whoever takes this offer keeps this price at every
-        // renewal, which is the owner's standing rule and also the only honest
-        // reading of a bar that says "off every annual plan".
-        recur: true,
-        maximum_recurring_intervals: null,
-        expires_at: new Date(win.endsAt * 1000).toISOString(),
-        restrict_to: prices,
-      }),
-    });
-    if (!resp.ok) {
-      const text = await resp.text();
-      // Already created by a concurrent request, or left over from a retry.
-      // Either way the code exists with the right terms, so use it.
-      if (!/already|duplicate|conflict/i.test(text)) {
-        console.error(`[offer] discount create failed ${resp.status}: ${text.slice(0, 200)}`);
-        await holdOff(env, failKey);
-        return null;
-      }
-    }
-  } catch (e) {
-    console.error(`[offer] discount create threw: ${(e as Error).message}`);
-    await holdOff(env, failKey);
-    return null;
-  }
-
-  // Outlive the window slightly so a page open at the deadline can still read
-  // it, then disappear. Paddle stops honouring it at endsAt regardless.
-  const ttl = Math.max(60, win.endsAt - Math.floor(Date.now() / 1000) + 600);
-  await env.KV.put(key, code, { expirationTtl: ttl }).catch(() => {});
-  return code;
-}
-
 // ---------------------------------------------------------------------------
-// Personal one-time codes, for an outreach email written from the contact
-// centre. Different from the homepage window code in every way that matters:
-// single use, 24 hours, and minted per recipient so Paddle's own description
-// records who it was written for.
+// Personal one-time codes. Minted for one named recipient, single use, annual
+// plans only, with an expiry Paddle enforces. Used by the price-alert flow
+// (someone answered "the price") and by an outreach note written from the
+// contact centre.
 //
 // HONEST LIMIT. Paddle cannot bind a discount to a customer, so "personal"
 // here means unguessable, single-use and short-lived, not cryptographically
-// tied to one person. Forwarded within the day, whoever redeems first gets it.
-// Say that plainly rather than promising what the payment provider does not do.
+// tied to one person. Forwarded inside its window, whoever redeems first gets
+// it. Say that plainly rather than promising what the payment provider does not
+// do.
 
 export interface PersonalOffer {
   code: string;

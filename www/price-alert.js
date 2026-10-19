@@ -46,14 +46,15 @@
   }
   /* Which answer was tapped, recorded for every answer including the one that
      writes no alert row. Without this the box's own conversion is unmeasurable. */
-  function signal(reason) {
+  function sig(name, meta) {
     try {
       var h = { 'Content-Type': 'application/json' };
       var t = readToken(); if (t) h['Authorization'] = 'Bearer ' + t;
       fetch('/api/signal', { method: 'POST', keepalive: true, headers: h,
-        body: JSON.stringify({ s: 'objection', p: location.pathname, m: reason, a: anonId() }) }).catch(function () {});
+        body: JSON.stringify({ s: name, p: location.pathname, m: meta || '', a: anonId() }) }).catch(function () {});
     } catch (e) {}
   }
+  function signal(reason) { sig('objection', reason); }
 
   function wire(box) {
     var btn = box.querySelector('[data-palert-btn]'), form = box.querySelector('[data-palert-form]');
@@ -169,6 +170,13 @@
     var sent = {}, busy = false;
     var pre = reasons && reasons.querySelector('[aria-pressed="true"]');
     var chosen = (pre && pre.getAttribute('data-palert-reason')) || 'no_time';
+    /* The Pro wall links here with ?ask=price. Somebody who has already said
+       what the problem is should not have to hunt for the chip that says it
+       again. Pattern-checked before it reaches a selector. */
+    try {
+      var want = new URLSearchParams(location.search).get('ask') || '';
+      if (/^[a-z_]{2,20}$/.test(want) && box.querySelector('[data-palert-answer="' + want + '"]')) chosen = want;
+    } catch (e) {}
     if (email && signedIn) email.hidden = true;
     function show(reason) {
       chosen = reason;
@@ -216,6 +224,7 @@
           if (!x.ok) { if (done) { done.hidden = false; done.textContent = (x.j && x.j.error && x.j.error.message) || (x.j && x.j.message) || 'Please check the email address.'; } return; }
           sent[reason] = message(x.j);
           ga('price_alert_optin', { surface: surface, sent: !!(x.j && x.j.sent), reason: reason });
+          sig('offer_click', reason || '');
           if (chosen === reason) show(reason);
         })
         .catch(function () { busy = false; send.disabled = false; if (done) { done.hidden = false; done.textContent = 'Something went wrong on my side. Please try again in a moment.'; } });

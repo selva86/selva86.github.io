@@ -63,6 +63,8 @@ export interface TemplateData {
   code?: string;
   offer_url?: string;
   expires_line?: string;
+  percent?: string;            // the discount, from KV offer:config
+
   today_url?: string;
   week_url?: string;
   month_url?: string;

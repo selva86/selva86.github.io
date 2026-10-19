@@ -105,6 +105,7 @@ h1,h2,h3,h4{font-family:var(--fh);margin:0}
 .sd-pill b::after{content:'';width:9px;height:5px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:translateY(-1px) rotate(-45deg)}
 .aband h2{font-weight:800;font-size:clamp(30px,3.4vw,38px);letter-spacing:-.02em;margin:0 0 8px;color:var(--deep)}
 .aband .lead{margin:0 0 24px;color:var(--mute);font-size:18px}
+.aband .sd-offer{margin:-12px auto 24px;max-width:620px;font-size:16px;color:#1F6B4A}
 .sd-chips{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 .sd-chip{cursor:pointer;white-space:nowrap;padding:12px 22px;border-radius:999px;font-size:16px;font-weight:700;background:#fff;color:var(--deep);border:1.5px solid var(--sage);transition:border-color .15s,background .15s,color .15s}
 .sd-chip:hover{border-color:var(--brand)}
@@ -398,6 +399,7 @@ main :focus-visible{outline:2px solid var(--bright);outline-offset:2px}
     <div class="sd-div" aria-hidden="true"><i></i><span class="sd-pill"><b></b>14-day full refund &middot; cancel anytime</span><i></i></div>
     <h2 id="sdH">Still deciding?</h2>
     <p class="lead">Tap on the option that bothers you the most. No newsletter.</p>
+    <p class="lead sd-offer" id="offerNote" hidden></p>
     <div class="sd-chips" data-palert-reasons role="group" aria-label="What bothers you most">
       <button type="button" class="sd-chip" data-palert-reason="no_time" aria-pressed="true">No time right now</button>
       <button type="button" class="sd-chip" data-palert-reason="price" aria-pressed="false">The price</button>
@@ -413,7 +415,7 @@ main :focus-visible{outline:2px solid var(--bright);outline-offset:2px}
         </div>
       </div>
       <div class="sd-a" data-palert-answer="price" hidden>
-        <p><span id="worryPrice">Single Track works out to $5.42 a month, billed annually.</span> If price is the sticking point, leave your email and I will let you know if there is ever a discount.</p>
+        <p><span id="worryPrice">Single Track works out to $5.42 a month, billed annually.</span> <span id="offerLine">If price is the sticking point, leave your email and I will send you a code for the annual plans.</span></p>
       </div>
       <div class="sd-a" data-palert-answer="unsure" hidden>
         <p>R Foundations is free in full, along with the first section of every other track. Try them first. If you upgrade and Pro is not for you, every paid plan has a 14-day full refund.</p>
@@ -685,12 +687,22 @@ var recoveryCode = (function(){ try { var c = new URLSearchParams(location.searc
 /* THE CODE USED TO BE LOST ON THE WAY TO SIGN-IN. A signed-out visitor who
    clicks a plan is sent to /signin.html, and the return trip was hardcoded to a
    bare /pricing.html, so the ?code= in the URL was dropped and the discount
-   quietly vanished. It never surfaced because everyone who had been sent a code
-   by email was already signed in. The homepage offer bar sends signed-out
-   visitors by design, so every one of them would have lost it.
-   Two defences: the sign-in round trip now carries the whole query string, and
-   the bar also writes its code to localStorage with the window's real deadline,
-   which survives a magic link that opens in a different tab. */
+   quietly vanished. Two defences: the sign-in round trip now carries the whole
+   query string (backHere below), and a code arriving in the URL is also kept in
+   localStorage, which survives a magic link that opens in a different tab.
+   Email is now the only way a code is delivered, so this is the main path
+   rather than a corner case.
+   ONLY persisted when the link carries &exp=, and only until that moment. A
+   guessed expiry would eventually hand a dead code to Paddle, and Paddle
+   refuses the whole checkout rather than ignoring a code it cannot apply. */
+(function(){
+  try {
+    if (!recoveryCode) return;
+    var e = parseInt(new URLSearchParams(location.search).get('exp') || '0', 10);
+    if (!e || e * 1000 <= Date.now()) return;
+    localStorage.setItem('rs-offer-code', JSON.stringify({ c: recoveryCode, e: e }));
+  } catch (err) {}
+})();
 if (!recoveryCode) recoveryCode = (function(){
   try {
     var v = JSON.parse(localStorage.getItem('rs-offer-code') || 'null');
@@ -721,13 +733,15 @@ function codeFor(term){
     }
   } catch (e) {}
 })();
-/* Price-alert offer emails land here with ?code=PRO23...&src=alert&exp=<unix>. The
-   banner is plain text; Paddle enforces the real expiry, exp is display only. */
+/* An offer email lands here with ?code=PRO20...&src=alert|outreach&exp=<unix>.
+   The banner is plain text; Paddle enforces the real expiry, exp is display
+   only. src=offerbar was retired with the homepage bar on 2026-10-19; outreach
+   was always sent but never accepted here, so those recipients saw no banner. */
 (function(){
   try {
     var q = new URLSearchParams(location.search);
     var src = q.get('src');
-    if (!recoveryCode || (src !== 'alert' && src !== 'offerbar')) return;
+    if (!recoveryCode || (src !== 'alert' && src !== 'outreach')) return;
     // Read the percent off the code itself so the banner cannot drift from the
     // discount Paddle will actually apply.
     var pct = (recoveryCode.match(/^(?:SAVE|PRO|PASS|BACK)(\d{1,2})/) || [0, '23'])[1];
@@ -752,6 +766,41 @@ function codeFor(term){
     rsSignal('offer_view', recoveryCode);
     try { if (typeof gtag === 'function') gtag('event', 'offer_view', { code: recoveryCode }); } catch (e) {}
   } catch (e) {}
+})();
+/* THE OFFER, ASKED FOR RATHER THAN BROADCAST (2026-10-19).
+   One fetch decides whether this page may name a discount at all. The server
+   answers no for anyone already paying, so a customer is never shown money off
+   the plan they hold. There is no code in the response and no countdown on the
+   page: the code is minted per recipient when they ask, and its deadline
+   travels in their own email, where a deadline is ordinary rather than a dark
+   pattern. The percent is read from the server too, so this page, the Pro wall
+   and the emails cannot drift apart. */
+(function(){
+  fetch('/api/offer', { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d || !d.enabled || !d.percent) return;
+      var days = Math.max(1, Math.round((d.hours || 168) / 24));
+      var dayWords = days === 1 ? 'a day' : days + ' days';
+      var note = document.getElementById('offerNote');
+      if (note) {
+        note.textContent = 'If the price is what is stopping you, say so below and I will email you a '
+          + d.percent + '% code for the annual plans. It is yours alone, it works once, and it runs for '
+          + dayWords + '.';
+        note.hidden = false;
+      }
+      var line = document.getElementById('offerLine');
+      if (line) {
+        line.textContent = 'Leave your email and I will send you a personal ' + d.percent
+          + '% code for either annual plan. It works once, it runs for ' + dayWords
+          + ', and the ' + d.percent + '% then stays on every renewal.';
+      }
+      /* Measured the same way as pricing_view, through /api/signal, so the two
+         are comparable. An ad blocker that eats one eats both, which is the
+         point: a funnel built from two collection methods cannot be read. */
+      if (note || line) rsSignal('offer_shown', String(d.percent));
+    })
+    .catch(function(){});
 })();
 /* Regional pricing note: the parity tiers live on the Paddle prices themselves
    (the page and checkout read the same entity), so all this does is name the

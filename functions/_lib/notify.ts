@@ -67,6 +67,59 @@ export async function notifyAdminEvent(
   } catch (_) { /* never throws into the caller */ }
 }
 
+/* WHAT IS STOPPING PEOPLE BUYING, MAILED THE HOUR THEY SAY IT.
+   The pricing box asks which of three things is in the way and records the
+   answer. Those answers are the only direct customer voice this site collects,
+   and they sat unread in intent_signals for three weeks: the owner first saw
+   them on 2026-10-19 (price 14, unsure 8, no time 6) and only because they
+   asked. A number nobody looks at is not a measurement, so each answer is now
+   mailed as it lands, with the running tally for context.
+
+   CAPPED ON PURPOSE. /api/signal takes no auth and has no rate limit, so a
+   script could turn this into an inbox flood. Past a dozen objections in an
+   hour the rows keep landing and the email goes quiet; the tally in the next
+   one still shows the volume, so nothing is hidden. */
+const OBJECTION_LABEL: Record<string, string> = {
+  price: "The price",
+  no_time: "No time right now",
+  unsure: "Not sure it is for me",
+};
+
+export async function notifyObjection(
+  env: Env,
+  o: { answer: string; path: string | null; email: string | null; anonId: string | null },
+): Promise<void> {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const recent = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM intent_signals WHERE signal = 'objection' AND at >= ?1",
+    ).bind(now - 3600).first<{ n: number }>();
+    if ((recent?.n ?? 0) > 12) return;
+
+    const tally = (await env.DB.prepare(
+      "SELECT meta AS m, COUNT(*) AS n FROM intent_signals "
+      + "WHERE signal = 'objection' AND at >= ?1 GROUP BY 1 ORDER BY n DESC",
+    ).bind(now - 7 * 86400).all<{ m: string; n: number }>()).results ?? [];
+    const tallyWords = tally.length
+      ? tally.map((r) => `${OBJECTION_LABEL[r.m] || r.m || "(blank)"} ${r.n}`).join(", ")
+      : "none yet";
+
+    const label = OBJECTION_LABEL[o.answer] || o.answer;
+    await notifyAdminEvent(env, {
+      subject: `Pricing objection: ${label}`,
+      headline: `Someone tapped "${label}" on the pricing page.`,
+      rows: [
+        ["Answer", label],
+        ["Page", o.path || "unknown"],
+        ["Who", o.email || `not signed in (${o.anonId || "no id"})`],
+        ["Last 7 days", tallyWords],
+      ],
+      // Signed in means a real address, so a reply reaches the person who said it.
+      ...(o.email ? { replyTo: o.email } : {}),
+    });
+  } catch (_) { /* never throws into the caller */ }
+}
+
 // The actual send. Sets the once-guard, builds and sends the email, records
 // the outcome in audit_log, and releases the guard on a failed send so a
 // later trigger can retry.

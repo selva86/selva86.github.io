@@ -32,12 +32,17 @@ import type { Env } from "../_middleware";
 import { sendMail, emailLive } from "./email";
 import { renderEmail, senderFor, type TemplateData } from "./email-templates";
 import { createPaddleDiscount, hasPurchased } from "./cartrecovery";
+import { readOfferConfig } from "./offer";
 
 const SITE = "https://r-statistics.co";
 const SWEEP_INTERVAL = 30 * 60;
 const MAX_SENDS_PER_SWEEP = 40;
 const DEFAULT_ALLOWLIST = "selva@r-statistics.co,selva86@gmail.com";
-const OFFER_PERCENT = "23";
+/* The percentage moved to KV offer:config on 2026-10-19 so that this flow, the
+   pricing page and the Pro wall cannot quote different numbers to the same
+   person. OFFER_DAYS stays as the default code life; offerExpiry still snaps to
+   hh:30 whatever it is, which is what lets the "last 30 minutes" note ride the
+   hourly cron with no scheduler of its own. */
 const OFFER_DAYS = 7;
 
 export type AlertEnv = Env & {
@@ -91,8 +96,8 @@ export function offerDueAt(intent: string | null, at: number): number {
 
 // Seven days out, snapped to hh:30, so the :00 cron run before expiry is
 // exactly 30 minutes early: the "last 30 minutes" note needs no scheduler.
-export function offerExpiry(sentAt: number): number {
-  const base = sentAt + OFFER_DAYS * 86400;
+export function offerExpiry(sentAt: number, hours: number = OFFER_DAYS * 24): number {
+  const base = sentAt + Math.max(1, hours) * 3600;
   return Math.floor(base / 3600) * 3600 + 1800;
 }
 
@@ -102,9 +107,11 @@ function fmtExpiry(sec: number): string {
   }) + " UTC";
 }
 
-function genCode(): string {
+function genCode(percent: string): string {
   const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let s = "PRO23";
+  // The percent is in the code because the pricing banner reads it back out of
+  // the code itself, so a PRO23 code can never display as anything but 23%.
+  let s = "PRO" + percent;
   const b = new Uint8Array(6); crypto.getRandomValues(b);
   for (const x of b) s += A[x % A.length];
   return s;
@@ -115,6 +122,10 @@ async function trackData(env: AlertEnv, row: AlertRow, key: string): Promise<Tem
   const sig = env.EMAIL_UNSUB_SECRET ? await hmacHex(env.EMAIL_UNSUB_SECRET, uid) : "";
   const stopSig = await alertSig(env, row.id);
   const d: TemplateData = { first_name: row.display_name || null };
+  // Every alert-* template may say {percent}; supply it here rather than at each
+  // call site, because renderEmail leaves an unknown placeholder in the body as
+  // literal "{percent}" and that would ship to a reader.
+  d.percent = String((await readOfferConfig(env)).percent);
   if (sig) d.track = { uid, sig, key };
   if (stopSig) d.unsubscribe_url = `${SITE}/api/price-alert/stop?a=${row.id}&t=${stopSig}`;
   return d;
@@ -157,7 +168,11 @@ export async function previewAlertEmail(
   env: AlertEnv, template: string, extra: Record<string, unknown>,
 ): Promise<{ subject: string; html: string; text: string } | null> {
   const data = Object.assign(
-    { first_name: "Selva", unsubscribe_url: `${SITE}/api/price-alert/stop?a=0&t=preview` },
+    {
+      first_name: "Selva",
+      percent: String((await readOfferConfig(env)).percent),
+      unsubscribe_url: `${SITE}/api/price-alert/stop?a=0&t=preview`,
+    },
     extra,
   ) as TemplateData;
   const r = renderEmail(template, data, await copyFor(env, template));
@@ -267,11 +282,12 @@ export async function sweepPriceAlerts(
       if (!row.offer_sent_at) {
         if (due > now) continue;
         if (await purchased(env, row, now)) { await markPurchased(env, row, now); continue; }
-        const code = genCode();
-        const expires = offerExpiry(now);
+        const cfg = await readOfferConfig(env);
+        const code = genCode(String(cfg.percent));
+        const expires = offerExpiry(now, cfg.hours);
         const priceIds = [env.PADDLE_PRICE_SINGLE_YEAR, env.PADDLE_PRICE_AA_YEAR].filter((x): x is string => !!x);
         const ok = await createPaddleDiscount(env, {
-          code, percent: OFFER_PERCENT, expiresAt: expires, priceIds, recur: true,
+          code, percent: String(cfg.percent), expiresAt: expires, priceIds, recur: true,
           description: `Price alert offer (auto) for alert #${row.id}`,
         });
         if (!ok) continue; // retried next sweep

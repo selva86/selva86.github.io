@@ -14,6 +14,7 @@
 
 import type { Env, RequestData } from "../_middleware";
 import { sweepAbandonedCheckouts } from "../_lib/cartrecovery";
+import { notifyObjection } from "../_lib/notify";
 
 const SIGNALS = new Set([
   "pricing_view", "pricing_toggle", "checkout_start", "checkout_closed",
@@ -37,6 +38,15 @@ const SIGNALS = new Set([
      silently drops a signal the client already sends is how pro_wall_hit lost
      months of data. */
   "objection",
+  /* 2026-10-19: the offer moved off the homepage bar and onto the pricing page,
+     where it is asked for rather than broadcast. offer_shown fires when the page
+     is allowed to name a discount, offer_click when someone asks for the code.
+     Collected through this endpoint rather than counted server side on purpose:
+     pricing_view is collected the same way, and a funnel assembled from two
+     different collection methods cannot be compared. An ad blocker that eats
+     one eats them all, which keeps the ratio honest even when the absolute
+     number is low. */
+  "offer_shown", "offer_click",
 ]);
 
 let tableReady = false;
@@ -75,17 +85,27 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
     if (!SIGNALS.has(s)) return done;
     const clean = (v: unknown, cap: number) =>
       typeof v === "string" ? v.slice(0, cap) : null;
+    const anon = clean(b.a, 40);
+    const path = clean(b.p, 200);
+    const meta = clean(b.m, 200);
     await ensureIntentTable(context.env.DB);
     await context.env.DB.prepare(
       "INSERT INTO intent_signals (at, user_id, anon_id, signal, path, meta) VALUES (?,?,?,?,?,?)"
     ).bind(
       Math.floor(Date.now() / 1000),
       context.data.user?.id ?? null,
-      clean(b.a, 40),
+      anon,
       s,
-      clean(b.p, 200),
-      clean(b.m, 200),
+      path,
+      meta,
     ).run();
+    /* Mail the owner the moment somebody says what is in the way. After the
+       insert, so the row is recorded even if the mail fails, and inside
+       waitUntil so the 204 is never held up by ZeptoMail. */
+    if (s === "objection") {
+      const email = context.data.user?.email ?? null;
+      context.waitUntil(notifyObjection(context.env, { answer: meta || "", path, email, anonId: anon }));
+    }
   } catch (_) { /* never fail the caller */ }
   // opportunistic cart-recovery sweep (KV-throttled to one run / 30 min)
   try { context.waitUntil(sweepAbandonedCheckouts(context.env)); } catch (_) {}
