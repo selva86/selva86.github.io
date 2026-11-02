@@ -32,6 +32,8 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | An N-step process / pipeline | numbered flow diagram | `process-flow` | static | built |
 | Hypothesis test: null dist + p-value tail | shaded tail under H0, draggable statistic | `null-distribution` | interactive | built |
 | How surprising is a result under pure chance | guessing-game histogram, live >= counter | `luck-simulator` | interactive | built |
+| The four inference distributions, and what df buys | distribution switch + df slider; the t drawn over a dashed standard normal | `dist-shapes` | interactive | built |
+| Central limit theorem, including where it fails | parent-shape switch + n slider; the population beside the distribution of its mean, x axis pinned | `clt-sampler` | interactive | built |
 | Agent reasoning loop (ReAct) | Thought -> Action -> Observation cycle, stepped | `agent-loop` | interactive | built |
 | A table changing under a dplyr/data.table verb | before -> after table diff + the code | `table-transform` | interactive | built |
 | Joining two keyed tables | two tables + switchable join type + live result | `join-diagram` | interactive | built |
@@ -181,3 +183,32 @@ which is why no lesson before that date selects one.
 | `wrong-family-fit` | picks the wrong model family -> watches the specific way it fails | ch 54, 56-59: ordinal outcomes, link function, zero-inflation, too many predictors, interactions |
 | `repro-repair` | repairs a broken script fault by fault until it runs twice from a clean session with the same answer | ch 60 code and data sharing, and Part 10 |
 | `review-triage` | sorts a real-looking review into the three outcomes before answering any of it | ch 30 the hub, and Part 10 response and revision |
+
+
+## Researcher widget family (2026-11-02)
+
+Built for Researcher section 1. Both answer a question the existing 101 could
+not: every stats widget on the shelf assumed a distribution and tested against
+it, and none of them showed where the distributions themselves come from.
+
+| Widget | What the learner moves (the feel-it) | Serves |
+|---|---|---|
+| `dist-shapes` | distribution switch (normal / t / chi-squared / F) + a df slider; the t is drawn over a dashed standard normal and the readout prices the gap as a real cutoff you can check with qt() | researcher S1 "Normal, t, F, Chi-Squared"; S3 confidence intervals; S4 test selection |
+| `clt-sampler` | parent-shape switch (flat / skewed / two humps / heavy tail) + a sample-size slider; the population sits beside the distribution of its mean on a pinned x axis, so raising n visibly tightens the right panel | researcher S1 "Central Limit Theorem" and "Sampling Distributions"; S2 estimation |
+
+`clt-sampler`'s fourth parent has no finite variance and the theorem fails on
+it, on purpose. A reader who only ever sees a theorem work learns a rule; a
+reader who sees its one honest counterexample learns the condition. Its readout
+reports a range rather than a standard deviation in that case, because quoting
+an sd for a population that has none would commit the error the widget teaches
+against.
+
+Reuse for `researcher` section 1 (no new widgets needed for these five):
+
+| Curriculum item | Widget |
+|---|---|
+| Random Variables | `luck-simulator` (chance as a histogram), `count-dist` |
+| Discrete distributions: binomial and Poisson | `count-dist` |
+| Sampling Distributions | `clt-sampler`, `null-distribution` |
+| Point estimation and standard errors | `bias-variance` (bias, variance and their sum), `regression-intervals` |
+| Bootstrap Confidence Intervals | `bootstrap-sample`, `null-distribution` |

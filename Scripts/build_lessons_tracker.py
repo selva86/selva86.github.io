@@ -63,6 +63,12 @@ COURSE_ROADMAP = {
                       'sectionLabel': 'Production forecasting'},
     'random-forest': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 4,
                       'sectionLabel': 'Trees and gradient boosting'},
+    # Researcher section 1. `section` must equal the S(n, ...) number in
+    # www/roadmap-curriculum.js or the player's Back button deep-links to the
+    # wrong section, and sectionLabel is what the breadcrumb shows, so it is
+    # copied from the roadmap verbatim.
+    'res-probability': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 1,
+                        'sectionLabel': 'Probability, distributions and estimation'},
     't-test': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
                'sectionLabel': 'Hypothesis testing and test selection'},
     'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
