@@ -34,6 +34,8 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | How surprising is a result under pure chance | guessing-game histogram, live >= counter | `luck-simulator` | interactive | built |
 | The four inference distributions, and what df buys | distribution switch + df slider; the t drawn over a dashed standard normal | `dist-shapes` | interactive | built |
 | Central limit theorem, including where it fails | parent-shape switch + n slider; the population beside the distribution of its mean, x axis pinned | `clt-sampler` | interactive | built |
+| Where an estimate comes from, and its error bar | model switch + sample-size slider; log-likelihood curve, its peak, and the parabola a Wald interval assumes | `likelihood-curve` | interactive | built |
+| What 95% confidence actually promises | recipe switch + population switch + n slider; 60 intervals against the truth, misses counted | `ci-coverage` | interactive | built |
 | Agent reasoning loop (ReAct) | Thought -> Action -> Observation cycle, stepped | `agent-loop` | interactive | built |
 | A table changing under a dplyr/data.table verb | before -> after table diff + the code | `table-transform` | interactive | built |
 | Joining two keyed tables | two tables + switchable join type + live result | `join-diagram` | interactive | built |
@@ -203,12 +205,68 @@ reports a range rather than a standard deviation in that case, because quoting
 an sd for a population that has none would commit the error the widget teaches
 against.
 
+`count-dist` takes a `cfg` argument and reads no key out of it. Its modes are
+Poisson, Negative Binomial and Zero-Inflated over one built-in dataset: there is
+no binomial mode and no lambda or n to set. It earns its place on the
+overdispersion story, not on the binomial-to-Poisson limit, which needs a
+runnable block. Checked 2026-11-03, after a writer lost time configuring it.
+
+A widget whose header comment does not document its `cfg` keys ignores `cfg`.
+Roughly half the shelf is hardcoded that way. Read the source before planning a
+cfg block, or the plan promises a configuration the page will not honour.
+
 Reuse for `researcher` section 1 (no new widgets needed for these five):
 
 | Curriculum item | Widget |
 |---|---|
 | Random Variables | `luck-simulator` (chance as a histogram), `count-dist` |
-| Discrete distributions: binomial and Poisson | `count-dist` |
+| Discrete distributions: binomial and Poisson | `count-dist` for the Poisson side only, plus `luck-simulator` for the binomial side |
 | Sampling Distributions | `clt-sampler`, `null-distribution` |
 | Point estimation and standard errors | `bias-variance` (bias, variance and their sum), `regression-intervals` |
 | Bootstrap Confidence Intervals | `bootstrap-sample`, `null-distribution` |
+
+
+## Researcher widget family, sections 2 and 3 (2026-11-03)
+
+Two more, for the two places sections 2 and 3 had nothing to point at. Both
+were checked against R before they shipped: every number `likelihood-curve`
+prints matches R to the digit shown, at both models and all six sample sizes,
+and `ci-coverage`'s counts sit inside sampling error of the true coverage R
+measures over ten thousand repetitions.
+
+| Widget | What the learner moves (the feel-it) | Serves |
+|---|---|---|
+| `likelihood-curve` | model switch (coin flips / waiting times) + a sample-size slider; the log-likelihood curve with its peak marked, the quadratic approximation dashed over it, and the 95% cutoff drawn as a line you can read a confidence interval off | researcher S2 "Maximum likelihood estimation", "Fisher information and the Cramer-Rao bound", "The delta method"; S3 interval width |
+| `ci-coverage` | recipe switch (z / t / bootstrap) + population switch + an n slider; sixty intervals drawn against the true value, misses coloured and marked, and the count printed against the 95% on the label | researcher S3 "Confidence Intervals done right", "Interval coverage and calibration"; S2 "The bootstrap: percentile vs BCa" |
+
+`likelihood-curve` puts the estimate, its standard error and its confidence
+interval on one picture on purpose. They are three readings of one curve, and
+students normally meet them as three unrelated chapters. The dashed parabola is
+the honest part: at n = 10 it is visibly the wrong shape, which is the real
+reason a Wald interval misbehaves on small samples, and the readout prices the
+gap rather than asserting it.
+
+`ci-coverage` holds its sixty samples fixed when the recipe changes. Identical
+data, three recipes, three counts, so a shortfall is provably the recipe's
+fault and not a bad draw. The combination worth opening it on is a skewed
+population at n = 5 with the z recipe: 50 of 60, against the 95% on the label.
+The bootstrap is no better there (48 of 60), which is worth knowing before
+teaching it as a cure.
+
+Widget configs for researcher sections 2 and 3:
+
+| Curriculum item | Widget | Honours cfg |
+|---|---|---|
+| Point estimation: bias, variance and MSE | `bias-variance`, `bias-variance-target` | yes, both |
+| Maximum likelihood estimation | `likelihood-curve` | yes: model, n |
+| Method of moments | `likelihood-curve`, `chart-plotter` | yes |
+| Fisher information and the Cramer-Rao bound | `likelihood-curve` | yes |
+| The bootstrap: percentile vs BCa | `bootstrap-sample`, `ci-coverage` | yes, both |
+| The jackknife | `bootstrap-sample`, `leverage-point` | `leverage-point` is hardcoded, pass `{}` |
+| The delta method | `likelihood-curve` (rate against mean is the delta method in action) | yes |
+| Confidence Intervals done right | `ci-coverage`, `regression-intervals` | `regression-intervals` is hardcoded, pass `{}` |
+| What a p-value is, and is not | `null-distribution`, `luck-simulator` | yes, both |
+| Simulation-based inference | `luck-simulator`, `null-distribution` | yes, both |
+| Interval coverage and calibration | `ci-coverage`, `chart-plotter` | yes, both |
+| Standard errors you can trust | `cluster-icc-sim`, `robust-weights` | `robust-weights` is hardcoded, pass `{}` |
+| Communicating uncertainty | `report-four-ways`, `styled-table` | yes, both |
