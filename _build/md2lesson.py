@@ -210,7 +210,19 @@ def parse_step(stype, smd, slug, n):
             interactive, gated = build_quiz(slug, n, lines[qi], opt_lines)
 
     elif stype == 'tryit':
-        ci = _first_code_index(lines)
+        # The textarea starter is the LAST code block before ::check / ::solution; an earlier block
+        # is a setup cell the learner runs first, rendered with the prose as a normal cell. (It was
+        # the FIRST block, which turned a setup cell into the textarea, so nothing defined it, and
+        # left the real starter as a dead cell. Found on the ML+ port, 2026-11-09.)
+        stop = next((k for k, ln in enumerate(lines) if ln.strip().startswith(('::check', '::solution'))), len(lines))
+        ci, k = -1, _first_code_index(lines[:stop])
+        while k != -1:
+            ci = k
+            _c, _l, e = _extract_code_block(lines, k)
+            nxt = _first_code_index(lines[e:stop]) if e < stop else -1
+            k = e + nxt if nxt != -1 else -1
+        if ci == -1:
+            ci = _first_code_index(lines)   # no block before the check: unchanged behaviour
         starter, after = '', lines
         if ci != -1:
             starter, _lang, end = _extract_code_block(lines, ci)
