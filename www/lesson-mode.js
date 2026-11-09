@@ -330,6 +330,40 @@
       });
     });
 
+    /* ---- try-it: run the learner's passing code ----
+       Check only matches the code against a pattern. Later steps can use what the
+       answer creates (a fitted `fit`, a `tree`, a function), and the page used to
+       never run it, so those cells failed with "object not found". On a pass the
+       learner's own code now runs in the page's R session, through the same runWebR
+       the Run buttons use (one session, same output panel, same first-run set-up),
+       so they see its output and the next cells find its objects. */
+    function runTryit(tryit, code) {
+      if (typeof window.runWebR !== 'function' || !code.trim()) return;
+      var box = tryit.querySelector('.lesson-tryit-run');
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'webr-container lesson-tryit-run';
+        // inline display:none, not the hidden attribute: webr.css gives .webr-run-btn a display
+        box.innerHTML = '<div class="webr-code-block"><div class="webr-editor" style="display:none"></div>' +
+          '<button type="button" class="webr-run-btn" style="display:none" tabindex="-1"></button>' +
+          '<pre class="webr-output" aria-live="polite"></pre></div><div class="webr-plot-output"></div>';
+        var actions = tryit.querySelector('.lesson-tryit-actions');
+        tryit.insertBefore(box, actions ? actions.nextSibling : null);
+      }
+      var btn = box.querySelector('.webr-run-btn');
+      if (btn.disabled) return;   // still running the previous pass
+      box.querySelector('.webr-editor').textContent = code;
+      var run = window.runWebR(btn);
+      // Code that only assigns (fit <- ...) prints nothing, and runWebR then shows the
+      // value's JS name ("[object RObject:list]"); say what happened instead.
+      if (run && run.then) run.then(function () {
+        var out = box.querySelector('.webr-output');
+        if (/^\[object RObject[^\]]*\]$/.test(out.textContent.trim())) {
+          out.textContent = 'Your code ran. It printed nothing; what it made is ready for the next steps.';
+        }
+      });
+    }
+
     /* ---- try-it wiring ---- */
     app.querySelectorAll('.lesson-tryit').forEach(function (tryit) {
       var step = tryit.closest('.lesson-step');
@@ -345,7 +379,7 @@
         var pass = re ? re.test(input.value) : true;
         if (ok) ok.classList.toggle('show', pass);
         if (no) no.classList.toggle('show', !pass);
-        if (pass) { step.classList.add('passed'); markPassed(idx, true); render(); }
+        if (pass) { step.classList.add('passed'); markPassed(idx, true); render(); runTryit(tryit, input.value); }
       });
     });
 
