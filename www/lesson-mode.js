@@ -75,6 +75,7 @@
       if (saved && typeof saved === 'object') {
         state.furthest = saved.furthest || 0;
         state.passed = saved.passed || {};
+        if (saved.code && typeof saved.code === 'object') state.code = saved.code;   // passing try-it answers
       }
     } catch (e) {}
     function save() { try { localStorage.setItem(RESUME_KEY, JSON.stringify(state)); } catch (e) {} }
@@ -354,15 +355,88 @@
       if (btn.disabled) return;   // still running the previous pass
       box.querySelector('.webr-editor').textContent = code;
       var run = window.runWebR(btn);
-      // Code that only assigns (fit <- ...) prints nothing, and runWebR then shows the
-      // value's JS name ("[object RObject:list]"); say what happened instead.
-      if (run && run.then) run.then(function () {
+      // Code that only assigns (fit <- ...) prints nothing; webr-init.js marks that run
+      // is-quiet. Here the useful thing to say is that what it made carries on.
+      return Promise.resolve(run).then(function () {
         var out = box.querySelector('.webr-output');
-        if (/^\[object RObject[^\]]*\]$/.test(out.textContent.trim())) {
+        if (out.classList.contains('is-quiet')) {
           out.textContent = 'Your code ran. It printed nothing; what it made is ready for the next steps.';
         }
       });
     }
+
+    /* ---- catch-up: re-run the earlier steps' code after a reload ----
+       The R session starts empty on every page load, but a resumed lesson opens at the
+       step the learner reached, with the earlier steps done. Running that step's code
+       then failed with "object not found": what the earlier steps made was never made in
+       this session. webr-init.js now calls window.beforeCodeRun before every run; here it
+       first runs, in page order, every earlier code block not yet run in this page load
+       and every passed try-it (the learner's saved answer, else the solution). That is
+       the order the lessons were written and verified in. Blocks still holding a blank
+       are skipped (they cannot run). On a straight run through a lesson every earlier
+       block has already run, so this does nothing. */
+    var ranNow = (typeof WeakSet === 'function') ? new WeakSet() : null;
+    var catchingUp = false;
+    var BLANK = /#\s*your code here|(^|[^\w])_{3,}(?!\w)/i;
+    function tryitAnswer(tryit, idx) {
+      var mine = state.code && state.code[idx];
+      if (mine && mine.trim()) return mine;
+      var sol = tryit.querySelector('.lesson-tryit-sol code');
+      if (!sol) return '';
+      return sol.textContent.split('\n').filter(function (l) { return l.indexOf('#>') !== 0; }).join('\n').trim();
+    }
+    function codeBefore(target) {
+      var els = app.querySelectorAll('.webr-container:not(.lesson-tryit-run), .lesson-tryit');
+      var todo = [];
+      for (var k = 0; k < els.length; k++) {
+        var el = els[k];
+        if (el === target || el.contains(target)) break;
+        if (!(el.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
+        if (ranNow.has(el)) continue;
+        if (el.classList.contains('lesson-tryit')) {
+          var tIdx = steps.indexOf(el.closest('.lesson-step'));
+          var answer = state.passed[tIdx] ? tryitAnswer(el, tIdx) : '';
+          if (answer && !BLANK.test(answer)) todo.push({ el: el, answer: answer });
+        } else {
+          var ed = el.querySelector('.webr-editor');
+          var src = ed ? ed.textContent : '';
+          if (src.trim() && !BLANK.test(src) && el.querySelector('.webr-run-btn')) todo.push({ el: el });
+        }
+      }
+      return todo;
+    }
+    window.beforeCodeRun = async function (btn) {
+      if (catchingUp || !ranNow) return;           // a run this catch-up started
+      var target = btn.closest('.webr-container');
+      if (!target) return;
+      var host = target.classList.contains('lesson-tryit-run') ? target.closest('.lesson-tryit') : target;
+      var todo = codeBefore(target);
+      ranNow.add(host);
+      if (!todo.length) return;
+      catchingUp = true;
+      var out = target.querySelector('.webr-output');
+      var label = btn.innerHTML;
+      btn.disabled = true;
+      btn.classList.add('running');
+      btn.textContent = 'Catching up...';
+      try {
+        for (var k = 0; k < todo.length; k++) {
+          if (out) {
+            out.classList.remove('has-content', 'has-error', 'has-message', 'is-quiet', 'is-placeholder');
+            out.classList.add('is-catching');
+            out.textContent = 'Running the code from the earlier steps first (' + (k + 1) + ' of ' + todo.length + '), so this block has what they made.';
+          }
+          var u = todo[k];
+          ranNow.add(u.el);
+          if (u.answer) await runTryit(u.el, u.answer);
+          else await window.runWebR(u.el.querySelector('.webr-run-btn'));
+        }
+      } finally {
+        catchingUp = false;
+        if (out) { out.classList.remove('is-catching'); out.textContent = ''; }
+        btn.innerHTML = label;                        // runWebR sets its own label next
+      }
+    };
 
     /* ---- try-it wiring ---- */
     app.querySelectorAll('.lesson-tryit').forEach(function (tryit) {
@@ -379,7 +453,13 @@
         var pass = re ? re.test(input.value) : true;
         if (ok) ok.classList.toggle('show', pass);
         if (no) no.classList.toggle('show', !pass);
-        if (pass) { step.classList.add('passed'); markPassed(idx, true); render(); runTryit(tryit, input.value); }
+        if (pass) {
+          // keep the passing answer: after a reload the catch-up runs it again for the later steps
+          state.code = state.code || {};
+          state.code[idx] = input.value;
+          step.classList.add('passed'); markPassed(idx, true); save(); render();
+          runTryit(tryit, input.value);
+        }
       });
     });
 

@@ -451,6 +451,15 @@
         'cat("Package already installed via WebR.\\n")');
     }
 
+    // Practice blocks ship with a placeholder for the reader to replace ("x <- # your code here",
+    // "___"). Run as they are, R reports the line after the placeholder ("object 'x' not found",
+    // because "x <- # your code here" continues onto "x") or prints nothing, which reads like a
+    // broken page. When a placeholder is still in the code, the panel says what to do first.
+    function placeholderHint(code) {
+      const ph = /#\s*your code here/i.test(code) ? '# your code here' : (/(^|[^\w])_{3,}(?!\w)/.test(code) ? '___' : '');
+      return ph ? 'Your turn: replace ' + ph + ' with your own code, then run it.' : '';
+    }
+
     // Run R code using shelter.captureR for proper output capture
     // Helper: set Run button text while preserving Ctrl+Enter shortcut hint
     function setRunBtnText(btn, text) {
@@ -515,6 +524,12 @@
         }
       }
       if (!shelter) return;
+      // A page may ask for earlier code to run first. Lesson pages do (www/lesson-mode.js): the R
+      // session starts empty on every page load, so a lesson resumed at step 5 would run step 5's
+      // code without the objects steps 1 to 4 made. The runs it starts come back through here.
+      if (typeof window.beforeCodeRun === 'function') {
+        try { await window.beforeCodeRun(btn); } catch (e) { console.warn('beforeCodeRun failed:', e); }
+      }
       const container = btn.closest('.webr-container');
       const editorEl = container.querySelector('.webr-editor');
       const outputEl = container.querySelector('.webr-output');
@@ -524,12 +539,13 @@
       const idx = _editorIndexMap.get(editorEl);
       const editorEntry = editors[idx];
       let code = (editorEntry && editorEntry.jar) ? editorEntry.jar.toString() : editorEl.textContent;
+      const hint = placeholderHint(code);
 
       btn.disabled = true;
       setRunBtnText(btn, 'Installing packages...');
       btn.classList.add('running');
       outputEl.textContent = '';
-      outputEl.classList.remove('has-content', 'has-error', 'has-message');
+      outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-quiet', 'is-placeholder');
       outputEl.classList.add('is-loading');
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
 
@@ -582,14 +598,12 @@
           outputEl.textContent = output.trimEnd();
           outputEl.classList.add('has-content');
         } else if (!result.images || result.images.length === 0) {
-          // If no text output and no plots, show the result value
-          try {
-            const val = await result.result.toString();
-            if (val && val.trim()) {
-              outputEl.textContent = val.trimEnd();
-              outputEl.classList.add('has-content');
-            }
-          } catch(e) { /* no printable result */ }
+          // Nothing printed and no plot. withAutoprint has already printed any visible value, so
+          // the code only made or changed objects (x <- ..., library(...)). This used to show
+          // result.result.toString(), which is the JS proxy's name ("[object RObject:list]").
+          // is-quiet / is-placeholder let the exercise grader and the lesson try-it tell why.
+          outputEl.textContent = hint || 'Done. This code ran without printing anything.';
+          outputEl.classList.add('has-message', hint ? 'is-placeholder' : 'is-quiet');
         }
 
         // Purge shelter to free memory (variables persist in R global env)
@@ -607,8 +621,9 @@
         }
 
       } catch (err) {
-        outputEl.textContent = 'Error: ' + err.message;
+        outputEl.textContent = (hint ? hint + '\n\n' : '') + 'Error: ' + err.message;
         outputEl.classList.add('has-error');
+        if (hint) outputEl.classList.add('is-placeholder');
         // Track code error in GA4
         if (typeof gtag === 'function') {
           gtag('event', 'webr_code_error', {
@@ -648,7 +663,7 @@
         entry.jar.updateCode(entry.originalCode);
       }
       outputEl.textContent = '';
-      outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading');
+      outputEl.classList.remove('has-content', 'has-error', 'has-message', 'is-loading', 'is-quiet', 'is-placeholder');
       if (plotEl) { plotEl.innerHTML = ''; plotEl.classList.remove('has-content'); }
     };
 
