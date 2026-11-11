@@ -211,7 +211,12 @@
     /* The breadcrumb stays as context, since the player no longer has a bar
        of its own naming the lesson, but it stops being navigation: every one
        of its links led back out to the v1 pages. */
-    '.lm-crumbs a { pointer-events: none; color: inherit; text-decoration: none; }';
+    '.lm-crumbs a { pointer-events: none; color: inherit; text-decoration: none; }' +
+    /* The lesson's own Pro gate. This page puts its gold lock over the whole
+       player, so leaving that one in stacked two gates on top of each other,
+       each with its own lock and its own wording. Ours is the one that stays,
+       because it is the one that knows which lesson the rail has selected. */
+    '.lm-gate { display: none !important; }';
 
   function dressFrame(f) {
     /* Every reach into the frame is wrapped. A page that cannot tidy the frame
