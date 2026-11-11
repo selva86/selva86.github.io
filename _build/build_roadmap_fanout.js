@@ -30,7 +30,7 @@ const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
 const CSS_V = 10;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 8;    // /www/roadmap-fanout.js  likewise
+const JS_V = 9;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */

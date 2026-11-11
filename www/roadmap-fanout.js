@@ -196,7 +196,16 @@
     /* the sitewide announcement bar, which the host page already suppresses */
     '.rs-announce { display: none !important; }' +
     '.lm-app { top: 0 !important; }' +
-    '.lm-body > .lm-rail { display: none !important; }';
+    '.lm-body > .lm-rail { display: none !important; }' +
+    /* The lesson's own way out. Its back arrow goes to the v1 track page, so
+       following it from in here drops a reader out of this page and into a
+       different one, which is how somebody gets lost. The rail toggle beside
+       it opens the course rail this embed hides, so it would do nothing. */
+    '.lm-top .lm-exit, .lm-top .lm-rail-toggle { display: none !important; }' +
+    /* The breadcrumb stays as context, since the player no longer has a bar
+       of its own naming the lesson, but it stops being navigation: every one
+       of its links led back out to the v1 pages. */
+    '.lm-crumbs a { pointer-events: none; color: inherit; text-decoration: none; }';
 
   function dressFrame(f) {
     /* Every reach into the frame is wrapped. A page that cannot tidy the frame
