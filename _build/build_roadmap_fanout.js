@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 21;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 22;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 11;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
