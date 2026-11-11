@@ -29,8 +29,8 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 6;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 5;    // /www/roadmap-fanout.js  likewise
+const CSS_V = 7;   // /www/roadmap-fanout.css is immutable: bump on every change
+const JS_V = 6;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -171,28 +171,57 @@ function railCurriculum(secs, bySec) {
 
 /* Shown only while the player holds a locked lesson, which is why it carries
    `hidden`. The lesson's own gate inside the frame says what is locked; this
-   says what it costs, which the gate does not. */
-function proPanel(L) {
+   says what it costs, which the gate does not.
+
+   Laid out like the reference: the Pro mark, the claim, what the plan opens,
+   then the plans as two rows a reader picks between rather than two cards
+   they compare, and one button. */
+function proPanel(L, tracks) {
   const cert = L.cert ? esc(L.cert) : 'the certificate';
+  const chips = tracks.map((t) =>
+    '<span class="rmx-chip' + (t.built ? '' : ' soon') + '">' + esc(t.name) +
+    (t.built ? '' : '<i>soon</i>') + '</span>'
+  ).join('');
+
   return '<div class="rmx-pro" data-rmx-offertrigger hidden>' +
-    '<p class="rmx-eyebrow">Free preview</p>' +
-    '<h3>Open the rest of the track</h3>' +
-    '<p>One plan opens every track on the site, the graded practice, and ' + cert +
-    '. The first lesson of every section stays free whether you buy or not.</p>' +
-    '<div class="rmx-plans">' +
-      '<div class="rmx-plan pick">' +
-        '<span class="pn">All-Access, annual</span>' +
-        '<span class="pa" data-rmx-price="year">$129</span>' +
-        '<span class="pw">a year, every track</span>' +
-        '<a class="pb" href="/pricing.html#plans">See the plan</a>' +
-      '</div>' +
-      '<div class="rmx-plan alt">' +
-        '<span class="pn">Lifetime</span>' +
-        '<span class="pa" data-rmx-price="lifetime">$279</span>' +
-        '<span class="pw">once, and never again</span>' +
-        '<a class="pb" href="/pricing.html#lifetime">See Lifetime</a>' +
-      '</div>' +
-    '</div></div>';
+    '<span class="rmx-prochip">' + ICON_STAR + 'Pro</span>' +
+    '<h3>Continue learning</h3>' +
+    '<p class="rmx-prosub">Pro opens the rest of this track, every other track on the ' +
+    'site, the graded practice and ' + cert + '. The first lesson of every section ' +
+    'stays free whether you buy or not.</p>' +
+    '<div class="rmx-unlock"><span class="lab">Unlock full access to</span>' +
+    '<span class="rmx-chips">' + chips + '</span></div>' +
+    '<div class="rmx-opts">' +
+      '<button type="button" class="rmx-opt on" data-rmx-opt="year" aria-pressed="true">' +
+        '<span class="l"><b>All-Access annual</b><em>Billed once a year</em></span>' +
+        /* The saving is the USD one; the script restates it from the real
+           localized figures when Paddle has previewed them. */
+        '<span class="rmx-save" data-rmx-save>save 43%</span>' +
+        '<span class="r"><b data-rmx-price="year">$129</b>' +
+        '<em data-rmx-permonth>about $10.75 a month</em></span>' +
+      '</button>' +
+      '<button type="button" class="rmx-opt" data-rmx-opt="lifetime" aria-pressed="false">' +
+        '<span class="l"><b>Lifetime</b><em>One payment, no renewal</em></span>' +
+        '<span class="r"><b data-rmx-price="lifetime">$279</b><em>paid once</em></span>' +
+      '</button>' +
+    '</div>' +
+    '<a class="rmx-buy" data-rmx-buy href="/pricing.html#plans">Buy now &rarr;</a>' +
+    '<p class="rmx-fine"><a href="/pricing.html">View all plans</a> &middot; ' +
+    'Already Pro? <a href="/signin.html">Sign in</a></p>' +
+    '</div>';
+}
+
+/* Every track and whether it has lessons built, for the "unlock full access
+   to" row. Tracks with nothing built are marked rather than hidden, which is
+   both honest and what the reference does. */
+function trackChips() {
+  return Object.keys(SLUG).map((key) => {
+    const meta = (RM.TRACK_META || {})[key] || {};
+    const lvl = level(key);
+    const bySec = lessonsBySection(key);
+    const n = Object.keys(bySec).reduce((a, k) => a + bySec[k].length, 0);
+    return { name: meta.role || lvl.persona || SLUG[key], built: n > 0 };
+  });
 }
 
 function offerDialog() {
@@ -306,7 +335,7 @@ function page(trackKey) {
          the player doubled the page weight and buried the one thing the page
          is for. The plan box takes its place, and only when the lesson in the
          player is a locked one. */
-      proPanel(L) + '\n' +
+      proPanel(L, trackChips()) + '\n' +
     '</main>\n</div>\n' +
     offerDialog() + '\n' +
     (chrome.foot || '') + '\n' +

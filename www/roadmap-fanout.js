@@ -95,6 +95,8 @@
      .lm-app is position:fixed and offset below the navbar, so it is lifted. */
   var EMBED_CSS =
     'body > .container, footer.rsft, .fbanner, #mobile-sidebar { display: none !important; }' +
+    /* the sitewide announcement bar, which the host page already suppresses */
+    '.rs-announce { display: none !important; }' +
     '.lm-app { top: 0 !important; }' +
     '.lm-body > .lm-rail { display: none !important; }';
 
@@ -187,32 +189,79 @@
       .then(function (cfg) {
         var p = cfg && cfg.paddle;
         if (!p || !p.clientToken) return;          // dormant: keep the baked USD
-        var ids = {
-          year: p.prices && p.prices.allaccess && p.prices.allaccess.year,
-          lifetime: p.prices && p.prices.lifetime
-        };
+        var aa = (p.prices && p.prices.allaccess) || {};
+        var ids = { year: aa.year, month: aa.month, lifetime: p.prices && p.prices.lifetime };
         var items = [];
-        slots.forEach(function (el) {
-          var id = ids[el.getAttribute('data-rmx-price')];
-          if (id && items.indexOf(id) < 0) items.push(id);
+        /* The monthly price is previewed although nothing shows it: the saving
+           and the per-month equivalent are worked out from the real localized
+           figures, because a saving calculated in dollars is wrong in rupees
+           and the page would be quoting one while charging the other. */
+        ['year', 'month', 'lifetime'].forEach(function (k) {
+          if (ids[k] && items.indexOf(ids[k]) < 0) items.push(ids[k]);
         });
         if (!items.length) return;
         loadPaddle(p, function () {
           window.Paddle.PricePreview({ items: items.map(function (id) { return { priceId: id, quantity: 1 }; }) })
             .then(function (r) {
               var lines = (r && r.data && r.data.details && r.data.details.lineItems) || [];
-              var byId = {};
+              var byId = {}, raw = {};
+              var ccy = (r && r.data && r.data.currencyCode) || 'USD';
               lines.forEach(function (li) {
                 var pid = li.price && li.price.id;
-                if (pid) byId[pid] = (li.formattedTotals && li.formattedTotals.total) || '';
+                if (!pid) return;
+                byId[pid] = (li.formattedTotals && li.formattedTotals.total) || '';
+                raw[pid] = parseInt((li.totals && li.totals.total) || '0', 10);
               });
               slots.forEach(function (el) {
                 var txt = byId[ids[el.getAttribute('data-rmx-price')]];
                 if (txt) el.textContent = txt;
               });
+              restate(raw[ids.year], raw[ids.month], ccy);
             }).catch(function () {});
         });
       }).catch(function () {});
+  }
+
+  /* The per-month equivalent and the saving, from the figures Paddle actually
+     quoted this visitor. If either price is missing the saving is removed
+     rather than guessed: a wrong discount claim is worse than none. */
+  function restate(year, month, ccy) {
+    var pm = $('[data-rmx-permonth]'), save = $('[data-rmx-save]');
+    if (!year || !month) { if (save) save.style.display = 'none'; return; }
+    if (pm) {
+      try {
+        pm.textContent = 'about ' + new Intl.NumberFormat(undefined, {
+          style: 'currency', currency: ccy, maximumFractionDigits: 0
+        }).format(year / 12 / 100) + ' a month';
+      } catch (e) {}
+    }
+    if (save) {
+      var pct = Math.round((1 - (year / 12) / month) * 100);
+      if (pct > 0) save.textContent = 'save ' + pct + '%';
+      else save.style.display = 'none';
+    }
+  }
+
+  /* The two plan rows are a choice, not two cards to compare, so picking one
+     moves where the button goes. */
+  function initPlans() {
+    var opts = $$('[data-rmx-opt]');
+    var buy = $('[data-rmx-buy]');
+    if (!opts.length) return;
+    opts.forEach(function (b) {
+      b.addEventListener('click', function () {
+        opts.forEach(function (x) {
+          x.classList.remove('on');
+          x.setAttribute('aria-pressed', 'false');
+        });
+        b.classList.add('on');
+        b.setAttribute('aria-pressed', 'true');
+        if (buy) {
+          buy.href = b.getAttribute('data-rmx-opt') === 'lifetime'
+            ? '/pricing.html#lifetime' : '/pricing.html#plans';
+        }
+      });
+    });
   }
 
   function loadPaddle(cfg, done) {
@@ -341,6 +390,7 @@
   function init() {
     initPlayer();
     initRail();
+    initPlans();
     localizePrices();
     armOffer();
   }
