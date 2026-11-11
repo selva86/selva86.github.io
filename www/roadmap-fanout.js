@@ -92,8 +92,9 @@
   /* The player has three states and the script decides which from who is
      asking, not from what was clicked:
 
-       signin  a free lesson, nobody signed in. A play button, and the lesson
-               is not loaded at all until they are back from signing in.
+       signin  a free lesson, nobody signed in. The lesson is loaded and
+               readable, with a light scrim and a play button over it: what
+               the overlay withholds is the use of it, not the sight of it.
        locked  a Pro lesson and no Pro plan. A lock, no play button, and the
                lesson is never requested, so there is nothing to read in the
                markup or lift out with devtools.
@@ -145,7 +146,10 @@
     }
     if (play) play.setAttribute('href', '/' + P.slug + '.html');
 
-    if (state === 'open') mountFrame(); else dropFrame();
+    /* The lesson is loaded for both open and signin: signed out on a free
+       lesson it is meant to be seen, and the overlay is what stops it being
+       used. Only a locked one is never requested. */
+    if (state === 'locked') dropFrame(); else mountFrame();
   }
 
   function setLesson(slug, title, pro) {
