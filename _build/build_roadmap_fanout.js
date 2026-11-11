@@ -30,7 +30,7 @@ const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
 const CSS_V = 6;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 4;    // /www/roadmap-fanout.js  likewise
+const JS_V = 5;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -127,7 +127,9 @@ function chromeFrom(slug) {
 
   // every deferred script except the v1 page controller, which does not apply
   const scripts = (h.match(/<script[^>]*src="\/www\/[^"]*"[^>]*><\/script>/g) || [])
-    .filter((s) => !/roadmap-role\.js/.test(s));
+    /* The v1 page controller does not apply here, and the feedback launcher
+       parks itself bottom right, exactly over the lesson's Continue button. */
+    .filter((s) => !/roadmap-role\.js|feedback-widget\.js/.test(s));
 
   const cf = h.match(/<script[^>]*cloudflareinsights[^>]*><\/script>/);
 

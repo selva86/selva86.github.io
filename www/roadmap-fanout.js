@@ -109,7 +109,31 @@
       s.textContent = EMBED_CSS;
       d.head.appendChild(s);
       gateFirstRun(d, f);
+      routeFrameLinks(d);
     } catch (e) {}
+  }
+
+  /* A link inside the frame must never strand a reader in it. The lesson's own
+     gate offers previous and next lessons and a way back to the course, and
+     followed inside the frame those would render a page with its navigation
+     hidden and no way out. Another lesson loads into the player and moves the
+     rail with it; anything else leaves the frame for the real window. */
+  function routeFrameLinks(d) {
+    d.addEventListener('click', function (e) {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+      var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a) return;
+      var href = a.getAttribute('href') || '';
+      if (!href || href.charAt(0) === '#' || /^(mailto:|tel:|javascript:)/i.test(href)) return;
+      var url;
+      try { url = new URL(href, d.baseURI); } catch (err) { return; }
+      if (url.origin !== location.origin) return;
+      var slug = url.pathname.replace(/^\//, '').replace(/\.html$/, '');
+      var row = null;
+      try { row = document.querySelector('[data-rmx-lesson="' + slug.replace(/["\\]/g, '') + '"]'); } catch (err) {}
+      e.preventDefault();
+      if (row) row.click(); else window.location.href = url.href;
+    }, true);
   }
 
   /* The lesson is free and its own page is open to anonymous readers, so this
