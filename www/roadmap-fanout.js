@@ -154,6 +154,11 @@
     if (pct) pct.textContent = o.percent + '%';
     var code = $('[data-rmx-code]', dlg);
     if (code) code.textContent = o.code;
+    /* What the coupon covers comes from the server, which derives it from the
+       same price list it restricted the Paddle discount to. If Lifetime is not
+       configured there, the dialog stops claiming it. */
+    var applies = $('[data-rmx-applies]', dlg);
+    if (applies && o.applies) applies.textContent = o.applies;
     var cta = $('[data-rmx-take]', dlg);
     if (cta) {
       cta.href = '/pricing.html?code=' + encodeURIComponent(o.code) + '&src=track';

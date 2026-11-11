@@ -123,19 +123,26 @@ const PERSONAL_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no I, O, 0, 1
 
 export async function mintPersonalOffer(
   env: { PADDLE_API_KEY?: string } & OfferPriceEnv,
-  o: { email: string; percent: number; hours: number; siteOrigin?: string },
+  /* `priceIds` and `prefix` are optional and default to what this did before:
+     the two annual prices, and a PRO code. The track offer passes the Lifetime
+     price as well, under its own prefix, because pricing.html decides which
+     terms a code may be carried into from that prefix alone. */
+  o: {
+    email: string; percent: number; hours: number; siteOrigin?: string;
+    priceIds?: string[]; prefix?: string; what?: string;
+  },
 ): Promise<PersonalOffer | null> {
   if (!env.PADDLE_API_KEY) return null;
-  const prices = annualPriceIds(env);
+  const prices = (o.priceIds && o.priceIds.length) ? o.priceIds : annualPriceIds(env);
   if (!prices.length) {
-    console.error("[offer] personal code refused: no annual price ids configured");
+    console.error("[offer] personal code refused: no price ids configured");
     return null;
   }
   const bytes = new Uint8Array(7);
   crypto.getRandomValues(bytes);
   let tail = "";
   for (let i = 0; i < bytes.length; i++) tail += PERSONAL_ALPHABET[bytes[i] % PERSONAL_ALPHABET.length];
-  const code = `PRO${o.percent}${tail}`;
+  const code = `${o.prefix || "PRO"}${o.percent}${tail}`;
   const expiresAt = Math.floor(Date.now() / 1000) + Math.max(1, o.hours) * 3600;
 
   const ok = await createPaddleDiscount(env, {
@@ -144,7 +151,7 @@ export async function mintPersonalOffer(
     recur: true,
     expiresAt,
     priceIds: prices,
-    description: `One-time ${o.percent}% annual for ${o.email}, from the contact centre ${new Date().toISOString().slice(0, 10)}`,
+    description: `One-time ${o.percent}% ${o.what || "annual"} for ${o.email}, ${new Date().toISOString().slice(0, 10)}`,
   });
   if (!ok) return null;
 

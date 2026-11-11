@@ -236,9 +236,11 @@ function offerDialog() {
       '</div>' +
       '<div class="rmx-offerbody">' +
         '<h2 id="rmxOfferH">You have unlocked a limited-time coupon</h2>' +
-        /* Said plainly, because the alternative is somebody reaching checkout
-           on the monthly plan and finding the code refused there. */
-        '<p class="sub">Applies to the annual plan. Monthly renews at its displayed price.</p>' +
+        /* Filled from the server's own list of covered prices, so the promise
+           and the Paddle restriction cannot drift apart. The baked wording is
+           the conservative one. */
+        '<p class="sub">Applies to <span data-rmx-applies>the annual plan and Lifetime</span>. ' +
+        'Monthly renews at its displayed price.</p>' +
         '<div class="rmx-code"><code data-rmx-code>CODE</code>' +
           '<button type="button" class="cp" data-rmx-copy aria-label="Copy the code">' +
           ICON_COPY + '<span class="cplab">Copy</span></button></div>' +

@@ -22,9 +22,10 @@ import { isOn } from "../../_lib/flags";
 import { resolvePro } from "../../_lib/entitlement";
 import { getUserById } from "../../_lib/db";
 import { readCookie, verifyIdCookie, ID_COOKIE } from "../../_lib/idcookie";
-import { mintPersonalOffer, type OfferPriceEnv } from "../../_lib/offer";
+import { mintPersonalOffer, annualPriceIds, type OfferPriceEnv } from "../../_lib/offer";
 
 type OnceEnv = Env & OfferPriceEnv & {
+  PADDLE_PRICE_LIFETIME?: string;
   PADDLE_API_KEY?: string;
   EDGE_ID_SECRET?: string;
   SITE_ORIGIN?: string;
@@ -120,16 +121,31 @@ export const onRequestPost: PagesFunction<OnceEnv, string, RequestData> = async 
       await context.env.KV.delete(key);
       return send({ reason: "not_configured" });
     }
-    const preview = { code: "PREVIEW" + cfg.percent, percent: cfg.percent, expires_at: expiresAt, preview: true };
+    const preview = {
+      code: "PREVIEW" + cfg.percent, percent: cfg.percent, expires_at: expiresAt,
+      applies: "the annual plan and Lifetime", preview: true,
+    };
     await context.env.KV.put(key, JSON.stringify({ at: now, ...preview }), { expirationTtl: 60 * 60 * 24 * 365 });
     return send(preview);
   }
+
+  /* Annual plus Lifetime. The Lifetime id is included only when it is
+     configured: a code restricted to prices that do not exist would be
+     refused by Paddle on the one checkout it was minted for. What the dialog
+     says it applies to is derived from the same list, so the promise and the
+     restriction cannot drift apart. */
+  const lifetime = context.env.PADDLE_PRICE_LIFETIME;
+  const priceIds = annualPriceIds(context.env).concat(lifetime ? [lifetime] : []);
+  const applies = lifetime ? "the annual plan and Lifetime" : "the annual plan";
 
   const minted = await mintPersonalOffer(context.env, {
     email: user.email,
     percent: cfg.percent,
     hours: cfg.hours,
     siteOrigin: context.env.SITE_ORIGIN,
+    priceIds,
+    prefix: "TRACK",
+    what: applies,
   }).catch(() => null);
 
   if (!minted) {
@@ -141,5 +157,5 @@ export const onRequestPost: PagesFunction<OnceEnv, string, RequestData> = async 
     at: now, code: minted.code, percent: minted.percent, expires_at: minted.expiresAt,
   }), { expirationTtl: 60 * 60 * 24 * 365 });
 
-  return send({ code: minted.code, percent: minted.percent, expires_at: minted.expiresAt });
+  return send({ code: minted.code, percent: minted.percent, expires_at: minted.expiresAt, applies });
 };
