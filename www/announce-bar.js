@@ -37,7 +37,7 @@
   if (window.__rsAnnounce) return;
   window.__rsAnnounce = 1;
 
-  var BAR_VERSION = '2026-11-d';
+  var BAR_VERSION = '2026-11-e';
   var CHIP = 'LIVE';   // the badge reads the same whatever the campaign
   var DISMISS_DAYS = 14;
 
@@ -45,7 +45,7 @@
   // to audit it. "is live" is the claim that matters.
   var CAMPAIGNS = {
     foundations: {
-      text: 'R Foundations is free',
+      text: 'R Foundations is live',
       cta: 'Start the course',
       href: '/roadmap/new-to-r.html'
     },
