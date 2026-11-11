@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 4;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 5;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 3;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
@@ -280,7 +280,7 @@ function page(trackKey) {
      dress the frame and gate the first run. */
   const player = open
     ? '<div class="rmx-playwrap" data-rmx-player data-lesson-href="/' + esc(open.slug) + '.html">' +
-      '<div class="rmx-playbar"><span class="rmx-freechip">FREE</span>' +
+      '<div class="rmx-playbar">' +
       '<span class="lab">' + esc(open.title) + '</span>' +
       '<span class="rmx-playhint">Runs in the page, nothing to install</span></div>' +
       '<iframe class="rmx-frame" src="/' + esc(open.slug) + '.html" loading="lazy" ' +
@@ -321,10 +321,12 @@ function page(trackKey) {
       railCurriculum(secs, bySec) + '\n' +
     '</aside>\n' +
     '<main class="rmx-main">\n' +
+      /* No heading or standfirst here: the rail already names the track and
+         carries its facts, and repeating them pushed the lesson below the
+         fold. The rail's name is the page's only h1, which is also one fewer
+         than before. */
       '<nav class="rmx-crumb"><a href="/">Home</a><span>/</span><a href="/roadmap/">Tracks</a>' +
       '<span>/</span><span>' + esc(role) + '</span></nav>\n' +
-      '<h1 class="rmx-h">' + esc(role) + '</h1>\n' +
-      (L.become ? '<p class="rmx-dek">' + esc(L.become) + '</p>\n' : '') +
       player + '\n' +
       '<h2 class="rmx-sechead">The whole curriculum</h2>\n' +
       '<p class="rmx-seclede">' + (total
