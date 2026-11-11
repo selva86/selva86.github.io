@@ -386,4 +386,17 @@
       document.head.appendChild(sc);
     } catch (e) {}
   })();
+
+  // The announcement strip (www/announce-bar.js, short edge TTL) rides
+  // everywhere the opt-in bar does not: it is for first-time readers who
+  // land on a reference page and leave without learning a track exists.
+  // Best-effort: a failure here must not take the sign-in modal with it.
+  (function () {
+    try {
+      var sc = document.createElement('script');
+      sc.src = '/www/announce-bar.js';
+      sc.defer = true;
+      document.head.appendChild(sc);
+    } catch (e) {}
+  })();
 })();
