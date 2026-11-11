@@ -25,8 +25,8 @@
  * are. To match them, add `position:sticky;top:0` to .rs-announce and
  * re-check the tutorial, tool and exercise-hub templates.
  *
- * Both chips are #dc2626, the red fanout uses on theirs. The chip is the
- * one loud thing in the strip, so it stays one colour whatever it says.
+ * The chip is #dc2626, the red fanout uses on theirs, and always reads
+ * LIVE. It is the one loud thing in the strip, so it does not vary.
  *
  * To change a message: edit CAMPAIGNS. To change who sees it: edit ROUTES.
  * Bump BAR_VERSION when the set changes materially, so readers who
@@ -37,32 +37,29 @@
   if (window.__rsAnnounce) return;
   window.__rsAnnounce = 1;
 
-  var BAR_VERSION = '2026-11-c';
+  var BAR_VERSION = '2026-11-d';
+  var CHIP = 'LIVE';   // the badge reads the same whatever the campaign
   var DISMISS_DAYS = 14;
 
   // No counts in the copy: a number dates the message and invites a reader
   // to audit it. "is live" is the claim that matters.
   var CAMPAIGNS = {
     foundations: {
-      chip: 'FREE',
       text: 'R Foundations is free',
       cta: 'Start the course',
       href: '/roadmap/new-to-r.html'
     },
     forecaster: {
-      chip: 'LIVE',
       text: 'Forecaster is live',
       cta: 'Start the course',
       href: '/roadmap/forecaster.html'
     },
     analyst: {
-      chip: 'LIVE',
       text: 'Data Analyst is live',
       cta: 'Start the course',
       href: '/roadmap/data-analyst.html'
     },
     scientist: {
-      chip: 'LIVE',
       text: 'Data Scientist is live',
       cta: 'Start the course',
       href: '/roadmap/data-scientist.html'
@@ -156,7 +153,7 @@
 
     var chip = d.createElement('span');
     chip.className = 'rs-announce-chip';
-    chip.textContent = c.chip;
+    chip.textContent = CHIP;
 
     var txt = d.createElement('span');
     txt.className = 'rs-announce-txt';
