@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 14;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 15;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 10;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
@@ -240,6 +240,22 @@ function proPanel(L, tracks) {
     '</div>';
 }
 
+/* The cover tile. Drawn rather than an image: each track already carries a
+   colour in roadmap-data.js, so seven covers need no seven assets and cannot
+   fall out of step with the track they belong to. */
+function cover(trackKey, role) {
+  const L = level(trackKey);
+  const c = L.color || '#1f7a55';
+  return '<div class="ov-cover" style="--cv:' + esc(c) + '" aria-hidden="true">' +
+    '<span class="cv-name">' + esc(role) + '</span>' +
+    '<span class="cv-foot">r-statistics.co</span></div>';
+}
+
+const ICON_ARROW =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/>' +
+  '<polyline points="12 5 19 12 12 19"/></svg>';
+
 /* Every track and whether it has lessons built, for the "unlock full access
    to" row. Tracks with nothing built are marked rather than hidden, which is
    both honest and what the reference does. */
@@ -440,7 +456,8 @@ function overviewPage(trackKey) {
     const n = (bySec[s.n] || []).length;
     return '<a href="#s' + pad2(s.n) + '"><span class="n">' + pad2(s.n) + '</span>' +
       '<span class="t"><b>' + esc(s.title) + '</b>' +
-      '<em>' + n + (n === 1 ? ' lesson' : ' lessons') + '</em></span></a>';
+      '<em>' + n + (n === 1 ? ' lesson' : ' lessons') + '</em></span>' +
+      '<span class="ar">' + ICON_ARROW + '</span></a>';
   }).join('');
 
   const sections = withLessons.map((s) => {
@@ -473,11 +490,11 @@ function overviewPage(trackKey) {
     /* The counts sit in the standfirst rather than in a strip of their own,
        which is how the reference states them, and it puts the size of the
        track and how much of it is open in the first thing anybody reads. */
-    '<header class="ov-head"><h1>' + esc(role) + '</h1><p>' +
+    '<div class="ov-headrow"><header class="ov-head"><h1>' + esc(role) + '</h1><p>' +
     (L.become ? esc(L.become) + ' ' : '') +
     '<b>' + withLessons.length + ' sections, ' + total + ' lessons</b>' +
     (free ? ', ' + free + ' of them free to run.' : '.') +
-    '</p></header>\n' +
+    '</p></header>' + cover(trackKey, role) + '</div>\n' +
     '<div class="ov-struct"><span class="ov-lab">Curriculum structure</span>' +
     '<div class="ov-grid">' + jump + '</div></div>\n' +
     '<div class="ov-div"><span>Full curriculum</span></div>\n' +
