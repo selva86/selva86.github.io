@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 16;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 18;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 11;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
@@ -154,6 +154,14 @@ function chromeFrom(slug) {
 
   const ga = h.match(/<script>\s*window\.dataLayer[\s\S]*?<\/script>/);
 
+  /* The navbar is not finished by its stylesheet. The v1 page carries an
+     inline block that lays out the right-hand group (search, the button, the
+     avatar) and styles the signed-out link, and without it that group loses
+     its flex row and its spacing and the avatar lands wherever it falls.
+     Lifted with the markup for the same reason the markup is lifted: one
+     navbar sitewide, and a hand-copied second version drifts. */
+  const navcss = (h.match(/<style>[^<]*\.nav \.right[^<]*<\/style>/) || [''])[0];
+
   const foot = (() => {
     const a = h.lastIndexOf('<footer');
     if (a < 0) return '';
@@ -161,7 +169,7 @@ function chromeFrom(slug) {
     return b < 0 ? '' : h.slice(a, b + '</footer>'.length);
   })();
 
-  return { nav, scripts, cf: cf ? cf[0] : '', ga: ga ? ga[0] : '', foot };
+  return { nav, navcss, scripts, cf: cf ? cf[0] : '', ga: ga ? ga[0] : '', foot };
 }
 
 // ------------------------------------------------------------ building ----
@@ -323,7 +331,7 @@ function shell(o) {
        sheet so the page's rules win where the two overlap. */
     '<link rel="stylesheet" href="/www/roadmap-role.css?v=25">\n' +
     '<link rel="stylesheet" href="/www/roadmap-fanout.css?v=' + CSS_V + '">\n' +
-    chrome.ga + '\n' +
+    chrome.navcss + chrome.ga + '\n' +
     '</head>\n<body data-page="rmx" data-role="' + o.trackKey + '">\n' +
     chrome.nav + '\n' +
     '<div class="rmx">\n' +
