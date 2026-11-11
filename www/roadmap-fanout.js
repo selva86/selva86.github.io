@@ -37,17 +37,19 @@
      price, which is why the plan box appears only then. */
   function initRail() {
     var wrap = $('[data-rmx-player]');
-    var frame = wrap && $('iframe.rmx-frame', wrap);
     var pro = $('.rmx-pro');
     var links = $$('[data-rmx-lesson]');
-    if (!frame || !links.length) return;
+    if (!wrap || !links.length) return;
 
     function select(a, load, fromClick) {
       var slug = a.getAttribute('data-rmx-lesson');
       if (!slug) return;
       for (var i = 0; i < links.length; i++) links[i].removeAttribute('aria-current');
       a.setAttribute('aria-current', 'true');
-      if (load) frame.src = '/' + slug + '.html';
+      if (load) {
+        var lt = a.querySelector('.rmx-lt');
+        setLesson(slug, lt ? lt.textContent.trim() : slug, a.getAttribute('data-pro') === '1');
+      }
       if (pro) {
         if (a.getAttribute('data-pro') === '1') pro.removeAttribute('hidden');
         else pro.setAttribute('hidden', '');
@@ -87,6 +89,102 @@
 
   /* ------------------------------------------------------------ player --- */
 
+  /* The player has three states and the script decides which from who is
+     asking, not from what was clicked:
+
+       signin  a free lesson, nobody signed in. A play button, and the lesson
+               is not loaded at all until they are back from signing in.
+       locked  a Pro lesson and no Pro plan. A lock, no play button, and the
+               lesson is never requested, so there is nothing to read in the
+               markup or lift out with devtools.
+       open    mounted and running.
+
+     The cover's blurred bars are an empty skeleton rather than the real text
+     dimmed, which is the difference between hiding a lesson and pretending
+     to. */
+  var P = { wrap: null, slug: '', title: '', pro: false };
+
+  function userPro() { return !!(me && me.pro); }
+  function anon() { return body.classList.contains('state-anon') || (hydrated && !(me && me.user)); }
+
+  function mountFrame() {
+    if (!P.wrap) return;
+    var src = '/' + P.slug + '.html';
+    var f = $('iframe.rmx-frame', P.wrap);
+    if (f) {
+      if (f.getAttribute('src') !== src) f.setAttribute('src', src);
+      return;
+    }
+    f = document.createElement('iframe');
+    f.className = 'rmx-frame';
+    f.setAttribute('title', P.title + ', interactive lesson');
+    f.addEventListener('load', function () { dressFrame(f); });
+    f.setAttribute('src', src);
+    P.wrap.appendChild(f);
+  }
+
+  function dropFrame() {
+    if (!P.wrap) return;
+    var f = $('iframe.rmx-frame', P.wrap);
+    if (f && f.parentNode) f.parentNode.removeChild(f);
+  }
+
+  function renderPlayer() {
+    if (!P.wrap) return;
+    var state = (P.pro && !userPro()) ? 'locked' : (anon() ? 'signin' : 'open');
+    P.wrap.setAttribute('data-state', state);
+
+    var t = $('[data-rmx-covertitle]', P.wrap);
+    var n = $('[data-rmx-covernote]', P.wrap);
+    var play = $('[data-rmx-play]', P.wrap);
+    if (t) t.textContent = P.title;
+    if (n) {
+      n.textContent = state === 'locked'
+        ? 'This lesson comes with Pro. The first lesson of every section is free to run.'
+        : 'Sign in to run this lesson in the page.';
+    }
+    if (play) play.setAttribute('href', '/' + P.slug + '.html');
+
+    if (state === 'open') mountFrame(); else dropFrame();
+  }
+
+  function setLesson(slug, title, pro) {
+    P.slug = slug;
+    P.title = title || slug;
+    P.pro = !!pro;
+    renderPlayer();
+  }
+
+  function initPlayer() {
+    P.wrap = $('[data-rmx-player]');
+    if (!P.wrap) return;
+    var href = P.wrap.getAttribute('data-lesson-href') || '';
+    P.slug = href.replace(/^\//, '').replace(/\.html$/, '');
+    P.title = P.wrap.getAttribute('data-lesson-title') || P.slug;
+    P.pro = false;   // the opening lesson is always a free one
+
+    var play = $('[data-rmx-play]', P.wrap);
+    if (play) {
+      play.addEventListener('click', function (e) {
+        // a modified click keeps working as the plain link it is
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+        e.preventDefault();
+        if (anon() && window.rsSignin && typeof window.rsSignin.open === 'function') {
+          /* Back to this page with the lesson in the hash, so they return to
+             the lesson they asked for rather than the top of the track. */
+          window.rsSignin.open({
+            next: location.pathname + '#' + P.slug,
+            trigger: 'track-player'
+          });
+          return;
+        }
+        P.wrap.setAttribute('data-state', 'open');
+        mountFrame();
+      });
+    }
+    renderPlayer();
+  }
+
   /* Two things have to go inside the frame or the embed gives itself away: the
      site navbar, which would be the second one on the page, and the lesson's
      own course rail, which repeats what this page lists on both sides of the
@@ -110,7 +208,6 @@
       s.id = 'rmx-embed';
       s.textContent = EMBED_CSS;
       d.head.appendChild(s);
-      gateFirstRun(d, f);
       routeFrameLinks(d);
     } catch (e) {}
   }
@@ -136,36 +233,6 @@
       e.preventDefault();
       if (row) row.click(); else window.location.href = url.href;
     }, true);
-  }
-
-  /* The lesson is free and its own page is open to anonymous readers, so this
-     is a prompt, not a wall: it fires once, and a second click runs the code.
-     Asking at the moment somebody reaches for Run is the only point where an
-     account means anything to them, because that is what gets saved. */
-  function gateFirstRun(d, f) {
-    var armed = true;
-    d.addEventListener('click', function (e) {
-      if (!armed) return;
-      var t = e.target;
-      var btn = t && t.closest ? t.closest('.webr-run-btn') : null;
-      if (!btn) return;
-      var anon = body.classList.contains('state-anon') || (hydrated && !(me && me.user));
-      if (!anon) { armed = false; return; }
-      if (!window.rsSignin || typeof window.rsSignin.open !== 'function') return;
-      e.preventDefault();
-      e.stopPropagation();
-      armed = false;
-      window.rsSignin.open({ next: f.getAttribute('src') || '/', trigger: 'track-player' });
-    }, true);
-  }
-
-  function initPlayer() {
-    var f = $('[data-rmx-player] iframe.rmx-frame');
-    if (!f) return;
-    try {
-      if (f.contentDocument && f.contentDocument.readyState === 'complete') dressFrame(f);
-    } catch (e) {}
-    f.addEventListener('load', function () { dressFrame(f); });
   }
 
   /* ------------------------------------------------------------ prices --- */
@@ -382,9 +449,13 @@
 
   /* -------------------------------------------------------------- init --- */
 
+  /* Who is asking only becomes known here, so the cover is re-decided: a
+     signed-in reader gets the lesson mounted without touching anything, and a
+     Pro subscriber gets the starred ones too. */
   document.addEventListener('auth-hydrated', function (e) {
     hydrated = true;
     me = (e.detail && e.detail.me) || null;
+    try { renderPlayer(); } catch (err) {}
   });
 
   function init() {

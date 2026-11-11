@@ -29,8 +29,8 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 8;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 7;    // /www/roadmap-fanout.js  likewise
+const CSS_V = 10;   // /www/roadmap-fanout.css is immutable: bump on every change
+const JS_V = 8;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -57,6 +57,14 @@ const ICON_BACK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
   'stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/>' +
   '<polyline points="12 19 5 12 12 5"/></svg>';
+
+const ICON_PLAY =
+  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l12 7-12 7z"/></svg>';
+
+const ICON_LOCK =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10.5" width="16" height="10" rx="2.2"/>' +
+  '<path d="M8 10.5V7.4A4 4 0 0 1 16 7.4v3.1"/></svg>';
 
 const ICON_LIST =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
@@ -357,10 +365,29 @@ function page(trackKey) {
      script so it is there without JavaScript, and same-origin so the page can
      dress the frame and gate the first run. No bar above it: the lesson names
      itself in its own breadcrumb and the rail highlights the row. */
+  /* The player starts covered, in one of two states the script resolves from
+     who is asking. Signed out, a free lesson shows a play button and the
+     lesson is not loaded at all until they are back from signing in; a Pro
+     lesson shows a lock and no play button, and is never loaded for somebody
+     who cannot open it. Nothing of the lesson is behind the cover in either
+     case: the blurred bars are an empty skeleton, not the real text dimmed,
+     so there is nothing to read in the markup or lift out with devtools.
+     Without JavaScript the play button is an ordinary link to the lesson. */
+  const skel = new Array(9).fill('<span></span>').join('');
   const player = open
-    ? '<div class="rmx-playwrap" data-rmx-player data-lesson-href="/' + esc(open.slug) + '.html">' +
-      '<iframe class="rmx-frame" src="/' + esc(open.slug) + '.html" loading="lazy" ' +
-      'title="' + esc(open.title) + ', interactive lesson"></iframe>' +
+    ? '<div class="rmx-playwrap" data-rmx-player data-state="signin"' +
+      ' data-lesson-href="/' + esc(open.slug) + '.html"' +
+      ' data-lesson-title="' + esc(open.title) + '">' +
+      '<div class="rmx-cover">' +
+        '<div class="rmx-skel" aria-hidden="true">' + skel + '</div>' +
+        '<div class="rmx-coverin">' +
+          '<span class="rmx-lock" aria-hidden="true">' + ICON_LOCK + '</span>' +
+          '<a class="rmx-play" data-rmx-play href="/' + esc(open.slug) + '.html" ' +
+          'aria-label="Start this lesson">' + ICON_PLAY + '</a>' +
+          '<p class="rmx-covertitle" data-rmx-covertitle>' + esc(open.title) + '</p>' +
+          '<p class="rmx-covernote" data-rmx-covernote>Sign in to run this lesson in the page.</p>' +
+        '</div>' +
+      '</div>' +
       '</div>'
     : '';
 
@@ -397,6 +424,9 @@ function overviewPage(trackKey) {
   const open = openingLesson(bySec);
   const role = meta.role || L.persona || slug;
   const track = '/roadmap/v2/' + slug + '.html';
+  const allLessons = Object.keys(bySec).reduce((a, k) => a.concat(bySec[k]), []);
+  const total = allLessons.length;
+  const free = allLessons.filter((l) => !l.pro).length;
 
   const strip =
     '<section class="ov-strip">' + ICON_CHART +
@@ -423,7 +453,7 @@ function overviewPage(trackKey) {
       '<span class="num">' + pad2(s.n) + '.' + pad2(i + 1) + '</span>' +
       '<span class="t">' + esc(l.title) +
       (l.subtitle ? '<small>' + esc(l.subtitle) + '</small>' : '') + '</span>' +
-      '<span class="a">' + (l.pro ? 'Pro' : 'Free') + '</span></a>'
+      '<span class="a">' + (l.pro ? ICON_STAR + 'Pro' : 'Free') + '</span></a>'
     ).join('');
 
     return '<section class="ov-sec" id="s' + pad2(s.n) + '">' +
@@ -440,8 +470,14 @@ function overviewPage(trackKey) {
     '<span>/</span><a href="' + track + '">' + esc(role) + '</a>' +
     '<span>/</span><span>Overview</span></nav>\n' +
     strip + '\n' +
-    '<header class="ov-head"><h1>' + esc(role) + '</h1>' +
-    (L.become ? '<p>' + esc(L.become) + '</p>' : '') + '</header>\n' +
+    /* The counts sit in the standfirst rather than in a strip of their own,
+       which is how the reference states them, and it puts the size of the
+       track and how much of it is open in the first thing anybody reads. */
+    '<header class="ov-head"><h1>' + esc(role) + '</h1><p>' +
+    (L.become ? esc(L.become) + ' ' : '') +
+    '<b>' + withLessons.length + ' sections, ' + total + ' lessons</b>' +
+    (free ? ', ' + free + ' of them free to run.' : '.') +
+    '</p></header>\n' +
     '<div class="ov-struct"><span class="ov-lab">Curriculum structure</span>' +
     '<div class="ov-grid">' + jump + '</div></div>\n' +
     '<div class="ov-div"><span>Full curriculum</span></div>\n' +
