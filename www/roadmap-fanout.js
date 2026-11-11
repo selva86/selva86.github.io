@@ -29,35 +29,59 @@
 
   /* ------------------------------------------------------------ player --- */
 
-  function mountPlayer(wrap, href) {
-    var f = document.createElement('iframe');
-    f.className = 'rmx-frame';
-    f.src = href + (href.indexOf('?') < 0 ? '?' : '&') + 'embed=1';
-    f.title = 'Lesson player';
-    f.setAttribute('allow', 'clipboard-write');
-    var poster = $('.rmx-poster', wrap);
-    if (poster) poster.replaceWith(f); else wrap.appendChild(f);
+  /* Two things have to go inside the frame or the embed gives itself away: the
+     site navbar, which would be the second one on the page, and the lesson's
+     own course rail, which repeats what this page lists on both sides of the
+     player and costs 264px of reading width. Hiding them from the parent keeps
+     the change here rather than in 1,300 lesson pages and their shared CSS.
+     .lm-app is position:fixed and offset below the navbar, so it is lifted. */
+  var EMBED_CSS =
+    'body > .container, footer.rsft, .fbanner, #mobile-sidebar { display: none !important; }' +
+    '.lm-app { top: 0 !important; }' +
+    '.lm-body > .lm-rail { display: none !important; }';
+
+  function dressFrame(f) {
+    /* Every reach into the frame is wrapped. A page that cannot tidy the frame
+       should still show a working lesson, never a broken one. */
+    try {
+      var d = f.contentDocument;
+      if (!d || !d.head || d.getElementById('rmx-embed')) return;
+      var s = d.createElement('style');
+      s.id = 'rmx-embed';
+      s.textContent = EMBED_CSS;
+      d.head.appendChild(s);
+      gateFirstRun(d, f);
+    } catch (e) {}
+  }
+
+  /* The lesson is free and its own page is open to anonymous readers, so this
+     is a prompt, not a wall: it fires once, and a second click runs the code.
+     Asking at the moment somebody reaches for Run is the only point where an
+     account means anything to them, because that is what gets saved. */
+  function gateFirstRun(d, f) {
+    var armed = true;
+    d.addEventListener('click', function (e) {
+      if (!armed) return;
+      var t = e.target;
+      var btn = t && t.closest ? t.closest('.webr-run-btn') : null;
+      if (!btn) return;
+      var anon = body.classList.contains('state-anon') || (hydrated && !(me && me.user));
+      if (!anon) { armed = false; return; }
+      if (!window.rsSignin || typeof window.rsSignin.open !== 'function') return;
+      e.preventDefault();
+      e.stopPropagation();
+      armed = false;
+      window.rsSignin.open({ next: f.getAttribute('src') || '/', trigger: 'track-player' });
+    }, true);
   }
 
   function initPlayer() {
-    var wrap = $('[data-rmx-player]');
-    if (!wrap) return;
-    var poster = $('.rmx-poster', wrap);
-    var href = wrap.getAttribute('data-lesson-href') || '';
-    if (!poster || !href) return;
-
-    poster.addEventListener('click', function (e) {
-      e.preventDefault();
-      /* Signed out: ask for an account before the lesson runs. The lesson page
-         itself is open to anonymous readers, so this is a prompt and not a
-         wall: the sign-in modal returns them to the lesson either way. */
-      var anon = body.classList.contains('state-anon') || (hydrated && !(me && me.user));
-      if (anon && window.rsSignin && typeof window.rsSignin.open === 'function') {
-        window.rsSignin.open({ next: href, trigger: 'track-player' });
-        return;
-      }
-      mountPlayer(wrap, href);
-    });
+    var f = $('[data-rmx-player] iframe.rmx-frame');
+    if (!f) return;
+    try {
+      if (f.contentDocument && f.contentDocument.readyState === 'complete') dressFrame(f);
+    } catch (e) {}
+    f.addEventListener('load', function () { dressFrame(f); });
   }
 
   /* ------------------------------------------------------------ prices --- */

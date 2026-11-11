@@ -29,8 +29,8 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 3;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 2;    // /www/roadmap-fanout.js  likewise
+const CSS_V = 4;   // /www/roadmap-fanout.css is immutable: bump on every change
+const JS_V = 3;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -57,9 +57,6 @@ const ICON_BACK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
   'stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/>' +
   '<polyline points="12 19 5 12 12 5"/></svg>';
-
-const ICON_PLAY =
-  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5l12 7-12 7z"/></svg>';
 
 const ICON_TAG =
   '<svg class="tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -278,19 +275,17 @@ function page(trackKey) {
     meta.build ? '<li>You finish with: ' + esc(meta.build) + '</li>' : '',
   ].filter(Boolean).join('');
 
+  /* The real lesson, in the page. Emitted as markup rather than mounted by
+     script so it is there without JavaScript, and same-origin so the page can
+     dress the frame and gate the first run. */
   const player = open
     ? '<div class="rmx-playwrap" data-rmx-player data-lesson-href="/' + esc(open.slug) + '.html">' +
       '<div class="rmx-playbar"><span class="rmx-freechip">FREE</span>' +
-      '<span class="lab">' + esc(open.title) + '</span></div>' +
-      '<button type="button" class="rmx-poster">' +
-        '<p class="rmx-postertitle">' + esc(open.title) + '</p>' +
-        (open.subtitle ? '<p class="rmx-posterbody">' + esc(open.subtitle) + '</p>' : '') +
-        '<span class="rmx-playrow">' +
-          '<span class="rmx-play">' + ICON_PLAY + '</span>' +
-          '<span class="rmx-playnote"><b>Run this lesson in the page.</b><br>' +
-          'Nothing to install, and it takes about twenty minutes.</span>' +
-        '</span>' +
-      '</button></div>'
+      '<span class="lab">' + esc(open.title) + '</span>' +
+      '<span class="rmx-playhint">Runs in the page, nothing to install</span></div>' +
+      '<iframe class="rmx-frame" src="/' + esc(open.slug) + '.html" loading="lazy" ' +
+      'title="' + esc(open.title) + ', interactive lesson"></iframe>' +
+      '</div>'
     : '';
 
   return '<!DOCTYPE html>\n<html lang="en">\n<head>\n' +
