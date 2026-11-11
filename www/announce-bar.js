@@ -25,6 +25,9 @@
  * are. To match them, add `position:sticky;top:0` to .rs-announce and
  * re-check the tutorial, tool and exercise-hub templates.
  *
+ * The LIVE chip is #dc2626, the red fanout uses on theirs; FREE keeps the
+ * brand green, because the two chips say different things.
+ *
  * To change a message: edit CAMPAIGNS. To change who sees it: edit ROUTES.
  * Bump BAR_VERSION when the set changes materially, so readers who
  * dismissed the old bar see the new one.
@@ -125,7 +128,9 @@
     s.textContent = [
       '.rs-announce{background:#eef7f2;border-bottom:1px solid rgba(31,122,85,.18);color:#0f1a2b;font:500 13.5px/1.35 Inter,system-ui,sans-serif;position:relative;z-index:60}',
       '.rs-announce-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 46px 8px 18px;min-height:44px;box-sizing:border-box;text-align:center;flex-wrap:wrap}',
-      '.rs-announce-chip{flex:none;background:#1f7a55;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.09em;border-radius:3px;padding:3px 7px}',
+      '.rs-announce-chip{flex:none;color:#fff;font-weight:700;font-size:10.5px;letter-spacing:.09em;border-radius:4px;padding:3px 7px}',
+      '.rs-chip-live{background:#dc2626}',
+      '.rs-chip-free{background:#1f7a55}',
       '.rs-announce-txt{color:#0f3d2a}',
       '.rs-announce a.rs-announce-cta{color:#1f7a55;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;white-space:nowrap}',
       '.rs-announce a.rs-announce-cta:hover{color:#155c40}',
@@ -148,7 +153,7 @@
     inner.className = 'rs-announce-in';
 
     var chip = d.createElement('span');
-    chip.className = 'rs-announce-chip';
+    chip.className = 'rs-announce-chip rs-chip-' + c.chip.toLowerCase();
     chip.textContent = c.chip;
 
     var txt = d.createElement('span');
