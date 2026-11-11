@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 22;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 23;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 12;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
@@ -48,6 +48,10 @@ const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const pad2 = (n) => (n < 10 ? '0' + n : String(n));
+
+/* The outcome lines in roadmap-data.js are written as whole sentences, so the
+   first letter comes down when one is joined onto a clause. */
+const lower1 = (s) => String(s || '').charAt(0).toLowerCase() + String(s || '').slice(1);
 
 const ICON_STAR =
   '<svg class="rmx-star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
@@ -487,9 +491,6 @@ function overviewPage(trackKey) {
   const open = openingLesson(bySec);
   const role = meta.role || L.persona || slug;
   const track = '/roadmap/v2/' + slug + '.html';
-  const allLessons = Object.keys(bySec).reduce((a, k) => a.concat(bySec[k]), []);
-  const total = allLessons.length;
-  const free = allLessons.filter((l) => !l.pro).length;
 
   const strip =
     '<section class="ov-strip">' + ICON_CHART +
@@ -537,10 +538,13 @@ function overviewPage(trackKey) {
     /* The counts sit in the standfirst rather than in a strip of their own,
        which is how the reference states them, and it puts the size of the
        track and how much of it is open in the first thing anybody reads. */
+    /* What the track leaves you able to do, not how many files it is made of.
+       The counts said nothing a reader wants at this moment and the page
+       answers them anyway: the grid below gives a count per section and every
+       section header says how many of its lessons are free. */
     '<div class="ov-headrow"><header class="ov-head"><h1>' + esc(role) + '</h1><p>' +
     (L.become ? esc(L.become) + ' ' : '') +
-    '<b>' + withLessons.length + ' sections, ' + total + ' lessons</b>' +
-    (free ? ', ' + free + ' of them free to run.' : '.') +
+    (L.arrive ? '<b>Finish it and ' + esc(lower1(L.arrive)) + '</b>' : '') +
     '</p></header>' + cover(trackKey, role) + '</div>\n' +
     '<div class="ov-struct"><span class="ov-lab">Curriculum structure</span>' +
     '<div class="ov-grid">' + jump + '</div></div>\n' +
