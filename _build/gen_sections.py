@@ -110,7 +110,7 @@ def render_scripts(page_js=None):
              '  <script defer src="/www/site-nav.js?v=9"></script>',
              '  <script defer src="/www/feedback-widget.js?v=4"></script>',
              '  <script defer src="/www/practice-nav.js?v=17"></script>',
-             '  <script defer src="/www/roadmap-nav.js?v=10"></script>',
+             '  <script defer src="/www/roadmap-nav.js?v=11"></script>',
              '  <script defer src="/www/tutorials-nav.js?v=9"></script>',
              '  <script defer src="/www/signin-nudge.js?v=17"></script>']
     for src in (page_js or []):
