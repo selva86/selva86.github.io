@@ -222,9 +222,11 @@
     var gateHold = locked && hasAuthToken();
     if (gateHold) setTimeout(function () { if (gateHold) { gateHold = false; if (locked) render(); } }, stripped ? 2500 : 700);
 
-    /* ---- account gate (free courses): first 2 lessons of a course are open to
-       anyone; lesson 3+ asks for a free account. Mutually exclusive with the Pro
-       wall above (Pro lessons use access==='pro'; this only fires on free courses). */
+    /* ---- account gate (free courses): OFF as of 2026-11-11. It used to open
+       the first 2 lessons of a course to anyone and ask for a free account from
+       lesson 3. See accountGated below for why it went and how to put it back.
+       Mutually exclusive with the Pro wall above (Pro lessons use
+       access==='pro'; this only ever fired on free courses). */
     var FREE_PREVIEW_LESSONS = 2;
     var lessonOrder = parseInt(ds.courseLesson || '0', 10) || 0;
     function hasAuthToken() {
@@ -233,7 +235,21 @@
       return body.classList.contains('state-pro');
     }
     var signedIn = hasAuthToken();
-    var accountGated = (access !== 'pro') && !windowed && lessonOrder > FREE_PREVIEW_LESSONS;
+    /* A free lesson is readable without an account. Phase 3: gate what needs
+       state, never what can be read. Progress, graded exercises, the practice
+       studio and certificates all still require signing in, which is where the
+       account earns its keep; the prose and the verified output do not.
+
+       After the regating this only ever affected New to R, because every other
+       free lesson is now lesson 1 of its section and was never gated here. 27
+       New to R lessons were behind this, and New to R is the on-ramp that
+       matches the Install R traffic, so it is the last place to put a wall.
+
+       One line to revert: restore the lessonOrder test below. The thing to
+       watch is signups, which the wall was converting at 2,198 hits to 1,383
+       accounts. FREE_PREVIEW_LESSONS is kept so that revert is a one-word
+       change. */
+    var accountGated = false && lessonOrder > FREE_PREVIEW_LESSONS;
     var accountLocked = accountGated && !signedIn;
 
     /* ---- Data Analyst 30-day pass (plan s5) ---- */
