@@ -36,7 +36,9 @@ interface TrackOffer {
   hours: number;
 }
 
-const DEFAULT_TRACK_OFFER: TrackOffer = { percent: 30, hours: 24 };
+/* One hour, matching the reference: the dialog shows minutes and seconds, and
+   a clock that has to show hours is a deadline rather than a decision. */
+const DEFAULT_TRACK_OFFER: TrackOffer = { percent: 30, hours: 1 };
 
 /* KV `offer:track` overrides either field with no deploy. Kept separate from
    `offer:config` on purpose: that one drives the 23% price-alert code that has

@@ -127,12 +127,20 @@
 
   var offerShown = false;
 
-  function countdown(el, until) {
+  /* Minutes and seconds, in two boxes. Hours are folded into the minutes
+     rather than shown, because a clock that reads 01:00:00 is a deadline and
+     one that reads 59:12 is a decision. */
+  function countdown(mm, ss, until, onEnd) {
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
     function tick() {
       var left = until - Math.floor(Date.now() / 1000);
-      if (left <= 0) { el.textContent = 'expired'; return; }
-      var h = Math.floor(left / 3600), m = Math.floor((left % 3600) / 60), s = left % 60;
-      el.textContent = (h ? h + 'h ' : '') + m + 'm ' + (h ? '' : s + 's');
+      if (left <= 0) {
+        mm.textContent = '00'; ss.textContent = '00';
+        if (onEnd) onEnd();
+        return;
+      }
+      mm.textContent = pad(Math.floor(left / 60));
+      ss.textContent = pad(left % 60);
       setTimeout(tick, 1000);
     }
     tick();
@@ -142,13 +150,23 @@
     var dlg = $('#rmxOffer');
     if (!dlg || offerShown) return;
     offerShown = true;
-    $('[data-rmx-pct]', dlg).textContent = o.percent + '%';
+    var pct = $('[data-rmx-pct]', dlg);
+    if (pct) pct.textContent = o.percent + '%';
     var code = $('[data-rmx-code]', dlg);
     if (code) code.textContent = o.code;
     var cta = $('[data-rmx-take]', dlg);
-    if (cta) cta.href = '/pricing.html?code=' + encodeURIComponent(o.code) + '&src=track';
-    var clock = $('[data-rmx-clock]', dlg);
-    if (clock && o.expires_at) countdown(clock, o.expires_at);
+    if (cta) {
+      cta.href = '/pricing.html?code=' + encodeURIComponent(o.code) + '&src=track';
+      cta.textContent = 'Use ' + o.percent + '% coupon →';
+    }
+    var mm = $('[data-rmx-mm]', dlg), ss = $('[data-rmx-ss]', dlg);
+    if (mm && ss && o.expires_at) {
+      countdown(mm, ss, o.expires_at, function () {
+        /* Expired while open. Saying so beats leaving a dead button that
+           fails at checkout. */
+        if (cta) { cta.removeAttribute('href'); cta.textContent = 'This offer has expired'; }
+      });
+    }
 
     /* Copy puts the code on the clipboard and says so in place, because a
        button that reports nothing leaves people clicking it twice. */

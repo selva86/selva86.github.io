@@ -29,8 +29,8 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 1;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 1;    // /www/roadmap-fanout.js  likewise
+const CSS_V = 2;   // /www/roadmap-fanout.css is immutable: bump on every change
+const JS_V = 2;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -66,6 +66,11 @@ const ICON_TAG =
   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2a2 2 0 01-.6-1.4V4a1 1 0 011-1h8a2 2 0 011.4.6l7.4 7.4a2 2 0 010 2.4z"/>' +
   '<circle cx="7.5" cy="7.5" r="1.3" fill="currentColor" stroke="none"/></svg>';
+
+const ICON_INFO =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+  'aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/>' +
+  '<line x1="12" y1="7.5" x2="12" y2="7.6"/></svg>';
 
 const ICON_COPY =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
@@ -220,23 +225,29 @@ function proPanel(L) {
 }
 
 function offerDialog() {
+  const conf = new Array(10).fill('<i></i>').join('');
   return '<div class="rmx-offer" id="rmxOffer" role="dialog" aria-modal="true" ' +
     'aria-labelledby="rmxOfferH" aria-hidden="true">' +
     '<div class="rmx-offerbox">' +
-      '<div class="oc" data-rmx-pct>30%</div>' +
-      '<h2 id="rmxOfferH">Here is 30% off, once.</h2>' +
-      '<p>You have been reading the curriculum, so here is the discount rather than ' +
-      'a form to ask for it.</p>' +
-      '<div class="rmx-pill">' +
-        '<span>' + ICON_TAG + ' 30% off the annual plan with <code data-rmx-code>CODE</code></span>' +
-        '<button type="button" class="cp" data-rmx-copy aria-label="Copy the code">' +
-          ICON_COPY + '<span class="cplab">Copy</span></button>' +
-        '<span class="ends">ends in <span data-rmx-clock>24h</span></span>' +
+      '<button type="button" class="ox" aria-label="Close. This offer will not come back.">×</button>' +
+      '<div class="rmx-stage">' +
+        '<span class="rmx-conf" aria-hidden="true">' + conf + '</span>' +
+        '<div class="rmx-ticket"><span data-rmx-pct>30%</span> off</div>' +
       '</div>' +
-      '<p class="rmx-once">This appears once. Close it and it is gone for good, ' +
-      'on this browser and every other one you sign in from.</p>' +
-      '<a class="ob" data-rmx-take href="/pricing.html">Use it now</a>' +
-      '<button type="button" class="ox">No thanks, I understand it will not come back</button>' +
+      '<div class="rmx-offerbody">' +
+        '<h2 id="rmxOfferH">You have unlocked a limited-time coupon</h2>' +
+        /* Said plainly, because the alternative is somebody reaching checkout
+           on the monthly plan and finding the code refused there. */
+        '<p class="sub">Applies to the annual plan. Monthly renews at its displayed price.</p>' +
+        '<div class="rmx-code"><code data-rmx-code>CODE</code>' +
+          '<button type="button" class="cp" data-rmx-copy aria-label="Copy the code">' +
+          ICON_COPY + '<span class="cplab">Copy</span></button></div>' +
+        '<p class="rmx-expl">Use it before it expires in</p>' +
+        '<div class="rmx-clocks"><b data-rmx-mm>60</b><i>:</i><b data-rmx-ss>00</b></div>' +
+        '<a class="ob" data-rmx-take href="/pricing.html">Use 30% coupon →</a>' +
+        '<p class="rmx-once">' + ICON_INFO + ' This offer is issued ' +
+        '<b>once for your account</b> and will not appear again.</p>' +
+      '</div>' +
     '</div></div>';
 }
 
@@ -294,6 +305,11 @@ function page(trackKey) {
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
     '<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">\n' +
     '<link rel="stylesheet" href="/www/site-nav.css?v=19">\n' +
+    /* The base sheet: the canonical navbar, the body font and half the design
+       tokens are defined here. Without it the page renders as unstyled serif
+       with every var() falling back to nothing. Loaded before this page's own
+       sheet so the page's rules win where the two overlap. */
+    '<link rel="stylesheet" href="/www/roadmap-role.css?v=25">\n' +
     '<link rel="stylesheet" href="/www/roadmap-fanout.css?v=' + CSS_V + '">\n' +
     chrome.ga + '\n' +
     '</head>\n<body data-page="rmx" data-role="' + trackKey + '">\n' +
