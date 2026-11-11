@@ -139,8 +139,8 @@
   // prereq note
   var prq=document.getElementById('prereq');
   if(role==='foundations'){prq.innerHTML='This is where everyone starts, and every lesson is free.';}
-  else if(role==='analyst'){prq.innerHTML='Comes after <a href="/roadmap/new-to-r.html">New to R</a>, which is free. Together they are the shared core every specialization builds on.';}
-  else{prq.innerHTML='Comes after <a href="/roadmap/new-to-r.html">New to R</a> and <a href="/roadmap/data-analyst.html">Data Analyst</a>. If you already use the tidyverse, you can start here.';}
+  else if(role==='analyst'){prq.innerHTML='Comes after <a href="/roadmap/v2/new-to-r.html">New to R</a>, which is free. Together they are the shared core every specialization builds on.';}
+  else{prq.innerHTML='Comes after <a href="/roadmap/v2/new-to-r.html">New to R</a> and <a href="/roadmap/v2/data-analyst.html">Data Analyst</a>. If you already use the tidyverse, you can start here.';}
 
   // curriculum
   document.getElementById('curHead').textContent='The full '+ROLE[role]+' curriculum';

@@ -47,22 +47,22 @@
     foundations: {
       text: 'R Foundations is live',
       cta: 'Start the course',
-      href: '/roadmap/new-to-r.html'
+      href: '/roadmap/v2/new-to-r.html'
     },
     forecaster: {
       text: 'Forecaster is live',
       cta: 'Start the course',
-      href: '/roadmap/forecaster.html'
+      href: '/roadmap/v2/forecaster.html'
     },
     analyst: {
       text: 'Data Analyst is live',
       cta: 'Start the course',
-      href: '/roadmap/data-analyst.html'
+      href: '/roadmap/v2/data-analyst.html'
     },
     scientist: {
       text: 'Data Scientist is live',
       cta: 'Start the course',
-      href: '/roadmap/data-scientist.html'
+      href: '/roadmap/v2/data-scientist.html'
     }
   };
 
