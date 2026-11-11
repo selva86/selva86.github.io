@@ -815,6 +815,12 @@
       // faded teaser is the entire experience until entitlement unlocks.
       if (locked && !gateHold) { renderProGate(); return; }
       teardownGate();
+      /* The learner is looking at real lesson content: past the Pro gate and
+         past the sign-in wall. rsSignal dedupes per session per path, so this
+         fires once per lesson opened. /api/signal has always accepted
+         lesson_start; nothing ever sent it, which is why activation had a
+         numerator (lesson_complete) and no denominator. */
+      rsSignal('lesson_start', courseId ? courseId + ':' + lessonOrder : curSlug);
       var sw = stage.querySelector('.lm-signin'); if (sw) sw.style.display = 'none';
       if (showingPaywall) { var p = stage.querySelector('.lm-paywall'); if (p) p.style.display = 'none'; showingPaywall = false; }
       steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
