@@ -124,15 +124,43 @@ function windowedOk(res: Response): Response {
 // any error means "not Pro" (they get the stripped page; the client's
 // reload-once path retries after hydration). KV-cached briefly so hot lesson
 // browsing does not hit D1 on every page.
+/* True when this signed-in reader had already opened this lesson before it
+   was regated. Fail-closed: any error means "not grandfathered", which is the
+   same outcome as before the map existed. One KV read, only on a lesson the
+   reader is not otherwise entitled to. */
+async function grandfathered(
+  context: { request: Request; env: Env },
+  lessonSlug: string,
+): Promise<boolean> {
+  try {
+    const sub = await requesterSub(context);
+    if (!sub) return false;
+    const raw = await context.env.KV.get(`gf:${sub}`);
+    if (!raw) return false;
+    const slugs = JSON.parse(raw) as string[];
+    return Array.isArray(slugs) && slugs.indexOf(lessonSlug) !== -1;
+  } catch {
+    return false;
+  }
+}
+
 async function serveProLesson(
   context: { request: Request; env: Env },
   res: Response,
   lessonTrack: string,
+  lessonSlug: string,
 ): Promise<Response> {
   const scope = await requesterScope(context);
   const out = new Response(res.body, res);
   out.headers.set("Cache-Control", "private, no-store");
   if (scopeCovers(scope, lessonTrack)) return out;
+  // Grandfathering (2026-11-11 regating): 17 lessons that were free became
+  // Pro when the free tier was redistributed to the first lesson of every
+  // section. Anyone who had already opened one keeps it, for good. The map
+  // lives in KV as gf:<user id> -> ["slug", ...] rather than in this repo,
+  // which is public: it is a list of who read what. 49 users, 146 pairs,
+  // taken from reading_progress on the day of the change.
+  if (await grandfathered(context, lessonSlug)) return out;
   // Claim-to-start DA pass: a signed-in free user opening a gated DA-track
   // lesson for the first time claims their 30 days right here, and this very
   // page serves in full. The KV scope cache is busted so the claim takes
@@ -349,7 +377,7 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
       return serveWindowedLesson(context, res, lessonSlug, WINDOWED[lessonSlug]);
     }
     if (!path.slice(1).includes("/") && PRO_LESSONS[lessonSlug]) {
-      return serveProLesson(context, res, PRO_LESSONS[lessonSlug]);
+      return serveProLesson(context, res, PRO_LESSONS[lessonSlug], lessonSlug);
     }
 
     // Restore edge/browser caching for HTML. Worker responses default to
@@ -371,7 +399,7 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   }
   if (context.request.method === "GET" && !cleanSlug.includes("/") && !cleanSlug.includes(".") && PRO_LESSONS[cleanSlug]) {
     const res = await context.next();
-    return serveProLesson(context, res, PRO_LESSONS[cleanSlug]);
+    return serveProLesson(context, res, PRO_LESSONS[cleanSlug], cleanSlug);
   }
 
   context.data.user = null;
