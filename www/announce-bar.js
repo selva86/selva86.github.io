@@ -47,25 +47,25 @@
       chip: 'FREE',
       text: 'R Foundations is free',
       cta: 'Start the course',
-      href: '/R-Foundations-Basics-Course.html'
+      href: '/roadmap/new-to-r.html'
     },
     forecaster: {
       chip: 'LIVE',
       text: 'Forecaster is live',
       cta: 'Start the course',
-      href: '/Time-Series-Foundations-Course.html'
+      href: '/roadmap/forecaster.html'
     },
     analyst: {
       chip: 'LIVE',
       text: 'Data Analyst is live',
       cta: 'Start the course',
-      href: '/Data-Wrangling-dplyr-Course.html'
+      href: '/roadmap/data-analyst.html'
     },
     scientist: {
       chip: 'LIVE',
       text: 'Data Scientist is live',
       cta: 'Start the course',
-      href: '/R-ML-Workflow-Course.html'
+      href: '/roadmap/data-scientist.html'
     }
   };
 
@@ -132,7 +132,11 @@
       '.rs-chip-live{background:#dc2626}',
       '.rs-chip-free{background:#1f7a55}',
       '.rs-announce-txt{color:#0f3d2a}',
-      '.rs-announce a.rs-announce-cta{color:#1f7a55;font-weight:600;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px;white-space:nowrap}',
+      '.rs-announce a.rs-announce-cta{display:inline-flex;align-items:center;gap:4px;color:#1f7a55;font-weight:600;text-decoration:none;white-space:nowrap}',
+      '.rs-announce-cta span{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}',
+      '.rs-announce-arrow{display:inline-flex;transition:transform .18s ease}',
+      '.rs-announce-cta:hover .rs-announce-arrow{transform:translateX(2px)}',
+      '@media(prefers-reduced-motion:reduce){.rs-announce-arrow{transition:none}}',
       '.rs-announce a.rs-announce-cta:hover{color:#155c40}',
       '.rs-announce-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);appearance:none;background:none;border:0;color:#6d8a7c;font-size:17px;line-height:1;cursor:pointer;padding:6px 8px;border-radius:4px}',
       '.rs-announce-x:hover{color:#0f3d2a;background:rgba(31,122,85,.10)}',
@@ -163,7 +167,18 @@
     var a = d.createElement('a');
     a.className = 'rs-announce-cta';
     a.href = c.href;
-    a.textContent = c.cta;
+    var ctaWords = d.createElement('span');
+    ctaWords.textContent = c.cta;
+    a.appendChild(ctaWords);
+    // The site's own arrow, inline rather than an icon font. fanout loads
+    // Phosphor for theirs; one glyph is not worth a font request.
+    var arrow = d.createElement('span');
+    arrow.className = 'rs-announce-arrow';
+    arrow.setAttribute('aria-hidden', 'true');
+    arrow.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none"'
+      + ' stroke="currentColor" stroke-width="1.75" stroke-linecap="round"'
+      + ' stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
+    a.appendChild(arrow);
     a.setAttribute('data-announce', key);
     a.addEventListener('click', function () {
       try {
