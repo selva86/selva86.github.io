@@ -167,6 +167,33 @@
   var next = new URLSearchParams(location.search).get('next') || '/dashboard.html';
   if (next.charAt(0) !== '/' || next.charAt(1) === '/') next = '/dashboard.html';
 
+  /* A new account's first screen should be a lesson, not a dashboard. Only
+     when nothing specific was asked for: an explicit ?next= always wins.
+     Returning readers never reach this file's new-user exits (they are
+     forwarded on `decided` before the screen renders), so `newNext` is only
+     ever used for an account that has just been made.
+     Families match www/announce-bar.js, so the offer a reader saw on the way
+     in is the track they land in. */
+  var GENERIC = /^\/(dashboard|account)(\.html)?([?#]|$)/;
+  var FIRST_LESSON = [
+    [/(install-r|rstudio|r-syntax|is-r-worth|free-r-courses|learn-r|r-data-types|r-vectors|r-factors|r-lists|r-matrices|r-control-flow|getting-started)/i, '/R-Syntax-and-First-Objects.html'],
+    [/(time-series|arima|forecast|garch|kalman|exponential-smoothing|stationarit|acf-and-pacf|cointegration|seasonal|holt-winters)/i, '/What-Makes-Time-Series-Different.html'],
+    [/(regression|machine-learning|random-forest|gradient-boost|xgboost|classification|clustering|neural-net|causal-inference|conformal|cross-validat)/i, '/Framing-a-Problem-as-ML.html'],
+    [/(ggplot|visuali|dplyr|tidyverse|wrangl|pipe-operator|cheat-sheet|data-frame|tidyr|stringr|lubridate)/i, '/Importing-and-Tidy-Data-in-R.html']
+  ];
+  function signupPage(){
+    try { return (JSON.parse(localStorage.getItem('rsc-signup-src')) || {}).signup_page || ''; }
+    catch (e) { return ''; }
+  }
+  function firstLesson(){
+    var src = signupPage() || document.referrer || '';
+    for (var i = 0; i < FIRST_LESSON.length; i++) {
+      if (FIRST_LESSON[i][0].test(src)) return FIRST_LESSON[i][1];
+    }
+    return '/R-Syntax-and-First-Objects.html';   // the on-ramp
+  }
+  var newNext = GENERIC.test(next) ? firstLesson() : next;
+
   function token(){
     try{
       for (var i=0;i<localStorage.length;i++){
@@ -245,7 +272,7 @@
           document.getElementById('main').hidden = true;
           document.getElementById('claimed').hidden = false;
           page.classList.add('ready');
-          setTimeout(function(){ location.replace(next); }, 2400);
+          setTimeout(function(){ location.replace(newNext); }, 2400);
           return;
         }
         return decide(s);
@@ -296,7 +323,7 @@
       body: JSON.stringify({ optin: optin, surface: 'optin-screen', default_state: defaultState })
     }).catch(function(){});
     var beat = new Promise(function(res){ setTimeout(res, optin ? 550 : 0); });
-    Promise.all([post, beat]).then(function(){ location.replace(next); });
+    Promise.all([post, beat]).then(function(){ location.replace(newNext); });
   });
 })();
 </script>
