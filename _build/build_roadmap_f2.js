@@ -118,7 +118,7 @@ const ROLE_MAIN=`<main class="wrap">
     <div class="pindex reveal" id="pgrid"></div>
   </section>
   <section class="certband reveal"><div class="in">
-    <div><h2 class="disp" id="certHead">Earn the certificate</h2><p id="certSub">Read every lesson free. The graded practice, projects and certificate are the Program.</p></div>
+    <div><h2 class="disp" id="certHead">Earn the certificate</h2><p id="certSub">The first lesson of every section is free to read. Pro opens the rest, along with the graded practice and the certificate.</p></div>
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;

@@ -146,7 +146,7 @@
   document.getElementById('curHead').textContent='The full '+ROLE[role]+' curriculum';
   document.getElementById('curLead').textContent=allFree
     ? 'All '+secs.length+' sections are free.'
-    : 'Section 1 is free. Sections 2 to '+secs.length+' are included with Pro, along with the '+L.cert+' certificate.';
+    : 'The first lesson of every section is free. Pro opens the rest, along with the '+L.cert+' certificate.';
 
   function postHref(t){return (RM2.links&&RM2.links[t])||(RM.STOP_LINKS&&RM.STOP_LINKS[t])||'';}
   var ARR='<span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
@@ -257,7 +257,7 @@
   document.getElementById('certHead').textContent='Earn the '+L.cert+' certificate';
   document.getElementById('certSub').textContent=allFree
     ? 'Every lesson is free. Graded exercises and the certificate come with Pro.'
-    : 'Section 1 is free. Pro opens the other '+(secs.length-1)+' sections, graded exercises and the '+L.cert+' certificate.';
+    : 'The first lesson of every section is free. Pro opens the rest, the graded exercises and the '+L.cert+' certificate.';
 
   // progress bar + reveal
   var prog=document.getElementById('prog');
