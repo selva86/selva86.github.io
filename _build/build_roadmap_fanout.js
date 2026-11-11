@@ -29,8 +29,8 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 5;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 3;    // /www/roadmap-fanout.js  likewise
+const CSS_V = 6;   // /www/roadmap-fanout.css is immutable: bump on every change
+const JS_V = 4;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -57,12 +57,6 @@ const ICON_BACK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
   'stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/>' +
   '<polyline points="12 19 5 12 12 5"/></svg>';
-
-const ICON_TAG =
-  '<svg class="tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0l-7.2-7.2a2 2 0 01-.6-1.4V4a1 1 0 011-1h8a2 2 0 011.4.6l7.4 7.4a2 2 0 010 2.4z"/>' +
-  '<circle cx="7.5" cy="7.5" r="1.3" fill="currentColor" stroke="none"/></svg>';
 
 const ICON_INFO =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
@@ -155,8 +149,13 @@ function railCurriculum(secs, bySec) {
   return secs.map((s) => {
     const ls = bySec[s.n] || [];
     if (!ls.length) return '';
+    /* The href is real so the row works without JavaScript and opens in a new
+       tab the way any link should. The script intercepts a plain click and
+       loads the lesson into the player instead, which is what keeps a reader
+       on this page. */
     const rows = ls.map((l) =>
-      '<a class="rmx-l" href="/' + esc(l.slug) + '.html">' +
+      '<a class="rmx-l" href="/' + esc(l.slug) + '.html"' +
+      ' data-rmx-lesson="' + esc(l.slug) + '"' + (l.pro ? ' data-pro="1"' : '') + '>' +
       '<span class="rmx-lt">' + esc(l.title) + '</span>' +
       (l.pro ? ICON_STAR : '') + '</a>'
     ).join('');
@@ -168,41 +167,14 @@ function railCurriculum(secs, bySec) {
   }).join('');
 }
 
-function mainCurriculum(secs, bySec) {
-  return secs.map((s) => {
-    const ls = bySec[s.n] || [];
-    const built = ls.length > 0;
-    const freeN = ls.filter((l) => !l.pro).length;
-    const meta = built
-      ? ls.length + (ls.length === 1 ? ' lesson' : ' lessons') + (freeN ? ', ' + freeN + ' free' : '')
-      : 'in the plan';
-
-    const rows = built
-      ? ls.map((l, i) =>
-          '<a class="rmx-row ' + (l.pro ? 'is-pro' : 'is-free') + '" href="/' + esc(l.slug) + '.html">' +
-          '<span class="rmx-rown">' + (i + 1) + '</span>' +
-          '<span class="rmx-rowt">' + esc(l.title) +
-          (l.subtitle ? '<small>' + esc(l.subtitle) + '</small>' : '') + '</span>' +
-          '<span class="rmx-rowa">' + (l.pro ? ICON_STAR + 'Pro' : 'Free') + '</span></a>'
-        ).join('')
-      /* A section with nothing built yet shows its concepts and says so. The
-         alternative, hiding it, would make the track look shorter than it is. */
-      : '<div class="rmx-row"><span class="rmx-rown"></span><span class="rmx-rowt">' +
-        esc((s.items || []).join(' · ')) + '</span></div>';
-
-    return '<details class="rmx-block"' + (s.n === 1 ? ' open' : '') + '>' +
-      '<summary><span class="rmx-bn">' + pad2(s.n) + '</span>' +
-      '<span class="rmx-bt"><strong>' + esc(s.title) + '</strong>' +
-      (s.outcome ? '<em>' + esc(s.outcome) + '</em>' : '') + '</span>' +
-      '<span class="rmx-bmeta">' + meta + '</span></summary>' +
-      '<div class="rmx-rows">' + rows + '</div></details>';
-  }).join('');
-}
-
+/* Shown only while the player holds a locked lesson, which is why it carries
+   `hidden`. The lesson's own gate inside the frame says what is locked; this
+   says what it costs, which the gate does not. */
 function proPanel(L) {
   const cert = L.cert ? esc(L.cert) : 'the certificate';
-  return '<div class="rmx-pro" data-rmx-offertrigger>' +
-    '<h3>The starred lessons come with Pro</h3>' +
+  return '<div class="rmx-pro" data-rmx-offertrigger hidden>' +
+    '<p class="rmx-eyebrow">Free preview</p>' +
+    '<h3>Open the rest of the track</h3>' +
     '<p>One plan opens every track on the site, the graded practice, and ' + cert +
     '. The first lesson of every section stays free whether you buy or not.</p>' +
     '<div class="rmx-plans">' +
@@ -278,11 +250,11 @@ function page(trackKey) {
   /* The real lesson, in the page. Emitted as markup rather than mounted by
      script so it is there without JavaScript, and same-origin so the page can
      dress the frame and gate the first run. */
+  /* No bar above the frame. The lesson names itself in its own breadcrumb and
+     the rail highlights the row, so a third copy of the title only pushed the
+     player below the fold. */
   const player = open
     ? '<div class="rmx-playwrap" data-rmx-player data-lesson-href="/' + esc(open.slug) + '.html">' +
-      '<div class="rmx-playbar">' +
-      '<span class="lab">' + esc(open.title) + '</span>' +
-      '<span class="rmx-playhint">Runs in the page, nothing to install</span></div>' +
       '<iframe class="rmx-frame" src="/' + esc(open.slug) + '.html" loading="lazy" ' +
       'title="' + esc(open.title) + ', interactive lesson"></iframe>' +
       '</div>'
@@ -328,14 +300,10 @@ function page(trackKey) {
       '<nav class="rmx-crumb"><a href="/">Home</a><span>/</span><a href="/roadmap/">Tracks</a>' +
       '<span>/</span><span>' + esc(role) + '</span></nav>\n' +
       player + '\n' +
-      '<h2 class="rmx-sechead">The whole curriculum</h2>\n' +
-      '<p class="rmx-seclede">' + (total
-        ? 'The first lesson of every section is free to read and to run. The starred lessons come with Pro.'
-        : 'This track is written and being built out lesson by lesson.') + '</p>\n' +
-      '<div class="rmx-legend"><span><b>' + free + '</b> free</span>' +
-      '<span>' + ICON_STAR + '<b>' + (total - free) + '</b> with Pro</span>' +
-      '<span>' + total + ' lessons in all</span></div>\n' +
-      mainCurriculum(secs, bySec) + '\n' +
+      /* The curriculum is the rail's job. Repeating all 176 rows underneath
+         the player doubled the page weight and buried the one thing the page
+         is for. The plan box takes its place, and only when the lesson in the
+         player is a locked one. */
       proPanel(L) + '\n' +
     '</main>\n</div>\n' +
     offerDialog() + '\n' +

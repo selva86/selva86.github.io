@@ -26,6 +26,64 @@
   var hydrated = false;
 
   function $(s, r) { return (r || document).querySelector(s); }
+  function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+
+  /* ------------------------------------------------------------- rail --- */
+
+  /* The rail is the navigation: a click loads that lesson into the player and
+     stays on this page. A locked lesson loads exactly as a free one does,
+     because the lesson's own gate IS the lock and it shows a real preview
+     first. All this page adds is the one thing the gate does not say, the
+     price, which is why the plan box appears only then. */
+  function initRail() {
+    var wrap = $('[data-rmx-player]');
+    var frame = wrap && $('iframe.rmx-frame', wrap);
+    var pro = $('.rmx-pro');
+    var links = $$('[data-rmx-lesson]');
+    if (!frame || !links.length) return;
+
+    function select(a, load, fromClick) {
+      var slug = a.getAttribute('data-rmx-lesson');
+      if (!slug) return;
+      for (var i = 0; i < links.length; i++) links[i].removeAttribute('aria-current');
+      a.setAttribute('aria-current', 'true');
+      if (load) frame.src = '/' + slug + '.html';
+      if (pro) {
+        if (a.getAttribute('data-pro') === '1') pro.removeAttribute('hidden');
+        else pro.setAttribute('hidden', '');
+      }
+      try { history.replaceState(null, '', '#' + slug); } catch (e) {}
+      // only pull the page up when the player is not already in view
+      if (fromClick && wrap.getBoundingClientRect().top < 0) {
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    links.forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        // modified clicks are left alone so "open in a new tab" still works
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+        e.preventDefault();
+        select(a, true, true);
+      });
+    });
+
+    function bySlug(slug) {
+      for (var i = 0; i < links.length; i++) {
+        if (links[i].getAttribute('data-rmx-lesson') === slug) return links[i];
+      }
+      return null;
+    }
+
+    var hash = (location.hash || '').replace(/^#/, '');
+    var deep = hash ? bySlug(hash) : null;
+    if (deep) { select(deep, true, false); return; }
+
+    // nothing asked for: mark the lesson the frame already holds
+    var href = wrap.getAttribute('data-lesson-href') || '';
+    var first = bySlug(href.replace(/^\//, '').replace(/\.html$/, ''));
+    if (first) first.setAttribute('aria-current', 'true');
+  }
 
   /* ------------------------------------------------------------ player --- */
 
@@ -258,6 +316,7 @@
 
   function init() {
     initPlayer();
+    initRail();
     localizePrices();
     armOffer();
   }
