@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 20;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 21;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 11;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
@@ -396,16 +396,13 @@ function rail(trackKey, onOverview) {
   const meta = (RM.TRACK_META || {})[trackKey] || {};
   const secs = (RM2.sections || {})[trackKey] || [];
   const bySec = lessonsBySection(trackKey);
-  const all = Object.keys(bySec).reduce((a, k) => a.concat(bySec[k]), []);
-  const total = all.length;
-  const free = all.filter((l) => !l.pro).length;
   const role = meta.role || L.persona || slug;
 
-  const facts = [
-    total ? '<li><b>' + total + '</b> lessons &middot; <b>' + free + '</b> free</li>' : '',
-    L.weeks ? '<li><b>' + esc(L.weeks.replace(/^~/, '')) + '</b> at a steady pace</li>' : '',
-    '<li class="leg">' + ICON_STAR + 'marks a Pro lesson</li>',
-  ].filter(Boolean).join('');
+  /* Only the legend. The lesson count and the time estimate were stating the
+     obvious twice: the curriculum is right underneath with every lesson in
+     it, and the overview's standfirst carries the counts for anyone who wants
+     the number. The legend stays because the star needs explaining once. */
+  const facts = '<li class="leg">' + ICON_STAR + 'marks a Pro lesson</li>';
 
   return '<a class="rmx-back" href="/roadmap/">' + ICON_BACK + 'All tracks</a>\n' +
     '<div class="rmx-key"><h1>' + esc(role) + '</h1>' +
