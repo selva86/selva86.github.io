@@ -56,6 +56,7 @@
     var showCounter = !!(ds.courseLesson && ds.courseTotal) && lessonKind !== 'quiz';
     var landing = ds.courseLanding || '/';
     var nextHref = ds.courseNext || '';
+    var prevHref = ds.coursePrev || '';   // on the page already; the gate uses it
     var total = steps.length;
     var courseId = ds.courseId || '';
     var curSlug = location.pathname.replace(/^\//, '').replace(/index\.html?$/i, '').replace(/\.html?$/i, '').replace(/\/$/, '');
@@ -748,7 +749,7 @@
         g.innerHTML = '<div class="lm-gate-card tex2jax_ignore">' +
           '<div class="lm-gate-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div>' +
           '<h3>' + (isProUser ? 'This lesson is in a different track'
-            : (passState && passState.claimed && !passState.active ? 'Your 30-day Data Analyst pass has ended' : 'This is a Pro lesson')) + '</h3>' +
+            : (passState && passState.claimed && !passState.active ? 'Your 30-day Data Analyst pass has ended' : 'Continue this lesson with Pro')) + '</h3>' +
           (pos ? '<p class="lm-gate-pos">' + pos + '</p>' : '') +
           (desc ? '<p class="lm-gate-desc">' + esc(desc) + '</p>' : '') +
           '<a class="lm-gate-cta" href="/pricing.html" data-gate-cta>' + (isProUser ? 'Upgrade to All-Access &rarr;' : 'Unlock with Pro &rarr;') + '</a>' +
@@ -756,6 +757,12 @@
           '<p class="lm-gate-fine">14-day money-back guarantee · cancel anytime</p>' +
           '<a class="lm-gate-free" data-gate-free hidden>The first lessons of this course are free &rarr;</a><br>' +
           '<a class="lm-gate-back" href="' + esc(exitTarget()) + '">&larr; Back to ' + esc(exitLabel()) + '</a>' +
+          ((prevHref || nextHref)
+            ? '<div class="lm-gate-nav">' +
+                (prevHref ? '<a href="' + esc(prevHref) + '">&larr; Previous lesson</a>' : '<span></span>') +
+                (nextHref ? '<a href="' + esc(nextHref) + '">Next lesson &rarr;</a>' : '<span></span>') +
+              '</div>'
+            : '') +
           '</div>';
         stage.appendChild(g);
         g.addEventListener('click', function (ev) {
