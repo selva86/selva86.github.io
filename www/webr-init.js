@@ -460,6 +460,40 @@
       return ph ? 'Your turn: replace ' + ph + ' with your own code, then run it.' : '';
     }
 
+    // R's warnings and messages. captureConditions hands them over as condition objects, not as
+    // text, and the panel used to show only printed text, so a reader never saw "NAs introduced
+    // by coercion" or the message() a post was demonstrating. They are now shown the way R prints
+    // them as they happen (options(warn = 1), the form knitr output uses too): "Warning in
+    // log(-1) : NaNs produced", "Warning: ..." when there is no call, a message as its own text.
+    // Package start-up messages (library()'s "Attaching package", masking notes, "Loading
+    // required package") are left out: every library() cell would otherwise open with them.
+    // The text is formatted by R itself (conditionMessage also formats rlang/cli conditions).
+    const COND_R = 'if (inherits(cnd, "packageStartupMessage")) character(0) else c(' +
+      'if (inherits(cnd, "warning")) "warning" else "message", conditionMessage(cnd), ' +
+      'if (is.null(conditionCall(cnd))) "" else paste(deparse(conditionCall(cnd), nlines = 1L), collapse = ""))';
+    // Calls that belong to the evaluator, not to the reader's code (a top-level warning("...")
+    // reports eval(ei, envir)); R at the console shows no call for these.
+    const EVAL_CALL = /^(eval|evalq|withVisible|withCallingHandlers|doTryCatch|tryCatch\w*|withAutoprint|source)\(/;
+    const MAX_CONDITIONS = 50;
+    async function conditionText(cnd) {
+      try {
+        const r = await shelter.evalR(COND_R, { env: { cnd: cnd } });
+        const v = await r.toArray();
+        if (!v || v.length < 2) return null;            // a package start-up message
+        let msg = String(v[1] == null ? '' : v[1]);
+        if (v[0] === 'message') return { kind: 'message', text: msg.endsWith('\n') ? msg : msg + '\n' };
+        msg = msg.replace(/\n+$/, '');
+        const call = v[2] && !EVAL_CALL.test(v[2]) ? v[2] : '';
+        if (!call) return { kind: 'warning', text: 'Warning: ' + msg + '\n' };
+        // R breaks the line after the call when call and message are long together (LONGWARN 75)
+        const long = 18 + call.length + msg.length > 75;
+        return { kind: 'warning', text: 'Warning in ' + call + ' :' + (long ? '\n ' : '') + ' ' + msg + '\n' };
+      } catch (e) {
+        console.warn('Could not read an R condition:', e);
+        return null;
+      }
+    }
+
     // Run R code using shelter.captureR for proper output capture
     // Helper: set Run button text while preserving Ctrl+Enter shortcut hint
     function setRunBtnText(btn, text) {
@@ -562,15 +596,22 @@
           captureGraphics: { width: 700, height: 500 }
         });
 
-        // Collect text output
-        let output = '';
+        // Collect what R printed and said, in the order it happened. Warnings and messages go in
+        // as .webr-cond spans so the exercise grader can compare the printed output on its own.
+        const parts = [];
+        let condCount = 0, condSkipped = 0;
         if (result.output) {
           for (const line of result.output) {
             if (line.type === 'stdout' || line.type === 'stderr') {
-              output += line.data.endsWith('\n') ? line.data : line.data + '\n';
+              parts.push({ kind: 'out', text: line.data.endsWith('\n') ? line.data : line.data + '\n' });
+            } else if (line.type === 'warning' || line.type === 'message') {
+              if (condCount >= MAX_CONDITIONS) { condSkipped++; continue; }
+              const c = await conditionText(line.data);
+              if (c) { parts.push(c); condCount++; }
             }
           }
         }
+        if (condSkipped) parts.push({ kind: 'warning', text: '... and ' + condSkipped + ' more warnings or messages, not shown.\n' });
 
         // Show plot images if any
         if (result.images && result.images.length > 0 && plotEl) {
@@ -594,8 +635,18 @@
           plotEl.classList.add('has-content');
         }
 
-        if (output.trim()) {
-          outputEl.textContent = output.trimEnd();
+        if (parts.some(p => p.text.trim())) {
+          // trim the end of the whole output, as before
+          while (parts.length && !parts[parts.length - 1].text.trim()) parts.pop();
+          parts[parts.length - 1].text = parts[parts.length - 1].text.trimEnd();
+          outputEl.textContent = '';
+          for (const p of parts) {
+            if (p.kind === 'out') { outputEl.appendChild(document.createTextNode(p.text)); continue; }
+            const s = document.createElement('span');
+            s.className = 'webr-cond webr-' + p.kind;
+            s.textContent = p.text;
+            outputEl.appendChild(s);
+          }
           outputEl.classList.add('has-content');
         } else if (!result.images || result.images.length === 0) {
           // Nothing printed and no plot. withAutoprint has already printed any visible value, so

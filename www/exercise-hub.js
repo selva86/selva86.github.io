@@ -1425,6 +1425,18 @@
     return pre ? pre.textContent : '';
   }
 
+  // The output without R's warnings and messages. webr-init.js shows those as .webr-cond spans
+  // (since 2026-11-11; before, they were never shown). Grading compares the printed output on
+  // its own, as it always has, and also accepts a match with them included, for the expected
+  // outputs that show a message (readr's "Rows: 3 Columns: 2", for one).
+  function printedText(outEl) {
+    if (!outEl.querySelector('.webr-cond')) return outEl.textContent || '';
+    var c = outEl.cloneNode(true);
+    var conds = c.querySelectorAll('.webr-cond');
+    for (var i = 0; i < conds.length; i++) conds[i].parentNode.removeChild(conds[i]);
+    return c.textContent || '';
+  }
+
   function runSetupAndRetry() {
     var prelude = document.querySelector('.webr-container');
     if (!prelude) return;
@@ -1489,13 +1501,15 @@
     }
 
     // Output-compare.
-    var got = normalizeOutput(text);
+    var got = normalizeOutput(printedText(outEl));
+    var gotAll = normalizeOutput(text);
     var want = normalizeOutput(expectedText(card));
-    if (!got) {
+    if (!got && !gotAll) {
       setVerdict(card, 'running', '…', 'Waiting for output…');
       return;
     }
-    if (got === want) {
+    if (!got) got = gotAll;           // only warnings or messages came out
+    if (got === want || gotAll === want) {
       setVerdict(card, 'pass', CHECK_SVG,
         'Correct! Your output matches the expected result.');
       markSolved(card);
