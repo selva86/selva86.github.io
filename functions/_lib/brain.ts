@@ -200,6 +200,7 @@ export async function runBrain(
     wall: (await env.KV.get("flag:wall-email")) === "on",
     flip: (await env.KV.get("flag:flip-broadcast")) === "on",
     closedShelf: (await env.KV.get("flag:closed-shelf")) === "on",
+    activate: (await env.KV.get("flag:activate-email")) === "on",
   };
 
   const candidates: Candidate[] = [];
@@ -257,6 +258,43 @@ export async function runBrain(
           next_lesson_url: lessonOpen ? `/${slug}.html` : undefined,
         },
         why: `signup ${Math.round((now - u.created_at) / 60)}min ago, gate=${gate || "none"}`,
+      });
+    }
+  }
+
+  // ---- activation nudge (account, DAILY): the account that took the welcome
+  // and still never opened a lesson. 1,227 of 1,383 accounts are in that
+  // state, so the 2-to-7-day window is doing the rate limiting: everyone
+  // older than a week has already missed it and gets nothing. One email, one
+  // link, once, and never to anyone who has started anything. ---------------
+  if (flags.activate && dailyRun) {
+    const rows = await env.DB.prepare(
+      `SELECT u.id, u.email, u.display_name, u.created_at, u.pro_until,
+              u.signup_gate, u.signup_slug, u.email_status, u.email_progress
+       FROM users u
+       WHERE u.deleted_at IS NULL
+         AND u.created_at BETWEEN ?1 AND ?2
+         AND (u.signup_site IS NULL OR u.signup_site = ?3)
+         AND (u.pro_until IS NULL OR u.pro_until < ?4)
+         -- never opened and never finished anything. lesson_start only began
+         -- recording on 2026-11-11, so for a while lesson_complete is doing
+         -- most of the work here; both are checked so it stays correct after.
+         AND NOT EXISTS (SELECT 1 FROM intent_signals s
+                          WHERE s.user_id = u.id
+                            AND s.signal IN ('lesson_start', 'lesson_complete'))
+         AND NOT EXISTS (SELECT 1 FROM sent_emails e
+                          WHERE e.user_id = u.id AND e.email_key = 'activate')
+       LIMIT 200`,
+    ).bind(now - 7 * 86400, now - 2 * 86400, SITE_KEY, now).all<UserRow>();
+    for (const u of rows.results ?? []) {
+      const slug = (u.signup_slug || "").replace(/\.html$/, "");
+      candidates.push({
+        u, key: "activate", template: "activate", category: "account", priority: 1,
+        data: {
+          first_name: u.display_name,
+          hub_url: slug ? `/${slug}.html` : undefined,
+        },
+        why: `signed up ${Math.round((now - u.created_at) / 86400)}d ago, no lesson opened`,
       });
     }
   }
