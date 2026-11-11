@@ -146,10 +146,12 @@
     }
     if (play) play.setAttribute('href', '/' + P.slug + '.html');
 
-    /* The lesson is loaded for both open and signin: signed out on a free
-       lesson it is meant to be seen, and the overlay is what stops it being
-       used. Only a locked one is never requested. */
-    if (state === 'locked') dropFrame(); else mountFrame();
+    /* The lesson is loaded in every state. Signed out on a free one it is
+       meant to be seen and the overlay only stops it being used. A Pro one is
+       loaded too, because its own page is public and serves two free steps
+       and then the gate: blurring that behind the lock shows there is
+       something here without showing anything that was not already open. */
+    mountFrame();
   }
 
   function setLesson(slug, title, pro) {

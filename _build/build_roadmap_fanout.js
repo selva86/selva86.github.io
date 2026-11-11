@@ -29,8 +29,8 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 15;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 10;    // /www/roadmap-fanout.js  likewise
+const CSS_V = 16;   // /www/roadmap-fanout.css is immutable: bump on every change
+const JS_V = 11;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -386,16 +386,16 @@ function page(trackKey) {
      lesson is not loaded at all until they are back from signing in; a Pro
      lesson shows a lock and no play button, and is never loaded for somebody
      who cannot open it. Nothing of the lesson is behind the cover in either
-     case: the blurred bars are an empty skeleton, not the real text dimmed,
-     so there is nothing to read in the markup or lift out with devtools.
+     case the real lesson is behind it: readable under a light wash when they
+     are signed out, blurred under the lock when it is a Pro one. A Pro
+     lesson's own page is public and serves two steps before its gate, so
+     nothing here is shown that was not already open.
      Without JavaScript the play button is an ordinary link to the lesson. */
-  const skel = new Array(9).fill('<span></span>').join('');
   const player = open
     ? '<div class="rmx-playwrap" data-rmx-player data-state="signin"' +
       ' data-lesson-href="/' + esc(open.slug) + '.html"' +
       ' data-lesson-title="' + esc(open.title) + '">' +
       '<div class="rmx-cover">' +
-        '<div class="rmx-skel" aria-hidden="true">' + skel + '</div>' +
         '<div class="rmx-coverin">' +
           '<span class="rmx-lock" aria-hidden="true">' + ICON_LOCK + '</span>' +
           '<a class="rmx-play" data-rmx-play href="/' + esc(open.slug) + '.html" ' +
