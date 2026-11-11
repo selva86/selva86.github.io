@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 18;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 19;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 11;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
@@ -248,6 +248,45 @@ function proPanel(L, tracks) {
     '</div>';
 }
 
+
+/* One drawing per track, of the thing the track is actually about: a fitted
+   cloud for the modeller, a forecast fan for the forecaster, a sampling
+   distribution for the researcher, and so on. Drawn at 64x64 and scaled, so
+   they stay crisp at any size. */
+const COVER_ART = {
+  // a scatter with a curve through it
+  ds: '<path d="M6 54 C 20 50, 30 30, 58 12" /><circle cx="14" cy="46" r="2.6" fill="currentColor" stroke="none"/>' +
+      '<circle cx="24" cy="44" r="2.6" fill="currentColor" stroke="none"/><circle cx="30" cy="34" r="2.6" fill="currentColor" stroke="none"/>' +
+      '<circle cx="40" cy="28" r="2.6" fill="currentColor" stroke="none"/><circle cx="46" cy="18" r="2.6" fill="currentColor" stroke="none"/>' +
+      '<circle cx="20" cy="34" r="2.6" fill="currentColor" stroke="none"/><circle cx="36" cy="42" r="2.6" fill="currentColor" stroke="none"/>',
+  // a series, then the fan of what comes next
+  ts: '<path d="M5 44 l8 -10 l7 12 l8 -16 l7 9 l6 -12" /><path d="M41 27 l17 -14" stroke-dasharray="4 4"/>' +
+      '<path d="M41 27 l17 2" stroke-dasharray="4 4"/><path d="M41 27 C 50 24, 55 18, 58 13" opacity=".55"/>' +
+      '<path d="M41 27 C 50 28, 55 28, 58 29" opacity=".55"/>',
+  // bars, read left to right
+  analyst: '<path d="M8 54 v-14" /><path d="M20 54 v-24" /><path d="M32 54 v-32" /><path d="M44 54 v-20" /><path d="M56 54 v-28" />',
+  // the first steps
+  foundations: '<path d="M6 52 h12 v-12 h12 v-12 h12 v-12 h12" />',
+  // a sampling distribution with its tail
+  researcher: '<path d="M5 48 C 18 48, 20 14, 32 14 C 44 14, 46 48, 59 48" />' +
+      '<path d="M46 48 C 50 44, 54 40, 59 48 Z" opacity=".5"/><path d="M5 52 h54" opacity=".5"/>',
+  // braces, for the one that is about writing R rather than using it
+  developer: '<path d="M26 10 C 18 10, 20 28, 12 32 C 20 36, 18 54, 26 54" />' +
+      '<path d="M38 10 C 46 10, 44 28, 52 32 C 44 36, 46 54, 38 54" />',
+  // a small network
+  mleng: '<circle cx="12" cy="18" r="4"/><circle cx="12" cy="46" r="4"/><circle cx="32" cy="32" r="4"/>' +
+      '<circle cx="52" cy="18" r="4"/><circle cx="52" cy="46" r="4"/>' +
+      '<path d="M16 20 L28 30 M16 44 L28 34 M36 30 L48 20 M36 34 L48 44" />',
+};
+
+function coverArt(key) {
+  const d = COVER_ART[key];
+  if (!d) return '';
+  return '<span class="cv-art" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">' +
+    d + '</svg></span>';
+}
+
 /* The cover tile. Drawn rather than an image: each track already carries a
    colour in roadmap-data.js, so seven covers need no seven assets and cannot
    fall out of step with the track they belong to. */
@@ -255,8 +294,11 @@ function cover(trackKey, role) {
   const L = level(trackKey);
   const c = L.color || '#1f7a55';
   return '<div class="ov-cover" style="--cv:' + esc(c) + '" aria-hidden="true">' +
+    '<i class="cv-tab"></i>' +
+    coverArt(trackKey) +
+    '<span class="cv-body"><span class="cv-rule"></span>' +
     '<span class="cv-name">' + esc(role) + '</span>' +
-    '<span class="cv-foot">r-statistics.co</span></div>';
+    '<span class="cv-foot">r-statistics.co</span></span></div>';
 }
 
 const ICON_ARROW =
