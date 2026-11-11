@@ -362,10 +362,11 @@ function shell(o) {
     '<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     '<title>' + esc(o.title) + ' · r-statistics.co</title>\n' +
     '<meta name="description" content="' + esc(o.desc.trim()) + '">\n' +
-    /* Not indexable, and pointed at the v1 track page: one curriculum on
-       several indexable URLs would only compete with itself. */
-    '<meta name="robots" content="noindex, follow">\n' +
-    '<link rel="canonical" href="https://r-statistics.co/roadmap/' + o.slug + '.html">\n' +
+    /* These are the gateway now: the navbar and the roadmap index open them,
+       so they are the indexable version and each one speaks for itself. The
+       v1 pages stay live and point their canonical here. */
+    '<meta name="robots" content="index, follow">\n' +
+    '<link rel="canonical" href="https://r-statistics.co' + o.canon + '">\n' +
     '<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml">\n' +
     '<meta name="theme-color" content="#1F6B4A">\n' +
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n' +
@@ -474,6 +475,7 @@ function page(trackKey) {
 
   return shell({
     trackKey, slug, rail: rail(trackKey, false), main,
+    canon: '/roadmap/v2/' + slug + '.html',
     title: role + ' track, lesson by lesson',
     desc: 'Every lesson in the ' + role + ' track, which are free, and what Pro opens. ' +
       (L.become ? L.become.slice(0, 110) : ''),
@@ -577,6 +579,7 @@ function overviewPage(trackKey) {
 
   return shell({
     trackKey, slug, rail: rail(trackKey, true), main,
+    canon: '/roadmap/v2/' + slug + '-overview.html',
     title: role + ' course overview',
     desc: 'The whole ' + role + ' curriculum on one page: every section, every lesson, ' +
       'and which of them are free.',

@@ -132,7 +132,9 @@ let n=1;
 
 // --- 6 role pages ---
 ROLES.forEach(function(r){
-  const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
+  /* The v2 page is the canonical one: the navbar and the roadmap index open
+     it, and this page defers to it rather than competing with it. */
+  const canon=ORIGIN+'/roadmap/v2/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
   const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=13')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
