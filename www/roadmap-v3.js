@@ -36,7 +36,9 @@
   function $(id){return document.getElementById(id);}
   function secs(k){return (window.RM2&&RM2.sections&&RM2.sections[k])||[];}
   function certName(k){var L=window.RM&&RM.byKey?RM.byKey(k):null;return (L&&L.cert)||'';}
-  function trackHref(r){return '/roadmap/'+r.slug+'.html';}
+  /* The track cards open the v2 player. The v1 pages stay live and keep
+     working; they are no longer the way in. */
+  function trackHref(r){return '/roadmap/v2/'+r.slug+'.html';}
   function plural(n,w){return n+' '+w+(n===1?'':'s');}
   function lessonsLabel(n){return n>=10?n+' interactive lessons':(n?plural(n,'lesson')+' so far':'lessons in progress');}
   function structure(k){return plural(secs(k).length,'section')+' · '+lessonsLabel(C.t[k]||0);}

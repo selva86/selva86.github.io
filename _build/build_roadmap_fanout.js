@@ -29,7 +29,7 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 23;   // /www/roadmap-fanout.css is immutable: bump on every change
+const CSS_V = 25;   // /www/roadmap-fanout.css is immutable: bump on every change
 const JS_V = 12;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
@@ -456,7 +456,15 @@ function page(trackKey) {
         '</div>' +
       '</div>' +
       '</div>'
-    : '';
+    /* No lessons built yet: say so and point at the plan, rather than leaving
+       a page with a breadcrumb on it and nothing else. */
+    : '<div class="rmx-soon">' +
+      '<h2>This track is being written</h2>' +
+      '<p>The curriculum is planned and published in full. Lessons are being ' +
+      'built section by section, and the first lesson of every section will be ' +
+      'free to run.</p>' +
+      '<a class="rmx-buy" href="/roadmap/v2/' + esc(slug) + '-overview.html">' +
+      'See the plan &rarr;</a></div>';
 
   const main =
     '<nav class="rmx-crumb"><a href="/">Home</a><span>/</span><a href="/roadmap/">Tracks</a>' +
@@ -492,24 +500,32 @@ function overviewPage(trackKey) {
   const role = meta.role || L.persona || slug;
   const track = '/roadmap/v2/' + slug + '.html';
 
-  const strip =
-    '<section class="ov-strip">' + ICON_CHART +
-    '<p><b>Track your progress.</b> <a href="/signin.html">Sign in</a>' +
-    (open ? ', or start with <a href="' + track + '#' + esc(open.slug) + '">' +
-      esc(open.title) + '</a>' : '') + '</p></section>';
+  const strip = open
+    ? '<section class="ov-strip">' + ICON_CHART +
+      '<p><b>Track your progress.</b> <a href="/signin.html">Sign in</a>' +
+      ', or start with <a href="' + track + '#' + esc(open.slug) + '">' +
+      esc(open.title) + '</a></p></section>'
+    /* Nothing to start yet. Say that, rather than inviting somebody to sign in
+       for a track with no lessons in it. */
+    : '<section class="ov-strip">' + ICON_CHART +
+      '<p><b>This track is being written.</b> The curriculum below is the plan ' +
+      'it is being built to.</p></section>';
 
   const withLessons = secs.filter((s) => (bySec[s.n] || []).length);
+  /* Every section, built or not. A track with nothing built yet still has its
+     curriculum written, and showing it beats showing an empty page. */
+  const shown = withLessons.length ? withLessons : secs;
 
-  const jump = withLessons.map((s) => {
+  const jump = shown.map((s) => {
     const n = (bySec[s.n] || []).length;
     return '<a href="#s' + pad2(s.n) + '"><span class="n">' + pad2(s.n) + '</span>' +
       '<span class="t"><b>' + esc(s.title) + '</b>' +
-      '<em>' + n + (n === 1 ? ' lesson' : ' lessons') + '</em></span>' +
+      '<em>' + (n ? n + (n === 1 ? ' lesson' : ' lessons') : 'in the plan') + '</em></span>' +
       '<span class="ar">' + ICON_ARROW + '</span></a>';
   }).join('');
 
-  const sections = withLessons.map((s) => {
-    const ls = bySec[s.n];
+  const sections = shown.map((s) => {
+    const ls = bySec[s.n] || [];
     const freeN = ls.filter((l) => !l.pro).length;
     const rows = ls.map((l, i) =>
       '<a class="ov-row ' + (l.pro ? 'is-pro' : 'is-free') + '" ' +
@@ -521,13 +537,21 @@ function overviewPage(trackKey) {
       '<span class="a">' + (l.pro ? ICON_STAR + 'Pro' : 'Free') + '</span></a>'
     ).join('');
 
+    /* Nothing built: the concepts, said plainly as a plan. Not dressed up as
+       a lesson list, because a reader who starts a track and finds nothing
+       there is worse off than one who was told. */
+    const body = ls.length
+      ? '<div class="ov-rows">' + rows + '</div>'
+      : '<div class="ov-rows"><div class="ov-planned">' +
+        esc((s.items || []).join(' \u00b7 ')) + '</div></div>';
+
     return '<section class="ov-sec" id="s' + pad2(s.n) + '">' +
       '<div class="ov-sechead"><span class="n">' + pad2(s.n) + '</span>' +
       '<span class="t"><b>' + esc(s.title) + '</b>' +
       (s.outcome ? '<em>' + esc(s.outcome) + '</em>' : '') + '</span>' +
-      '<span class="ct">' + ls.length + (ls.length === 1 ? ' lesson' : ' lessons') +
-      (freeN ? ', ' + freeN + ' free' : '') + '</span></div>' +
-      '<div class="ov-rows">' + rows + '</div></section>';
+      '<span class="ct">' + (ls.length
+        ? ls.length + (ls.length === 1 ? ' lesson' : ' lessons') + (freeN ? ', ' + freeN + ' free' : '')
+        : 'in the plan') + '</span></div>' + body + '</section>';
   }).join('\n');
 
   const main =
