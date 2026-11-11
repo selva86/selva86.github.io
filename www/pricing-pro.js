@@ -9,6 +9,18 @@
   var TRACK = { ds: 'Data Scientist', ts: 'Forecaster', researcher: 'Researcher', developer: 'R Developer' };
   var css = '.tier.held{border:2px solid var(--green);background:var(--tint)}' +
     '.tier.incl{background:var(--bg)}.tier.incl .amt,.tier.incl .tn,.tier.incl .td{color:var(--mut)}.tier.incl li svg{background:#b9c4cf}' +
+    /* The featured tier is a dark green card, so the two member states
+       above cannot lighten its background without restating every colour
+       pricing.html set for that darkness. Left out, an All-Access member
+       sees the whole card white on tint and a Lifetime member loses the
+       feature list, the per-year suffix and the monthly price line. */
+    '.tier.feat.incl{color:var(--mut);box-shadow:none}' +
+    '.tier.feat.incl .td,.tier.feat.incl .per,.tier.feat.incl .ctaline,.tier.feat.incl .bill,.tier.feat.incl ul{color:var(--mut)}' +
+    '.tier.feat.incl .ctaline strong{color:var(--mut)}' +
+    '.tier.feat.held{color:var(--ink)}' +
+    '.tier.feat.held .td,.tier.feat.held .per,.tier.feat.held .ctaline,.tier.feat.held .bill{color:var(--body)}' +
+    '.tier.feat.held .tn,.tier.feat.held .amt,.tier.feat.held .ctaline strong,.tier.feat.held ul{color:var(--ink)}' +
+    '.tier.feat.incl ul,.tier.feat.held ul{border-top-color:var(--line)}' +
     '.tier .ribbon.you{background:var(--green-deep)}' +
     '.tier .cta.quiet{background:#fff;color:var(--green);border-color:var(--green)}.tier .cta.quiet:hover{background:var(--tint);color:var(--green)}' +
     '.tier .cta.flat,.tier .cta.flat:hover{background:transparent;border-color:var(--line);color:var(--mut);cursor:default}' +
