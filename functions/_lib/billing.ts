@@ -40,36 +40,59 @@ interface MirrorRow {
 // Resolve which site user a subscription belongs to. Order: explicit
 // custom_data.user_id -> existing mirror row (renewals) -> a user already
 // linked to this Paddle customer -> custom_data.email match.
+/* WHY the lookup came back empty, which is the whole difference between "this
+   buyer has no account, go and link it" and "the database did not answer, ask
+   again in a minute". Every route below used to end in .catch(() => null), so
+   a D1 outage and a genuine stranger returned the same value, and the webhook
+   treated both as final. One of them would have healed itself on a retry. */
+export type SubUserResolution =
+  | { user: User; cause: null }
+  | { user: null; cause: "no_match" }
+  | { user: null; cause: "lookup_failed"; error: string };
+
 export async function resolveSubscriptionUser(
   db: D1Database,
   input: { subId: string; userId: string; customerId: string | null; email: string | null },
-): Promise<User | null> {
-  if (input.userId) {
-    const u = await getUserById(db, input.userId).catch(() => null);
-    if (u) return u;
+): Promise<SubUserResolution> {
+  let failure: string | null = null;
+  /* A route that throws is remembered and the next one is still tried: one
+     broken index should not strand a buyer whose email would have matched.
+     "no_match" is only claimed when every route ran and none of them did. */
+  async function route<T>(fn: () => Promise<T | null>): Promise<T | null> {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!failure) failure = (err as Error).message || "unknown database error";
+      return null;
+    }
   }
-  const mirror = await db
+
+  if (input.userId) {
+    const u = await route(() => getUserById(db, input.userId));
+    if (u) return { user: u, cause: null };
+  }
+  const mirror = await route(() => db
     .prepare("SELECT user_id FROM subscriptions WHERE provider = 'paddle' AND external_id = ?")
     .bind(input.subId)
-    .first<{ user_id: string }>()
-    .catch(() => null);
+    .first<{ user_id: string }>());
   if (mirror?.user_id) {
-    const u = await getUserById(db, mirror.user_id).catch(() => null);
-    if (u) return u;
+    const u = await route(() => getUserById(db, mirror.user_id));
+    if (u) return { user: u, cause: null };
   }
   if (input.customerId) {
-    const u = await db
+    const u = await route(() => db
       .prepare("SELECT * FROM users WHERE paddle_customer_id = ? AND deleted_at IS NULL")
-      .bind(input.customerId)
-      .first<User>()
-      .catch(() => null);
-    if (u) return u;
+      .bind(input.customerId as string)
+      .first<User>());
+    if (u) return { user: u, cause: null };
   }
   if (input.email) {
-    const u = await getUserByEmail(db, input.email).catch(() => null);
-    if (u) return u;
+    const u = await route(() => getUserByEmail(db, input.email as string));
+    if (u) return { user: u, cause: null };
   }
-  return null;
+  return failure
+    ? { user: null, cause: "lookup_failed", error: failure }
+    : { user: null, cause: "no_match" };
 }
 
 // Upsert the subscriptions mirror row, guarded against out-of-order events.
