@@ -238,8 +238,10 @@ function proPanel(L, tracks) {
         /* The saving is the USD one; the script restates it from the real
            localized figures when Paddle has previewed them. */
         '<span class="rmx-save" data-rmx-save="year">save 60%</span>' +
-        '<span class="r"><b data-rmx-price="year">$129</b>' +
-        '<em data-rmx-permonth="year">about $10.75 a month</em></span>' +
+        '<span class="r"><b data-rmx-price="year">$128</b>' +
+        /* The figure the script computes, rounded the way it rounds it, so
+           the number does not jump when Paddle answers. */
+        '<em data-rmx-permonth="year">about $11 a month</em></span>' +
       '</button>' +
       /* Quarterly deliberately carries no saving badge. .rmx-save is absolutely
          positioned above its own row, so a badge on the second row lands in the
@@ -250,12 +252,12 @@ function proPanel(L, tracks) {
          carry, so its button opens Paddle rather than linking away. */
       '<button type="button" class="rmx-opt" data-rmx-opt="quarter" aria-pressed="false">' +
         '<span class="l"><b>All-Access, 3 months</b><em>Billed once a quarter</em></span>' +
-        '<span class="r"><b data-rmx-price="quarter">$69</b>' +
+        '<span class="r"><b data-rmx-price="quarter">$68</b>' +
         '<em data-rmx-permonth="quarter">about $23 a month</em></span>' +
       '</button>' +
       '<button type="button" class="rmx-opt" data-rmx-opt="lifetime" aria-pressed="false">' +
         '<span class="l"><b>Lifetime</b><em>One payment, no renewal</em></span>' +
-        '<span class="r"><b data-rmx-price="lifetime">$279</b><em>paid once</em></span>' +
+        '<span class="r"><b data-rmx-price="lifetime">$278</b><em>paid once</em></span>' +
       '</button>' +
     '</div>' +
     '<a class="rmx-buy" data-rmx-buy href="/pricing.html#plans">Buy now &rarr;</a>' +

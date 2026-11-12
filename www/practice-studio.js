@@ -266,7 +266,7 @@
     ui.up.appendChild(el('div', 'rs-card rs-upcard',
       '<h3>Unlimited graded practice</h3>' +
       '<p>Pro removes the monthly check allowance and opens every lesson in all seven tracks.</p>' +
-      '<div class="rs-upprice"><b>$14</b><span>a month, or $129 a year</span></div>' +
+      '<div class="rs-upprice"><b>$27</b><span>a month, or $128 a year</span></div>' +
       '<p class="rs-upnote">14-day full refund, no questions asked. Cancel anytime.</p>' +
       '<div class="rs-cardrow"><a class="rs-btn p" href="/pricing.html">See the plans</a>' +
       '<button class="rs-btn rs-close" type="button">Not now</button></div>'));

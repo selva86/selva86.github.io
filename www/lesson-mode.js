@@ -705,7 +705,7 @@
          wall that says 23% over a code worth something else is a broken promise
          printed in the one place somebody is about to pay. */
       var cPct = c ? (String(c.code).match(/^(?:PASS|PRO|SAVE|BACK)(\d{1,2})/) || [0, '23'])[1] : '';
-      if (price) price.textContent = c ? 'Your ' + cPct + '% code ' + c.code + ' is applied at checkout.' : '$129 a year, or $14 a month.';
+      if (price) price.textContent = c ? 'Your ' + cPct + '% code ' + c.code + ' is applied at checkout.' : '$128 a year, or $27 a month.';
       if (fine) fine.textContent = '14-day full refund, no questions asked. Cancel anytime.';
       /* THE WALL MAY ASK, IT MAY NOT BROADCAST (2026-10-19). This is the highest
          intent surface on the site: somebody wanted one specific locked lesson.
