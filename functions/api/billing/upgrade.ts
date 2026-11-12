@@ -27,7 +27,14 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
   if (!sub || !sub.plan.startsWith("single")) {
     return jsonError(409, "not_upgradable", "Only Single Track plans can be upgraded here.");
   }
-  const term = sub.plan.endsWith("_month") ? "month" : "year";
+  /* Named, not defaulted. Only Single plans reach this line and no Single
+     quarterly price exists, so the old two-way test was correct today; but it
+     arrived at "year" by falling through, which would quietly move a future
+     quarterly member onto an annual subscription. Refuse instead. */
+  const term = sub.plan.endsWith("_month") ? "month" : sub.plan.endsWith("_year") ? "year" : null;
+  if (!term) {
+    return jsonError(409, "not_upgradable", "This plan's billing term cannot be upgraded here.");
+  }
   const priceId = term === "month" ? context.env.PADDLE_PRICE_AA_MONTH : context.env.PADDLE_PRICE_AA_YEAR;
   if (!priceId) return jsonError(503, "not_configured", "All-Access is not available for this term yet.");
 

@@ -59,7 +59,9 @@ export function planLabel(plan: string | null | undefined): string {
   if (p === "lifetime") return "Lifetime";
   if (p === "teams") return "Teams";
   const tier = p.startsWith("single") ? "Single Track" : p.startsWith("allaccess") || p.startsWith("pro") ? "All-Access" : p;
-  const term = /month/.test(p) ? "monthly" : /year|annual/.test(p) ? "yearly" : "";
+  const term = /quarter/.test(p)
+    ? "quarterly"
+    : /month/.test(p) ? "monthly" : /year|annual/.test(p) ? "yearly" : "";
   return term ? `${tier}, ${term}` : tier || "Pro";
 }
 

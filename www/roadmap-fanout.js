@@ -277,13 +277,17 @@
         var p = cfg && cfg.paddle;
         if (!p || !p.clientToken) return;          // dormant: keep the baked USD
         var aa = (p.prices && p.prices.allaccess) || {};
-        var ids = { year: aa.year, month: aa.month, lifetime: p.prices && p.prices.lifetime };
+        var ids = { year: aa.year, quarter: aa.quarter, month: aa.month, lifetime: p.prices && p.prices.lifetime };
+        /* Quarterly is the one plan that may not be provisioned. Remove the
+           row rather than leave it showing the baked USD fallback above a
+           button that cannot resolve a price. */
+        if (!ids.quarter) dropOpt('quarter');
         var items = [];
         /* The monthly price is previewed although nothing shows it: the saving
            and the per-month equivalent are worked out from the real localized
            figures, because a saving calculated in dollars is wrong in rupees
            and the page would be quoting one while charging the other. */
-        ['year', 'month', 'lifetime'].forEach(function (k) {
+        ['year', 'quarter', 'month', 'lifetime'].forEach(function (k) {
           if (ids[k] && items.indexOf(ids[k]) < 0) items.push(ids[k]);
         });
         if (!items.length) return;
@@ -303,38 +307,59 @@
                 var txt = byId[ids[el.getAttribute('data-rmx-price')]];
                 if (txt) el.textContent = txt;
               });
-              restate(raw[ids.year], raw[ids.month], ccy);
+              restate(raw, ids, ccy);
             }).catch(function () {});
         });
       }).catch(function () {});
   }
 
-  /* The per-month equivalent and the saving, from the figures Paddle actually
-     quoted this visitor. If either price is missing the saving is removed
-     rather than guessed: a wrong discount claim is worse than none. */
-  function restate(year, month, ccy) {
-    var pm = $('[data-rmx-permonth]'), save = $('[data-rmx-save]');
-    if (!year || !month) { if (save) save.style.display = 'none'; return; }
-    if (pm) {
-      try {
-        pm.textContent = 'about ' + new Intl.NumberFormat(undefined, {
-          style: 'currency', currency: ccy, maximumFractionDigits: 0
-        }).format(year / 12 / 100) + ' a month';
-      } catch (e) {}
-    }
-    if (save) {
-      var pct = Math.round((1 - (year / 12) / month) * 100);
-      if (pct > 0) save.textContent = 'save ' + pct + '%';
-      else save.style.display = 'none';
-    }
+  /* Remove a plan row the catalog does not carry, so the panel never shows a
+     price nobody can buy. */
+  function dropOpt(term) {
+    var el = $('[data-rmx-opt="' + term + '"]');
+    if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
-  /* The two plan rows are a choice, not two cards to compare, so picking one
-     moves where the button goes. */
+  /* The per-month equivalents and the annual saving, from the figures Paddle
+     actually quoted this visitor, because a saving worked out in dollars is
+     wrong in rupees. A term whose price is missing loses its badge rather than
+     guessing one: a wrong discount claim is worse than none. Quarterly has no
+     badge by design, so the annual saving stays the one number in the box. */
+  function restate(raw, ids, ccy) {
+    var month = raw[ids.month];
+    [['year', 12], ['quarter', 3]].forEach(function (pair) {
+      var term = pair[0], months = pair[1], total = raw[ids[term]];
+      var pm = $('[data-rmx-permonth="' + term + '"]');
+      var save = $('[data-rmx-save="' + term + '"]');
+      if (!total || !month) { if (save) save.style.display = 'none'; return; }
+      if (pm) {
+        try {
+          pm.textContent = 'about ' + new Intl.NumberFormat(undefined, {
+            style: 'currency', currency: ccy, maximumFractionDigits: 0
+          }).format(total / months / 100) + ' a month';
+        } catch (e) {}
+      }
+      if (save) {
+        var pct = Math.round((1 - (total / months) / month) * 100);
+        if (pct > 0) save.textContent = 'save ' + pct + '%';
+        else save.style.display = 'none';
+      }
+    });
+  }
+
+  /* The plan rows are a choice, not cards to compare, so picking one moves
+     where the button goes. */
   function initPlans() {
     var opts = $$('[data-rmx-opt]');
     var buy = $('[data-rmx-buy]');
     if (!opts.length) return;
+
+    function aim(term) {
+      if (!buy) return;
+      buy.setAttribute('data-rmx-term', term || 'year');
+      buy.href = term === 'lifetime' ? '/pricing.html#lifetime' : '/pricing.html#plans';
+    }
+
     opts.forEach(function (b) {
       b.addEventListener('click', function () {
         opts.forEach(function (x) {
@@ -343,12 +368,26 @@
         });
         b.classList.add('on');
         b.setAttribute('aria-pressed', 'true');
-        if (buy) {
-          buy.href = b.getAttribute('data-rmx-opt') === 'lifetime'
-            ? '/pricing.html#lifetime' : '/pricing.html#plans';
-        }
+        aim(b.getAttribute('data-rmx-opt'));
       });
     });
+
+    /* Quarterly is sold here and deliberately not on the pricing page, so
+       sending a quarterly buyer there would land them on a page without the
+       plan they just picked. It opens Paddle from this page instead, through
+       the same checkout every other purchase goes through, so the customData
+       the entitlement webhook reads is built in exactly one place. The href
+       stays a working fallback if that script never loads. */
+    if (buy) {
+      var on = $('[data-rmx-opt].on');
+      aim(on ? on.getAttribute('data-rmx-opt') : 'year');
+      buy.addEventListener('click', function (ev) {
+        if (buy.getAttribute('data-rmx-term') !== 'quarter') return;
+        if (!window.rsCheckout) return;
+        ev.preventDefault();
+        window.rsCheckout.open('allaccess', { term: 'quarter' });
+      });
+    }
   }
 
   function loadPaddle(cfg, done) {

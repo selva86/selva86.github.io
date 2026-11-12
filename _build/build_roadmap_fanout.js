@@ -30,7 +30,7 @@ const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
 const CSS_V = 25;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 12;    // /www/roadmap-fanout.js  likewise
+const JS_V = 13;    // /www/roadmap-fanout.js  likewise
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */
@@ -237,9 +237,21 @@ function proPanel(L, tracks) {
         '<span class="l"><b>All-Access annual</b><em>Billed once a year</em></span>' +
         /* The saving is the USD one; the script restates it from the real
            localized figures when Paddle has previewed them. */
-        '<span class="rmx-save" data-rmx-save>save 43%</span>' +
+        '<span class="rmx-save" data-rmx-save="year">save 60%</span>' +
         '<span class="r"><b data-rmx-price="year">$129</b>' +
-        '<em data-rmx-permonth>about $10.75 a month</em></span>' +
+        '<em data-rmx-permonth="year">about $10.75 a month</em></span>' +
+      '</button>' +
+      /* Quarterly deliberately carries no saving badge. .rmx-save is absolutely
+         positioned above its own row, so a badge on the second row lands in the
+         8px grid gap and sits on the row above it; and leaving it off keeps the
+         annual saving as the one number the eye is drawn to, which is the plan
+         worth selling. The script removes this row when the quarterly price is
+         not provisioned, and it is the only plan here the pricing page does not
+         carry, so its button opens Paddle rather than linking away. */
+      '<button type="button" class="rmx-opt" data-rmx-opt="quarter" aria-pressed="false">' +
+        '<span class="l"><b>All-Access, 3 months</b><em>Billed every 3 months</em></span>' +
+        '<span class="r"><b data-rmx-price="quarter">$69</b>' +
+        '<em data-rmx-permonth="quarter">about $23 a month</em></span>' +
       '</button>' +
       '<button type="button" class="rmx-opt" data-rmx-opt="lifetime" aria-pressed="false">' +
         '<span class="l"><b>Lifetime</b><em>One payment, no renewal</em></span>' +
@@ -247,7 +259,10 @@ function proPanel(L, tracks) {
       '</button>' +
     '</div>' +
     '<a class="rmx-buy" data-rmx-buy href="/pricing.html#plans">Buy now &rarr;</a>' +
-    '<p class="rmx-fine"><a href="/pricing.html">View all plans</a> &middot; ' +
+    /* Not "all plans" any more: the quarterly row above is sold here and not
+       on the pricing page, so a link promising every plan would be false the
+       moment somebody followed it. */
+    '<p class="rmx-fine"><a href="/pricing.html">Other plans</a> &middot; ' +
     'Already Pro? <a href="/signin.html">Sign in</a></p>' +
     '</div>';
 }
@@ -387,6 +402,9 @@ function shell(o) {
     offerDialog() + '\n' +
     (chrome.foot || '') + '\n' +
     chrome.scripts.join('\n') + '\n' +
+    /* Only the track page carries the Pro panel, and only the panel needs a
+       checkout. The overview page does not get this script. */
+    (o.buy ? '<script defer src="/www/checkout.js?v=2"></script>\n' : '') +
     '<script defer src="/www/roadmap-fanout.js?v=' + JS_V + '"></script>\n' +
     chrome.cf + '\n' +
     '</body>\n</html>\n';
@@ -475,6 +493,9 @@ function page(trackKey) {
 
   return shell({
     trackKey, slug, rail: rail(trackKey, false), main,
+    /* This page has the Pro panel, which sells the quarterly plan and so has
+       to be able to open a checkout. */
+    buy: true,
     canon: '/roadmap/v2/' + slug + '.html',
     title: role + ' track, lesson by lesson',
     desc: 'Every lesson in the ' + role + ' track, which are free, and what Pro opens. ' +

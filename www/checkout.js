@@ -3,7 +3,7 @@
 
    window.rsCheckout.ready(cb)         cb({prices, currency, fmt}) once Paddle has localized
    window.rsCheckout.open(plan, opts)  plan: 'allaccess' | 'single' | 'lifetime';
-                                       opts: {term:'year'|'month', track, code}
+                                       opts: {term:'year'|'quarter'|'month', track, code}
    window.rsCheckout.price(plan, term) formatted localized total, or null before ready
 
    Reads the same public config as pricing.html (/api/_auth-config: client
@@ -40,7 +40,12 @@
     var P = (cfg && cfg.prices) || {};
     if (plan === 'lifetime') return P.lifetime || null;
     var g = P[plan]; if (!g) return null;
-    return g[term === 'month' ? 'month' : 'year'] || null;
+    /* An unnamed term still means annual, which is what a plain link into
+       checkout intends. A term that IS named but not provisioned returns null
+       so open() falls back to the pricing page: quietly charging a year to
+       somebody who picked three months is the worst outcome available. */
+    var k = term === 'month' ? 'month' : term === 'quarter' ? 'quarter' : 'year';
+    return g[k] || null;
   }
   function fmtWhole(raw, cur) {
     var n = parseInt(raw, 10); if (!isFinite(n)) return null;
@@ -99,7 +104,12 @@
     var id = priceId(plan, opts.term);
     if (!id) { location.href = '/pricing.html'; return; }
     var c = claims(t);
-    var cd = { user_id: c.sub || '', plan: plan, term: plan === 'lifetime' ? 'once' : (opts.term === 'month' ? 'month' : 'year') };
+    var cd = {
+      user_id: c.sub || '', plan: plan,
+      term: plan === 'lifetime' ? 'once'
+        : opts.term === 'month' ? 'month'
+        : opts.term === 'quarter' ? 'quarter' : 'year',
+    };
     if (plan === 'single' && opts.track) cd.track = opts.track;
     try {
       window.Paddle.Checkout.open({

@@ -42,7 +42,7 @@ export interface LedgerSub {
   id: string;                // paddle subscription id, or the txn id for lifetime
   plan: string;
   status: string;
-  cycle: "month" | "year" | "once";
+  cycle: "month" | "quarter" | "year" | "once";
   created_at: number | null;
   current_period_end: number | null;
   cancel_at_period_end: number;
@@ -97,6 +97,7 @@ export interface Ledger {
     refunded_count: number;
     monthly_net: number;     // net recurring per month, annuals spread over 12
     active_monthly: number;
+    active_quarterly: number;
     active_annual: number;
   };
   upcoming: Array<{
@@ -133,9 +134,10 @@ interface SubRow {
   paddle_customer_id: string | null;
 }
 
-function cycleOf(plan: string): "month" | "year" | "once" {
+function cycleOf(plan: string): "month" | "quarter" | "year" | "once" {
   if (plan === "lifetime") return "once";
   if (plan.endsWith("_month")) return "month";
+  if (plan.endsWith("_quarter")) return "quarter";
   if (plan.endsWith("_year")) return "year";
   return "once";
 }
@@ -299,10 +301,12 @@ export async function loadLedger(db: D1Database, nowSec?: number): Promise<Ledge
     return bm - am;
   });
 
-  // Net recurring per month: a monthly plan contributes its latest charge, an
-  // auto-renewing annual one twelfth of its latest. A plan already scheduled
-  // to cancel contributes nothing, because it will not bill again.
-  let monthlyNet = 0, activeMonthly = 0, activeAnnual = 0;
+  // Net recurring per month: a monthly plan contributes its latest charge, a
+  // quarterly one a third of it, an auto-renewing annual one twelfth. A plan
+  // already scheduled to cancel contributes nothing, because it will not bill
+  // again. Until quarterly was named here cycleOf() fell through to "once",
+  // and the skip below dropped those subscriptions out of revenue entirely.
+  let monthlyNet = 0, activeMonthly = 0, activeQuarterly = 0, activeAnnual = 0;
   for (const c of list) {
     for (const s of c.subs) {
       const live = s.status === "active" || s.status === "trialing";
@@ -310,6 +314,7 @@ export async function loadLedger(db: D1Database, nowSec?: number): Promise<Ledge
       const net = s.payments[s.payments.length - 1]?.earnings || 0;
       const willBill = !s.cancel_at_period_end;
       if (s.cycle === "month") { activeMonthly += 1; if (willBill) monthlyNet += net; }
+      else if (s.cycle === "quarter") { activeQuarterly += 1; if (willBill) monthlyNet += net / 3; }
       else { activeAnnual += 1; if (willBill) monthlyNet += net / 12; }
     }
   }
@@ -337,6 +342,7 @@ export async function loadLedger(db: D1Database, nowSec?: number): Promise<Ledge
       refunded_count: refundedCount,
       monthly_net: Math.round(monthlyNet),
       active_monthly: activeMonthly,
+      active_quarterly: activeQuarterly,
       active_annual: activeAnnual,
     },
     upcoming: upcoming.sort((a, b) => a.at - b.at),

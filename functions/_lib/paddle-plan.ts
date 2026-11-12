@@ -13,6 +13,7 @@ export interface PlanPriceEnv {
   PADDLE_PRICE_SINGLE_MONTH?: string;
   PADDLE_PRICE_SINGLE_YEAR?: string;
   PADDLE_PRICE_AA_MONTH?: string;
+  PADDLE_PRICE_AA_QUARTER?: string;
   PADDLE_PRICE_AA_YEAR?: string;
   PADDLE_PRICE_LIFETIME?: string;
   PADDLE_PRICE_SINGLE_YEAR_LOCK?: string;
@@ -40,6 +41,7 @@ export function individualPlan(data: PaddlePlanData, env: PlanPriceEnv): string 
     single_month: env.PADDLE_PRICE_SINGLE_MONTH,
     single_year: env.PADDLE_PRICE_SINGLE_YEAR,
     allaccess_month: env.PADDLE_PRICE_AA_MONTH,
+    allaccess_quarter: env.PADDLE_PRICE_AA_QUARTER,
     allaccess_year: env.PADDLE_PRICE_AA_YEAR,
     lifetime: env.PADDLE_PRICE_LIFETIME,
     /* The price-lock prices are the same plans with the first charge pushed

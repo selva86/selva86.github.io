@@ -150,7 +150,14 @@ const DASHBOARD_LINE =
 // their next lesson is picked up on every later visit.
 export function describePlan(plan: string, track?: string | null): PlanCopy {
   const t = track && TRACKS[track] ? TRACKS[track] : null;
-  const term = plan.endsWith("_month") ? "billed monthly" : "billed yearly";
+  /* Read off the plan, never defaulted to yearly: this string goes into a
+     receipt, and a plan that bills every 3 months described as "billed
+     yearly" is a wrong renewal term in writing. */
+  const term = plan.endsWith("_month")
+    ? "billed monthly"
+    : plan.endsWith("_quarter")
+      ? "billed every 3 months"
+      : "billed yearly";
 
   if (plan === "lifetime") {
     return {

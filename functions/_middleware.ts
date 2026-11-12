@@ -248,6 +248,7 @@ export interface Env {
   PADDLE_PRICE_SINGLE_MONTH?: string; // individual-plan price ids, surfaced via /api/_auth-config
   PADDLE_PRICE_SINGLE_YEAR?: string;
   PADDLE_PRICE_AA_MONTH?: string;
+  PADDLE_PRICE_AA_QUARTER?: string;   // roadmap Pro panel only; see _auth-config
   PADDLE_PRICE_AA_YEAR?: string;
   PADDLE_PRICE_LIFETIME?: string;
   RAZORPAY_KEY_ID: string;
