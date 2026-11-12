@@ -81,7 +81,11 @@
   }
   function preview() {
     var P = cfg.prices || {}, items = [];
-    [P.single && P.single.month, P.single && P.single.year, P.allaccess && P.allaccess.month, P.allaccess && P.allaccess.year, P.lifetime]
+    /* Quarterly is listed so price() can answer for every term priceId()
+       resolves. One extra item in a preview that is already happening. */
+    [P.single && P.single.month, P.single && P.single.year,
+      P.allaccess && P.allaccess.month, P.allaccess && P.allaccess.quarter,
+      P.allaccess && P.allaccess.year, P.lifetime]
       .forEach(function (id) { if (id) items.push({ priceId: id, quantity: 1 }); });
     if (!items.length) { flush(); return; }
     window.Paddle.PricePreview({ items: items }).then(function (r) {
