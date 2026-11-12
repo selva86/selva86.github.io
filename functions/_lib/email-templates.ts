@@ -239,7 +239,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "the end of your first 30 days",
-      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "welcome"),
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/v2/data-analyst.html", "welcome"),
       course_line: d.course_title
         ? `${d.course_title} is open again and your place is saved, so you can carry on right where the wall stopped you.`
         : "The lesson you were reading is open again and your place is saved.",
@@ -251,7 +251,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "the end of your first 30 days",
-      start_url: utm("/roadmap/data-analyst.html", "welcome"),
+      start_url: utm("/roadmap/v2/data-analyst.html", "welcome"),
     }),
   },
   /* The account that took the welcome and still never opened a lesson. One
@@ -273,7 +273,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "soon",
-      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-23"),
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/v2/data-analyst.html", "pass-23"),
     }),
   },
   "pass-27": {
@@ -292,7 +292,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     linkTokens: ["next_lesson_url"], required: ["next_lesson_url"],
     fills: (d) => ({
       first_name: firstName(d),
-      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-30"),
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/v2/data-analyst.html", "pass-30"),
       coupon_line: d.coupon_line || "",
     }),
   },
@@ -337,7 +337,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "30 days from today",
-      start_url: utm("/roadmap/data-analyst.html", "flip"),
+      start_url: utm("/roadmap/v2/data-analyst.html", "flip"),
     }),
   },
 };

@@ -73,12 +73,12 @@ const REFUND_LINE =
 // Roadmap destination per Single-track scope key (matches the TRACK_KEYS set
 // in webhooks/paddle.ts and the pricing-page chips).
 const TRACKS: Record<string, { name: string; path: string }> = {
-  ds: { name: "Data Scientist", path: "/roadmap/data-scientist.html" },
-  ts: { name: "Forecaster", path: "/roadmap/forecaster.html" },
-  researcher: { name: "Researcher", path: "/roadmap/researcher.html" },
-  developer: { name: "R Developer", path: "/roadmap/r-developer.html" },
-  analyst: { name: "Data Analyst", path: "/roadmap/data-analyst.html" },
-  foundations: { name: "New to R", path: "/roadmap/new-to-r.html" },
+  ds: { name: "Data Scientist", path: "/roadmap/v2/data-scientist.html" },
+  ts: { name: "Forecaster", path: "/roadmap/v2/forecaster.html" },
+  researcher: { name: "Researcher", path: "/roadmap/v2/researcher.html" },
+  developer: { name: "R Developer", path: "/roadmap/v2/r-developer.html" },
+  analyst: { name: "Data Analyst", path: "/roadmap/v2/data-analyst.html" },
+  foundations: { name: "New to R", path: "/roadmap/v2/new-to-r.html" },
 };
 
 // Currencies with no minor unit. Paddle amounts are always in the lowest

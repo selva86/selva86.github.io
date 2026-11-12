@@ -325,7 +325,7 @@ export async function runBrain(
         const dataCommon: TemplateData = {
           first_name: u.display_name,
           pass_end_date: fmtDate(endsAt),
-          next_lesson_url: "/roadmap/data-analyst.html",
+          next_lesson_url: "/roadmap/v2/data-analyst.html",
         };
         if (day >= 23 && day <= 25) {
           candidates.push({ u, key: "pass-23", template: "pass-23", category: "offers", priority: 5, data: dataCommon, why: `pass day ${day}` });
