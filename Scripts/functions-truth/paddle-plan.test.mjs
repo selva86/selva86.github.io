@@ -30,6 +30,7 @@ const ENV = {
   PADDLE_PRICE_SINGLE_MONTH: "pri_single_m",
   PADDLE_PRICE_SINGLE_YEAR: "pri_single_y",
   PADDLE_PRICE_AA_MONTH: "pri_aa_m",
+  PADDLE_PRICE_AA_QUARTER: "pri_aa_q",
   PADDLE_PRICE_AA_YEAR: "pri_aa_y",
   PADDLE_PRICE_LIFETIME: "pri_life",
   PADDLE_PRICE_SINGLE_YEAR_LOCK: "pri_single_lock",
@@ -100,6 +101,57 @@ eq(P.planLabel(buy("pri_life"), ENV, TEAMS), "lifetime", "lifetime label");
 eq(P.planLabel(buy("pri_aa_y"), ENV, TEAMS), "allaccess year", "all-access year label");
 eq(P.planLabel(buy(TEAMS, null, 5), ENV, TEAMS), "teams", "teams label");
 eq(P.planLabel(buy("pri_other", { plan: "lifetime" }), ENV, TEAMS), "", "unknown price: no label");
+
+// ---- A SUPERSEDED PRICE MUST NOT STOP ENTITLING THE PLAN IT SELLS. -------
+// Replacing a price is the ordinary way to change one, and the old price keeps
+// its subscribers by design. So the retired generation stops being named in
+// the environment while people are still paying through it. On 2026-11-12
+// eight live subscriptions were in exactly that state, every one of them due
+// to renew into nothing. The catalog metadata on the price is the bridge.
+const metaAaMonth = { plan: "all_access", term: "monthly" };
+const metaSgMonth = { plan: "single_track", term: "monthly" };
+
+eq(P.individualPlan(buy("pri_retired_aa_m", null, 1, metaAaMonth), ENV), "allaccess_month",
+  "a price no longer in the environment resolves from its catalog metadata");
+eq(P.individualPlan(buy("pri_retired_sg_m", null, 1, metaSgMonth), ENV), "single_month",
+  "same for a retired single-track price");
+eq(P.individualPlan(buy("pri_retired_q", null, 1, { plan: "all_access", term: "quarterly" }), ENV), "allaccess_quarter",
+  "quarterly resolves from metadata too");
+eq(P.individualPlan(buy("pri_retired_life", null, 1, { plan: "lifetime", term: "one_time" }), ENV), "lifetime",
+  "lifetime ignores the term");
+eq(P.individualPlan(buy("pri_aa_q"), ENV), "allaccess_quarter", "configured quarterly price");
+
+// The configured id stays the authority; metadata only answers its silence.
+eq(P.individualPlan(buy("pri_aa_y", null, 1, metaSgMonth), ENV), "allaccess_year",
+  "a configured id wins over whatever the catalog metadata claims");
+
+// A seat price is not an individual plan, however it is labelled.
+eq(P.individualPlan(buy("pri_unknown_seats", null, 5, { plan: "teams", term: "annual" }), ENV), null,
+  "teams metadata never grants an individual plan");
+
+// Unknown values are refused rather than guessed at.
+eq(P.individualPlan(buy("pri_x", null, 1, { plan: "all_access", term: "fortnightly" }), ENV), null,
+  "an unrecognised term entitles nothing");
+eq(P.individualPlan(buy("pri_x", null, 1, { plan: "enterprise", term: "annual" }), ENV), null,
+  "an unrecognised plan entitles nothing");
+eq(P.individualPlan(buy("pri_x", null, 1, null), ENV), null,
+  "a price with no metadata still entitles nothing");
+
+// The guarantee this module exists for is untouched: the entity custom_data,
+// which is whatever the buyer's browser passed, is still never a plan.
+eq(P.individualPlan(buy("pri_x", { plan: "all_access", term: "annual" }), ENV), null,
+  "the entity custom_data a browser can write is still ignored");
+
+// ---- A LOCK IS A LOCK EVEN WHEN ITS ID IS NOT CONFIGURED. ----------------
+// Without this the fallback above would grant a deferred-charge plan at once
+// and forget its 60 days, which is 60 days of Pro given away in silence.
+const metaLock = { plan: "all_access", term: "annual", price_lock: true, lock_days: 60 };
+eq(P.isPriceLock(buy("pri_future_lock", null, 1, metaLock), ENV), true,
+  "an unconfigured lock price is still recognised, from its catalog flag");
+eq(P.individualPlan(buy("pri_future_lock", null, 1, metaLock), ENV), "allaccess_year",
+  "and it still resolves to the plan whose charge it defers");
+eq(P.isPriceLock(buy("pri_aa_y", null, 1, { plan: "all_access", term: "annual" }), ENV), false,
+  "an ordinary annual price is not a lock");
 
 console.log(`${n - fails}/${n} checks passed${fails ? `, ${fails} FAILED` : ""}`);
 process.exit(fails ? 1 : 0);

@@ -30,10 +30,12 @@ import type { Env, RequestData } from "../../_middleware";
 import { json, jsonError } from "../../_lib/errors";
 import { paddleApiBase } from "../../_lib/paddle";
 import { alertOps } from "../../_lib/ops-alert";
+import { planFromCatalog } from "../../_lib/paddle-plan";
 
 interface PaddlePrice {
   id: string;
   status?: string;
+  custom_data?: Record<string, unknown> | null;
   description?: string;
   unit_price?: { amount?: string; currency_code?: string };
   unit_price_overrides?: Array<{
@@ -130,6 +132,9 @@ export const onRequestPost: PagesFunction<Env & { CRON_SECRET?: string }, string
 
   // ---- 3. every live subscription is on a price we still recognise --------
   const known = new Set(CONFIGURED.map(([, id]) => id).filter(Boolean) as string[]);
+  /* Reported, never alerted: a subscription on a retired price is normal and
+     correct, and it is useful to see how many are still out there. */
+  const legacy: string[] = [];
   let subsSeen = 0;
   try {
     const r = await fetch(`${paddleApiBase(apiKey)}/subscriptions?per_page=200&status=active`, {
@@ -141,11 +146,20 @@ export const onRequestPost: PagesFunction<Env & { CRON_SECRET?: string }, string
         subsSeen++;
         for (const it of s.items ?? []) {
           const pid = it.price?.id;
-          if (pid && !known.has(pid)) {
-            findings.push({ check: "subscription_orphaned", severity: "critical",
-              detail: `Live subscription ${s.id} bills price ${pid}, which is in no PADDLE_PRICE_* variable. ` +
-                      `It will entitle nothing on its next renewal.` });
+          if (!pid || known.has(pid)) continue;
+          /* Not configured is not the same as not entitling. A superseded
+             price keeps its subscribers on purpose, and individualPlan falls
+             back to the catalog metadata for exactly that case, so ask the
+             same function the webhook asks rather than a copy of its rule. */
+          const p = await getPrice(apiKey, pid);
+          const viaCatalog = "error" in p ? null : planFromCatalog(p.custom_data);
+          if (viaCatalog) {
+            legacy.push(`${s.id} bills retired price ${pid}, entitling ${viaCatalog} from catalog metadata`);
+            continue;
           }
+          findings.push({ check: "subscription_orphaned", severity: "critical",
+            detail: `Live subscription ${s.id} bills price ${pid}, which is in no PADDLE_PRICE_* variable ` +
+                    `and carries no usable catalog metadata. It will entitle NOTHING on its next renewal.` });
         }
       }
     } else {
@@ -179,6 +193,7 @@ export const onRequestPost: PagesFunction<Env & { CRON_SECRET?: string }, string
     ok: findings.length === 0,
     checked_prices: checked,
     live_subscriptions_seen: subsSeen,
+    on_retired_prices: legacy,
     findings,
   });
 };
