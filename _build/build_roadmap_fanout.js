@@ -249,7 +249,7 @@ function proPanel(L, tracks) {
          not provisioned, and it is the only plan here the pricing page does not
          carry, so its button opens Paddle rather than linking away. */
       '<button type="button" class="rmx-opt" data-rmx-opt="quarter" aria-pressed="false">' +
-        '<span class="l"><b>All-Access, 3 months</b><em>Billed every 3 months</em></span>' +
+        '<span class="l"><b>All-Access, 3 months</b><em>Billed once a quarter</em></span>' +
         '<span class="r"><b data-rmx-price="quarter">$69</b>' +
         '<em data-rmx-permonth="quarter">about $23 a month</em></span>' +
       '</button>' +
