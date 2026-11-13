@@ -179,30 +179,43 @@ async function bump(KV: KVNamespace, key: string, cap: number, ttl: number): Pro
 function barEmailBody(o: {
   code: string; percent: number; hours: number; url: string; origin: string;
 }): { subject: string; textBody: string; htmlBody: string } {
-  const hourWords = o.hours === 1 ? "an hour" : `${o.hours} hours`;
   /* A note, not a campaign. No shell, no logo, no button, no tracking pixel:
      this is a reply to somebody who asked a question thirty seconds ago, and
      the Promotions classifier keys on exactly the chrome a template would add.
-     The owner asked for plain and human; the test is whether it reads like
-     something a person typed. */
+
+     Shortened to this form by the owner on 2026-11-13, after reading the first
+     one that went out. The window is now a labelled line rather than a
+     sentence, and two claims came out with the prose: that the code works
+     once, and that the percent then holds at every renewal. Both were in the
+     reader's favour, so dropping them misleads nobody. But if the recur
+     decision is ever capped or turned off, the renewal sentence has to come
+     back, because then its absence would be the flattering reading. */
+  const validity = o.hours % 24 === 0
+    ? `${o.hours / 24} day${o.hours === 24 ? "" : "s"}`
+    : `${o.hours} hour${o.hours === 1 ? "" : "s"}`;
   const paras = [
     `Here is the code you asked for: ${o.code}`,
-    `It takes ${o.percent}% off any plan, Lifetime included. The quickest way to use it is this link, which fills it in for you at checkout:`,
-    o.url,
+    `It takes ${o.percent}% off any plan, Lifetime included.`,
+    `Use this link and proceed to checkout for the discount to apply: ${o.url}`,
     `If you would rather do it yourself, pick a plan on that page and paste ${o.code} into the discount box.`,
-    `Two things worth knowing. It works once, and it stops working ${hourWords} from now. The ${o.percent}% then stays on every renewal, so the price you start at is the price you keep.`,
-    `If you want to see what is actually in each track before you decide, start here: ${o.origin}/roadmap/`,
+    `Validity: ${validity}`,
+    `Then, start here: ${o.origin}/roadmap/`,
     `Guyen`,
   ];
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const html = paras
-    .map((p) => {
-      if (p === o.url) {
-        return `<p style="margin:0 0 14px"><a href="${esc(o.url)}">${esc(o.url)}</a></p>`;
-      }
-      return `<p style="margin:0 0 14px">${esc(p)}</p>`;
-    })
-    .join("");
+  /* The link now sits inside a sentence instead of on its own line, so the old
+     "is this paragraph exactly the url" test would have rendered it as dead
+     text in the HTML copy. Linkify any http run instead, which also fixes the
+     roadmap link at the end: that one has been unclickable in every note sent
+     so far, for exactly this reason.
+
+     Escaping first is what makes this safe. It leaves &amp; inside the href,
+     which is the correct encoding for a literal ampersand in an attribute, so
+     the query string survives. Trailing sentence punctuation stays outside the
+     anchor, or "start here: <url>." would link the full stop too. */
+  const linkify = (s: string) =>
+    esc(s).replace(/https?:\/\/[^\s<]*[^\s<.,;:!?)]/g, (m) => `<a href="${m}">${m}</a>`);
+  const html = paras.map((p) => `<p style="margin:0 0 14px">${linkify(p)}</p>`).join("");
   return {
     subject: `Your ${o.percent}% code`,
     textBody: paras.join("\n\n"),
