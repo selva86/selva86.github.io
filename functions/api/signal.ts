@@ -47,6 +47,16 @@ const SIGNALS = new Set([
      one eats them all, which keeps the ratio honest even when the absolute
      number is low. */
   "offer_shown", "offer_click",
+  /* 2026-11-13: the announcement strip (www/announce-bar.js). bar_view once per
+     session per path when the strip is inserted, bar_click on the CTA; meta
+     carries the campaign key.
+
+     Added in the same commit as the client, which is the rule two comments
+     above and the one this file keeps learning the hard way. The strip shipped
+     on 2026-11-11 sending `announce_click`, which was never listed here, and
+     it sent it through `window.rsSignal`, which does not exist. Two days of a
+     sitewide bar produced no data at all. */
+  "bar_view", "bar_click",
 ]);
 
 let tableReady = false;

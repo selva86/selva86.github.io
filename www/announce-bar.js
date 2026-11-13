@@ -31,6 +31,13 @@
  * To change a message: edit CAMPAIGNS. To change who sees it: edit ROUTES.
  * Bump BAR_VERSION when the set changes materially, so readers who
  * dismissed the old bar see the new one.
+ *
+ * MEASUREMENT. bar_view fires once per session per path when the strip is
+ * inserted, bar_click on the CTA. Both names must exist in the SIGNALS
+ * allowlist in functions/api/signal.ts or that endpoint drops them without
+ * a word. From 2026-11-11 to 2026-11-13 this file reported nothing at all:
+ * it called window.rsSignal, which is a local function inside lesson-mode.js
+ * and was never on window, and the name it sent was not allowlisted either.
  */
 (function () {
   'use strict';
@@ -84,6 +91,45 @@
   var HIDE_PATH = /^\/(?:dashboard|account|checkout|signin|verify)(?:[./]|$)/i;
 
   var d = document;
+
+  /* The anon id every other first-party beacon on the site uses, so a bar row
+     and a pricing row belong to the same visitor. */
+  function anonId() {
+    try {
+      var a = localStorage.getItem('rsc-aid');
+      if (!a) {
+        a = Math.random().toString(36).slice(2, 12);
+        localStorage.setItem('rsc-aid', a);
+      }
+      return a;
+    } catch (e) { return ''; }
+  }
+
+  /* A local copy of lesson-mode.js's beacon, not a shared global: that file is
+     content-hashed into 416 pages, so exporting its helper would mean a full
+     rebuild and a sitewide sweep to fix a measurement bug. Same endpoint, same
+     anon id key, same payload shape, so the rows are comparable.
+
+     meta is forced to a string because /api/signal's clean() returns null for
+     anything else, which is how the old call's {campaign: key} would have
+     been stored as NULL even if it had ever fired. */
+  function signal(sig, meta, once) {
+    try {
+      if (once) {
+        var k = 'rs-sig:' + sig + ':' + location.pathname;
+        if (sessionStorage.getItem(k)) return;
+        sessionStorage.setItem(k, '1');
+      }
+      fetch('/api/signal', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          s: sig, p: location.pathname, m: String(meta || ''), a: anonId()
+        })
+      }).catch(function () {});
+    } catch (e) { /* measurement must never break the bar */ }
+  }
 
   function dismissed() {
     try {
@@ -175,11 +221,10 @@
       + ' stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
     a.appendChild(arrow);
     a.setAttribute('data-announce', key);
-    a.addEventListener('click', function () {
-      try {
-        if (window.rsSignal) window.rsSignal('announce_click', { campaign: key });
-      } catch (e) { /* the click still navigates */ }
-    });
+    /* Not deduped: every click is a real navigation and worth counting. The
+       denominator (bar_view) is deduped per path, so the ratio reads as
+       clicks per page that showed the bar. */
+    a.addEventListener('click', function () { signal('bar_click', key); });
 
     var x = d.createElement('button');
     x.type = 'button';
@@ -212,6 +257,10 @@
     }
     styles();
     d.body.insertBefore(build(key, CAMPAIGNS[key]), d.body.firstChild);
+    /* After the insert, so an impression is only ever recorded for a strip a
+       reader could actually see. Deduped per session per path so a reload does
+       not inflate the denominator. */
+    signal('bar_view', key, true);
   }
 
   if (d.readyState === 'loading') {
