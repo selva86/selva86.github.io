@@ -82,9 +82,16 @@ async function ensureTable(DB: D1Database) {
     "CREATE TABLE IF NOT EXISTS bar_offers (" +
     "id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, " +
     "email TEXT NOT NULL, anon_id TEXT, campaign TEXT, code TEXT NOT NULL, " +
-    "percent INTEGER NOT NULL, expires_at INTEGER NOT NULL, " +
+    "discount_id TEXT, percent INTEGER NOT NULL, expires_at INTEGER NOT NULL, " +
     "sent_at INTEGER, send_error TEXT, redeemed_at INTEGER)"
   ).run();
+  /* For a table that a preview already created from the first version of this
+     statement. CREATE TABLE IF NOT EXISTS says nothing about columns, and
+     schema.sql has drifted from production before by exactly this route. */
+  await DB.prepare("ALTER TABLE bar_offers ADD COLUMN discount_id TEXT").run().catch(() => {});
+  await DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_bar_offers_discount ON bar_offers (discount_id)"
+  ).run().catch(() => {});
   await DB.prepare(
     "CREATE INDEX IF NOT EXISTS idx_bar_offers_email ON bar_offers (email, at)"
   ).run();
@@ -297,10 +304,11 @@ export const onRequestPost: PagesFunction<BarEnv, string, RequestData> = async (
      send: it is live, it is redeemable, and without this row there is nothing
      to find it by. */
   await context.env.DB.prepare(
-    "INSERT INTO bar_offers (at, email, anon_id, campaign, code, percent, expires_at, sent_at, send_error) " +
-    "VALUES (?,?,?,?,?,?,?,?,?)"
+    "INSERT INTO bar_offers (at, email, anon_id, campaign, code, discount_id, percent, expires_at, sent_at, send_error) " +
+    "VALUES (?,?,?,?,?,?,?,?,?,?)"
   ).bind(
-    now, email, anon || null, campaign || null, offer.code, offer.percent, offer.expiresAt,
+    now, email, anon || null, campaign || null, offer.code, offer.discountId,
+    offer.percent, offer.expiresAt,
     res.ok ? now : null, res.ok ? null : (res.error || "send_failed"),
   ).run().catch((e) => { console.error(`[bar-offer] row insert failed for ${offer.code}: ${e}`); });
 

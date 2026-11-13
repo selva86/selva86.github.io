@@ -31,7 +31,7 @@
 // public page where it is a dark pattern. `price_alerts` is the state machine
 // (pricealerts.ts); this file owns the percentage and the minting.
 
-import { createPaddleDiscount } from "./cartrecovery";
+import { createPaddleDiscountWithId } from "./cartrecovery";
 
 /* One number, in one place. Every surface that names a discount reads it from
    here: the pricing page's answer to "the price", the Pro wall, the outreach
@@ -219,6 +219,10 @@ export interface PersonalOffer {
   percent: number;
   expiresAt: number;
   url: string;
+  /* Paddle's id for the discount, which is what payments.discount_id holds.
+     Null when the create succeeded but the response could not be read: the
+     code is still good, it simply cannot be matched to its redemption. */
+  discountId: string | null;
 }
 
 const PERSONAL_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no I, O, 0, 1
@@ -247,7 +251,7 @@ export async function mintPersonalOffer(
   const code = `${o.prefix || "PRO"}${o.percent}${tail}`;
   const expiresAt = Math.floor(Date.now() / 1000) + Math.max(1, o.hours) * 3600;
 
-  const ok = await createPaddleDiscount(env, {
+  const made = await createPaddleDiscountWithId(env, {
     code,
     percent: String(o.percent),
     recur: true,
@@ -255,10 +259,13 @@ export async function mintPersonalOffer(
     priceIds: prices,
     description: `One-time ${o.percent}% ${o.what || "annual"} for ${o.email}, ${new Date().toISOString().slice(0, 10)}`,
   });
-  if (!ok) return null;
+  if (!made.ok) return null;
 
   const origin = o.siteOrigin || "https://r-statistics.co";
-  return { code, percent: o.percent, expiresAt, url: `${origin}/pricing.html?code=${code}&src=outreach` };
+  return {
+    code, percent: o.percent, expiresAt, discountId: made.id,
+    url: `${origin}/pricing.html?code=${code}&src=outreach`,
+  };
 }
 
 /* The paragraph appended to the note. Kept here rather than in each of the

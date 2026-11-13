@@ -108,7 +108,7 @@ const kv = (raw) => ({ KV: { get: async () => raw } });
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     sent = { url: String(url), body: JSON.parse(init.body) };
-    return { ok: true, json: async () => ({}) };
+    return { ok: true, json: async () => ({ data: { id: "dsc_01barlive" } }) };
   };
   const before = Math.floor(Date.now() / 1000);
   const offer = await O.mintPersonalOffer(
@@ -132,6 +132,31 @@ const kv = (raw) => ({ KV: { get: async () => raw } });
   const exp = Math.floor(Date.parse(sent.body.expires_at) / 1000);
   ok(exp - before >= 23 * 3600 && exp - before <= 25 * 3600,
     `expiry is about 24 hours out (got ${exp - before}s)`);
+  /* Without this id nothing can match a code to the payment that redeemed it:
+     payments.discount_id holds Paddle's id, never the code string. */
+  eq(offer.discountId, "dsc_01barlive", "Paddle's discount id is kept, so a redemption can be counted");
+}
+{
+  // Created but the body unreadable: still a success, because the discount is
+  // live. Reporting failure here would mint a second live code.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => { throw new Error("no body"); } });
+  const offer = await O.mintPersonalOffer({ PADDLE_API_KEY: "k", ...SIX }, {
+    email: "a@b.co", percent: 20, hours: 24, priceIds: O.allPlanPriceIds(SIX).ids, prefix: "BAR",
+  });
+  globalThis.fetch = realFetch;
+  ok(offer, "an unreadable create response still yields a usable code");
+  eq(offer.discountId, null, "and says plainly that the id is not known");
+}
+{
+  // Paddle refused: no code, and no id to pretend otherwise.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, json: async () => ({}) });
+  const offer = await O.mintPersonalOffer({ PADDLE_API_KEY: "k", ...SIX }, {
+    email: "a@b.co", percent: 20, hours: 24, priceIds: O.allPlanPriceIds(SIX).ids, prefix: "BAR",
+  });
+  globalThis.fetch = realFetch;
+  eq(offer, null, "a refused create mints nothing");
 }
 {
   // A missing key must refuse rather than mint something unusable.

@@ -233,6 +233,27 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     `SELECT date(created_at,'unixepoch') d, COUNT(*) n FROM subscriptions
       WHERE created_at >= ?1 GROUP BY d`, from);
 
+  /* ---- the announcement strip, per arm.
+     The split is reported rather than assumed: two arms that are not roughly
+     equal mean the bucket or the render is broken, and that invalidates every
+     other number in this section before anybody reads a conversion rate.
+     meta is `campaign|variant`, so the arm is a suffix match. */
+  const sigArm = async (name: string, arm: string) => grouped(DB,
+    `SELECT date(at,'unixepoch') d, COUNT(*) n FROM intent_signals
+      WHERE at >= ?1 AND signal = ?2 AND meta LIKE ?3 GROUP BY d`, from, name, "%|" + arm);
+  const barShownCourse = await sigArm("bar_view", "course");
+  const barShownCode = await sigArm("bar_view", "code");
+  const barClicks = await sigArm("bar_click", "course");
+  const barOpened = await sig("bar_code_open");
+  const barSent = await sig("bar_code_sent");
+  /* The only line here that is money. Joined on Paddle's discount id, which is
+     what payments carries; the code string never reaches that table. Returns
+     an empty map until bar_offers exists, which is the correct answer then. */
+  const barRedeemed = await grouped(DB,
+    `SELECT date(p.billed_at,'unixepoch') d, COUNT(*) n
+       FROM payments p JOIN bar_offers b ON b.discount_id = p.discount_id
+      WHERE p.billed_at >= ?1 AND p.discount_id IS NOT NULL GROUP BY d`, from);
+
   // ---- credentials, the proof the product works
   const badges = await grouped(DB,
     `SELECT date(earned_at,'unixepoch') d, COUNT(*) n FROM badges_earned
@@ -285,6 +306,14 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     add(metric("eClick", "Clicked", eClick)),
     add(metric("eBounce", "Bounced", eBounce)),
     add(metric("eUnsub", "Unsubscribed", eUnsub)),
+  ];
+  const g6 = [
+    add(metric("barShownCourse", "Bar shown, course arm", barShownCourse)),
+    add(metric("barShownCode", "Bar shown, offer arm", barShownCode)),
+    add(metric("barClicks", "Bar clicks to a course", barClicks)),
+    add(metric("barOpened", "Bar code form opened", barOpened)),
+    add(metric("barSent", "Bar codes emailed", barSent)),
+    add(metric("barRedeemed", "Bar codes redeemed", barRedeemed)),
   ];
   const g5 = [
     add(metric("badges", "Badges earned", badges)),
@@ -429,8 +458,8 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
 
   return {
     day, weekday: weekdayOf(day), subject, headline, metrics,
-    order: [g1, g2, g3, g4, g5],
-    sections: ["Who arrived", "What they did", "Intent and money", "Email", "Earned"],
+    order: [g1, g2, g3, g6, g4, g5],
+    sections: ["Who arrived", "What they did", "Intent and money", "The announcement bar", "Email", "Earned"],
     alerts, lessons: lessonRun, quiet: quiet && !(attention && attention.total > 0), topPages, emailByTemplate, intent,
     attention,
   };
