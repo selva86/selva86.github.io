@@ -33,6 +33,7 @@
 // digest.
 
 import { loadContacts, loadThreads, buildQueue } from "./contacts";
+import { openAlerts } from "./ops-alert";
 
 const SITE = "https://r-statistics.co";
 
@@ -440,6 +441,21 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
   }
 
   const notable = Object.values(metrics).filter((m) => m.notable);
+  /* Operational alerts recorded by ops-alert.ts. Criticals have already been
+     emailed the moment they happened; they are repeated here because an
+     unresolved one should keep nagging rather than scroll out of an inbox.
+     Warns were never emailed at all by design, so for them this is the only
+     place they are ever seen. */
+  for (const a of await openAlerts(env.DB, 25)) {
+    const age = Math.max(0, Math.floor(Date.now() / 1000) - a.at);
+    const days = Math.floor(age / 86400);
+    const when = days >= 1 ? `${days} day${days === 1 ? "" : "s"} open` : "today";
+    alerts.push(
+      `${a.severity === "critical" ? "Unresolved: " : ""}${a.summary} (${when}` +
+      `${a.ref ? `, ${a.ref}` : ""}). Clear it at /api/admin/alerts.`,
+    );
+  }
+
   const quiet = alerts.length === 0 && notable.length === 0;
 
   /* The headline is the subject line, so it has to survive being read on a

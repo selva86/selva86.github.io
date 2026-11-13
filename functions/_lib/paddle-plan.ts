@@ -36,6 +36,35 @@ export interface PaddlePlanData {
 // '<plan>_<term>' (e.g. 'allaccess_year') or 'lifetime' for the first item
 // whose price id is one of the configured PADDLE_PRICE_* ids. Null = not one
 // of ours: entitle nothing.
+/* What the catalog says a price is. Seller-set in Paddle, so unlike the
+   entity's custom_data it cannot be written by a buyer's browser; this is the
+   same field teamsSeatQuantity has always trusted. Values are matched exactly
+   and anything unrecognised returns null, so a new plan still entitles
+   nothing until somebody teaches this map about it. "teams" is deliberately
+   absent: a seat subscription is not an individual plan. */
+const CATALOG_PLAN: Record<string, string> = {
+  all_access: "allaccess",
+  single_track: "single",
+  lifetime: "lifetime",
+};
+const CATALOG_TERM: Record<string, string> = {
+  monthly: "month",
+  quarterly: "quarter",
+  annual: "year",
+};
+
+/* Exported so /api/cron/integrity can ask the same question the webhook
+   asks. A checker that reimplements the rule it is checking eventually
+   disagrees with it, and then one of the two is lying. */
+export function planFromCatalog(cd?: Record<string, unknown> | null): string | null {
+  if (!cd) return null;
+  const plan = CATALOG_PLAN[String(cd.plan ?? "")];
+  if (!plan) return null;
+  if (plan === "lifetime") return "lifetime";
+  const term = CATALOG_TERM[String(cd.term ?? "")];
+  return term ? `${plan}_${term}` : null;
+}
+
 export function individualPlan(data: PaddlePlanData, env: PlanPriceEnv): string | null {
   const byPrice: Record<string, string | undefined> = {
     single_month: env.PADDLE_PRICE_SINGLE_MONTH,
@@ -57,6 +86,18 @@ export function individualPlan(data: PaddlePlanData, env: PlanPriceEnv): string 
       if (envId && envId === pid) return key.replace(/_lock$/, "");
     }
   }
+
+  /* No configured id matched. Before entitling nothing, ask the price itself.
+     Replacing a price is the ordinary way to change one, and the old price
+     keeps its subscribers on purpose, so the superseded generation stops
+     being named in the environment while people are still paying through it.
+     Eight live subscriptions were in exactly that state on 2026-11-12, every
+     one of them due to renew into nothing. The configured ids remain the
+     authority; this only answers when they have nothing to say. */
+  for (const item of data.items || []) {
+    const fromCatalog = planFromCatalog(item.price?.custom_data);
+    if (fromCatalog) return fromCatalog;
+  }
   return null;
 }
 
@@ -67,6 +108,17 @@ export function individualPlan(data: PaddlePlanData, env: PlanPriceEnv): string 
    custom_data flag can only delay the buyer's own access, never grant any.) */
 export function isPriceLock(data: PaddlePlanData, env: PlanPriceEnv): boolean {
   if (data.custom_data?.price_lock === true || data.custom_data?.price_lock === "true") return true;
+  /* THIRD SIGNAL, and the one that makes the catalog fallback above safe to
+     have. A lock is an ordinary plan whose first charge is 60 days out. If a
+     lock price were ever replaced without its new id reaching the
+     environment, individualPlan would now recognise it from its metadata and
+     the webhook would grant the plan at once, forgetting the deferral: sixty
+     days of Pro, given away silently. The locks carry price_lock on the
+     catalog price, where the seller set it and no buyer can reach it. */
+  for (const item of data.items || []) {
+    const cd = item.price?.custom_data;
+    if (cd?.price_lock === true || cd?.price_lock === "true") return true;
+  }
   const locks = [env.PADDLE_PRICE_SINGLE_YEAR_LOCK, env.PADDLE_PRICE_AA_YEAR_LOCK].filter(Boolean);
   if (!locks.length) return false;
   for (const item of data.items || []) {
