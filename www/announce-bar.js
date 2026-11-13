@@ -337,13 +337,22 @@
     var inner = d.createElement('div');
     inner.className = 'rs-announce-in';
 
+    /* The chip names the occasion when there is one, and falls back to the
+       plain percent badge when there is not. Both the name and the percent
+       come from KV (offer:bar-config), so running BLACK FRIDAY at 31% and
+       then CYBER MONDAY at 23% is two writes and no deploy. Nothing seasonal
+       is hardcoded here, because a hardcoded name is one somebody has to
+       remember to take down. */
     var chip = d.createElement('span');
     chip.className = 'rs-announce-chip';
-    chip.textContent = pct + '% OFF';
+    chip.textContent = offer.label || (pct + '% OFF');
 
+    /* The percent is the server's, never this file's. The strip and the code
+       Paddle actually mints have to agree, and the only way to guarantee that
+       is for exactly one of them to be the source of it. */
     var txt = d.createElement('span');
     txt.className = 'rs-announce-txt';
-    txt.textContent = pct + '% off any plan, emailed to you';
+    txt.textContent = 'Get ' + pct + '% OFF your plans, emailed to you.';
 
     var slot = d.createElement('span');
     slot.className = 'rs-announce-slot';
@@ -351,7 +360,7 @@
     var btn = d.createElement('button');
     btn.type = 'button';
     btn.className = 'rs-announce-cta';
-    btn.textContent = 'Get the code';
+    btn.textContent = 'Get your code';
 
     /* The confirmation doubles as the way onward, which is what the owner
        asked for: the code is in their inbox, and the next thing they need is

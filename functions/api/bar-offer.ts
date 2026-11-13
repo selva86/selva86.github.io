@@ -105,6 +105,9 @@ interface BarOfferState {
   enabled: boolean;
   percent: number;
   hours: number;
+  /* The sale's name for the strip's chip, from KV. Carried on the refusals
+     too, so the shape of the answer does not change with the answer. */
+  label: string | null;
   reason?: string;
 }
 
@@ -116,7 +119,7 @@ async function eligibility(
 ): Promise<BarOfferState> {
   const now = Math.floor(Date.now() / 1000);
   const cfg = await readBarOfferConfig(context.env);
-  const base: BarOfferState = { enabled: false, percent: cfg.percent, hours: cfg.hours };
+  const base: BarOfferState = { enabled: false, percent: cfg.percent, hours: cfg.hours, label: cfg.label };
 
   if (!(await isOn(context.env.KV, "bar-offer", context).catch(() => false))) {
     return { ...base, reason: "flag_off" };
@@ -141,7 +144,7 @@ async function eligibility(
     if (ent?.pro) return { ...base, reason: "already_pro" };
   }
 
-  return { enabled: true, percent: cfg.percent, hours: cfg.hours };
+  return { enabled: true, percent: cfg.percent, hours: cfg.hours, label: cfg.label };
 }
 
 export const onRequestGet: PagesFunction<BarEnv, string, RequestData> = async (context) => {

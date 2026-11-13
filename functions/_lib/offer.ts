@@ -117,14 +117,38 @@ export function annualPriceIds(env: OfferPriceEnv): string[] {
 export interface BarOfferConfig {
   percent: number;
   hours: number;
+  /* The sale's name, shown in the strip's chip in place of the percent badge.
+     It lives in KV rather than in announce-bar.js on purpose: a seasonal name
+     hardcoded into a file is a file that is still saying BLACK FRIDAY in
+     December, and taking the sale down should not need a deploy. Null means
+     the chip reads "<percent>% OFF", which is what it said before sales had
+     names. */
+  label: string | null;
 }
 
-/* KV `offer:bar-config` moves both without a deploy:
-     wrangler kv key put --binding KV offer:bar-config '{"percent":20,"hours":24}' --remote */
+/* KV `offer:bar-config` moves all three without a deploy:
+     wrangler kv key put --binding KV offer:bar-config \
+       '{"percent":20,"hours":24}' --remote
+   and for a named sale:
+     '{"percent":31,"hours":24,"label":"BLACK FRIDAY"}' */
 export const DEFAULT_BAR_OFFER: BarOfferConfig = {
   percent: 20,
   hours: 24,
+  label: null,
 };
+
+/* The chip is a small badge beside the message, so this is deliberately
+   strict. Control characters are stripped and runs of whitespace collapsed,
+   because this value is hand-edited in KV and a stray newline would land in
+   the strip. Anything empty, unusable or too long for the badge returns null,
+   which restores the percent chip: an always-correct fallback beats a
+   truncated sale name reading "BLACK FRIDAY WEEKE". */
+function barLabel(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const s = v.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  if (!s || s.length > 24) return null;
+  return s;
+}
 
 export async function readBarOfferConfig(env: { KV: KVNamespace }): Promise<BarOfferConfig> {
   try {
@@ -134,6 +158,7 @@ export async function readBarOfferConfig(env: { KV: KVNamespace }): Promise<BarO
     const cfg: BarOfferConfig = {
       percent: Number(p.percent) > 0 ? Math.round(Number(p.percent)) : DEFAULT_BAR_OFFER.percent,
       hours: Number(p.hours) > 0 ? Math.round(Number(p.hours)) : DEFAULT_BAR_OFFER.hours,
+      label: barLabel(p.label),
     };
     // Same bounds as the asked-for offer: 100% hands the catalogue away.
     if (cfg.percent < 1 || cfg.percent > 60) cfg.percent = DEFAULT_BAR_OFFER.percent;

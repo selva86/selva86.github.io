@@ -86,9 +86,9 @@ const SIX = {
 // ---- config bounds ------------------------------------------------------
 const kv = (raw) => ({ KV: { get: async () => raw } });
 {
-  eq(await O.readBarOfferConfig(kv(null)), { percent: 20, hours: 24 },
-    "the owner's defaults: 20% for 24 hours");
-  eq(await O.readBarOfferConfig(kv('{"percent":25,"hours":72}')), { percent: 25, hours: 72 },
+  eq(await O.readBarOfferConfig(kv(null)), { percent: 20, hours: 24, label: null },
+    "the owner's defaults: 20% for 24 hours, no named sale");
+  eq(await O.readBarOfferConfig(kv('{"percent":25,"hours":72}')), { percent: 25, hours: 72, label: null },
     "KV moves both without a deploy");
   eq((await O.readBarOfferConfig(kv('{"percent":100}'))).percent, 20,
     "100% is refused and falls back");
@@ -98,8 +98,32 @@ const kv = (raw) => ({ KV: { get: async () => raw } });
     "an unhonourable window falls back");
   eq((await O.readBarOfferConfig(kv('{"hours":999}'))).hours, 24,
     "a window past 30 days is a price change, not a deadline");
-  eq(await O.readBarOfferConfig(kv("not json")), { percent: 20, hours: 24 },
+  eq(await O.readBarOfferConfig(kv("not json")), { percent: 20, hours: 24, label: null },
     "a corrupt KV value cannot break the read");
+}
+
+// ---- the named sale -----------------------------------------------------
+// One template, many occasions: the chip's name and the percent both come
+// from KV, so Black Friday and Cyber Monday are two writes, not two deploys.
+{
+  eq(await O.readBarOfferConfig(kv('{"percent":31,"hours":24,"label":"BLACK FRIDAY"}')),
+    { percent: 31, hours: 24, label: "BLACK FRIDAY" },
+    "a named sale carries its own name and percent together");
+  eq(await O.readBarOfferConfig(kv('{"percent":23,"hours":24,"label":"CYBER MONDAY"}')),
+    { percent: 23, hours: 24, label: "CYBER MONDAY" },
+    "and the next occasion is the same shape at a different number");
+  eq((await O.readBarOfferConfig(kv('{"label":"  BLACK\\n  FRIDAY "}'))).label, "BLACK FRIDAY",
+    "newlines and runs of spaces are collapsed, since this value is hand-edited");
+  eq((await O.readBarOfferConfig(kv('{"label":"' + "X".repeat(25) + '"}'))).label, null,
+    "an over-long name falls back to the percent chip rather than being truncated");
+  eq((await O.readBarOfferConfig(kv('{"label":"' + "X".repeat(24) + '"}'))).label, "X".repeat(24),
+    "24 characters is still accepted, so the boundary is not off by one");
+  eq((await O.readBarOfferConfig(kv('{"label":"   "}'))).label, null,
+    "a whitespace-only name is not a name");
+  eq((await O.readBarOfferConfig(kv('{"label":31}'))).label, null,
+    "a non-string name is ignored rather than stringified into the chip");
+  eq((await O.readBarOfferConfig(kv('{"percent":31,"label":"BLACK FRIDAY"}'))).hours, 24,
+    "naming a sale does not disturb the window");
 }
 
 // ---- the minted discount, read off the real Paddle request --------------
