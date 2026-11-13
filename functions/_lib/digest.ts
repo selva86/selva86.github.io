@@ -233,6 +233,14 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     `SELECT date(created_at,'unixepoch') d, COUNT(*) n FROM subscriptions
       WHERE created_at >= ?1 GROUP BY d`, from);
 
+  /* ---- the v2 course pages. Reported because nothing else can report it:
+     Cloudflare's daily top-15 pages never lists a track page, they sit under
+     the cutoff, so these four rows are the only measurement of whether the
+     course pages are reached at all and what happens to the people who do.
+     The gate rows come from the page's own signal, not pro_wall_hit, which
+     belongs to the iframed lesson and carries its URL rather than this one. */
+  const trackViews = await sig("track_view");
+
   /* ---- the announcement strip, per arm.
      The split is reported rather than assumed: two arms that are not roughly
      equal mean the bucket or the render is broken, and that invalidates every
@@ -241,6 +249,9 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
   const sigArm = async (name: string, arm: string) => grouped(DB,
     `SELECT date(at,'unixepoch') d, COUNT(*) n FROM intent_signals
       WHERE at >= ?1 AND signal = ?2 AND meta LIKE ?3 GROUP BY d`, from, name, "%|" + arm);
+  const trackOpen = await sigArm("track_lesson", "open");
+  const trackSignin = await sigArm("track_lesson", "signin");
+  const trackLocked = await sigArm("track_lesson", "locked");
   const barShownCourse = await sigArm("bar_view", "course");
   const barShownCode = await sigArm("bar_view", "code");
   const barClicks = await sigArm("bar_click", "course");
@@ -306,6 +317,12 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
     add(metric("eClick", "Clicked", eClick)),
     add(metric("eBounce", "Bounced", eBounce)),
     add(metric("eUnsub", "Unsubscribed", eUnsub)),
+  ];
+  const g7 = [
+    add(metric("trackViews", "Course pages viewed", trackViews)),
+    add(metric("trackOpen", "Course page, lesson opened", trackOpen)),
+    add(metric("trackSignin", "Course page, sign-in gate shown", trackSignin)),
+    add(metric("trackLocked", "Course page, Pro gate shown", trackLocked)),
   ];
   const g6 = [
     add(metric("barShownCourse", "Bar shown, course arm", barShownCourse)),
@@ -458,8 +475,8 @@ export async function buildDigest(env: DigestEnv): Promise<Digest> {
 
   return {
     day, weekday: weekdayOf(day), subject, headline, metrics,
-    order: [g1, g2, g3, g6, g4, g5],
-    sections: ["Who arrived", "What they did", "Intent and money", "The announcement bar", "Email", "Earned"],
+    order: [g1, g2, g3, g7, g6, g4, g5],
+    sections: ["Who arrived", "What they did", "Intent and money", "The course pages", "The announcement bar", "Email", "Earned"],
     alerts, lessons: lessonRun, quiet: quiet && !(attention && attention.total > 0), topPages, emailByTemplate, intent,
     attention,
   };

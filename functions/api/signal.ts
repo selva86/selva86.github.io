@@ -63,6 +63,22 @@ const SIGNALS = new Set([
      the redemption, which is counted in bar_offers rather than here because
      Paddle is the only thing that knows it happened. */
   "bar_code_open", "bar_code_sent",
+  /* 2026-11-13: the v2 course pages (www/roadmap-fanout.js). track_view was
+     already in this list and had never been sent by anything, so a course
+     page visit has never been recorded first party; it now has a sender.
+     track_lesson carries `track|state` for the three outcomes the page can
+     give a reader: open, signin, locked.
+
+     DELIBERATELY SEPARATE FROM pro_wall_hit. The course page runs the lesson
+     in an iframe, so lesson-mode.js fires pro_wall_hit with the iframe's
+     pathname, which is the lesson's URL. Those rows cannot tell a wall hit on
+     a lesson page from one inside a course page, and the course page draws
+     its own lock while hiding the lesson's. Two different things, two names. */
+  "track_lesson",
+  /* 2026-11-13: sent by lesson-locked.html since that page shipped, and
+     dropped here every time, because it was never added. The third instance
+     of this exact bug found today, after announce_click and track_view. */
+  "lesson_window_closed",
 ]);
 
 let tableReady = false;

@@ -25,6 +25,54 @@
   var me = null;          // filled by auth-hydrated
   var hydrated = false;
 
+  /* A third local copy of the beacon in lesson-mode.js, for the same reason
+     announce-bar.js has the second: lesson-mode.js is content-hashed into 416
+     pages, so exporting its helper would mean a full rebuild to share fifteen
+     lines, and a separate shared file would cost every page another request.
+     Same endpoint, same `rsc-aid` key, same payload, so the rows join up.
+
+     Every name sent here must be in the SIGNALS allowlist in
+     functions/api/signal.ts, which drops anything else without a word. */
+  function anonId() {
+    try {
+      var a = localStorage.getItem('rsc-aid');
+      if (!a) {
+        a = Math.random().toString(36).slice(2, 12);
+        localStorage.setItem('rsc-aid', a);
+      }
+      return a;
+    } catch (e) { return ''; }
+  }
+
+  function signal(sig, meta, onceKey) {
+    try {
+      if (onceKey) {
+        var k = 'rs-sig:' + sig + ':' + location.pathname + ':' + onceKey;
+        if (sessionStorage.getItem(k)) return;
+        sessionStorage.setItem(k, '1');
+      }
+      fetch('/api/signal', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          s: sig, p: location.pathname, m: String(meta || ''), a: anonId()
+        })
+      }).catch(function () {});
+    } catch (e) { /* measurement must never break the page */ }
+  }
+
+  /* Which track, read off the path. There is no track key in the markup, and
+     adding one would mean editing fourteen pages to learn something the URL
+     already says. The overview and the track page are distinguished because
+     they are different intentions: one is being read, the other is being
+     used. */
+  function trackInfo() {
+    var m = /\/roadmap\/v2\/([a-z0-9-]+?)(-overview)?\.html$/i.exec(location.pathname);
+    if (!m) return null;
+    return { track: m[1].toLowerCase(), page: m[2] ? 'overview' : 'track' };
+  }
+
   function $(s, r) { return (r || document).querySelector(s); }
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
 
@@ -134,6 +182,22 @@
     if (!P.wrap) return;
     var state = (P.pro && !userPro()) ? 'locked' : (anon() ? 'signin' : 'open');
     P.wrap.setAttribute('data-state', state);
+
+    /* What this page gave the reader, reported by this page about itself.
+       NOT read off pro_wall_hit: the lesson runs in an iframe, so
+       lesson-mode.js fires that one with the iframe's pathname, which is the
+       lesson URL, and nothing in those rows says whether the wall was hit on
+       a lesson page or inside a course page. This page also hides the
+       lesson's own gate and draws its own, so without this the gold lock
+       reports nothing.
+
+       Only after hydration. Before it, anon() is inferred from a local token,
+       and a gate state recorded from a guess is worse than no row at all.
+       Deduped per state, so the hydration re-render and a second lesson in
+       the same state count once, which makes this people-per-page and
+       therefore comparable with track_view. */
+    var ti = hydrated ? trackInfo() : null;
+    if (ti) signal('track_lesson', ti.track + '|' + state, state);
 
     var t = $('[data-rmx-covertitle]', P.wrap);
     var n = $('[data-rmx-covernote]', P.wrap);
@@ -523,6 +587,12 @@
     initPlans();
     localizePrices();
     armOffer();
+    /* The number that did not exist. Cloudflare's daily top-15 never lists a
+       track page because they sit under the cutoff, so until now the only
+       honest answer to "how many people opened a course page" was that
+       nobody knew. Deduped per session per path. */
+    var ti = trackInfo();
+    if (ti) signal('track_view', ti.track + '|' + ti.page, 'v');
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
