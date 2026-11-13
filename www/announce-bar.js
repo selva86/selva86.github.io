@@ -25,8 +25,17 @@
  * are. To match them, add `position:sticky;top:0` to .rs-announce and
  * re-check the tutorial, tool and exercise-hub templates.
  *
- * The chip is #dc2626, the red fanout uses on theirs, and always reads
- * LIVE. It is the one loud thing in the strip, so it does not vary.
+ * The chip is #dc2626, the red fanout uses on theirs. It reads LIVE on the
+ * course arm, where it is the one loud thing in the strip. On the offer arm
+ * it reads the percentage, because LIVE would be describing the wrong noun.
+ *
+ * TWO ARMS (2026-11-13). Half of readers get the course announcement above;
+ * the other half are offered a discount code by email. The bucket is hashed
+ * off the anon id, so a reader stays in one arm, and BOTH arms wait on the
+ * same /api/bar-offer call even though only one needs it, or the arms would
+ * differ by a round trip of drop-off before anybody clicked. The server owns
+ * the percentage and whether this reader may be shown a discount at all; see
+ * functions/api/bar-offer.ts.
  *
  * To change a message: edit CAMPAIGNS. To change who sees it: edit ROUTES.
  * Bump BAR_VERSION when the set changes materially, so readers who
@@ -131,6 +140,65 @@
     } catch (e) { /* measurement must never break the bar */ }
   }
 
+  /* Which arm this reader is in, stable for the life of their anon id. Hashed
+     rather than random: a coin flip per page load would put one person in both
+     arms and the comparison would mean nothing. No storage at all (private
+     window, blocked cookies) falls to the course arm, which is the one that
+     needs no server call and makes no promise. */
+  function bucket() {
+    var a = anonId();
+    if (!a) return 'course';
+    var h = 0;
+    for (var i = 0; i < a.length; i++) h = ((h << 5) - h + a.charCodeAt(i)) | 0;
+    return (Math.abs(h) % 2) === 0 ? 'code' : 'course';
+  }
+
+  /* Belt and braces over the server's own refusal. /api/bar-offer says no to
+     anybody with an active plan, and that is the check that counts. This one
+     catches the session cache: a reader who bought ten minutes ago would
+     otherwise be shown money off the plan they just paid for. */
+  function paying() {
+    try {
+      return d.body.classList.contains('pro') || d.body.classList.contains('lifetime');
+    } catch (e) { return false; }
+  }
+
+  var OFFER_TTL = 10 * 60 * 1000;
+
+  /* Cached per session so a reader browsing ten pages costs one invocation
+     rather than ten. Ten minutes, not the whole session, so a purchase or the
+     flag going off reaches them without a new tab. The timeout falls back to
+     "no offer", which renders the course arm: a slow API must not cost the
+     strip entirely. */
+  function offerState(cb) {
+    try {
+      var raw = sessionStorage.getItem('rs-bar-offer');
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && o.t && (Date.now() - o.t) < OFFER_TTL) { cb(o.v); return; }
+      }
+    } catch (e) { /* fall through to the fetch */ }
+
+    var settled = false;
+    function finish(v) {
+      if (settled) return;
+      settled = true;
+      cb(v);
+    }
+    var timer = setTimeout(function () { finish(null); }, 2500);
+    fetch('/api/bar-offer', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' }
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (v) {
+        clearTimeout(timer);
+        try { sessionStorage.setItem('rs-bar-offer', JSON.stringify({ t: Date.now(), v: v })); } catch (e) {}
+        finish(v);
+      })
+      .catch(function () { clearTimeout(timer); finish(null); });
+  }
+
   function dismissed() {
     try {
       var v = localStorage.getItem('rs-announce:' + BAR_VERSION);
@@ -182,17 +250,27 @@
       '.rs-announce-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);appearance:none;background:none;border:0;color:#6d8a7c;font-size:17px;line-height:1;cursor:pointer;padding:6px 8px;border-radius:4px}',
       '.rs-announce-x:hover{color:#0f3d2a;background:rgba(31,122,85,.10)}',
       '.rs-announce-x:focus-visible,.rs-announce a:focus-visible{outline:2px solid #1f7a55;outline-offset:2px}',
-      '@media(max-width:640px){.rs-announce-in{padding:7px 40px 7px 14px;gap:8px;font-size:13px;min-height:40px}.rs-announce-chip{display:none}}'
+      '.rs-announce button.rs-announce-cta{appearance:none;background:none;border:0;padding:0;font:inherit;cursor:pointer;color:#1f7a55;font-weight:600}',
+      '.rs-announce button.rs-announce-cta:hover{color:#155c40}',
+      '.rs-announce-form{display:inline-flex;align-items:center;gap:6px}',
+      '.rs-announce-email{font:inherit;padding:4px 8px;border:1px solid #BFD9CB;border-radius:4px;background:#fff;color:#0f1a2b;min-width:190px;max-width:46vw}',
+      '.rs-announce-email:focus-visible{outline:2px solid #1f7a55;outline-offset:1px}',
+      '.rs-announce-send{appearance:none;font:inherit;font-weight:600;cursor:pointer;border:1px solid #1f7a55;background:#1f7a55;color:#fff;padding:4px 10px;border-radius:4px;white-space:nowrap}',
+      '.rs-announce-send:hover{background:#155c40;border-color:#155c40}',
+      '.rs-announce-send[disabled]{opacity:.6;cursor:default}',
+      '.rs-announce-note{color:#6d8a7c;font-size:12.5px}',
+      '@media(max-width:640px){.rs-announce-in{padding:7px 40px 7px 14px;gap:8px;font-size:13px;min-height:40px}.rs-announce-chip{display:none}.rs-announce-email{min-width:0;flex:1 1 120px}.rs-announce-note{display:none}}'
     ].join('');
     d.head.appendChild(s);
   }
 
-  function build(key, c) {
+  function build(key, c, variant) {
     var bar = d.createElement('div');
     bar.className = 'rs-announce';
     bar.setAttribute('role', 'region');
     bar.setAttribute('aria-label', 'Site announcement');
     bar.setAttribute('data-campaign', key);
+    bar.setAttribute('data-variant', variant || 'course');
 
     var inner = d.createElement('div');
     inner.className = 'rs-announce-in';
@@ -224,7 +302,9 @@
     /* Not deduped: every click is a real navigation and worth counting. The
        denominator (bar_view) is deduped per path, so the ratio reads as
        clicks per page that showed the bar. */
-    a.addEventListener('click', function () { signal('bar_click', key); });
+    a.addEventListener('click', function () {
+      signal('bar_click', key + '|' + (variant || 'course'));
+    });
 
     var x = d.createElement('button');
     x.type = 'button';
@@ -236,6 +316,137 @@
     inner.appendChild(chip);
     inner.appendChild(txt);
     inner.appendChild(a);
+    inner.appendChild(x);
+    bar.appendChild(inner);
+    return bar;
+  }
+
+  /* The offer arm. One line, inline, no modal: the same rule price-alert.js
+     follows, because a modal over a reference page interrupts the thing the
+     reader actually came for. Three states in one slot: the button, the one
+     field, and the confirmation with the way onward. */
+  function buildOffer(key, offer) {
+    var pct = offer.percent;
+    var bar = d.createElement('div');
+    bar.className = 'rs-announce';
+    bar.setAttribute('role', 'region');
+    bar.setAttribute('aria-label', 'Site announcement');
+    bar.setAttribute('data-campaign', key);
+    bar.setAttribute('data-variant', 'code');
+
+    var inner = d.createElement('div');
+    inner.className = 'rs-announce-in';
+
+    var chip = d.createElement('span');
+    chip.className = 'rs-announce-chip';
+    chip.textContent = pct + '% OFF';
+
+    var txt = d.createElement('span');
+    txt.className = 'rs-announce-txt';
+    txt.textContent = pct + '% off any plan, emailed to you';
+
+    var slot = d.createElement('span');
+    slot.className = 'rs-announce-slot';
+
+    var btn = d.createElement('button');
+    btn.type = 'button';
+    btn.className = 'rs-announce-cta';
+    btn.textContent = 'Get the code';
+
+    /* The confirmation doubles as the way onward, which is what the owner
+       asked for: the code is in their inbox, and the next thing they need is
+       the page where a plan and a track are chosen. */
+    function done() {
+      txt.textContent = 'Sent. Check your email for the code.';
+      slot.textContent = '';
+      var go = d.createElement('a');
+      go.className = 'rs-announce-cta';
+      go.href = '/pricing.html';
+      var w = d.createElement('span');
+      w.textContent = 'Choose your track';
+      go.appendChild(w);
+      slot.appendChild(go);
+    }
+
+    function fail(msg) {
+      var n = d.createElement('span');
+      n.className = 'rs-announce-note';
+      n.textContent = msg;
+      slot.appendChild(n);
+    }
+
+    function openForm() {
+      signal('bar_code_open', key);
+      slot.textContent = '';
+      var form = d.createElement('form');
+      form.className = 'rs-announce-form';
+
+      var input = d.createElement('input');
+      input.type = 'email';
+      input.required = true;
+      input.className = 'rs-announce-email';
+      input.placeholder = 'you@example.com';
+      input.setAttribute('aria-label', 'Your email address');
+
+      var send = d.createElement('button');
+      send.type = 'submit';
+      send.className = 'rs-announce-send';
+      send.textContent = 'Send it';
+
+      /* Said once, plainly, where the field is. The address is used for this
+         one mail and nothing else, and that has to be visible at the point of
+         typing rather than buried in a policy. */
+      var note = d.createElement('span');
+      note.className = 'rs-announce-note';
+      note.textContent = 'Only used to send the code.';
+
+      form.appendChild(input);
+      form.appendChild(send);
+      form.appendChild(note);
+      slot.appendChild(form);
+      try { input.focus(); } catch (e) {}
+
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var email = (input.value || '').trim();
+        if (!email || email.indexOf('@') < 0) { try { input.focus(); } catch (e) {} return; }
+        send.disabled = true;
+        send.textContent = 'Sending';
+        fetch('/api/bar-offer', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email, a: anonId(), campaign: key })
+        })
+          .then(function (r) { return r.json().catch(function () { return null; }); })
+          .then(function (res) {
+            if (res && res.sent) { signal('bar_code_sent', key); done(); return; }
+            /* Never silently succeed. A reader told "check your email" who
+               gets nothing has no way to tell a bounce from a bug, and will
+               wait rather than ask. */
+            slot.textContent = '';
+            fail('That did not go through. Try again in a moment.');
+          })
+          .catch(function () {
+            slot.textContent = '';
+            fail('That did not go through. Try again in a moment.');
+          });
+      });
+    }
+
+    btn.addEventListener('click', openForm);
+    slot.appendChild(btn);
+
+    var x = d.createElement('button');
+    x.type = 'button';
+    x.className = 'rs-announce-x';
+    x.setAttribute('aria-label', 'Dismiss this announcement');
+    x.innerHTML = '&times;';
+    x.addEventListener('click', function () { remember(); bar.remove(); });
+
+    inner.appendChild(chip);
+    inner.appendChild(txt);
+    inner.appendChild(slot);
     inner.appendChild(x);
     bar.appendChild(inner);
     return bar;
@@ -255,12 +466,31 @@
       key = FALLBACK[0] === key ? FALLBACK[1] : FALLBACK[0];
       if (path === CAMPAIGNS[key].href) return;
     }
-    styles();
-    d.body.insertBefore(build(key, CAMPAIGNS[key]), d.body.firstChild);
-    /* After the insert, so an impression is only ever recorded for a strip a
-       reader could actually see. Deduped per session per path so a reload does
-       not inflate the denominator. */
-    signal('bar_view', key, true);
+    /* Both arms wait on this, including the course arm that does not need it.
+       See the header: arms that render at different times have different
+       drop-off, and the experiment would measure the round trip rather than
+       the copy. */
+    offerState(function (offer) {
+      // A second init (two loaders racing) must not insert a second strip.
+      if (d.querySelector('.rs-announce')) return;
+
+      var variant = bucket();
+      var eligible = !!(offer && offer.enabled && offer.percent) && !paying();
+      if (variant === 'code' && !eligible) variant = 'course';
+
+      styles();
+      var bar = variant === 'code'
+        ? buildOffer(key, offer)
+        : build(key, CAMPAIGNS[key], variant);
+      d.body.insertBefore(bar, d.body.firstChild);
+
+      /* After the insert, so an impression is only ever recorded for a strip a
+         reader could actually see. Deduped per session per path so a reload
+         does not inflate the denominator. The arm recorded is the one SHOWN,
+         not the bucket drawn: a reader in the code bucket who already pays is
+         counted where they were actually counted, in the course arm. */
+      signal('bar_view', key + '|' + variant, true);
+    });
   }
 
   if (d.readyState === 'loading') {

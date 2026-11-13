@@ -731,6 +731,12 @@ function codeFor(term){
   if (!recoveryCode) return undefined;
   if (/^(SAVE|PRO)\d/.test(recoveryCode) && term !== 'year') return undefined;
   if (/^TRACK\d/.test(recoveryCode) && term !== 'year' && term !== 'once') return undefined;
+  /* BAR codes (the announcement strip, 2026-11-13) cover every individual
+     plan and deliberately NOT Teams, so this is the one term they must be
+     kept out of. Not a cosmetic guard: Paddle refuses the entire checkout
+     when a code applies to no line in it, so carrying it here would turn a
+     Teams purchase into a dead checkout rather than an undiscounted one. */
+  if (/^BAR\d/.test(recoveryCode) && term === 'teams') return undefined;
   return recoveryCode;
 }
 /* The server-rendered CTAs carry their own ?next=, and they are what gets
@@ -745,18 +751,28 @@ function codeFor(term){
     }
   } catch (e) {}
 })();
-/* An offer email lands here with ?code=PRO20...&src=alert|outreach&exp=<unix>.
+/* An offer email lands here with ?code=PRO20...&src=alert|outreach|bar&exp=<unix>.
    The banner is plain text; Paddle enforces the real expiry, exp is display
    only. src=offerbar was retired with the homepage bar on 2026-10-19; outreach
-   was always sent but never accepted here, so those recipients saw no banner. */
+   was always sent but never accepted here, so those recipients saw no banner.
+   src=bar is the announcement strip's own offer (2026-11-13), and unlike every
+   other one here it covers every individual plan, which is why `scope` exists
+   below rather than the sentence hardcoding "either annual plan". */
 (function(){
   try {
     var q = new URLSearchParams(location.search);
     var src = q.get('src');
-    if (!recoveryCode || (src !== 'alert' && src !== 'outreach')) return;
+    if (!recoveryCode || (src !== 'alert' && src !== 'outreach' && src !== 'bar')) return;
     // Read the percent off the code itself so the banner cannot drift from the
-    // discount Paddle will actually apply.
-    var pct = (recoveryCode.match(/^(?:SAVE|PRO|PASS|BACK)(\d{1,2})/) || [0, '23'])[1];
+    // discount Paddle will actually apply. BAR is in the list because without
+    // it a BAR20 code fell through to the '23' default and the banner promised
+    // three points more than Paddle would give.
+    var pct = (recoveryCode.match(/^(?:SAVE|PRO|PASS|BACK|BAR)(\d{1,2})/) || [0, '23'])[1];
+    /* What the code actually covers, in the reader's terms. Every other
+       programme here is annual-only; the bar's covers every individual plan,
+       and saying "either annual plan" to somebody holding one would be both
+       wrong and needlessly discouraging. */
+    var scope = src === 'bar' ? 'any plan' : 'either annual plan';
     var exp = parseInt(q.get('exp') || '0', 10) * 1000;
     var host = document.querySelector('.tiers');
     if (!host) return;
@@ -765,12 +781,12 @@ function codeFor(term){
     el.style.cssText = 'margin:0 0 18px;padding:12px 16px;border:1px solid #BFD9CB;background:#E3F1E9;color:#0F3F2A;border-radius:12px;font-size:15px;line-height:1.5';
     function words(){
       var left = exp ? exp - Date.now() : 0;
-      if (!exp) return 'Your ' + pct + '% code ' + recoveryCode + ' is applied at checkout on either annual plan.';
+      if (!exp) return 'Your ' + pct + '% code ' + recoveryCode + ' is applied at checkout on ' + scope + '.';
       if (left <= 0) return 'The code ' + recoveryCode + ' has expired. The regular prices below still carry the 14-day money-back guarantee.';
       var h = Math.floor(left / 36e5), m = Math.floor((left % 36e5) / 6e4);
       var when = new Date(exp).toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' });
       var tail = h >= 24 ? 'It works until ' + when + '.' : (h > 0 ? 'About ' + h + (h === 1 ? ' hour' : ' hours') + ' left, until ' + when + '.' : 'About ' + m + ' minutes left.');
-      return 'Your ' + pct + '% code ' + recoveryCode + ' is applied at checkout on either annual plan. ' + tail;
+      return 'Your ' + pct + '% code ' + recoveryCode + ' is applied at checkout on ' + scope + '. ' + tail;
     }
     el.textContent = words();
     host.parentNode.insertBefore(el, host);

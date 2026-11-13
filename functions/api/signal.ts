@@ -57,6 +57,12 @@ const SIGNALS = new Set([
      it sent it through `window.rsSignal`, which does not exist. Two days of a
      sitewide bar produced no data at all. */
   "bar_view", "bar_click",
+  /* 2026-11-13: the strip's offer arm. bar_code_open when the email field is
+     revealed, bar_code_sent when a code actually went out. The pair is the
+     funnel that matters: bar_view -> bar_code_open -> bar_code_sent, and then
+     the redemption, which is counted in bar_offers rather than here because
+     Paddle is the only thing that knows it happened. */
+  "bar_code_open", "bar_code_sent",
 ]);
 
 let tableReady = false;

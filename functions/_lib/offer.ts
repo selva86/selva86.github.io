@@ -90,6 +90,108 @@ export function annualPriceIds(env: OfferPriceEnv): string[] {
     .filter((v): v is string => typeof v === "string" && v.length > 0);
 }
 
+/* ---------------------------------------------------------------------------
+   THE BAR OFFER (owner decisions 2026-11-13). A SECOND programme, deliberately
+   not a widening of the one above, because the two reach opposite people.
+
+   The one above is asked for, on the pricing page, by somebody who has already
+   read a price and said it is what is stopping them: 23%, seven days, annual
+   only. This one is broadcast from the announcement strip to somebody who
+   arrived on the ggplot2 gallery from a search and has never heard of the
+   courses: 20%, 24 hours, every individual plan.
+
+   Merging them would have meant changing the percent and the scope of a live
+   flow nobody asked me to touch. What they do share is the part where
+   duplication would actually cost something: the eligibility rule (never show
+   a discount to somebody already paying) and mintPersonalOffer below.
+
+   On 20% rather than 23%: it is what the retired homepage bar used, and it
+   keeps the ladder honest, since somebody who asks should not do worse than
+   somebody who was simply shown a bar.
+
+   On 24 hours: the owner's call, against my suggestion of 72. The window only
+   works if the mail is genuinely immediate, so api/bar-offer.ts sends inline
+   from the request rather than handing the send to the hourly brain, and does
+   not consult flag:email-live, which gates the lifecycle engine and would hold
+   a code somebody asked for thirty seconds ago. */
+export interface BarOfferConfig {
+  percent: number;
+  hours: number;
+}
+
+/* KV `offer:bar-config` moves both without a deploy:
+     wrangler kv key put --binding KV offer:bar-config '{"percent":20,"hours":24}' --remote */
+export const DEFAULT_BAR_OFFER: BarOfferConfig = {
+  percent: 20,
+  hours: 24,
+};
+
+export async function readBarOfferConfig(env: { KV: KVNamespace }): Promise<BarOfferConfig> {
+  try {
+    const raw = await env.KV.get("offer:bar-config");
+    if (!raw) return DEFAULT_BAR_OFFER;
+    const p = JSON.parse(raw) as Partial<BarOfferConfig>;
+    const cfg: BarOfferConfig = {
+      percent: Number(p.percent) > 0 ? Math.round(Number(p.percent)) : DEFAULT_BAR_OFFER.percent,
+      hours: Number(p.hours) > 0 ? Math.round(Number(p.hours)) : DEFAULT_BAR_OFFER.hours,
+    };
+    // Same bounds as the asked-for offer: 100% hands the catalogue away.
+    if (cfg.percent < 1 || cfg.percent > 60) cfg.percent = DEFAULT_BAR_OFFER.percent;
+    // One hour is the floor a code can be honoured at; past 30 days it is a
+    // price change wearing a deadline.
+    if (cfg.hours < 1 || cfg.hours > 30 * 24) cfg.hours = DEFAULT_BAR_OFFER.hours;
+    return cfg;
+  } catch (_) {
+    return DEFAULT_BAR_OFFER;
+  }
+}
+
+/* Every individual price, which is what "all plans" means here.
+
+   TEAMS IS DELIBERATELY ABSENT, and leaving it out is load-bearing in two
+   directions. It is a $115-a-seat invoice with a five-seat minimum, which is
+   not something to discount to anonymous traffic; and because it is absent,
+   pricing.html must refuse to carry a BAR code into the Teams checkout, since
+   Paddle rejects a whole checkout when the code cannot apply to any line in
+   it. The guard in codeFor() and this omission are one decision.
+
+   The two *_LOCK prices are absent for the same kind of reason: they are
+   granted server side with the first charge deferred sixty days, never bought
+   from a public page.
+
+   REQUIRED, not best-effort. A missing variable used to mean the offer quietly
+   stopped covering a plan the bar was still advertising, and an empty list
+   would mean "every price in the account", which would discount Teams. So the
+   caller gets the missing names and refuses, rather than narrowing in silence. */
+export interface BarOfferPriceEnv {
+  PADDLE_PRICE_AA_MONTH?: string;
+  PADDLE_PRICE_AA_QUARTER?: string;
+  PADDLE_PRICE_AA_YEAR?: string;
+  PADDLE_PRICE_SINGLE_MONTH?: string;
+  PADDLE_PRICE_SINGLE_YEAR?: string;
+  PADDLE_PRICE_LIFETIME?: string;
+}
+
+const BAR_OFFER_VARS: Array<keyof BarOfferPriceEnv> = [
+  "PADDLE_PRICE_AA_MONTH",
+  "PADDLE_PRICE_AA_QUARTER",
+  "PADDLE_PRICE_AA_YEAR",
+  "PADDLE_PRICE_SINGLE_MONTH",
+  "PADDLE_PRICE_SINGLE_YEAR",
+  "PADDLE_PRICE_LIFETIME",
+];
+
+export function allPlanPriceIds(env: BarOfferPriceEnv): { ids: string[]; missing: string[] } {
+  const ids: string[] = [];
+  const missing: string[] = [];
+  for (const name of BAR_OFFER_VARS) {
+    const v = env[name];
+    if (typeof v === "string" && v.length > 0) ids.push(v);
+    else missing.push(name);
+  }
+  return { ids, missing };
+}
+
 /* What /api/offer answers. No code and no deadline: a page can say what the
    discount is worth and how to ask for it, and nothing more. Handing a live
    code to anyone who loads a page is what made the old bar leaky. */
