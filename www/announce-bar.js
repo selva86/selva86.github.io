@@ -352,7 +352,7 @@
        is for exactly one of them to be the source of it. */
     var txt = d.createElement('span');
     txt.className = 'rs-announce-txt';
-    txt.textContent = 'Get ' + pct + '% OFF your plans, emailed to you.';
+    txt.textContent = 'Get ' + pct + '% OFF your plans.';
 
     var slot = d.createElement('span');
     slot.className = 'rs-announce-slot';
