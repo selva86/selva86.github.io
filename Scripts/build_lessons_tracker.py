@@ -78,6 +78,11 @@ COURSE_ROADMAP = {
                         'sectionLabel': 'Probability, distributions and estimation'},
     't-test': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
                'sectionLabel': 'Hypothesis testing and test selection'},
+    # Researcher section 4 holds eight roadmap items. `t-test` above covers three
+    # of them and stays as it is; this course covers the other five, so both rows
+    # carry the same section number and the same label.
+    'res-test-selection': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
+                           'sectionLabel': 'Hypothesis testing and test selection'},
     'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
                    'sectionLabel': 'The frontier (2026): LLMs and modern ML'},
     # Data Scientist track sections 1-5 (the "core" tier; section 4 sits alongside random-forest).
