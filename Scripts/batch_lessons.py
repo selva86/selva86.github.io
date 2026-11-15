@@ -19,7 +19,7 @@ Flags: --sync-every N (default 5), --claude <cli path>.
 
 lessons-status.json is gitignored (resumable state) and blocked by the middleware.
 """
-import os, sys, json, shutil, argparse, subprocess
+import os, sys, json, time, shutil, argparse, subprocess
 
 from verify_state import verify_published   # artifact check, not exit-code trust
 
@@ -57,7 +57,13 @@ def resolve_targets(args):
         print('Course "%s" not in courses.json.' % args.course)
         return []
     st = load_json(STATUS, {})
-    want = {'pending', 'planned'} | ({'failed', 'publish_failed'} if args.regenerate else set())
+    # plan_failed and plan_review_failed belong here too. Without them a crashed
+    # plan pass leaves entries no invocation can reach: a bare run sees only
+    # pending/planned, --regenerate saw only failed/publish_failed, and the slugs
+    # had to be retyped by hand (2026-11-14 out of memory, 2026-11-15 DNS drop).
+    want = {'pending', 'planned'} | ({'failed', 'publish_failed',
+                                      'plan_failed', 'plan_review_failed'}
+                                     if args.regenerate else set())
     return [slug for slug, v in st.items() if v.get('status', 'pending') in want]
 
 
@@ -241,6 +247,37 @@ def run_claude(cli, prompt, timeout=None):
         return 124
 
 
+# A worker that exits non-zero this fast cannot have done any work, so the
+# cause is the environment and not the lesson. Real content failures take
+# minutes. The wall clock separates the two without parsing worker output,
+# which run_claude deliberately streams rather than captures.
+FAST_FAIL_SEC = 90
+NET_BACKOFF = (30, 90, 180)   # one entry per extra attempt
+
+
+def run_claude_resilient(cli, prompt, timeout, label):
+    """run_claude, but a FAST non-zero exit is retried with a backoff.
+
+    2026-11-15: a DNS drop returned `API Error: Can't reach the API server
+    (ENOTFOUND)` and burned seventeen queued lessons in about fifty seconds,
+    roughly three seconds each, every one marked plan_failed. Nothing retried,
+    because run_stage only retries after a timeout or an autofix, and the plan
+    stages did not go through run_stage at all."""
+    rc = 1
+    for attempt in range(len(NET_BACKOFF) + 1):
+        started = time.monotonic()
+        rc = run_claude(cli, prompt, timeout)
+        elapsed = time.monotonic() - started
+        if rc == 0 or elapsed >= FAST_FAIL_SEC or attempt == len(NET_BACKOFF):
+            return rc
+        wait = NET_BACKOFF[attempt]
+        print('  %s exited %d after %.0fs, too fast to be real work. Treating it '
+              'as a transient API failure and retrying in %ds (attempt %d of %d).'
+              % (label, rc, elapsed, wait, attempt + 2, len(NET_BACKOFF) + 1), flush=True)
+        time.sleep(wait)
+    return rc
+
+
 CATALOG_FILES = ['courses.json', 'functions/_data/pro-lessons.json',
                  'functions/_data/exercise-manifest.json']
 
@@ -309,7 +346,7 @@ def run_stage(cli, slug, name, prompt, timeout, verify):
     verify() -> (ok, why). Sequence: run -> verify; on failure: autofix + gate,
     and retry once (with 2x budget if the first attempt timed out). Returns
     (ok, why). The caller decides the status label."""
-    rc = run_claude(cli, prompt, timeout)
+    rc = run_claude_resilient(cli, prompt, timeout, name)
     ok, why = verify() if rc == 0 else (False, '%s exited %d' % (name, rc))
     if ok:
         return True, ''
@@ -319,7 +356,7 @@ def run_stage(cli, slug, name, prompt, timeout, verify):
     if rc == 124 or fixes:
         retry_timeout = (timeout * 2) if (rc == 124 and timeout) else timeout
         print('  retrying %s once (%s)' % (name, 'after fixes' if fixes else 'longer budget'), flush=True)
-        rc = run_claude(cli, prompt, retry_timeout)
+        rc = run_claude_resilient(cli, prompt, retry_timeout, name)
         ok, why = verify() if rc == 0 else (False, '%s exited %d on retry' % (name, rc))
         if ok:
             return True, ''
@@ -385,7 +422,8 @@ def main():
             if approved_already:
                 print('  approved plan exists, skipping planner + plan review: %s' % slug)
             _plan_rel = os.path.join('post_plans', slug + '_lesson-plan.md')
-            _rc = 0 if approved_already else run_claude(args.claude, plan_prompt(slug), args.timeout or None)
+            _rc = 0 if approved_already else run_claude_resilient(
+                args.claude, plan_prompt(slug), args.timeout or None, 'plan')
             if not approved_already:
                 rescue_misfiled(_plan_rel)
             if not approved_already and (_rc != 0 or not os.path.exists(plan_path)):
@@ -393,7 +431,9 @@ def main():
                 save_status(st)
                 print('  plan failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
                 continue
-            if not approved_already and (run_claude(args.claude, plan_check_prompt(slug), args.timeout or None) != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read()):
+            if not approved_already and (run_claude_resilient(
+                    args.claude, plan_check_prompt(slug), args.timeout or None,
+                    'plan review') != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read()):
                 st[slug]['status'] = 'plan_review_failed'
                 save_status(st)
                 print('  plan review failed: %s' % slug)
@@ -416,7 +456,8 @@ def main():
 
             st[slug]['status'] = 'reviewing'
             save_status(st)
-            if run_claude(args.claude, check_prompt(slug), args.timeout or None) != 0:
+            if run_claude_resilient(args.claude, check_prompt(slug),
+                                    args.timeout or None, 'lesson review') != 0:
                 st[slug]['status'] = 'manual_review'
                 save_status(st)
                 print('  review flagged manual_review: %s (see Scripts/lesson-review.log)' % slug)
