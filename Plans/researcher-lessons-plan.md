@@ -24,6 +24,42 @@ Three files in the tree are dirty and were dirty before this work started:
 regenerable build artifacts. Do not `git add -A`; stage explicit paths, and run
 `git checkout -- tools/` before every commit.
 
+### Merge master forward before every build pass
+
+```
+git merge origin/master          # in the worktree, before building, never mid-run
+```
+
+A branch that outlives its base builds lessons with stale machinery. On
+2026-11-15 this branch was 75 commits behind `origin/master` and **36
+build-critical files had moved**, including the converter and the player:
+
+```
+_build/md2lesson.py   +14    the lesson-to-player converter
+_build/build.py        -8
+_build/template.html   +2
+www/lesson-mode.css   +11
+www/lesson-mode.js  +159    across 8 commits
+```
+
+Those eight commits changed real behaviour, not styling: "Take the sign-in wall
+off free lesson content", "The Pro gate asks the learner to continue, and offers
+a way onward", "Try-it steps: the textarea is the last block before the check,
+so setup cells run". The last one is an authoring rule. The gates will not catch
+the mismatch, because they check the old machinery against the old player; it
+surfaces only after the merge.
+
+Do the merge between passes, never while a batch is running: a worker reads
+`Plans/`, `_build/` and `www/lesson-widgets/` mid-session.
+
+### Branch scope
+
+One branch per **course**, not per track. A course is what the reader consumes
+and what the roadmap flips, and seven lessons is about six hours of build, so
+the branch lives a day instead of a fortnight. This branch is named
+course-scoped (`-probability-1-7`) but accumulated sections 2 and 3, which is
+exactly why it went stale. Split the next one.
+
 ## Owner decision, 2026-11-15
 
 A second curriculum for this track was written on 2026-11-14 on branch
