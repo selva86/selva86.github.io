@@ -30,7 +30,6 @@ PROJECT_ROOT = os.path.dirname(ROOT)
 STATUS = os.path.join(ROOT, 'lessons-status.json')
 LOCK = os.path.join(ROOT, 'Scripts', 'batch_lessons.lock')
 COURSES = os.path.join(ROOT, 'courses.json')
-FAILLOG = os.path.join(ROOT, 'Scripts', 'lesson-failures.log')
 
 
 def load_json(path, default):
@@ -61,8 +60,15 @@ def resolve_targets(args):
     # plan pass leaves entries no invocation can reach: a bare run sees only
     # pending/planned, --regenerate saw only failed/publish_failed, and the slugs
     # had to be retyped by hand (2026-11-14 out of memory, 2026-11-15 DNS drop).
+    # 'writing', 'reviewing' and 'publishing' are in-flight labels. They can
+    # only still be set if the run died mid-stage, and they used to appear in
+    # NO resume set, which stranded the lesson permanently (Maximum-Likelihood
+    # at 'writing' after the 2026-11-15 hang; Deep-Learning-DeepAR at
+    # 'publishing'). manual_review stays out on purpose: it is a request for a
+    # human, not a crash.
     want = {'pending', 'planned'} | ({'failed', 'publish_failed',
-                                      'plan_failed', 'plan_review_failed'}
+                                      'plan_failed', 'plan_review_failed',
+                                      'writing', 'reviewing', 'publishing'}
                                      if args.regenerate else set())
     return [slug for slug, v in st.items() if v.get('status', 'pending') in want]
 
@@ -222,8 +228,56 @@ def rescue_misfiled(relpath):
     return None
 
 
-def run_claude(cli, prompt, timeout=None):
-    print('+ %s -p "%s..."  (--model %s --effort %s, no-global-CLAUDE.md, cwd=%s)' % (cli, prompt[:90], BATCH_MODEL, BATCH_EFFORT, PROJECT_ROOT), flush=True)
+DEFAULT_TIMEOUT = 1800     # 30 min: a plan takes ~10, a build ~25 with retries
+MAX_TIMEOUT = 7200         # 2 h absolute ceiling; nothing legitimate runs longer
+
+
+def effective_timeout(value):
+    """Return a real per-stage budget. NEVER None.
+
+    2026-11-15: a plan-review worker sat for 18 hours and the queue never
+    advanced. The old code passed `effective_timeout(args.timeout)` to proc.wait(), and
+    `or` maps every falsy value (0, None) to None, which means "block
+    forever". The wait mechanism itself is fine -- proc.wait(timeout=3) raises
+    TimeoutExpired correctly here -- so None was the only way in. An
+    unattended driver has no business waiting forever, so 0 and None now mean
+    "use the default" rather than "no limit", and nothing exceeds the ceiling.
+    """
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        v = 0
+    if v <= 0:
+        v = DEFAULT_TIMEOUT
+    return min(v, MAX_TIMEOUT)
+
+
+def _watchdog(proc, deadline_sec, label):
+    """Independent backstop: tree-kill a worker that outlives its budget.
+
+    proc.wait(timeout=) is the primary mechanism and it works. This fires only
+    if that path somehow does not, so it is armed well past the budget and
+    no-ops when the process has already exited. Daemon thread: it can never
+    hold the driver open.
+    """
+    import threading
+
+    def _bark():
+        if proc.poll() is None:
+            print('  WATCHDOG: %s outlived its %ds budget by 120s and proc.wait '
+                  'did not fire. Tree-killing it so the queue advances.'
+                  % (label, deadline_sec), flush=True)
+            _kill_tree(proc.pid)
+
+    t = threading.Timer(deadline_sec + 120, _bark)
+    t.daemon = True
+    t.start()
+    return t
+
+
+def run_claude(cli, prompt, timeout=None, label='stage'):
+    timeout = effective_timeout(timeout)
+    print('+ %s -p "%s..."  (--model %s --effort %s, timeout %ds, no-global-CLAUDE.md, cwd=%s)' % (cli, prompt[:90], BATCH_MODEL, BATCH_EFFORT, timeout, PROJECT_ROOT), flush=True)
     try:
         proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions',
                                  '--model', BATCH_MODEL, '--effort', BATCH_EFFORT,
@@ -231,6 +285,7 @@ def run_claude(cli, prompt, timeout=None):
     except FileNotFoundError:
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127
+    guard = _watchdog(proc, timeout, label)
     try:
         return proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -245,6 +300,8 @@ def run_claude(cli, prompt, timeout=None):
         except Exception:
             pass
         return 124
+    finally:
+        guard.cancel()
 
 
 # A worker that exits non-zero this fast cannot have done any work, so the
@@ -266,7 +323,7 @@ def run_claude_resilient(cli, prompt, timeout, label):
     rc = 1
     for attempt in range(len(NET_BACKOFF) + 1):
         started = time.monotonic()
-        rc = run_claude(cli, prompt, timeout)
+        rc = run_claude(cli, prompt, timeout, label)
         elapsed = time.monotonic() - started
         if rc == 0 or elapsed >= FAST_FAIL_SEC or attempt == len(NET_BACKOFF):
             return rc
@@ -389,7 +446,10 @@ def main():
     print('Targets (%d): %s' % (len(targets), ', '.join(targets)))
     if args.dry_run:
         for s in targets:
-            print('  would: /write-lesson %s   then   /publish-lesson %s --skip-sync' % (s, s))
+            if args.plan_only:
+                print('  would: /write-lesson %s --plan-only   then   /check-lesson-plan' % s)
+            else:
+                print('  would: /write-lesson %s   then   /publish-lesson %s --skip-sync' % (s, s))
         print('Dry run: no subprocesses spawned, no state changed.')
         return 0
 
@@ -423,20 +483,24 @@ def main():
                 print('  approved plan exists, skipping planner + plan review: %s' % slug)
             _plan_rel = os.path.join('post_plans', slug + '_lesson-plan.md')
             _rc = 0 if approved_already else run_claude_resilient(
-                args.claude, plan_prompt(slug), args.timeout or None, 'plan')
+                args.claude, plan_prompt(slug), effective_timeout(args.timeout), 'plan')
             if not approved_already:
                 rescue_misfiled(_plan_rel)
             if not approved_already and (_rc != 0 or not os.path.exists(plan_path)):
                 st[slug]['status'] = 'plan_failed'
+                st[slug]['last_error'] = ('planner exited %d' % _rc if _rc != 0
+                                          else 'planner exited 0 but wrote no plan file')
                 save_status(st)
-                print('  plan failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
+                print('  plan failed: %s (%s; see lessons-status.json)'
+                      % (slug, st[slug]['last_error']))
                 continue
             if not approved_already and (run_claude_resilient(
-                    args.claude, plan_check_prompt(slug), args.timeout or None,
+                    args.claude, plan_check_prompt(slug), effective_timeout(args.timeout),
                     'plan review') != 0 or 'status: approved' not in open(plan_path, encoding='utf-8').read()):
                 st[slug]['status'] = 'plan_review_failed'
+                st[slug]['last_error'] = 'plan review did not stamp status: approved'
                 save_status(st)
-                print('  plan review failed: %s' % slug)
+                print('  plan review failed: %s (see lessons-status.json)' % slug)
                 continue
             if args.plan_only:
                 st[slug]['status'] = 'planned'
@@ -445,19 +509,19 @@ def main():
                 continue
             _md = os.path.join(ROOT, 'lessons', slug + '.md')
             rescue_misfiled(os.path.join('lessons', slug + '.md'))
-            ok, why = run_stage(args.claude, slug, 'build', build_prompt(slug), args.timeout or None,
+            ok, why = run_stage(args.claude, slug, 'build', build_prompt(slug), effective_timeout(args.timeout),
                                 lambda: (os.path.exists(_md), 'no lesson markdown written'))
             if not ok:
                 st[slug]['status'] = 'failed'
                 st[slug]['last_error'] = why
                 save_status(st)
-                print('  write failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
+                print('  write failed: %s (%s; see lessons-status.json)' % (slug, why))
                 continue
 
             st[slug]['status'] = 'reviewing'
             save_status(st)
             if run_claude_resilient(args.claude, check_prompt(slug),
-                                    args.timeout or None, 'lesson review') != 0:
+                                    effective_timeout(args.timeout), 'lesson review') != 0:
                 st[slug]['status'] = 'manual_review'
                 save_status(st)
                 print('  review flagged manual_review: %s (see Scripts/lesson-review.log)' % slug)
@@ -468,7 +532,7 @@ def main():
             # The exit code proves nothing: `claude -p` exits 0 whether or not the
             # publisher finished. run_stage verifies the artifacts, and on a miss
             # applies the fixers, re-gates and retries the publish once.
-            ok, why = run_stage(args.claude, slug, 'publish', publish_prompt(slug), args.timeout or None,
+            ok, why = run_stage(args.claude, slug, 'publish', publish_prompt(slug), effective_timeout(args.timeout),
                                 lambda: verify_published(slug, fragment_dirs=('_lessons', '_posts')))
             if not ok:
                 st[slug]['status'] = 'publish_failed'
