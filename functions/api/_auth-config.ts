@@ -52,6 +52,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
           },
           allaccess: {
             month: context.env.PADDLE_PRICE_AA_MONTH || null,
+            /* Quarterly is sold from the roadmap Pro panel and nowhere else.
+               Same "null until provisioned" contract as the rest, so unset
+               means that panel offers two plans instead of three, never a row
+               whose button cannot resolve a price. */
+            quarter: context.env.PADDLE_PRICE_AA_QUARTER || null,
             year: context.env.PADDLE_PRICE_AA_YEAR || null,
           },
           lifetime: context.env.PADDLE_PRICE_LIFETIME || null,

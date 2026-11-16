@@ -47,6 +47,38 @@ const SIGNALS = new Set([
      one eats them all, which keeps the ratio honest even when the absolute
      number is low. */
   "offer_shown", "offer_click",
+  /* 2026-11-13: the announcement strip (www/announce-bar.js). bar_view once per
+     session per path when the strip is inserted, bar_click on the CTA; meta
+     carries the campaign key.
+
+     Added in the same commit as the client, which is the rule two comments
+     above and the one this file keeps learning the hard way. The strip shipped
+     on 2026-11-11 sending `announce_click`, which was never listed here, and
+     it sent it through `window.rsSignal`, which does not exist. Two days of a
+     sitewide bar produced no data at all. */
+  "bar_view", "bar_click",
+  /* 2026-11-13: the strip's offer arm. bar_code_open when the email field is
+     revealed, bar_code_sent when a code actually went out. The pair is the
+     funnel that matters: bar_view -> bar_code_open -> bar_code_sent, and then
+     the redemption, which is counted in bar_offers rather than here because
+     Paddle is the only thing that knows it happened. */
+  "bar_code_open", "bar_code_sent",
+  /* 2026-11-13: the v2 course pages (www/roadmap-fanout.js). track_view was
+     already in this list and had never been sent by anything, so a course
+     page visit has never been recorded first party; it now has a sender.
+     track_lesson carries `track|state` for the three outcomes the page can
+     give a reader: open, signin, locked.
+
+     DELIBERATELY SEPARATE FROM pro_wall_hit. The course page runs the lesson
+     in an iframe, so lesson-mode.js fires pro_wall_hit with the iframe's
+     pathname, which is the lesson's URL. Those rows cannot tell a wall hit on
+     a lesson page from one inside a course page, and the course page draws
+     its own lock while hiding the lesson's. Two different things, two names. */
+  "track_lesson",
+  /* 2026-11-13: sent by lesson-locked.html since that page shipped, and
+     dropped here every time, because it was never added. The third instance
+     of this exact bug found today, after announce_click and track_view. */
+  "lesson_window_closed",
 ]);
 
 let tableReady = false;

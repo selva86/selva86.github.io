@@ -69,7 +69,7 @@ const ROADMAP_MAIN=`<main class="wrap">
   <header class="hero reveal">
     <h1 class="disp">Learn R, <u>role by role</u>.</h1>
     <p class="lede">A complete path from your first line of R to real, shippable work, taught in the order a practitioner would teach it. Free to read, certified when you are ready.</p>
-    <div class="go"><a class="primary" href="/roadmap/new-to-r.html">Start Learning <span class="a">&rarr;</span></a><a class="ghost" href="#path">Browse the curriculum</a></div>
+    <div class="go"><a class="primary" href="/roadmap/v2/new-to-r.html">Start Learning <span class="a">&rarr;</span></a><a class="ghost" href="#path">Browse the curriculum</a></div>
     <form class="capture" id="hero-wl" onsubmit="return false"><input type="email" id="hero-wl-email" required autocomplete="email" placeholder="you@email.com" aria-label="Email for launch access"><button type="submit" id="hero-wl-btn">Get launch access <span class="a">&rarr;</span></button></form>
     <p class="capture-fine" id="hero-wl-msg">No card. One email when Pro opens &middot; founding rate locked for the first 200.</p>
     <div class="stats" id="stats"></div>
@@ -118,7 +118,7 @@ const ROLE_MAIN=`<main class="wrap">
     <div class="pindex reveal" id="pgrid"></div>
   </section>
   <section class="certband reveal"><div class="in">
-    <div><h2 class="disp" id="certHead">Earn the certificate</h2><p id="certSub">Read every lesson free. The graded practice, projects and certificate are the Program.</p></div>
+    <div><h2 class="disp" id="certHead">Earn the certificate</h2><p id="certSub">The first lesson of every section is free to read. Pro opens the rest, along with the graded practice and the certificate.</p></div>
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;
@@ -132,7 +132,9 @@ let n=1;
 
 // --- 6 role pages ---
 ROLES.forEach(function(r){
-  const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
+  /* The v2 page is the canonical one: the navbar and the roadmap index open
+     it, and this page defers to it rather than competing with it. */
+  const canon=ORIGIN+'/roadmap/v2/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
   const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=13')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);

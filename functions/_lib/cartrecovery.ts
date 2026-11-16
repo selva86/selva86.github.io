@@ -86,11 +86,28 @@ export async function hasPurchased(env: PaddleEnv, email: string): Promise<boole
    `recur` is a required field rather than an optional one so that a new caller
    has to make the decision rather than inherit Paddle's. */
 // Generic single-use percentage code (shared with the price-alert flow).
+//
+// Two entry points for one job. The boolean one is what pass.ts, pricealerts.ts
+// and offer.ts have always called, and it keeps its contract exactly.
+//
+// The WithId one exists because payments.discount_id holds PADDLE'S ID, never
+// the code string. A programme that keeps only the code it sent can report how
+// many codes went out and can never match one to the payment that redeemed it,
+// so every personal-code flow here has been able to measure its cost and not
+// its return. Keeping the id at mint time is the only moment it is free.
 export async function createPaddleDiscount(
   env: PaddleEnv,
   o: { code: string; percent: string; expiresAt: number; priceIds?: string[]; description: string;
        recur: boolean },
 ): Promise<boolean> {
+  return (await createPaddleDiscountWithId(env, o)).ok;
+}
+
+export async function createPaddleDiscountWithId(
+  env: PaddleEnv,
+  o: { code: string; percent: string; expiresAt: number; priceIds?: string[]; description: string;
+       recur: boolean },
+): Promise<{ ok: boolean; id: string | null }> {
   try {
     const body: Record<string, unknown> = {
       description: o.description,
@@ -109,8 +126,18 @@ export async function createPaddleDiscount(
       headers: { Authorization: `Bearer ${env.PADDLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    return resp.ok;
-  } catch (_) { return false; }
+    if (!resp.ok) return { ok: false, id: null };
+    /* ok stays true even when the body cannot be read. The discount exists at
+       this point: reporting a failure would send the caller off to mint a
+       second one, and the first would still be live and redeemable. A missing
+       id costs a row in a report; a duplicate code costs money. */
+    try {
+      const b = (await resp.json()) as { data?: { id?: string } };
+      return { ok: true, id: b.data?.id || null };
+    } catch (_) {
+      return { ok: true, id: null };
+    }
+  } catch (_) { return { ok: false, id: null }; }
 }
 
 async function createDiscount(

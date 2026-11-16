@@ -22,6 +22,7 @@ import { json, jsonError } from "../../_lib/errors";
 import { verifyPaddleSignature, isPaddleSourceIp, cancelSubscriptionNow } from "../../_lib/paddle";
 import { getUserById, getUserByEmail } from "../../_lib/db";
 import { notifyAdminEvent } from "../../_lib/notify";
+import { alertOps } from "../../_lib/ops-alert";
 import { sendFulfilmentEmail, formatMoney, type FulfilmentPlan } from "../../_lib/fulfilment";
 
 // Valid roadmap track keys for Single Track scoping (matches courses.json
@@ -200,8 +201,29 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         // Not a Teams subscription: individual-plan fulfillment.
         const plan = individualPlan(data, context.env);
         if (!plan) {
+          /* individualPlan() resolves a plan only from the configured
+             PADDLE_PRICE_* ids and returns null for everything else, which
+             entitles nothing. That is correct and deliberate, but it means a
+             price sold before it was added to the configuration takes the
+             money and grants no access. Nothing here can fix that, so it is
+             reported rather than retried: the answer will not change until
+             somebody edits the environment. */
           console.warn(`[webhook.paddle] sub ${subId} matches no known plan; ignoring`);
           processedNote = "unmatched_sub_ignored";
+          const seen = (data.items || [])
+            .map((i) => i.price?.id).filter(Boolean).join(", ") || "(no price on the event)";
+          await alertOps(context.env, {
+            kind: "paid_not_entitled", severity: "critical", ref: subId,
+            summary: `Subscription ${subId} was paid for a price the site does not recognise`,
+            rows: [
+              ["Subscription", subId],
+              ["Price id on the event", seen],
+              ["Paddle customer", data.customer_id || "(none)"],
+              ["What happened", "Paddle took the payment. No access was granted to anybody."],
+              ["Why", "That price id is in no PADDLE_PRICE_* variable, so it resolves to no plan."],
+              ["To fix", "Add the price id to the environment and to paddle-plan.ts, then replay this event in Paddle."],
+            ],
+          });
         } else {
           const input = {
             subId,
@@ -217,12 +239,32 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             occurredAt,
             nowSec: now,
           };
-          const user = await resolveSubscriptionUser(context.env.DB, input);
+          const resolved = await resolveSubscriptionUser(context.env.DB, input);
+          /* A database that could not answer is not a buyer who does not
+             exist. Throwing reaches this handler's catch, which returns 500
+             and has Paddle retry, and a retry is the one thing that can still
+             put this right without a person. */
+          if (resolved.cause === "lookup_failed") {
+            throw new Error(`user lookup failed for sub ${subId}: ${resolved.error}`);
+          }
+          const user = resolved.user;
           if (!user) {
             // No matching account: record the delivery, alert loudly. Paddle
             // has been paid; support resolves by linking the account manually.
             console.error(`[webhook.paddle] UNRESOLVED individual sub ${subId} (plan=${plan}, customer=${input.customerId})`);
             processedNote = "individual_unresolved_user";
+            await alertOps(context.env, {
+              kind: "paid_not_entitled", severity: "critical", ref: subId,
+              summary: `Paid subscription ${subId} matches no account`,
+              rows: [
+                ["Plan paid for", plan],
+                ["Subscription", subId],
+                ["Paddle customer", input.customerId || "(none)"],
+                ["Email at checkout", input.email || "(none)"],
+                ["What happened", "Paddle took the payment. Nobody was given access."],
+                ["To fix", "Find the buyer in Paddle and link that customer id to their account, then replay the event."],
+              ],
+            });
           } else {
             const mirrored = await mirrorSubscription(context.env.DB, { ...input, resolvedUserId: user.id });
             if (mirrored === "stale") {
@@ -276,6 +318,20 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             }
             if (!ownerEmail) {
               console.warn(`[webhook.paddle] teams sub ${subId} has no resolvable owner (no custom_data.user_id)`);
+              /* Recorded, not emailed: the org row is still written and seats
+                 can be assigned once an owner is known, so this is a thing to
+                 chase rather than an emergency. */
+              await alertOps(context.env, {
+                kind: "paid_not_entitled", severity: "warn", ref: subId,
+                summary: `Teams subscription ${subId} has no resolvable owner`,
+                rows: [
+                  ["Subscription", subId],
+                  ["Paddle customer", customerId || "(none)"],
+                  ["Seats", String(seats)],
+                  ["What happened", "The team was created with no owner, so nobody can assign its seats."],
+                  ["To fix", "Set the owner on the org, then the seats become assignable."],
+                ],
+              });
             }
           }
           const resolvedOwnerId = ownerUserId ||
@@ -303,9 +359,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       const plan = individualPlan(data, context.env);
       const userId = (data.custom_data?.user_id as string | undefined) || "";
       const email = (data.custom_data?.email as string | undefined) || null;
-      const user = await resolveSubscriptionUser(context.env.DB, {
+      const resolvedTxn = await resolveSubscriptionUser(context.env.DB, {
         subId: data.subscription_id || data.id, userId, customerId: data.customer_id || null, email,
       });
+      /* Same rule as the subscription branch above: a lookup that failed is
+         retried, a lookup that found nothing is handed to a person. */
+      if (resolvedTxn.cause === "lookup_failed") {
+        throw new Error(`user lookup failed for txn ${data.id}: ${resolvedTxn.error}`);
+      }
+      const user = resolvedTxn.user;
 
       /* Record the money first, before any fulfilment branching. Every
          completed transaction lands in the ledger, including renewals (which
@@ -338,13 +400,43 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
           nowSec: now,
         });
       } catch (e) {
-        console.error(`[webhook.paddle] payments insert failed for ${data.id}: ${(e as Error).message}`);
+        /* Deliberately not rethrown: the comment above this block is right
+           that a ledger failure must never cost the customer their access.
+           But the money is then real and absent from the table the accounts
+           are reconciled against, which nobody would notice at month end. */
+        const msg = (e as Error).message;
+        console.error(`[webhook.paddle] payments insert failed for ${data.id}: ${msg}`);
+        await alertOps(context.env, {
+          kind: "paid_not_recorded", severity: "critical", ref: data.id,
+          summary: `Payment ${data.id} is missing from the ledger`,
+          rows: [
+            ["Transaction", data.id],
+            ["Error", msg],
+            ["What happened", "The charge went through. Entitlement was unaffected, but the payments row did not save."],
+            ["To fix", "Reconcile this transaction from Paddle into payments."],
+          ],
+        });
       }
 
       if (plan === "lifetime") {
         if (!user) {
+          /* The largest single charge on the site, and until now the quietest
+             way to lose one. */
           console.error(`[webhook.paddle] UNRESOLVED lifetime txn ${data.id} (customer=${data.customer_id})`);
           processedNote = "lifetime_unresolved_user";
+          await alertOps(context.env, {
+            kind: "paid_not_entitled", severity: "critical", ref: data.id,
+            summary: `LIFETIME purchase ${data.id} matches no account`,
+            rows: [
+              ["Transaction", data.id],
+              ["Paid", money(intOrNull(data.details?.totals?.grand_total ?? data.details?.totals?.total),
+                data.details?.totals?.currency_code || data.currency_code || null) || "(unknown)"],
+              ["Paddle customer", data.customer_id || "(none)"],
+              ["Email at checkout", email || "(none)"],
+              ["What happened", "Lifetime access was paid for and granted to nobody."],
+              ["To fix", "Link the Paddle customer to their account, then replay this transaction."],
+            ],
+          });
         } else {
           const totalStr = data.details?.totals?.total;
           await applyLifetimePurchase(context.env.DB, {

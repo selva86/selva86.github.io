@@ -57,6 +57,8 @@ export interface FulfilmentEnv {
   PADDLE_API_KEY?: string;
 }
 
+import { alertOps } from "./ops-alert";
+
 const SUPPORT_EMAIL = "support@r-statistics.co";
 const SITE = "https://r-statistics.co";
 const DASHBOARD_URL = `${SITE}/dashboard.html`;
@@ -73,12 +75,12 @@ const REFUND_LINE =
 // Roadmap destination per Single-track scope key (matches the TRACK_KEYS set
 // in webhooks/paddle.ts and the pricing-page chips).
 const TRACKS: Record<string, { name: string; path: string }> = {
-  ds: { name: "Data Scientist", path: "/roadmap/data-scientist.html" },
-  ts: { name: "Forecaster", path: "/roadmap/forecaster.html" },
-  researcher: { name: "Researcher", path: "/roadmap/researcher.html" },
-  developer: { name: "R Developer", path: "/roadmap/r-developer.html" },
-  analyst: { name: "Data Analyst", path: "/roadmap/data-analyst.html" },
-  foundations: { name: "New to R", path: "/roadmap/new-to-r.html" },
+  ds: { name: "Data Scientist", path: "/roadmap/v2/data-scientist.html" },
+  ts: { name: "Forecaster", path: "/roadmap/v2/forecaster.html" },
+  researcher: { name: "Researcher", path: "/roadmap/v2/researcher.html" },
+  developer: { name: "R Developer", path: "/roadmap/v2/r-developer.html" },
+  analyst: { name: "Data Analyst", path: "/roadmap/v2/data-analyst.html" },
+  foundations: { name: "New to R", path: "/roadmap/v2/new-to-r.html" },
 };
 
 // Currencies with no minor unit. Paddle amounts are always in the lowest
@@ -150,7 +152,14 @@ const DASHBOARD_LINE =
 // their next lesson is picked up on every later visit.
 export function describePlan(plan: string, track?: string | null): PlanCopy {
   const t = track && TRACKS[track] ? TRACKS[track] : null;
-  const term = plan.endsWith("_month") ? "billed monthly" : "billed yearly";
+  /* Read off the plan, never defaulted to yearly: this string goes into a
+     receipt, and a plan that bills every 3 months described as "billed
+     yearly" is a wrong renewal term in writing. */
+  const term = plan.endsWith("_month")
+    ? "billed monthly"
+    : plan.endsWith("_quarter")
+      ? "billed every 3 months"
+      : "billed yearly";
 
   if (plan === "lifetime") {
     return {
@@ -567,7 +576,25 @@ export async function sendFulfilmentEmail(
     // try again instead of the customer silently getting nothing.
     if (!res.ok) await env.KV.delete(marker).catch(() => {});
   } catch (e) {
-    console.warn(`[fulfilment] send failed for ${plan.refId}: ${(e as Error).message}`);
+    /* The customer has paid and has access, and has been told nothing: no
+       receipt, no link to the thing they just bought, no renewal terms. The
+       claim marker is released above so a retry or the next sweep can try
+       again, but if those also fail this is the only trace. */
+    const msg = (e as Error).message;
+    console.warn(`[fulfilment] send failed for ${plan.refId}: ${msg}`);
+    await alertOps(env, {
+      kind: "receipt_not_sent", severity: "critical", ref: plan.refId,
+      summary: `Purchase email failed for ${plan.to?.email || plan.refId}`,
+      rows: [
+        ["Reference", plan.refId],
+        ["Buyer", plan.to?.email || "(unknown)"],
+        ["Plan", plan.plan],
+        ["Paid", plan.money || "(unknown)"],
+        ["Error", msg],
+        ["What happened", "Access was granted. The buyer has no receipt and no link to what they bought."],
+        ["To fix", "Resend from the contact centre once the cause is cleared."],
+      ],
+    });
   }
 }
 

@@ -11,31 +11,34 @@
 
   var CSS_V = 3;
   var R = '/roadmap/';
+  /* Track entries open the v2 player. The v1 pages stay exactly where they
+     are and keep working; they are simply no longer the way in. */
+  var T = R + 'v2/';
   /* Access labels follow what is published (courses.json, 2026-10-05): New to R
      is free in full; Data Analyst, Data Scientist and Forecaster open with a free
      Section 1; Researcher and R Developer lessons are still being published (no
      Section 1 yet); ML Engineer is planned and has no sign-up yet, so it offers
      the plan rather than a notification. Certificate names = _build/tracks-source.json. */
   var T = [
-    {id:'newr', track:'foundations', name:'New to R', href:R+'new-to-r.html', cert:'Certified R Fundamentals',
+    {id:'newr', track:'foundations', name:'New to R', href:T+'new-to-r.html', cert:'Certified R Fundamentals',
      desc:'From your first line of R to writing your own functions. No experience needed, and every other track builds on it.',
      b:'free', bl:'Free', act:'Start free', sf:1, icon:'M5 8l4 4-4 4M12 16h7'},
-    {id:'da', track:'analyst', name:'Data Analyst', href:R+'data-analyst.html', cert:'Certified R Data Analyst',
+    {id:'da', track:'analyst', name:'Data Analyst', href:T+'data-analyst.html', cert:'Certified R Data Analyst',
      desc:'Wrangle, visualize, report.', b:'free', bl:'Section 1 free', act:'Start free', sf:1,
      icon:'M4 20h16M6 20v-6M10 20V9M14 20v-8M18 20V5'},
-    {id:'ds', track:'ds', name:'Data Scientist', href:R+'data-scientist.html', cert:'Certified R Data Scientist',
+    {id:'ds', track:'ds', name:'Data Scientist', href:T+'data-scientist.html', cert:'Certified R Data Scientist',
      desc:'Machine learning end to end.', b:'pro', bl:'Pro', act:'Try Section 1 free', sf:1,
      icon:'M8 7a2 2 0 1 1-4 0a2 2 0 1 1 4 0M20 7a2 2 0 1 1-4 0a2 2 0 1 1 4 0M14 17a2 2 0 1 1-4 0a2 2 0 1 1 4 0M8 7h8M7 9l4 6M17 9l-4 6'},
-    {id:'fc', track:'ts', name:'Forecaster', href:R+'forecaster.html', cert:'Certified R Forecaster',
+    {id:'fc', track:'ts', name:'Forecaster', href:T+'forecaster.html', cert:'Certified R Forecaster',
      desc:'From ARIMA to deep learning, with reliable prediction intervals.', b:'pro', bl:'Pro', act:'Try Section 1 free', sf:1,
      icon:'M3 17l5-5 4 3 6-7M14 8h4v4'},
-    {id:'rs', track:'researcher', name:'Researcher', href:R+'researcher.html', cert:'Certified R Researcher',
+    {id:'rs', track:'researcher', name:'Researcher', href:T+'researcher.html', cert:'Certified R Researcher',
      desc:'Statistical tests to mixed models, Bayesian and causal inference.', b:'pro', bl:'Pro', act:'See the roadmap',
      icon:'M3 19h18M4 18c3 0 4-11 8-11s5 11 8 11'},
-    {id:'rd', track:'developer', name:'R Developer', href:R+'r-developer.html', cert:'Certified R Developer',
+    {id:'rd', track:'developer', name:'R Developer', href:T+'r-developer.html', cert:'Certified R Developer',
      desc:'Packages, performance, Shiny.', b:'pro', bl:'Pro', act:'See the roadmap',
      icon:'M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM4 7.5l8 4.5 8-4.5M12 12v9'},
-    {id:'ml', track:'', name:'ML Engineer', href:R+'ml-engineer.html', cert:'Certified R ML Engineer',
+    {id:'ml', track:'', name:'ML Engineer', href:T+'ml-engineer.html', cert:'Certified R ML Engineer',
      desc:'Ship and operate ML in production.', b:'soon', bl:'Coming soon', act:'See the plan', soon:1,
      icon:'M4 5h16v5H4zM4 14h16v5H4zM8 7.5h.01M8 16.5h.01'}
   ];

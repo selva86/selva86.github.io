@@ -32,7 +32,7 @@ const SAMPLE = {
   pass_end_date: "Sep 11",
   hub_url: "/R-Interview-Questions.html",
   course_title: "Data Wrangling with dplyr",
-  next_lesson_url: "/roadmap/data-analyst.html",
+  next_lesson_url: "/roadmap/v2/data-analyst.html",
   reset_date: "Sep 1",
   // The wall email is entirely track-derived, so without these the test send
   // renders "one of  in the same track" and tells you nothing about the real

@@ -191,6 +191,25 @@ function assemble(args: {
 // ------------------------------------------------------------------
 
 export interface EmailCopy { subject: string; preheader: string; body: string }
+/* First lesson of the track a page belongs to. Narrow patterns on purpose:
+   a wrong offer is worse than the default, which is the on-ramp. Kept in step
+   with www/announce-bar.js and email-optin.html. */
+function firstLessonFor(page?: string): string {
+  const src = String(page || "");
+  const families: Array<[RegExp, string]> = [
+    [/(install-r|rstudio|r-syntax|is-r-worth|free-r-courses|learn-r|r-data-types|r-vectors|r-factors|r-lists|r-matrices|r-control-flow|getting-started)/i,
+     "/R-Syntax-and-First-Objects.html"],
+    [/(time-series|arima|forecast|garch|kalman|exponential-smoothing|stationarit|acf-and-pacf|cointegration|seasonal|holt-winters)/i,
+     "/What-Makes-Time-Series-Different.html"],
+    [/(regression|machine-learning|random-forest|gradient-boost|xgboost|classification|clustering|neural-net|causal-inference|conformal|cross-validat)/i,
+     "/Framing-a-Problem-as-ML.html"],
+    [/(ggplot|visuali|dplyr|tidyverse|wrangl|pipe-operator|cheat-sheet|data-frame|tidyr|stringr|lubridate)/i,
+     "/Importing-and-Tidy-Data-in-R.html"],
+  ];
+  for (const [re, href] of families) if (re.test(src)) return href;
+  return "/R-Syntax-and-First-Objects.html";
+}
+
 const DEFAULT_COPY = lifecycleJson as unknown as Record<string, EmailCopy>;
 
 interface LifecycleMeta {
@@ -220,7 +239,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "the end of your first 30 days",
-      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "welcome"),
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/v2/data-analyst.html", "welcome"),
       course_line: d.course_title
         ? `${d.course_title} is open again and your place is saved, so you can carry on right where the wall stopped you.`
         : "The lesson you were reading is open again and your place is saved.",
@@ -232,7 +251,20 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "the end of your first 30 days",
-      start_url: utm("/roadmap/data-analyst.html", "welcome"),
+      start_url: utm("/roadmap/v2/data-analyst.html", "welcome"),
+    }),
+  },
+  /* The account that took the welcome and still never opened a lesson. One
+     link, pointed at the first lesson of whichever track the page they
+     signed up from belongs to. Families match www/announce-bar.js and
+     email-optin.html, so the offer that brought them in is the track the
+     email sends them back to. */
+  "activate": {
+    key: "activate", category: "account", reason: "you created an r-statistics.co account",
+    linkTokens: ["start_url"], required: ["start_url"],
+    fills: (d) => ({
+      first_name: firstName(d),
+      start_url: utm(firstLessonFor(d.hub_url), "activate"),
     }),
   },
   "pass-23": {
@@ -241,7 +273,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "soon",
-      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-23"),
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/v2/data-analyst.html", "pass-23"),
     }),
   },
   "pass-27": {
@@ -260,7 +292,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     linkTokens: ["next_lesson_url"], required: ["next_lesson_url"],
     fills: (d) => ({
       first_name: firstName(d),
-      next_lesson_url: utm(d.next_lesson_url || "/roadmap/data-analyst.html", "pass-30"),
+      next_lesson_url: utm(d.next_lesson_url || "/roadmap/v2/data-analyst.html", "pass-30"),
       coupon_line: d.coupon_line || "",
     }),
   },
@@ -305,7 +337,7 @@ export const LIFECYCLE: Record<string, LifecycleMeta> = {
     fills: (d) => ({
       first_name: firstName(d),
       pass_end_date: d.pass_end_date || "30 days from today",
-      start_url: utm("/roadmap/data-analyst.html", "flip"),
+      start_url: utm("/roadmap/v2/data-analyst.html", "flip"),
     }),
   },
 };

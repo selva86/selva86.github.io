@@ -11,7 +11,7 @@ import type { User } from "./db";
 export interface PlanInfo {
   kind: "free" | "single" | "allaccess" | "lifetime" | "team";
   track: string | null;        // roadmap track key for Single Track
-  term: "month" | "year" | null;
+  term: "month" | "quarter" | "year" | null;
   renews_at: number | null;    // unix; the current period end for subscriptions
   will_renew: boolean;         // false when a cancel is scheduled
   sub_id: string | null;       // paddle sub_ id, for upgrades
@@ -75,7 +75,13 @@ export async function describePlan(
   const sub = await activeIndividualSub(env.DB, u.id);
   const plan = sub?.plan || "";
   const isSingle = plan.startsWith("single");
-  const term: PlanInfo["term"] = plan.endsWith("_month") ? "month" : plan ? "year" : null;
+  const term: PlanInfo["term"] = plan.endsWith("_month")
+    ? "month"
+    : plan.endsWith("_quarter")
+      ? "quarter"
+      : plan
+        ? "year"
+        : null;
   const track = isSingle ? await env.KV.get(`tracks:${u.id}`).catch(() => null) : null;
   return {
     ...none,

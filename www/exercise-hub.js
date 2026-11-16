@@ -1438,6 +1438,26 @@
     var cls = outEl.className || '';
     var text = outEl.textContent || '';
 
+    // The starter placeholder is still in the code (webr-init.js marks the run is-placeholder).
+    // Run as is, "ex_1 <- # your code here" fails with "object 'ex_1' not found", which the
+    // error path below took for setup that had not run. Not an attempt, so no fail is counted.
+    if (cls.indexOf('is-placeholder') !== -1) {
+      setVerdict(card, 'mismatch', '✎',
+        'Write your answer first.',
+        'Replace the placeholder in the editor with your own code, then check again.');
+      if (card.checkStatus) card.checkStatus.innerHTML = '✎ Your turn';   // not "Not a match": nothing was answered
+      return;
+    }
+    // The code ran and printed nothing (is-quiet). Before, such a run left no output class at
+    // all, so a Check never got a verdict and its spinner kept turning.
+    if (cls.indexOf('is-quiet') !== -1) {
+      setVerdict(card, 'mismatch', '≠',
+        'Your code ran but printed nothing.',
+        'Print your result, for example by putting its name on the last line, then check again.');
+      registerFail(card);
+      return;
+    }
+
     // Error path.
     if (cls.indexOf('has-error') !== -1) {
       if (SETUP_ERR.test(text)) {

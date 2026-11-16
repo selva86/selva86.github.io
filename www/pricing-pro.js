@@ -7,8 +7,26 @@
 (function () {
   'use strict';
   var TRACK = { ds: 'Data Scientist', ts: 'Forecaster', researcher: 'Researcher', developer: 'R Developer' };
+  /* A member's billing cycle, in the two word-forms this page's copy needs.
+     Quarterly members exist, because the plan is sold from the roadmap Pro
+     panel, and a two-way month-or-year test would tell every one of them that
+     their plan is annual on the page they came to in order to check it. */
+  function periodWord(term) { return term === 'month' ? 'month' : term === 'quarter' ? '3 months' : 'year'; }
+  function cycleAdj(term) { return term === 'month' ? 'monthly' : term === 'quarter' ? 'quarterly' : 'annual'; }
   var css = '.tier.held{border:2px solid var(--green);background:var(--tint)}' +
     '.tier.incl{background:var(--bg)}.tier.incl .amt,.tier.incl .tn,.tier.incl .td{color:var(--mut)}.tier.incl li svg{background:#b9c4cf}' +
+    /* The featured tier is a dark green card, so the two member states
+       above cannot lighten its background without restating every colour
+       pricing.html set for that darkness. Left out, an All-Access member
+       sees the whole card white on tint and a Lifetime member loses the
+       feature list, the per-year suffix and the monthly price line. */
+    '.tier.feat.incl{color:var(--mut);box-shadow:none}' +
+    '.tier.feat.incl .td,.tier.feat.incl .per,.tier.feat.incl .ctaline,.tier.feat.incl .bill,.tier.feat.incl ul{color:var(--mut)}' +
+    '.tier.feat.incl .ctaline strong{color:var(--mut)}' +
+    '.tier.feat.held{color:var(--ink)}' +
+    '.tier.feat.held .td,.tier.feat.held .per,.tier.feat.held .ctaline,.tier.feat.held .bill{color:var(--body)}' +
+    '.tier.feat.held .tn,.tier.feat.held .amt,.tier.feat.held .ctaline strong,.tier.feat.held ul{color:var(--ink)}' +
+    '.tier.feat.incl ul,.tier.feat.held ul{border-top-color:var(--line)}' +
     '.tier .ribbon.you{background:var(--green-deep)}' +
     '.tier .cta.quiet{background:#fff;color:var(--green);border-color:var(--green)}.tier .cta.quiet:hover{background:var(--tint);color:var(--green)}' +
     '.tier .cta.flat,.tier .cta.flat:hover{background:transparent;border-color:var(--line);color:var(--mut);cursor:default}' +
@@ -138,7 +156,12 @@
     if (dek) dek.textContent = deks[kind] || deks.allaccess;
     if (kind !== 'lifetime') {
       var bn = document.createElement('p'); bn.className = 'billnote';
-      bn.textContent = 'Prices below are billed ' + (plan.term === 'month' ? 'monthly' : 'annually') + ', the same cycle as your plan.';
+      /* The toggle below offers monthly and annual only, so for a quarterly
+         member neither half of "the same cycle as your plan" is true. Tell
+         them their cycle and what the prices on screen actually are. */
+      bn.textContent = plan.term === 'quarter'
+        ? 'Your plan is billed every 3 months. The prices below are the monthly and annual ones.'
+        : 'Prices below are billed ' + (plan.term === 'month' ? 'monthly' : 'annually') + ', the same cycle as your plan.';
       var tw = $('.hero .toggle-wrap'); if (tw) tw.insertAdjacentElement('afterend', bn); else if (dek) dek.insertAdjacentElement('afterend', bn);
     }
     if (free) { stripRibbon(free); setCta(free, 'flat', 'Included in your plan'); free.classList.add('incl'); }
@@ -157,7 +180,7 @@
         if (pk) { pk.style.display = ''; pk.classList.add('locked'); var ch = $('.chips', pk); if (ch) ch.innerHTML = '<span class="chip lock">' + esc(TRACK[plan.track] || 'Your track') + '</span>'; }
       }
       if (aa) {
-        var up = setCta(aa, 'primary', 'Upgrade to All-Access', '<b>You only pay the difference</b> for the rest of your ' + (plan.term === 'month' ? 'month' : 'year') + '. Your renewal date stays ' + esc(renews) + '.');
+        var up = setCta(aa, 'primary', 'Upgrade to All-Access', '<b>You only pay the difference</b> for the rest of your ' + periodWord(plan.term) + '. Your renewal date stays ' + esc(renews) + '.');
         var armed = false;
         if (up) up.addEventListener('click', function (e) {
           e.preventDefault(); e.stopImmediatePropagation();
@@ -182,7 +205,7 @@
           }).catch(function () { up.removeAttribute('aria-busy'); armed = false; up.textContent = 'Upgrade to All-Access'; });
         }, true);
       }
-      foundStrip('Upgrade to All-Access any time: you only pay the difference for the rest of your ' + (plan.term === 'month' ? 'month' : 'year') + ', and every track opens.', 'Upgrade to All-Access', '#plans', false, function (e) { e.preventDefault(); var t = aa && $('.cta', aa); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
+      foundStrip('Upgrade to All-Access any time: you only pay the difference for the rest of your ' + periodWord(plan.term) + ', and every track opens.', 'Upgrade to All-Access', '#plans', false, function (e) { e.preventDefault(); var t = aa && $('.cta', aa); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
     }
 
     if (kind === 'allaccess') {
@@ -231,13 +254,13 @@
       } else {
         var onSub = kind === 'single' || kind === 'allaccess';
         if (p) p.textContent = onSub
-          ? 'Every All-Access feature, every future track and course, for as long as the site is online. Switching from ' + (plan.term === 'month' ? 'monthly' : 'annual') + '? The months you have not used yet are taken off the Lifetime price before you pay. Your ' + (plan.term === 'month' ? 'monthly' : 'annual') + ' plan ends the same day.'
+          ? 'Every All-Access feature, every future track and course, for as long as the site is online. Switching from ' + cycleAdj(plan.term) + '? The months you have not used yet are taken off the Lifetime price before you pay. Your ' + cycleAdj(plan.term) + ' plan ends the same day.'
           : 'Every All-Access feature, every future track and course, for as long as the site is online. A personal Lifetime plan stays with you even if your team seat ends.';
         if (lifeCta) {
           lifeCta.innerHTML = 'Go Lifetime &rarr;';
           if (onSub) {
             var ln2 = document.createElement('span'); ln2.className = 'lnote';
-            ln2.textContent = 'Your unused ' + (plan.term === 'month' ? 'monthly' : 'annual') + ' months less from this price at checkout.';
+            ln2.textContent = 'Your unused ' + cycleAdj(plan.term) + ' months less from this price at checkout.';
             lifeCta.insertAdjacentElement('afterend', ln2);
             lifeCta.addEventListener('click', function (e) {
               e.preventDefault(); e.stopImmediatePropagation();

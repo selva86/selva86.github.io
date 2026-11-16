@@ -56,6 +56,7 @@
     var showCounter = !!(ds.courseLesson && ds.courseTotal) && lessonKind !== 'quiz';
     var landing = ds.courseLanding || '/';
     var nextHref = ds.courseNext || '';
+    var prevHref = ds.coursePrev || '';   // on the page already; the gate uses it
     var total = steps.length;
     var courseId = ds.courseId || '';
     var curSlug = location.pathname.replace(/^\//, '').replace(/index\.html?$/i, '').replace(/\.html?$/i, '').replace(/\/$/, '');
@@ -75,6 +76,7 @@
       if (saved && typeof saved === 'object') {
         state.furthest = saved.furthest || 0;
         state.passed = saved.passed || {};
+        if (saved.code && typeof saved.code === 'object') state.code = saved.code;   // passing try-it answers
       }
     } catch (e) {}
     function save() { try { localStorage.setItem(RESUME_KEY, JSON.stringify(state)); } catch (e) {} }
@@ -220,9 +222,11 @@
     var gateHold = locked && hasAuthToken();
     if (gateHold) setTimeout(function () { if (gateHold) { gateHold = false; if (locked) render(); } }, stripped ? 2500 : 700);
 
-    /* ---- account gate (free courses): first 2 lessons of a course are open to
-       anyone; lesson 3+ asks for a free account. Mutually exclusive with the Pro
-       wall above (Pro lessons use access==='pro'; this only fires on free courses). */
+    /* ---- account gate (free courses): OFF as of 2026-11-11. It used to open
+       the first 2 lessons of a course to anyone and ask for a free account from
+       lesson 3. See accountGated below for why it went and how to put it back.
+       Mutually exclusive with the Pro wall above (Pro lessons use
+       access==='pro'; this only ever fired on free courses). */
     var FREE_PREVIEW_LESSONS = 2;
     var lessonOrder = parseInt(ds.courseLesson || '0', 10) || 0;
     function hasAuthToken() {
@@ -231,7 +235,21 @@
       return body.classList.contains('state-pro');
     }
     var signedIn = hasAuthToken();
-    var accountGated = (access !== 'pro') && !windowed && lessonOrder > FREE_PREVIEW_LESSONS;
+    /* A free lesson is readable without an account. Phase 3: gate what needs
+       state, never what can be read. Progress, graded exercises, the practice
+       studio and certificates all still require signing in, which is where the
+       account earns its keep; the prose and the verified output do not.
+
+       After the regating this only ever affected New to R, because every other
+       free lesson is now lesson 1 of its section and was never gated here. 27
+       New to R lessons were behind this, and New to R is the on-ramp that
+       matches the Install R traffic, so it is the last place to put a wall.
+
+       One line to revert: restore the lessonOrder test below. The thing to
+       watch is signups, which the wall was converting at 2,198 hits to 1,383
+       accounts. FREE_PREVIEW_LESSONS is kept so that revert is a one-word
+       change. */
+    var accountGated = false && lessonOrder > FREE_PREVIEW_LESSONS;
     var accountLocked = accountGated && !signedIn;
 
     /* ---- Data Analyst 30-day pass (plan s5) ---- */
@@ -330,6 +348,113 @@
       });
     });
 
+    /* ---- try-it: run the learner's passing code ----
+       Check only matches the code against a pattern. Later steps can use what the
+       answer creates (a fitted `fit`, a `tree`, a function), and the page used to
+       never run it, so those cells failed with "object not found". On a pass the
+       learner's own code now runs in the page's R session, through the same runWebR
+       the Run buttons use (one session, same output panel, same first-run set-up),
+       so they see its output and the next cells find its objects. */
+    function runTryit(tryit, code) {
+      if (typeof window.runWebR !== 'function' || !code.trim()) return;
+      var box = tryit.querySelector('.lesson-tryit-run');
+      if (!box) {
+        box = document.createElement('div');
+        box.className = 'webr-container lesson-tryit-run';
+        // inline display:none, not the hidden attribute: webr.css gives .webr-run-btn a display
+        box.innerHTML = '<div class="webr-code-block"><div class="webr-editor" style="display:none"></div>' +
+          '<button type="button" class="webr-run-btn" style="display:none" tabindex="-1"></button>' +
+          '<pre class="webr-output" aria-live="polite"></pre></div><div class="webr-plot-output"></div>';
+        var actions = tryit.querySelector('.lesson-tryit-actions');
+        tryit.insertBefore(box, actions ? actions.nextSibling : null);
+      }
+      var btn = box.querySelector('.webr-run-btn');
+      if (btn.disabled) return;   // still running the previous pass
+      box.querySelector('.webr-editor').textContent = code;
+      var run = window.runWebR(btn);
+      // Code that only assigns (fit <- ...) prints nothing; webr-init.js marks that run
+      // is-quiet. Here the useful thing to say is that what it made carries on.
+      return Promise.resolve(run).then(function () {
+        var out = box.querySelector('.webr-output');
+        if (out.classList.contains('is-quiet')) {
+          out.textContent = 'Your code ran. It printed nothing; what it made is ready for the next steps.';
+        }
+      });
+    }
+
+    /* ---- catch-up: re-run the earlier steps' code after a reload ----
+       The R session starts empty on every page load, but a resumed lesson opens at the
+       step the learner reached, with the earlier steps done. Running that step's code
+       then failed with "object not found": what the earlier steps made was never made in
+       this session. webr-init.js now calls window.beforeCodeRun before every run; here it
+       first runs, in page order, every earlier code block not yet run in this page load
+       and every passed try-it (the learner's saved answer, else the solution). That is
+       the order the lessons were written and verified in. Blocks still holding a blank
+       are skipped (they cannot run). On a straight run through a lesson every earlier
+       block has already run, so this does nothing. */
+    var ranNow = (typeof WeakSet === 'function') ? new WeakSet() : null;
+    var catchingUp = false;
+    var BLANK = /#\s*your code here|(^|[^\w])_{3,}(?!\w)/i;
+    function tryitAnswer(tryit, idx) {
+      var mine = state.code && state.code[idx];
+      if (mine && mine.trim()) return mine;
+      var sol = tryit.querySelector('.lesson-tryit-sol code');
+      if (!sol) return '';
+      return sol.textContent.split('\n').filter(function (l) { return l.indexOf('#>') !== 0; }).join('\n').trim();
+    }
+    function codeBefore(target) {
+      var els = app.querySelectorAll('.webr-container:not(.lesson-tryit-run), .lesson-tryit');
+      var todo = [];
+      for (var k = 0; k < els.length; k++) {
+        var el = els[k];
+        if (el === target || el.contains(target)) break;
+        if (!(el.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
+        if (ranNow.has(el)) continue;
+        if (el.classList.contains('lesson-tryit')) {
+          var tIdx = steps.indexOf(el.closest('.lesson-step'));
+          var answer = state.passed[tIdx] ? tryitAnswer(el, tIdx) : '';
+          if (answer && !BLANK.test(answer)) todo.push({ el: el, answer: answer });
+        } else {
+          var ed = el.querySelector('.webr-editor');
+          var src = ed ? ed.textContent : '';
+          if (src.trim() && !BLANK.test(src) && el.querySelector('.webr-run-btn')) todo.push({ el: el });
+        }
+      }
+      return todo;
+    }
+    window.beforeCodeRun = async function (btn) {
+      if (catchingUp || !ranNow) return;           // a run this catch-up started
+      var target = btn.closest('.webr-container');
+      if (!target) return;
+      var host = target.classList.contains('lesson-tryit-run') ? target.closest('.lesson-tryit') : target;
+      var todo = codeBefore(target);
+      ranNow.add(host);
+      if (!todo.length) return;
+      catchingUp = true;
+      var out = target.querySelector('.webr-output');
+      var label = btn.innerHTML;
+      btn.disabled = true;
+      btn.classList.add('running');
+      btn.textContent = 'Catching up...';
+      try {
+        for (var k = 0; k < todo.length; k++) {
+          if (out) {
+            out.classList.remove('has-content', 'has-error', 'has-message', 'is-quiet', 'is-placeholder');
+            out.classList.add('is-catching');
+            out.textContent = 'Running the code from the earlier steps first (' + (k + 1) + ' of ' + todo.length + '), so this block has what they made.';
+          }
+          var u = todo[k];
+          ranNow.add(u.el);
+          if (u.answer) await runTryit(u.el, u.answer);
+          else await window.runWebR(u.el.querySelector('.webr-run-btn'));
+        }
+      } finally {
+        catchingUp = false;
+        if (out) { out.classList.remove('is-catching'); out.textContent = ''; }
+        btn.innerHTML = label;                        // runWebR sets its own label next
+      }
+    };
+
     /* ---- try-it wiring ---- */
     app.querySelectorAll('.lesson-tryit').forEach(function (tryit) {
       var step = tryit.closest('.lesson-step');
@@ -345,7 +470,13 @@
         var pass = re ? re.test(input.value) : true;
         if (ok) ok.classList.toggle('show', pass);
         if (no) no.classList.toggle('show', !pass);
-        if (pass) { step.classList.add('passed'); markPassed(idx, true); render(); }
+        if (pass) {
+          // keep the passing answer: after a reload the catch-up runs it again for the later steps
+          state.code = state.code || {};
+          state.code[idx] = input.value;
+          step.classList.add('passed'); markPassed(idx, true); save(); render();
+          runTryit(tryit, input.value);
+        }
       });
     });
 
@@ -574,7 +705,7 @@
          wall that says 23% over a code worth something else is a broken promise
          printed in the one place somebody is about to pay. */
       var cPct = c ? (String(c.code).match(/^(?:PASS|PRO|SAVE|BACK)(\d{1,2})/) || [0, '23'])[1] : '';
-      if (price) price.textContent = c ? 'Your ' + cPct + '% code ' + c.code + ' is applied at checkout.' : '$129 a year, or $14 a month.';
+      if (price) price.textContent = c ? 'Your ' + cPct + '% code ' + c.code + ' is applied at checkout.' : '$128 a year, or $27 a month.';
       if (fine) fine.textContent = '14-day full refund, no questions asked. Cancel anytime.';
       /* THE WALL MAY ASK, IT MAY NOT BROADCAST (2026-10-19). This is the highest
          intent surface on the site: somebody wanted one specific locked lesson.
@@ -634,14 +765,20 @@
         g.innerHTML = '<div class="lm-gate-card tex2jax_ignore">' +
           '<div class="lm-gate-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></div>' +
           '<h3>' + (isProUser ? 'This lesson is in a different track'
-            : (passState && passState.claimed && !passState.active ? 'Your 30-day Data Analyst pass has ended' : 'This is a Pro lesson')) + '</h3>' +
+            : (passState && passState.claimed && !passState.active ? 'Your 30-day Data Analyst pass has ended' : 'Continue this lesson with Pro')) + '</h3>' +
           (pos ? '<p class="lm-gate-pos">' + pos + '</p>' : '') +
           (desc ? '<p class="lm-gate-desc">' + esc(desc) + '</p>' : '') +
           '<a class="lm-gate-cta" href="/pricing.html" data-gate-cta>' + (isProUser ? 'Upgrade to All-Access &rarr;' : 'Unlock with Pro &rarr;') + '</a>' +
-          '<p class="lm-gate-price">From $9/month, or $65 for a full year</p>' +
+          '<p class="lm-gate-price">From $12/month, or $65 for a full year</p>' +
           '<p class="lm-gate-fine">14-day money-back guarantee · cancel anytime</p>' +
           '<a class="lm-gate-free" data-gate-free hidden>The first lessons of this course are free &rarr;</a><br>' +
           '<a class="lm-gate-back" href="' + esc(exitTarget()) + '">&larr; Back to ' + esc(exitLabel()) + '</a>' +
+          ((prevHref || nextHref)
+            ? '<div class="lm-gate-nav">' +
+                (prevHref ? '<a href="' + esc(prevHref) + '">&larr; Previous lesson</a>' : '<span></span>') +
+                (nextHref ? '<a href="' + esc(nextHref) + '">Next lesson &rarr;</a>' : '<span></span>') +
+              '</div>'
+            : '') +
           '</div>';
         stage.appendChild(g);
         g.addEventListener('click', function (ev) {
@@ -701,6 +838,12 @@
       // faded teaser is the entire experience until entitlement unlocks.
       if (locked && !gateHold) { renderProGate(); return; }
       teardownGate();
+      /* The learner is looking at real lesson content: past the Pro gate and
+         past the sign-in wall. rsSignal dedupes per session per path, so this
+         fires once per lesson opened. /api/signal has always accepted
+         lesson_start; nothing ever sent it, which is why activation had a
+         numerator (lesson_complete) and no denominator. */
+      rsSignal('lesson_start', courseId ? courseId + ':' + lessonOrder : curSlug);
       var sw = stage.querySelector('.lm-signin'); if (sw) sw.style.display = 'none';
       if (showingPaywall) { var p = stage.querySelector('.lm-paywall'); if (p) p.style.display = 'none'; showingPaywall = false; }
       steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
