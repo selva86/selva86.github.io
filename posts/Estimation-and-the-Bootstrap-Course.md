@@ -47,19 +47,19 @@ The method of moments: set the sample mean equal to the distribution's own mean,
 
 Fisher information as a reading of the same likelihood curve from Lesson 2: how sharply it falls away from its peak. A sharp peak means nearby values are firmly ruled out and the standard error is small; a flat one means the data barely tell them apart. You compute the information by differentiating twice, numerically and then in closed form, and meet the Cramer-Rao bound as what it actually is, a floor no unbiased estimator can get under, checked by simulation against one that reaches it.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: How much information a sample carries](How-Much-Information-a-Sample-Carries.html)
 
 ### Lesson 5: Two bootstrap intervals, and when they differ
 
 The percentile bootstrap and the BCa interval computed on the same resamples, so the difference is visible rather than described. Why the percentile interval is biased when the statistic's sampling distribution is skewed, what the bias correction and acceleration terms are correcting, and the honest finding that at very small samples neither interval is close to its nominal coverage. The coverage check that proves it is included, rather than a reassurance that it is fine.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Two bootstrap intervals, and when they differ](Two-Bootstrap-Intervals-and-When-They-Differ.html)
 
 ### Lesson 6: Estimating error by leaving one out
 
 The jackknife: recompute the statistic n times, each time with one observation removed, and read the spread of those values as a standard error. Built by hand in base R, set against the bootstrap on the same data, and then used for the thing it is still genuinely best at, which is spotting the single observation carrying an estimate. Where it fails, on medians and other non-smooth statistics, is shown rather than listed.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Estimating error by leaving one out](Estimating-Error-by-Leaving-One-Out.html)
 
 ### Lesson 7: Standard errors for transformed estimates
 
