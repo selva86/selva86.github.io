@@ -41,7 +41,7 @@ So: **the roadmap link = one entry in one file.**
    ```bash
    python Scripts/batch_lessons.py --slug <Lesson-1-Slug> --slug <Lesson-2-Slug>
    ```
-5. **Verify on the `lesson-mode-phase1` preview**, then merge to master when happy. (Lessons land on a branch + CF preview first; never straight to master.)
+5. **Verify on your own branch's Cloudflare preview** at `https://<branch>.r-statistics-co.pages.dev/<slug>.html`, then merge to master when happy. (Lessons land on a branch + CF preview first; never straight to master. The branch alias, not a deployment hash.)
 
 > Manual alternative to step 4 (one lesson, no orchestrator): `/write-lesson <course-id>:<n>` then `/publish-lesson <slug>`.
 
