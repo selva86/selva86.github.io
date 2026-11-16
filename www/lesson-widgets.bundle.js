@@ -2080,6 +2080,594 @@
 })();
 
 ;
+/* ci-coverage.js */
+/* ci-coverage.js - what "95% confident" actually promises, counted.
+ *
+ * A confidence interval is almost always taught with one interval on screen,
+ * which is exactly the picture that produces the standard misreading: that
+ * there is a 95% chance the truth sits inside THIS interval. The promise is
+ * not about one interval. It is about the procedure, across repetitions. So
+ * this draws sixty repetitions and counts.
+ *
+ * The sixty samples are held fixed when the method changes. Identical data,
+ * three different recipes, three different coverage counts: that is the only
+ * honest way to show that the shortfall belongs to the recipe and not to bad
+ * luck in the draw. Switching the population or the sample size redraws them,
+ * because those genuinely are different data.
+ *
+ * The payoff is the combination the slider makes reachable: a skewed
+ * population at n = 5 with the z recipe covers far less often than it claims.
+ * Nothing is wrong with the arithmetic. The normal approximation it rests on
+ * has simply not arrived yet, which is the thing a coverage check is for.
+ *
+ * Seeded, so the count under any given setting is the same for every reader
+ * and a lesson can quote it in prose.
+ *
+ * cfg: { method: 'z'|'t'|'boot', parent: 'norm'|'skew', n: <one of 5 10 20 40 80> }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var NS = [5, 10, 20, 40, 80];
+  var REPS = 60;
+  var B = 300;
+
+  /* Numerical Recipes lgamma, and the regularized incomplete beta built on it,
+     so the t cutoff is exact at every df rather than read off a table of a few
+     rows. Verified against qt() at df 1 through 30. */
+  var LG = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+            -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  function lgamma(x) {
+    var y = x, tmp = x + 5.5, ser = 1.000000000190015;
+    tmp -= (x + 0.5) * Math.log(tmp);
+    for (var j = 0; j < 6; j++) ser += LG[j] / ++y;
+    return -tmp + Math.log(2.5066282746310005 * ser / x);
+  }
+  function betacf(a, b, x) {
+    var MAXIT = 200, EPS = 3e-14, FPMIN = 1e-300;
+    var qab = a + b, qap = a + 1, qam = a - 1;
+    var c = 1, d = 1 - qab * x / qap, m2, aa, del, h, m;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d; h = d;
+    for (m = 1; m <= MAXIT; m++) {
+      m2 = 2 * m;
+      aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; del = d * c; h *= del;
+      if (Math.abs(del - 1) < EPS) break;
+    }
+    return h;
+  }
+  function betai(a, b, x) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    var bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b)
+      + a * Math.log(x) + b * Math.log(1 - x));
+    if (x < (a + 1) / (a + b + 2)) return bt * betacf(a, b, x) / a;
+    return 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+  function pt(t, v) {
+    var x = v / (v + t * t), tail = 0.5 * betai(v / 2, 0.5, x);
+    return t >= 0 ? 1 - tail : tail;
+  }
+  function tcrit(v) {
+    var lo = 0, hi = 400, mid, i;
+    for (i = 0; i < 80; i++) { mid = (lo + hi) / 2; if (pt(mid, v) < 0.975) lo = mid; else hi = mid; }
+    return (lo + hi) / 2;
+  }
+  var Z = 1.959964;
+
+  /* mulberry32, so every reader sees the same sixty samples. */
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function rnorm(r) {
+    var u1 = Math.max(r(), 1e-12), u2 = r();
+    return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  }
+
+  var PARENT = {
+    norm: {
+      label: 'Bell-shaped',
+      mu: 0,
+      draw: function (r) { return rnorm(r); },
+      note: 'a bell-shaped population, the case every textbook formula was derived for'
+    },
+    skew: {
+      label: 'Strongly skewed',
+      mu: 1,
+      /* exponential, rate 1: mean 1, and a long right tail */
+      draw: function (r) { return -Math.log(Math.max(r(), 1e-12)); },
+      note: 'a strongly skewed population, the case real waiting times and incomes actually look like'
+    }
+  };
+
+  var METHOD = {
+    z: {
+      label: 'z interval',
+      blurb: 'the textbook formula with 1.96, which assumes the sample mean is already normal',
+      why: 'the formula assumes the sample mean is normal and sigma is known, and at this sample size and shape it is neither'
+    },
+    t: {
+      label: 't interval',
+      blurb: 'the same formula with a t cutoff, which pays for sigma being estimated',
+      why: 'the t cutoff pays for sigma being estimated, but it still assumes the underlying population is bell-shaped, and here it is not'
+    },
+    boot: {
+      label: 'Bootstrap',
+      blurb: 'the percentile bootstrap, which assumes no shape at all',
+      why: 'resampling assumes the sample in hand is a fair picture of the population, and a handful of points from a long-tailed population almost never contains the tail'
+    }
+  };
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+
+    var method = METHOD[cfg.method] ? cfg.method : 'z';
+    var parent = PARENT[cfg.parent] ? cfg.parent : 'skew';
+    var n = NS.indexOf(+cfg.n) >= 0 ? +cfg.n : 10;
+
+    el.innerHTML =
+      '<div style="border:1px solid ' + P.line + ';border-radius:12px;padding:16px;background:#fff">' +
+        '<div class="cc-m" style="margin-bottom:8px">' +
+          u.seg([{ v: 'z', label: METHOD.z.label }, { v: 't', label: METHOD.t.label },
+                 { v: 'boot', label: METHOD.boot.label }], method) +
+        '</div>' +
+        '<div class="cc-p" style="margin-bottom:10px">' +
+          u.seg([{ v: 'norm', label: PARENT.norm.label }, { v: 'skew', label: PARENT.skew.label }], parent) +
+        '</div>' +
+        '<label style="display:block;font-size:12.5px;color:' + P.mut + ';margin-bottom:12px">' +
+          'Sample size <b class="cc-nlab" style="color:' + P.ink + '">' + n + '</b>' +
+          '<input class="cc-ns" type="range" min="0" max="' + (NS.length - 1) + '" step="1" value="' +
+            NS.indexOf(n) + '" style="width:100%;margin-top:5px">' +
+        '</label>' +
+        '<div class="cc-plot"></div>' +
+        '<p class="cc-read" style="font-size:13.5px;line-height:1.62;color:' + P.body +
+          ';margin:12px 0 0"></p>' +
+      '</div>' +
+      '<div style="margin-top:14px">' + u.runnable(rcode(), { label: 'Count the coverage yourself' }) + '</div>';
+
+    var plot = el.querySelector('.cc-plot');
+    var read = el.querySelector('.cc-read');
+    var nlab = el.querySelector('.cc-nlab');
+
+    /* The same sixty samples survive a method change, so the only thing that
+       moves is the recipe. Keyed on what genuinely changes the data. */
+    var cache = {}, samples = null;
+    function getSamples() {
+      var key = parent + ':' + n;
+      if (cache[key]) return cache[key];
+      var r = rng(20261103), Pp = PARENT[parent], out = [], i, j, s;
+      for (i = 0; i < REPS; i++) {
+        s = [];
+        for (j = 0; j < n; j++) s.push(Pp.draw(r));
+        out.push(s);
+      }
+      cache[key] = out;
+      return out;
+    }
+
+    function interval(s, idx) {
+      var i, nn = s.length, sum = 0;
+      for (i = 0; i < nn; i++) sum += s[i];
+      var xbar = sum / nn, ss = 0;
+      for (i = 0; i < nn; i++) ss += (s[i] - xbar) * (s[i] - xbar);
+      var sd = Math.sqrt(ss / (nn - 1)), se = sd / Math.sqrt(nn);
+      if (method === 'z') return [xbar - Z * se, xbar + Z * se, xbar];
+      if (method === 't') { var c = tcrit(nn - 1); return [xbar - c * se, xbar + c * se, xbar]; }
+      /* Percentile bootstrap. Seeded per replicate, not per sample size: one
+         shared stream would hand all sixty samples the identical sequence of
+         resample indices, which correlates the sixty intervals and corrupts
+         the count the widget exists to report. Still deterministic. */
+      var r = rng(777 + nn * 131 + idx * 7919), means = [], b, k, acc;
+      for (b = 0; b < B; b++) {
+        acc = 0;
+        for (k = 0; k < nn; k++) acc += s[(r() * nn) | 0];
+        means.push(acc / nn);
+      }
+      means.sort(function (a, b2) { return a - b2; });
+      return [means[Math.floor(0.025 * B)], means[Math.floor(0.975 * B) - 1], xbar];
+    }
+
+    function draw() {
+      var Pp = PARENT[parent], mu = Pp.mu;
+      samples = getSamples();
+      var ivs = samples.map(function (s, i) { return interval(s, i); });
+      var miss = 0;
+      ivs.forEach(function (v) { if (!(v[0] <= mu && mu <= v[1])) miss++; });
+      var cover = REPS - miss;
+
+      /* Show every interval in full, and only clip when one is genuinely wild.
+         Framing on a fixed quantile of the endpoints was the first thing tried
+         and it is wrong: it clips a fixed number of intervals by construction,
+         so an arrow appeared on a perfectly ordinary picture and meant nothing.
+         The budget is instead tied to the typical width, so an arrow shows up
+         only when an interval really is several times wider than its peers,
+         which at n = 5 on a skewed population is a true and useful sight. */
+      var wid = ivs.map(function (v) { return v[1] - v[0]; }).sort(function (a, b2) { return a - b2; });
+      var medW = wid[Math.floor(wid.length / 2)] || 1;
+      var lo = Infinity, hi = -Infinity;
+      ivs.forEach(function (v) { if (v[0] < lo) lo = v[0]; if (v[1] > hi) hi = v[1]; });
+      lo = Math.max(lo, mu - 3.2 * medW);
+      hi = Math.min(hi, mu + 3.2 * medW);
+      var pad = (hi - lo) * 0.06 || 1;
+      lo -= pad; hi += pad;
+
+      var W = 460, H = 320, m = { t: 14, r: 14, b: 42, l: 30 };
+      var iw = W - m.l - m.r, ih = H - m.t - m.b;
+      var sx = function (v) { return m.l + (v - lo) / (hi - lo) * iw; };
+      var rowH = ih / REPS;
+
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+        'px;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' +
+        REPS + ' confidence intervals from ' + REPS + ' samples; ' + cover +
+        ' of them contain the true value and ' + miss + ' miss it">';
+
+      /* the truth, drawn first so every interval is read against it */
+      svg += '<line x1="' + sx(mu).toFixed(1) + '" y1="' + (m.t - 4) + '" x2="' + sx(mu).toFixed(1) +
+             '" y2="' + (m.t + ih + 4) + '" stroke="' + P.ink + '" stroke-width="1.8"/>' +
+             '<text x="' + sx(mu).toFixed(1) + '" y="' + (m.t + ih + 20) +
+             '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' +
+             P.ink + '">the true value, ' + mu + '</text>';
+
+      ivs.forEach(function (v, i) {
+        var y = m.t + rowH * (i + 0.5);
+        var hit = v[0] <= mu && mu <= v[1];
+        var a = Math.max(lo, v[0]), b2 = Math.min(hi, v[1]);
+        var col = hit ? P.acc : P.bad;
+        svg += '<line x1="' + sx(a).toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + sx(b2).toFixed(1) +
+               '" y2="' + y.toFixed(1) + '" stroke="' + col + '" stroke-width="' + (hit ? 1.7 : 2.8) +
+               '" stroke-opacity="' + (hit ? 0.72 : 1) + '"/>';
+        /* a miss carries a marker as well as a colour, so the count survives
+           being read on a monochrome print or by a colourblind reader */
+        if (!hit) {
+          svg += '<circle cx="' + sx(v[2] < mu ? b2 : a).toFixed(1) + '" cy="' + y.toFixed(1) +
+                 '" r="2.6" fill="' + P.bad + '"/>';
+        }
+        if (v[0] < lo) svg += '<path d="M' + (m.l + 5).toFixed(1) + ' ' + (y - 3).toFixed(1) + 'L' + m.l + ' ' + y.toFixed(1) + 'L' + (m.l + 5).toFixed(1) + ' ' + (y + 3).toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="1.4"/>';
+        if (v[1] > hi) svg += '<path d="M' + (m.l + iw - 5).toFixed(1) + ' ' + (y - 3).toFixed(1) + 'L' + (m.l + iw) + ' ' + y.toFixed(1) + 'L' + (m.l + iw - 5).toFixed(1) + ' ' + (y + 3).toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="1.4"/>';
+      });
+
+      svg += '<text x="' + m.l + '" y="' + (H - 6) +
+             '" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut +
+             '">one line per sample, ' + REPS + ' samples; a dot marks an interval that misses</text>';
+      svg += '</svg>';
+      plot.innerHTML = svg;
+
+      var pct = (100 * cover / REPS).toFixed(0);
+      var shortfall = 95 - 100 * cover / REPS;
+      var txt = '<b>' + cover + ' of ' + REPS + ' intervals contain the true value, which is ' + pct +
+        '%.</b> Each line is a fresh sample of ' + n + ' from ' + Pp.note +
+        ', run through ' + METHOD[method].blurb + '. ';
+
+      if (shortfall > 4) {
+        txt += 'The claim on the label is 95%, so this recipe is <b>overconfident by about ' +
+          shortfall.toFixed(0) + ' points</b> here. The arithmetic is not wrong: ' + METHOD[method].why +
+          '. No amount of care in the calculation fixes a broken assumption, and nothing inside a single ' +
+          'interval reveals that it is broken. Counting across repetitions is the only way to find out.';
+      } else if (shortfall < -3) {
+        txt += 'That is wider coverage than the 95% claimed, so the intervals are conservative here: ' +
+          'not wrong, but paying more width than the job needs.';
+      } else {
+        txt += 'That is close to the 95% on the label, so the recipe is keeping its promise under these ' +
+          'conditions. Note what the promise was about. Not this interval, but the procedure: run it many ' +
+          'times and about 95% of the intervals it produces will contain the truth.';
+      }
+      txt += ' Switch the recipe and the sixty samples stay exactly the same, so any change in the count ' +
+        'belongs to the recipe rather than to luck in the draw.';
+      read.innerHTML = txt;
+      nlab.textContent = n;
+    }
+
+    u.wireSeg(el.querySelector('.cc-m'), function (v) { method = v; draw(); });
+    u.wireSeg(el.querySelector('.cc-p'), function (v) { parent = v; draw(); });
+    el.querySelector('.cc-ns').addEventListener('input', function () { n = NS[+this.value]; draw(); });
+    draw();
+  }
+
+  /* Emitted once. The picture shows sixty repetitions; this runs ten thousand,
+     which is the number you would actually trust, and it makes the reader
+     generate the shortfall rather than believe a claim about it. */
+  function rcode() {
+    return [
+      '# Coverage is a property of a RECIPE, so measure it by repetition.',
+      'set.seed(1)',
+      '',
+      'coverage <- function(n, reps = 10000, mu = 1, rule = "z") {',
+      '  hit <- replicate(reps, {',
+      '    x  <- rexp(n, rate = 1)          # skewed population, true mean 1',
+      '    se <- sd(x) / sqrt(n)',
+      '    k  <- if (rule == "z") 1.96 else qt(0.975, df = n - 1)',
+      '    ci <- mean(x) + c(-1, 1) * k * se',
+      '    ci[1] <= mu && mu <= ci[2]',
+      '  })',
+      '  mean(hit)',
+      '}',
+      '',
+      '# Both recipes claim 95%. Watch what they actually deliver.',
+      'for (n in c(5, 10, 20, 40, 80)) {',
+      '  cat("n =", formatC(n, width = 3),',
+      '      " z:", sprintf("%.3f", coverage(n, rule = "z")),',
+      '      " t:", sprintf("%.3f", coverage(n, rule = "t")), "\\n")',
+      '}',
+      '',
+      '# Now the control: the same check on a bell-shaped population, where the',
+      '# assumption behind the formula is true from the very first sample.',
+      'coverage_normal <- function(n, reps = 10000) {',
+      '  mean(replicate(reps, {',
+      '    x  <- rnorm(n)',
+      '    ci <- mean(x) + c(-1, 1) * qt(0.975, df = n - 1) * sd(x) / sqrt(n)',
+      '    ci[1] <= 0 && 0 <= ci[2]',
+      '  }))',
+      '}',
+      'sapply(c(5, 10, 20), coverage_normal)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('ci-coverage', mount);
+})();
+
+;
+/* clt-sampler.js */
+/* clt-sampler.js - the central limit theorem, including the case where it fails.
+ *
+ * Left panel: the parent population, which is deliberately not normal. Right
+ * panel: the distribution of the SAMPLE MEAN at the chosen n, with the normal
+ * the theorem promises drawn over it. The x axis is pinned per parent, so
+ * raising n visibly tightens the right panel instead of rescaling it, which is
+ * the whole point and the thing a rescaling chart hides.
+ *
+ * The fourth parent is a heavy tail with no finite variance. Averaging buys
+ * nothing there, the overlay never fits, and the readout says so. A reader who
+ * only ever sees the theorem work learns a rule; a reader who sees its one
+ * honest counterexample learns the condition.
+ *
+ * Deterministic: seeded generator, so the picture is the same for every reader
+ * and matches the numbers in the readout.
+ *
+ * cfg: { parent: 'unif'|'skew'|'bimodal'|'heavy', n: <number> }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var NS = [1, 2, 5, 10, 30, 100];
+  var REPS = 1200;
+
+  /* mulberry32: small, fast, repeatable. */
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  var PARENTS = {
+    unif: {
+      label: 'Flat', mu: 0.5, sd: Math.sqrt(1 / 12), lo: -0.1, hi: 1.1, finite: true,
+      draw: function (r) { return r(); },
+      blurb: 'A flat population: every value between 0 and 1 equally likely. Nothing about it is bell shaped.'
+    },
+    skew: {
+      label: 'Skewed', mu: 1, sd: 1, lo: -0.2, hi: 4.2, finite: true,
+      draw: function (r) { return -Math.log(1 - r()); },
+      blurb: 'A hard right skew, the shape of waiting times and incomes. Most values are small, a few are far out.'
+    },
+    bimodal: {
+      label: 'Two humps', mu: 0, sd: Math.sqrt(2.5), lo: -4, hi: 4, finite: true,
+      draw: function (r) {
+        var z = Math.sqrt(-2 * Math.log(1 - r())) * Math.cos(2 * Math.PI * r());
+        return (r() < 0.5 ? -1.5 : 1.5) + 0.5 * z;
+      },
+      blurb: 'Two separated humps, the shape of a mixed population. No single value is typical.'
+    },
+    heavy: {
+      label: 'Heavy tail', mu: 0, sd: null, lo: -6, hi: 6, finite: false,
+      draw: function (r) { return Math.tan(Math.PI * (r() - 0.5)); },
+      blurb: 'A heavy tail with no finite variance, the shape of some financial returns. Extreme values are not rare enough to ignore.'
+    }
+  };
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var pk = PARENTS[cfg.parent] ? cfg.parent : 'skew';
+    var ni = NS.indexOf(+cfg.n);
+    if (ni < 0) ni = 3;
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cs-seg" style="margin-bottom:12px">' +
+        u.seg([{ v: 'unif', label: 'Flat' }, { v: 'skew', label: 'Skewed' },
+               { v: 'bimodal', label: 'Two humps' }, { v: 'heavy', label: 'Heavy tail' }], pk) +
+      '</div>' +
+      '<label style="display:block;font:600 12.5px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:0 0 10px">' +
+        'sample size n = <b class="cs-nv" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '">' + NS[ni] + '</b>' +
+        '<input class="cs-ns" type="range" min="0" max="' + (NS.length - 1) + '" step="1" value="' + ni +
+        '" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div class="cs-plot"></div>' +
+      '<div class="cs-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Watch it happen, then watch it fail' });
+
+    var plot = el.querySelector('.cs-plot'), read = el.querySelector('.cs-read');
+    var W = 440, H = 250, m = { l: 8, r: 8, t: 12, b: 26 };
+
+    function hist(vals, lo, hi, bins) {
+      var h = new Array(bins), i;
+      for (i = 0; i < bins; i++) h[i] = 0;
+      var out = 0;
+      for (i = 0; i < vals.length; i++) {
+        var b = Math.floor((vals[i] - lo) / (hi - lo) * bins);
+        if (b < 0 || b >= bins) { out++; continue; }
+        h[b]++;
+      }
+      return { h: h, out: out };
+    }
+
+    function panel(x0, w, hs, lo, hi, title, overlay, mx) {
+      var bins = hs.h.length, ph = H - m.t - m.b - 16, top = m.t + 16;
+      var s = '<text x="' + (x0 + w / 2).toFixed(1) + '" y="' + (m.t + 8) +
+        '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">' +
+        u.esc(title) + '</text>';
+      var bw = w / bins;
+      for (var i = 0; i < bins; i++) {
+        if (!hs.h[i]) continue;
+        var bh = hs.h[i] / mx * ph;
+        s += '<rect x="' + (x0 + i * bw).toFixed(1) + '" y="' + (top + ph - bh).toFixed(1) +
+             '" width="' + Math.max(0.6, bw - 0.6).toFixed(1) + '" height="' + bh.toFixed(1) +
+             '" fill="' + P.line + '"/>';
+      }
+      if (overlay) {
+        var d = '', N = 120;
+        for (var k = 0; k <= N; k++) {
+          var xv = lo + (hi - lo) * k / N;
+          var dv = overlay(xv);                       // density per unit x
+          var cnt = dv * (hi - lo) / bins * REPS;     // expected count in a bin
+          var yy = top + ph - Math.min(cnt / mx, 1.25) * ph;
+          d += (k ? 'L' : 'M') + (x0 + (xv - lo) / (hi - lo) * w).toFixed(1) + ' ' + yy.toFixed(1);
+        }
+        s += '<path d="' + d + '" fill="none" stroke="' + P.acc + '" stroke-width="2.4"/>';
+      }
+      s += '<line x1="' + x0.toFixed(1) + '" y1="' + (top + ph) + '" x2="' + (x0 + w).toFixed(1) +
+           '" y2="' + (top + ph) + '" stroke="' + P.line + '"/>';
+      return s;
+    }
+
+    function draw() {
+      var Pp = PARENTS[pk], n = NS[ni];
+      var r = rng(20261102);                     // fixed seed: same picture for everyone
+      var raw = [], i, j;
+      for (i = 0; i < REPS; i++) raw.push(Pp.draw(r));
+      var r2 = rng(777);
+      var means = [];
+      for (i = 0; i < REPS; i++) {
+        var s = 0;
+        for (j = 0; j < n; j++) s += Pp.draw(r2);
+        means.push(s / n);
+      }
+
+      var lo = Pp.lo, hi = Pp.hi, BINS = 44;
+      var hA = hist(raw, lo, hi, BINS), hB = hist(means, lo, hi, BINS);
+      // One shared vertical scale would flatten the parent, so each panel keeps
+      // its own, and the pinned x axis carries the comparison instead.
+      var mxA = Math.max.apply(null, hA.h) || 1, mxB = Math.max.apply(null, hB.h) || 1;
+
+      var se = Pp.finite ? Pp.sd / Math.sqrt(n) : null;
+      var overlay = null;
+      if (Pp.finite) {
+        overlay = function (x) {
+          var z = (x - Pp.mu) / se;
+          return Math.exp(-0.5 * z * z) / (se * 2.5066282746310002);
+        };
+      }
+
+      var halfW = (W - m.l - m.r - 18) / 2;
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+        'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="population and sampling distribution of the mean">';
+      svg += panel(m.l, halfW, hA, lo, hi, 'the population', null, mxA);
+      svg += panel(m.l + halfW + 18, halfW, hB, lo, hi, 'means of ' + n + ' at a time', overlay, mxB);
+      svg += '<text x="' + (W - m.r) + '" y="' + (H - 4) +
+             '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut +
+             '">same x axis on both panels' + (Pp.finite ? ', green = the normal the theorem promises' : '') + '</text>';
+      svg += '</svg>';
+      plot.innerHTML = svg;
+
+      // Observed spread of the means, to set against the promise. For the
+      // heavy tail this has to be an IQR, not a standard deviation: quoting an
+      // sd for a population with no finite variance would commit, in the
+      // readout, the exact error the readout is warning about. The sd of
+      // Cauchy means is not just large, it is meaningless, and it lurches
+      // between runs. The IQR is well defined and visibly refuses to shrink.
+      var obs, spreadWord;
+      if (Pp.finite) {
+        var mu = 0;
+        for (i = 0; i < means.length; i++) mu += means[i];
+        mu /= means.length;
+        var v = 0;
+        for (i = 0; i < means.length; i++) v += (means[i] - mu) * (means[i] - mu);
+        obs = Math.sqrt(v / (means.length - 1));
+        spreadWord = 'spread';
+      } else {
+        var srt = means.slice().sort(function (a, b) { return a - b; });
+        obs = srt[Math.floor(0.75 * srt.length)] - srt[Math.floor(0.25 * srt.length)];
+        spreadWord = 'middle half';
+      }
+
+      var txt = Pp.blurb + ' ';
+      if (Pp.finite) {
+        txt += 'Average <b>' + n + '</b> of them at a time and the right panel is already ' +
+          (n === 1 ? 'just the population again, because a mean of one value is that value' :
+            'closer to a bell than the population ever was') +
+          '. Its spread is <b>' + obs.toFixed(3) + '</b>, against the <b>' + se.toFixed(3) +
+          '</b> that sigma over the square root of n predicts. ' +
+          (n >= 30 ? 'At this n the overlay sits on the bars whatever the population looked like, which is why so much of inference can assume normality it never checked.'
+                   : 'Push n higher and the two numbers converge while the bars narrow.');
+      } else {
+        txt += 'Now average <b>' + n + '</b> at a time and nothing improves. The ' + spreadWord +
+          ' of the means spans <b>' + obs.toFixed(2) + '</b> and it will not shrink, however high you push n, ' +
+          'because the theorem needs a finite variance and this population has none. ' +
+          '(That figure is a range rather than a standard deviation on purpose: a standard deviation here ' +
+          'would be quoting a number that does not exist.) ' +
+          (hB.out > 0 ? '<b>' + hB.out + '</b> of the ' + REPS +
+          ' means fell outside the window entirely. ' : '') +
+          '<b style="color:' + P.bad + '">This is the condition people forget.</b> The central limit theorem is a ' +
+          'promise about populations with finite variance, not a law that averaging fixes everything.';
+      }
+      read.innerHTML = txt;
+    }
+
+    el.querySelector('.cs-ns').addEventListener('input', function (e) {
+      ni = +e.target.value;
+      el.querySelector('.cs-nv').textContent = NS[ni];
+      draw();
+    });
+    u.wireSeg(el.querySelector('.cs-seg'), function (val) { pk = val; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# The theorem, then its one honest counterexample.',
+      'set.seed(1)',
+      '',
+      '# A hard-skewed population. Averaging still drags the mean toward normal,',
+      '# and the spread of the means tracks sigma / sqrt(n) exactly.',
+      'for (n in c(1, 2, 5, 10, 30, 100)) {',
+      '  means <- replicate(4000, mean(rexp(n, rate = 1)))   # sigma = 1',
+      '  cat("n =", formatC(n, width = 3),',
+      '      " sd(means) =", formatC(round(sd(means), 3), width = 6),',
+      '      " 1/sqrt(n) =", round(1 / sqrt(n), 3), "\\n")',
+      '}',
+      '',
+      '# Now a population with NO finite variance. The averages do not settle,',
+      '# because the theorem never promised they would.',
+      'for (n in c(1, 10, 100)) {',
+      '  mc <- replicate(4000, mean(rcauchy(n)))',
+      '  cat("n =", formatC(n, width = 3), " IQR of means =", round(IQR(mc), 2), "\\n")',
+      '}',
+      '# Check the condition before you lean on the conclusion.'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('clt-sampler', mount);
+})();
+
+;
 /* cluster-icc-sim.js */
 /* cluster-icc-sim.js - clustered data, and the standard error that a sandwich cannot save.
  *
@@ -4257,6 +4845,267 @@
 })();
 
 ;
+/* dist-shapes.js */
+/* dist-shapes.js - the four continuous distributions inference runs on.
+ *
+ * Not a gallery of curves. Each one is the distribution OF something a
+ * researcher computes, and the slider shows what the degrees of freedom buy.
+ * The t is drawn over a dashed standard normal on purpose: the gap in the
+ * tails is the price of estimating sigma instead of knowing it, which is the
+ * entire reason a t interval is wider than a z interval. The readout prices
+ * that gap as a real critical value, so the picture and the number agree.
+ *
+ * cfg: { dist: 'norm'|'t'|'chisq'|'f', df: <number> }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  /* Numerical Recipes gammln. Valid for x > 0, which is all we ask of it. */
+  var LG = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+            -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  function lgamma(x) {
+    var y = x, tmp = x + 5.5, ser = 1.000000000190015;
+    tmp -= (x + 0.5) * Math.log(tmp);
+    for (var j = 0; j < 6; j++) ser += LG[j] / ++y;
+    return -tmp + Math.log(2.5066282746310005 * ser / x);
+  }
+  function lbeta(a, b) { return lgamma(a) + lgamma(b) - lgamma(a + b); }
+
+  function dnorm(x) { return Math.exp(-0.5 * x * x) / 2.5066282746310002; }
+  function dt(x, v) {
+    return Math.exp(lgamma((v + 1) / 2) - lgamma(v / 2)
+      - 0.5 * Math.log(v * Math.PI) - ((v + 1) / 2) * Math.log(1 + x * x / v));
+  }
+  function dchisq(x, k) {
+    if (x <= 0) return 0;
+    return Math.exp((k / 2 - 1) * Math.log(x) - x / 2 - (k / 2) * Math.log(2) - lgamma(k / 2));
+  }
+  function dfisher(x, d1, d2) {
+    if (x <= 0) return 0;
+    return Math.exp((d1 / 2) * Math.log(d1 / d2) + (d1 / 2 - 1) * Math.log(x)
+      - ((d1 + d2) / 2) * Math.log(1 + d1 * x / d2) - lbeta(d1 / 2, d2 / 2));
+  }
+
+  /* The readout prints a cutoff and invites the reader to check it with qt(),
+     so it has to be right at every df on the slider, not just the comfortable
+     ones. An earlier version integrated the density numerically from -40 and
+     was wrong by 47% at df = 1, because a t with one degree of freedom keeps
+     about 0.8% of its mass beyond that point. The exact route is the
+     regularized incomplete beta (Numerical Recipes betacf/betai), which is
+     what R uses too, so the widget and qt() agree to three decimals. */
+  function betacf(a, b, x) {
+    var MAXIT = 300, EPS = 3e-14, FPMIN = 1e-300;
+    var qab = a + b, qap = a + 1, qam = a - 1;
+    var c = 1, d = 1 - qab * x / qap;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    d = 1 / d;
+    var h = d, m, m2, aa, del;
+    for (m = 1; m <= MAXIT; m++) {
+      m2 = 2 * m;
+      aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+      c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+      d = 1 / d; del = d * c; h *= del;
+      if (Math.abs(del - 1) < EPS) break;
+    }
+    return h;
+  }
+  function betai(a, b, x) {            // regularized incomplete beta I_x(a, b)
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    var bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b)
+      + a * Math.log(x) + b * Math.log(1 - x));
+    if (x < (a + 1) / (a + b + 2)) return bt * betacf(a, b, x) / a;
+    return 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+  function pt(t, v) {                  // exact Student t CDF
+    var x = v / (v + t * t), tail = 0.5 * betai(v / 2, 0.5, x);
+    return t >= 0 ? 1 - tail : tail;
+  }
+  function tcrit(v) {                  // two-sided 97.5% cutoff
+    var lo = 0, hi = 400, m;
+    for (var i = 0; i < 80; i++) { m = (lo + hi) / 2; if (pt(m, v) < 0.975) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  }
+
+  var META = {
+    norm: {
+      label: 'Normal', pname: null, xlo: -4, xhi: 4,
+      what: 'the distribution of a sample mean once n is large enough, and of the data themselves when they happen to be normal',
+      note: 'The reference shape. The three below are all what happens when you have to estimate something instead of knowing it.'
+    },
+    t: {
+      label: 't', pname: 'df', plo: 1, phi: 30, pdef: 5, xlo: -4, xhi: 4,
+      what: 'the distribution of a mean divided by its own estimated standard error',
+      note: ''
+    },
+    chisq: {
+      label: 'Chi-squared', pname: 'df', plo: 1, phi: 20, pdef: 4, xlo: 0, xhi: 25,
+      what: 'the distribution of a sum of squared standard normals',
+      note: 'That is why it appears wherever squared deviations get added up: variance estimates, goodness of fit, and the likelihood-ratio tests built on them. It cannot fall below zero, and it leans right until the degrees of freedom pile up.'
+    },
+    f: {
+      label: 'F', pname: 'df1', plo: 1, phi: 15, pdef: 3, xlo: 0, xhi: 5,
+      what: 'the distribution of a ratio of two variance estimates',
+      note: 'A ratio near one is the null story: both halves are estimating the same variance. An ANOVA table is that ratio, which is why the F table and the ANOVA table are the same table.'
+    }
+  };
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var dist = META[cfg.dist] ? cfg.dist : 'norm';
+    var param = +cfg.df || 0;
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ds-seg" style="margin-bottom:12px">' +
+        u.seg([{ v: 'norm', label: 'Normal' }, { v: 't', label: 't' },
+               { v: 'chisq', label: 'Chi-squared' }, { v: 'f', label: 'F' }], dist) +
+      '</div>' +
+      '<div class="ds-ctl" style="margin:0 0 10px"></div>' +
+      '<div class="ds-plot"></div>' +
+      '<div class="ds-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Build all three from standard normals, and price the t' });
+
+    var ctl = el.querySelector('.ds-ctl'), plot = el.querySelector('.ds-plot'),
+        read = el.querySelector('.ds-read');
+
+    var W = 440, H = 220, m = { l: 38, r: 12, t: 12, b: 28 },
+        iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+    function dens(x) {
+      if (dist === 'norm') return dnorm(x);
+      if (dist === 't') return dt(x, param);
+      if (dist === 'chisq') return dchisq(x, param);
+      return dfisher(x, param, 12);
+    }
+
+    function controls() {
+      var M = META[dist];
+      if (!M.pname) { ctl.innerHTML = ''; return; }
+      if (!param || param < M.plo || param > M.phi) param = M.pdef;
+      ctl.innerHTML =
+        '<label style="display:block;font:600 12.5px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + '">' +
+          u.esc(M.pname) + ' <b class="ds-pv" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '">' + param + '</b>' +
+          '<input class="ds-ps" type="range" min="' + M.plo + '" max="' + M.phi + '" step="1" value="' + param +
+          '" style="width:100%;accent-color:' + P.acc + '"></label>';
+      ctl.querySelector('.ds-ps').addEventListener('input', function (e) {
+        param = +e.target.value;
+        ctl.querySelector('.ds-pv').textContent = param;
+        draw();
+      });
+    }
+
+    function draw() {
+      var M = META[dist], lo = M.xlo, hi = M.xhi, N = 240, i;
+      var xs = [], ys = [], mx = 0, y;
+      for (i = 0; i <= N; i++) {
+        var x = lo + (hi - lo) * i / N;
+        y = dens(x);
+        if (!isFinite(y)) y = 0;
+        xs.push(x); ys.push(y); if (y > mx) mx = y;
+      }
+      // The t is read against the normal, so both share one vertical scale.
+      var ref = [];
+      if (dist === 't') {
+        for (i = 0; i <= N; i++) { var r = dnorm(xs[i]); ref.push(r); if (r > mx) mx = r; }
+      }
+      mx = mx * 1.12 || 1;
+
+      function sx(v) { return m.l + (v - lo) / (hi - lo) * iw; }
+      function sy(v) { return m.t + ih - (v / mx) * ih; }
+      function path(arr) {
+        var d = '';
+        for (var k = 0; k <= N; k++) d += (k ? 'L' : 'M') + sx(xs[k]).toFixed(1) + ' ' + sy(arr[k]).toFixed(1);
+        return d;
+      }
+
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+        'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' +
+        u.esc(M.label) + ' density">';
+      svg += '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) +
+             '" stroke="' + P.line + '"/>';
+      var stepT = (hi - lo) <= 8 ? 1 : (hi - lo) <= 12 ? 2 : 5;
+      for (var t0 = Math.ceil(lo / stepT) * stepT; t0 <= hi + 1e-9; t0 += stepT) {
+        svg += '<text x="' + sx(t0).toFixed(1) + '" y="' + (m.t + ih + 14) +
+               '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="' +
+               P.mut + '">' + t0 + '</text>';
+      }
+      if (dist === 't') {
+        svg += '<path d="' + path(ref) + '" fill="none" stroke="' + P.faint +
+               '" stroke-width="2" stroke-dasharray="5 4"/>';
+      }
+      svg += '<path d="' + path(ys) + '" fill="none" stroke="' + P.acc + '" stroke-width="2.6"/>';
+      svg += '<text x="' + (m.l + iw) + '" y="' + (H - 4) +
+             '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.mut + '">' +
+             (dist === 't' ? 'solid = t, dashed = standard normal' : u.esc(M.label) + ' density') + '</text>';
+      svg += '</svg>';
+      plot.innerHTML = svg;
+
+      var head = '<b>The ' + u.esc(M.label) + '</b> is ' + M.what + '.';
+      var body = M.note;
+      if (dist === 't') {
+        var c = tcrit(param), gap = (c / 1.959964 - 1) * 100;
+        body = 'With <b>df = ' + param + '</b> the cutoff for a 95% interval is <b>' + c.toFixed(3) +
+               '</b>, against <b>1.960</b> for the normal, so the interval is <b>' + gap.toFixed(0) +
+               '% wider</b>. That is not a correction somebody invented. It is what honesty costs when sigma is ' +
+               'estimated from the same small sample that produced the mean. Drag df up and the solid curve ' +
+               'settles onto the dashed one, because with enough data an estimated sigma is as good as a known one.';
+      } else if (dist === 'chisq') {
+        body += ' At <b>df = ' + param + '</b> the mean sits at <b>' + param +
+                '</b> and the standard deviation at <b>' + Math.sqrt(2 * param).toFixed(2) + '</b>.';
+      } else if (dist === 'f') {
+        body += ' Shown here with <b>df1 = ' + param + '</b> over <b>df2 = 12</b>.';
+      }
+      read.innerHTML = head + ' ' + body;
+    }
+
+    u.wireSeg(el.querySelector('.ds-seg'), function (v) {
+      dist = v; param = META[v].pdef || 0; controls(); draw();
+    });
+    controls();
+    draw();
+  }
+
+  /* One script, emitted once, because every widget here emits its runnable
+     block exactly once and nothing rescans the page afterwards. It earns its
+     place by showing the one fact the four curves share: t, chi-squared and F
+     are all assembled out of standard normals, so none of them is a new
+     assumption. Then it prices the t, which is the number that changes a
+     reader's intervals tomorrow. */
+  function rcode() {
+    return [
+      '# All three are built out of standard normals. Build them and check.',
+      'set.seed(1)',
+      '',
+      '# chi-squared with k df IS a sum of k squared standard normals',
+      'k <- 4',
+      'chi <- replicate(20000, sum(rnorm(k)^2))',
+      'round(quantile(chi, c(0.05, 0.5, 0.95)), 2)',
+      'round(qchisq(c(0.05, 0.5, 0.95), df = k), 2)   # the same distribution, up to simulation noise',
+      '',
+      '# F IS a ratio of two of those, each divided by its own df',
+      'd1 <- 3; d2 <- 12',
+      'fsim <- replicate(20000, (sum(rnorm(d1)^2) / d1) / (sum(rnorm(d2)^2) / d2))',
+      'round(c(sim = quantile(fsim, 0.95), theory = qf(0.95, d1, d2)), 3)',
+      '',
+      '# and the t is a mean over its ESTIMATED standard error, which costs width:',
+      'for (d in c(2, 5, 10, 30, 100)) {',
+      '  cat("df =", formatC(d, width = 3), " t =", round(qt(0.975, d), 3),',
+      '      " vs z =", round(qnorm(0.975), 3), "\\n")',
+      '}'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('dist-shapes', mount);
+})();
+
+;
 /* doc-structure.js */
 /* doc-structure.js - the anatomy of an R Markdown / Quarto doc: YAML + prose +
  * code chunks, and what it knits to. Toggle source <-> rendered. cfg:
@@ -6056,6 +6905,278 @@
   }
 
   window.LessonWidgets.register('leverage-point', mount);
+})();
+
+;
+/* likelihood-curve.js */
+/* likelihood-curve.js - where an estimate comes from, and where its error bar
+ * comes from.
+ *
+ * The shelf had no likelihood widget at all, so maximum likelihood had to be
+ * taught as a formula handed down. It is not a formula. It is the peak of a
+ * curve, and the curve is drawn here.
+ *
+ * Three things sit on one picture, because they are three readings of the same
+ * object and students usually meet them as three unrelated topics:
+ *
+ *   the PEAK           is the maximum likelihood estimate
+ *   the CURVATURE      at the peak is the observed Fisher information, so a
+ *                      sharp peak means a small standard error
+ *   the WIDTH at -1.92 is a confidence interval, read straight off the curve
+ *
+ * The dashed parabola is the quadratic approximation the Wald interval assumes.
+ * At small n it visibly misses the real curve, and the readout prices the gap
+ * between the two intervals. That gap is the honest reason a Wald interval
+ * misbehaves on small samples, and it is a fact about this picture rather than
+ * a warning the reader has to take on trust.
+ *
+ * Both models are rigged so the estimate lands on a round number at every
+ * sample size (k = 0.3n exactly; sum of waiting times = 2n exactly). Only the
+ * curvature changes as n moves, which is the one thing the slider is for.
+ *
+ * cfg: { model: 'bern'|'expo', n: <one of 10 20 40 80 160 320> }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  var NS = [10, 20, 40, 80, 160, 320];
+
+  /* Half of the 95% chi-squared(1) point. Where a log-likelihood curve has
+     dropped by this much, you are at the edge of a 95% interval. */
+  var DROP = 1.920729;
+  var Z = 1.959964;
+
+  var MODEL = {
+    bern: {
+      label: 'Coin flips',
+      pname: 'p',
+      what: 'the chance of heads, estimated from a run of flips',
+      /* k successes out of n, with k/n pinned at 0.3 for every n. */
+      hat: 0.3,
+      k: function (n) { return 0.3 * n; },
+      ll: function (p, n) { var k = 0.3 * n; return k * Math.log(p) + (n - k) * Math.log(1 - p); },
+      info: function (n) { return n / (0.3 * 0.7); },
+      lo: 0.004, hi: 0.996,
+      fmt: function (v) { return v.toFixed(3); },
+      data: function (n) { return '3 heads in every 10 flips, ' + n + ' flips in all'; }
+    },
+    expo: {
+      label: 'Waiting times',
+      pname: 'rate',
+      what: 'how often something happens, estimated from the gaps between events',
+      /* n waiting times summing to exactly 2n, so the rate estimate is 0.5. */
+      hat: 0.5,
+      ll: function (r, n) { return n * Math.log(r) - r * (2 * n); },
+      info: function (n) { return n / (0.5 * 0.5); },
+      lo: 0.004, hi: 4,
+      fmt: function (v) { return v.toFixed(3); },
+      data: function (n) { return n + ' waits averaging 2 minutes each'; }
+    }
+  };
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+
+    var model = MODEL[cfg.model] ? cfg.model : 'bern';
+    var n = NS.indexOf(+cfg.n) >= 0 ? +cfg.n : 40;
+
+    el.innerHTML =
+      '<div style="border:1px solid ' + P.line + ';border-radius:12px;padding:16px;background:#fff">' +
+        '<div class="lc-seg" style="margin-bottom:10px">' +
+          u.seg([{ v: 'bern', label: MODEL.bern.label }, { v: 'expo', label: MODEL.expo.label }], model) +
+        '</div>' +
+        '<label style="display:block;font-size:12.5px;color:' + P.mut + ';margin-bottom:12px">' +
+          'Sample size <b class="lc-nlab" style="color:' + P.ink + '">' + n + '</b>' +
+          '<input class="lc-ns" type="range" min="0" max="' + (NS.length - 1) + '" step="1" value="' +
+            NS.indexOf(n) + '" style="width:100%;margin-top:5px">' +
+        '</label>' +
+        '<div class="lc-plot"></div>' +
+        '<p class="lc-read" style="font-size:13.5px;line-height:1.62;color:' + P.body +
+          ';margin:12px 0 0"></p>' +
+      '</div>' +
+      '<div style="margin-top:14px">' + u.runnable(rcode(), { label: 'Find the peak yourself' }) + '</div>';
+
+    var plot = el.querySelector('.lc-plot');
+    var read = el.querySelector('.lc-read');
+    var nlab = el.querySelector('.lc-nlab');
+
+    function draw() {
+      var M = MODEL[model];
+      var hat = M.hat, I = M.info(n), se = 1 / Math.sqrt(I);
+
+      /* Always frame the picture four standard errors each side of the peak, so
+         the curve fills the panel at every sample size instead of collapsing
+         into a spike. */
+      var lo = Math.max(M.lo, hat - 4.2 * se), hi = Math.min(M.hi, hat + 4.2 * se);
+      var YMIN = -7;
+
+      var W = 460, H = 272, m = { t: 14, r: 14, b: 40, l: 46 };
+      var iw = W - m.l - m.r, ih = H - m.t - m.b;
+      var sx = function (v) { return m.l + (v - lo) / (hi - lo) * iw; };
+      var sy = function (v) { return m.t + (0 - v) / (0 - YMIN) * ih; };
+
+      var N = 240, i, xs = [], real = [], quad = [];
+      var llhat = M.ll(hat, n);
+      for (i = 0; i <= N; i++) {
+        var x = lo + (hi - lo) * i / N;
+        xs.push(x);
+        real.push(Math.max(YMIN, M.ll(x, n) - llhat));
+        quad.push(Math.max(YMIN, -0.5 * I * (x - hat) * (x - hat)));
+      }
+      function path(ys) {
+        var d = '', k;
+        for (k = 0; k <= N; k++) d += (k ? 'L' : 'M') + sx(xs[k]).toFixed(1) + ' ' + sy(ys[k]).toFixed(1);
+        return d;
+      }
+
+      /* Where each curve crosses the -1.92 line: the likelihood interval from
+         the real curve, the Wald interval from the parabola. Found by scanning
+         the grid already computed, so the picture and the numbers cannot drift
+         apart. */
+      function cross(ys) {
+        /* Interpolated between grid points, not snapped to one. The readout
+           quotes three decimals and the grid step is coarser than that, so
+           taking the nearer grid point would print a number the curve does not
+           actually cross at. Checked against R: both ends land within 0.001. */
+        function at(k) {
+          var y0 = ys[k - 1], y1 = ys[k], f = (y1 === y0) ? 0 : (-DROP - y0) / (y1 - y0);
+          return xs[k - 1] + f * (xs[k] - xs[k - 1]);
+        }
+        var a = null, b = null, k;
+        for (k = 1; k <= N; k++) {
+          if (a === null && ys[k] > -DROP && ys[k - 1] <= -DROP) a = at(k);
+          if (ys[k - 1] > -DROP && ys[k] <= -DROP) b = at(k);
+        }
+        return [a, b];
+      }
+      var ciL = cross(real), ciW = [hat - Z * se, hat + Z * se];
+
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+        'px;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" ' +
+        'aria-label="log-likelihood curve with its peak, its quadratic approximation and the 95 percent cutoff">';
+
+      /* grid + y labels */
+      [0, -2, -4, -6].forEach(function (t) {
+        svg += '<line x1="' + m.l + '" y1="' + sy(t).toFixed(1) + '" x2="' + (m.l + iw) +
+               '" y2="' + sy(t).toFixed(1) + '" stroke="' + P.line2 + '"/>' +
+               '<text x="' + (m.l - 7) + '" y="' + (sy(t) + 3).toFixed(1) +
+               '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' +
+               P.mut + '">' + t + '</text>';
+      });
+      svg += '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) +
+             '" stroke="' + P.line + '" stroke-width="1.5"/>' +
+             '<line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) +
+             '" stroke="' + P.line + '" stroke-width="1.5"/>';
+
+      /* the 95% cutoff, labelled, because it is the whole reason the curve has
+         a width worth reading */
+      svg += '<line x1="' + m.l + '" y1="' + sy(-DROP).toFixed(1) + '" x2="' + (m.l + iw) +
+             '" y2="' + sy(-DROP).toFixed(1) + '" stroke="' + P.c1 +
+             '" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+             '<text x="' + (m.l + iw - 3) + '" y="' + (sy(-DROP) - 5).toFixed(1) +
+             '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' +
+             P.c1 + '">95% cutoff, a drop of 1.92</text>';
+
+      /* x ticks */
+      var tk = [lo, (lo + hat) / 2, hat, (hat + hi) / 2, hi];
+      tk.forEach(function (t) {
+        svg += '<text x="' + sx(t).toFixed(1) + '" y="' + (m.t + ih + 15) +
+               '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="' +
+               P.mut + '">' + t.toFixed(2) + '</text>';
+      });
+
+      /* the quadratic the Wald interval believes in, then the real curve on top */
+      svg += '<path d="' + path(quad) + '" fill="none" stroke="' + P.faint +
+             '" stroke-width="2" stroke-dasharray="5 4"/>';
+      svg += '<path d="' + path(real) + '" fill="none" stroke="' + P.acc + '" stroke-width="2.6"/>';
+
+      /* the peak */
+      svg += '<line x1="' + sx(hat).toFixed(1) + '" y1="' + sy(0).toFixed(1) + '" x2="' + sx(hat).toFixed(1) +
+             '" y2="' + (m.t + ih) + '" stroke="' + P.ink + '" stroke-width="1" stroke-dasharray="2 3"/>' +
+             '<circle cx="' + sx(hat).toFixed(1) + '" cy="' + sy(0).toFixed(1) + '" r="4.5" fill="' + P.acc + '"/>' +
+             /* Labelled at the foot of its own dashed line, not at the apex.
+                The apex is where the curve is, and a label there sits on top
+                of the thing it is pointing at. */
+             '<text x="' + sx(hat).toFixed(1) + '" y="' + (m.t + ih - 7) +
+             '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' +
+             P.ink + '">estimate ' + M.fmt(hat) + '</text>';
+
+      svg += '<text x="' + (m.l + iw / 2) + '" y="' + (H - 5) +
+             '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' +
+             P.mut + '">' + u.esc(M.pname) + ', the value being estimated</text>' +
+             '<text transform="translate(11,' + (m.t + ih / 2) +
+             ') rotate(-90)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' +
+             P.mut + '">log-likelihood, relative to its peak</text>';
+      svg += '</svg>';
+      plot.innerHTML = svg;
+
+      var wW = ciW[1] - ciW[0];
+      var wL = (ciL[0] !== null && ciL[1] !== null) ? ciL[1] - ciL[0] : null;
+      var txt =
+        '<b>' + u.esc(M.data(n)) + '.</b> The curve scores every value of ' + u.esc(M.pname) +
+        ' by how well it explains that data. Its peak is at <b>' + M.fmt(hat) +
+        '</b>, and that peak is the maximum likelihood estimate: not a formula, just the best-scoring value. ' +
+        'The curvature there is the observed information, <b>' + I.toFixed(1) +
+        '</b>, and one over its square root is the standard error, <b>' + se.toFixed(4) +
+        '</b>. A sharper peak means the data rule out nearby values more firmly, which is the whole content of the ' +
+        'phrase "more information".';
+
+      if (wL !== null) {
+        var gap = Math.abs(wL - wW) / wW * 100;
+        txt += ' Reading the width off the real curve at the dashed orange line gives <b>' +
+          ciL[0].toFixed(3) + ' to ' + ciL[1].toFixed(3) + '</b>. The dashed parabola, which is what a Wald interval ' +
+          'assumes the curve looks like, gives <b>' + ciW[0].toFixed(3) + ' to ' + ciW[1].toFixed(3) + '</b>, ' +
+          (gap < 2
+            ? 'near enough identical. At this sample size the parabola is a fair stand-in for the curve, which is why the easy formula works here.'
+            : 'about <b>' + gap.toFixed(0) + '% different in width</b>, and visibly off-centre. The parabola is symmetric and the real curve is not, so the easy formula is quietly wrong at this sample size. Slide n up and watch the two merge.');
+      }
+      read.innerHTML = txt;
+      nlab.textContent = n;
+    }
+
+    u.wireSeg(el.querySelector('.lc-seg'), function (v) { model = v; draw(); });
+    el.querySelector('.lc-ns').addEventListener('input', function () {
+      n = NS[+this.value]; draw();
+    });
+    draw();
+  }
+
+  /* Emitted once. It does the thing the picture cannot: proves the peak is a
+     peak by searching for it numerically, then shows that the curvature really
+     does reproduce the textbook standard error. A reader who runs this has
+     derived both formulas instead of being given them. */
+  function rcode() {
+    return [
+      '# 3 heads in every 10 flips, 40 flips in all.',
+      'n <- 40; k <- 12',
+      '',
+      '# Score every candidate value of p by how well it explains the data.',
+      'loglik <- function(p) k * log(p) + (n - k) * log(1 - p)',
+      'p_grid <- seq(0.01, 0.99, by = 0.0005)',
+      'p_hat  <- p_grid[which.max(loglik(p_grid))]',
+      'c(found_by_search = p_hat, the_formula = k / n)',
+      '',
+      '# optim() gets the same answer without a grid.',
+      'optimise(loglik, c(0.001, 0.999), maximum = TRUE)$maximum',
+      '',
+      '# Curvature at the peak IS the information. Differentiate twice,',
+      '# numerically, and compare against the textbook standard error.',
+      'h <- 1e-4',
+      'curv <- (loglik(p_hat + h) - 2 * loglik(p_hat) + loglik(p_hat - h)) / h^2',
+      'c(se_from_curvature = 1 / sqrt(-curv),',
+      '  se_from_formula   = sqrt(p_hat * (1 - p_hat) / n))',
+      '',
+      '# Two intervals. Where the curve itself drops by 1.92, and the Wald',
+      '# formula. They agree when the curve is near enough a parabola.',
+      'cut   <- loglik(p_hat) - qchisq(0.95, df = 1) / 2',
+      'inside <- p_grid[loglik(p_grid) >= cut]',
+      'rbind(from_the_curve = range(inside),',
+      '      wald           = p_hat + c(-1, 1) * 1.96 * sqrt(p_hat * (1 - p_hat) / n))'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('likelihood-curve', mount);
 })();
 
 ;
