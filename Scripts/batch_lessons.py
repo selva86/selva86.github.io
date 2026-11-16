@@ -21,7 +21,9 @@ lessons-status.json is gitignored (resumable state) and blocked by the middlewar
 """
 import os, sys, json, time, shutil, argparse, subprocess
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from verify_state import verify_published   # artifact check, not exit-code trust
+import batch_tutorials as bt                # shared effective_timeout
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 # The skills use "selva86.github.io/..." paths, so a spawned claude must run from
@@ -228,28 +230,12 @@ def rescue_misfiled(relpath):
     return None
 
 
-DEFAULT_TIMEOUT = 1800     # 30 min: a plan takes ~10, a build ~25 with retries
-MAX_TIMEOUT = 7200         # 2 h absolute ceiling; nothing legitimate runs longer
-
-
-def effective_timeout(value):
-    """Return a real per-stage budget. NEVER None.
-
-    2026-11-15: a plan-review worker sat for 18 hours and the queue never
-    advanced. The old code passed `effective_timeout(args.timeout)` to proc.wait(), and
-    `or` maps every falsy value (0, None) to None, which means "block
-    forever". The wait mechanism itself is fine -- proc.wait(timeout=3) raises
-    TimeoutExpired correctly here -- so None was the only way in. An
-    unattended driver has no business waiting forever, so 0 and None now mean
-    "use the default" rather than "no limit", and nothing exceeds the ceiling.
-    """
-    try:
-        v = int(value)
-    except (TypeError, ValueError):
-        v = 0
-    if v <= 0:
-        v = DEFAULT_TIMEOUT
-    return min(v, MAX_TIMEOUT)
+# One definition of the per-stage budget for the whole factory family.
+# batch_tutorials.effective_timeout explains why 0 and None mean "use the
+# default" rather than "wait forever"; that distinction is what cost eighteen
+# hours on 2026-11-15, and it must never be able to drift between the four
+# drivers that each spawn unattended workers.
+effective_timeout = bt.effective_timeout
 
 
 def _watchdog(proc, deadline_sec, label):
