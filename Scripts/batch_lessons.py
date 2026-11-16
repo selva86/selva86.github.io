@@ -22,7 +22,7 @@ lessons-status.json is gitignored (resumable state) and blocked by the middlewar
 import os, sys, json, time, shutil, argparse, subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from verify_state import verify_published   # artifact check, not exit-code trust
+from verify_state import verify_published, ProcessStartFailure  # artifact check, not exit-code trust
 import batch_tutorials as bt                # shared effective_timeout
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -297,6 +297,13 @@ def run_claude(cli, prompt, timeout=None, label='stage'):
 FAST_FAIL_SEC = 90
 NET_BACKOFF = (30, 90, 180)   # one entry per extra attempt
 
+# Windows NTSTATUS failure codes start at 0xC0000000. A code in that range is
+# not an exit status the program chose: the process never ran. The one this
+# box produces is 0xC0000142 STATUS_DLL_INIT_FAILED, when it is out of memory
+# or handles. It comes back in zero seconds with both streams empty, which is
+# indistinguishable from a fast API error unless you look at the code.
+NTSTATUS_FLOOR = 0xC0000000
+
 
 def run_claude_resilient(cli, prompt, timeout, label):
     """run_claude, but a FAST non-zero exit is retried with a backoff.
@@ -305,12 +312,24 @@ def run_claude_resilient(cli, prompt, timeout, label):
     (ENOTFOUND)` and burned seventeen queued lessons in about fifty seconds,
     roughly three seconds each, every one marked plan_failed. Nothing retried,
     because run_stage only retries after a timeout or an autofix, and the plan
-    stages did not go through run_stage at all."""
+    stages did not go through run_stage at all.
+
+    2026-11-16: the opposite mistake cost a whole run. The machine ran out of
+    memory and Windows could no longer start ANY process, so this retried a
+    failure that could never succeed: seven lessons times four attempts, with
+    backoff, learning nothing. A transient API error is worth waiting out; a
+    process that cannot start is not, because nothing else will start either
+    until the machine recovers. Abort the run instead."""
     rc = 1
     for attempt in range(len(NET_BACKOFF) + 1):
         started = time.monotonic()
         rc = run_claude(cli, prompt, timeout, label)
         elapsed = time.monotonic() - started
+        if rc >= NTSTATUS_FLOOR:
+            raise ProcessStartFailure(
+                '%s exited %d (0x%08X) after %.0fs: Windows could not start the '
+                'process. This is machine-wide, so every later stage would fail '
+                'the same way.' % (label, rc, rc, elapsed))
         if rc == 0 or elapsed >= FAST_FAIL_SEC or attempt == len(NET_BACKOFF):
             return rc
         wait = NET_BACKOFF[attempt]
@@ -533,6 +552,23 @@ def main():
             if args.sync_every and done % args.sync_every == 0:
                 sync()
         sync()
+    except ProcessStartFailure as e:
+        # Deliberately do not rewrite lessons-status.json here. Lessons never
+        # attempted keep the status they had, and the one that was running
+        # stays at its last real stage. That is the honest record: we cannot
+        # tell what it managed to finish, and a worker often outlives the
+        # driver, so the status file is the wrong place to look afterwards.
+        print('\nABORTING THE RUN: %s' % e, flush=True)
+        print('  %d lesson(s) completed before this. The rest were not attempted.'
+              % done, flush=True)
+        print('  The catalog was NOT synced. When the machine is healthy again:',
+              flush=True)
+        print('    python Scripts/build_lessons_tracker.py', flush=True)
+        print('    python _build/build_exercise_manifest.py', flush=True)
+        print('    python Scripts/refresh_course_landings.py --build', flush=True)
+        print('  Check what really landed with git log, not lessons-status.json.',
+              flush=True)
+        return 86
     finally:
         try:
             os.remove(LOCK)

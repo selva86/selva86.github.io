@@ -71,6 +71,22 @@ PREVIEW = 25
 OK, UNBACKED, ORPHANED, CASE = 'ok', 'unbacked', 'orphaned', 'case_mismatch'
 
 
+class ProcessStartFailure(RuntimeError):
+    """A subprocess could not be started, so its answer means nothing.
+
+    2026-11-16: this machine ran out of memory mid-batch and Windows stopped
+    being able to start processes at all. Every launch returned 3221225794
+    (0xC0000142, STATUS_DLL_INIT_FAILED) in zero seconds with both streams
+    empty. `git cat-file -e` failed that way during a publish check, and
+    because the check read any non-zero return as "the page is not committed",
+    a lesson that WAS committed and pushed got recorded publish_failed.
+
+    The signature to key on is the empty output, not the exit code: a tool
+    that ran and objected says why, and a tool that never started says
+    nothing. Raise this instead of returning a verdict, so the caller stops
+    rather than writing a confident wrong answer."""
+
+
 # ---------------------------------------------------------------------------
 # git
 # ---------------------------------------------------------------------------
@@ -148,6 +164,13 @@ def verify_published(slug, fragment_dirs=('_posts',)):
     r = subprocess.run(['git', 'cat-file', '-e', 'HEAD:' + page],
                        cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
+        # Git answers a genuine miss on stderr ("fatal: path '...' does not
+        # exist in 'HEAD'"). Silence means git never ran, so we do not know
+        # whether the page is committed and must not claim that it is not.
+        if not ((r.stdout or '') + (r.stderr or '')).strip():
+            raise ProcessStartFailure(
+                'git cat-file exited %d with no output, so git never ran. '
+                'Cannot tell whether %s is committed.' % (r.returncode, page))
         committed = head_files() or set()
         actual = {p.lower(): p for p in committed}.get(page.lower())
         if actual:
