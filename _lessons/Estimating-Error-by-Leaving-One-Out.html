@@ -1,0 +1,348 @@
+---
+title: "Estimation and the Bootstrap Lesson 6: Estimating error by leaving one out"
+description: "Build the jackknife by hand in R, recompute a statistic with one observation removed each time, and use the spread to find your most influential point."
+keywords: "jackknife, leave-one-out resampling, standard error, bootstrap, influential observation, leverage, Cook's distance, R statistics"
+mathjax: false
+webr: true
+curriculum_id: "4.20.6"
+post_type: "LESSON"
+course_id: "res-estimation"
+course_title: "Estimation and the Bootstrap"
+course_lesson: "6"
+course_total: "7"
+course_landing: "Estimation-and-the-Bootstrap-Course.html"
+course_next: "Standard-Errors-for-Transformed-Estimates.html"
+course_prev: "Two-Bootstrap-Intervals-and-When-They-Differ.html"
+lesson_access: "pro"
+catalog_blurb: "Drop one observation at a time to see which one is driving your estimate."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Estimating error by leaving one out</h2>
+
+<p>Today let's look at a way to measure a statistic's error without a formula for it at all: drop one observation, recompute the statistic, and do that once for every observation you have.</p>
+
+<p>Nine calls hit an API during a load test, and their round-trip times, in milliseconds, were logged as they came back: 42, 39, 45, 41, 44, 40, 43, 42, 95. Eight of them sit between 39 and 45. The ninth, 95, came back after the server paused for garbage collection.</p>
+
+<p>The strip below stands for those nine calls, one badge per call, numbered in the order just listed. Press "Draw again" and watch R resample all nine with replacement: some calls land more than once in a draw, and some get left out entirely.</p>
+<div class="lesson-widget" data-widget-type="bootstrap-sample" data-widget-config='{"n":9,"seed":2026,"tail":"Call 9 is the one at 95 milliseconds, after a garbage collection pause. Whenever it lands twice or more in a draw, it pulls the mean of that resample well above the rest."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That kind of random resampling is one way to measure how much a statistic can vary. Today's method is different. It removes exactly one call at a time, in a fixed order, with no randomness at all.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The jackknife: recompute the statistic, one observation short</h2>
+
+<p>The method you just watched pick calls at random has a name: the bootstrap. The jackknife works differently. Instead of resampling at random, it removes exactly one observation, recomputes the statistic on what is left, puts that observation back, and moves to the next one.</p>
+
+<p>Do that once for every observation and you get as many recomputed values as you started with. For the nine response times, that means computing the mean nine times, each time with one call left out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Nine API response times, and the leave-one-out mean after dropping each one
+x &lt;- c(42, 39, 45, 41, 44, 40, 43, 42, 95)
+n &lt;- length(x)
+theta_hat &lt;- mean(x)
+round(theta_hat, 4)
+theta_i &lt;- sapply(1:n, function(i) mean(x[-i]))
+theta_i
+#&gt; [1] 47.8889
+#&gt; [1] 48.625 49.000 48.250 48.750 48.375 48.875 48.500 48.625 42.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>theta_hat</code>, the mean of all nine response times, is 47.8889. <code>theta_i</code> is built by <code>sapply(1:n, function(i) mean(x[-i]))</code>: for each position <code>i</code> from 1 to 9, it drops call <code>i</code> and averages the eight that are left.</p>
+
+<p>Walk through the first entry by hand. Drop call 1, the 42 ms response, and average the remaining eight response times: 39, 45, 41, 44, 40, 43, 42, 95. That comes out to 48.625, the first number in <code>theta_i</code>. Doing that eight more times, once per call, produces the full set of nine values above.</p>
+
+<p>Call those nine values the jackknife replicates of the mean: one number for every observation, each one the mean of the data with exactly that observation missing.</p>
+
+<p>Notice the last entry, 42.000. That is what happens when you drop call 9, the 95 ms response: the remaining eight ordinary response times average to 42, well below theta_hat's 47.8889. Every other drop barely moves the mean at all. Hold on to that difference; it matters in a few steps.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Turning the replicates' spread into a standard error</h2>
+
+<p>Compute the jackknife standard error from the spread of those nine replicates, and set it beside the classical formula you already know, to see whether the two agree before trusting the jackknife on anything new.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The jackknife standard error from the replicates' spread, and the classical formula for comparison
+theta_bar &lt;- mean(theta_i)
+se_jack &lt;- sqrt((n - 1) / n * sum((theta_i - theta_bar)^2))
+se_classical &lt;- sd(x) / sqrt(n)
+round(c(theta_bar = theta_bar, se_jack = se_jack, se_classical = se_classical), 4)
+#&gt;    theta_bar      se_jack se_classical 
+#&gt;      47.8889       5.9218       5.9218 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>theta_bar</code>, the average of the nine jackknife replicates themselves, comes out to 47.8889. That matches <code>theta_hat</code> from the last step exactly, which makes sense: averaging nine numbers that were each built by dropping one observation and re-averaging gets you back to the same overall mean.</p>
+
+<p><code>se_jack</code> reads the spread of those nine replicates around <code>theta_bar</code>: <code>sqrt((n - 1) / n * sum((theta_i - theta_bar)^2))</code>. The <code>(n - 1) / n</code> factor corrects for a real understatement.</p>
+
+<p>Each <code>theta_i</code> only dropped one observation out of nine, so on its own its spread is smaller than how much the full mean would actually move under a genuinely new sample. Multiplying by <code>(n - 1) / n</code> scales that spread back up to the right size. The result is 5.9218.</p>
+
+<p>Compare that to <code>se_classical</code>, the standard error formula you already know: <code>sd(x)</code> divided by the square root of <code>n</code>, also 5.9218. Two completely different routes, one built from nine recomputed means and one built from a single formula, land on exactly the same number. That agreement is the check worth having before using the jackknife for anything the classical formula cannot already handle.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Resampling the same nine calls at random, again</h2>
+
+<p>Here is that same random resampling again, on the same nine response times, so the contrast with the nine fixed replicates you just computed stays fresh.</p>
+<div class="lesson-widget" data-widget-type="bootstrap-sample" data-widget-config='{"n":9,"seed":61,"tail":"Watch call 9, the 95 millisecond response. Some draws skip it completely, some pick it two or three times, and the mean of that resample moves a lot depending on which happens."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Press "Draw again" a few times. Every draw looks a little different. Sometimes call 9 is missing altogether, sometimes it shows up two or three times, and the resample's mean moves depending on which happens.</p>
+
+<p>Compare that to the nine <code>theta_i</code> values two steps back. There were exactly nine of them, the same nine every single time the code runs, because the jackknife removes one observation on purpose rather than leaving it to chance which ones get picked.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Setting the jackknife against the bootstrap, on the same data</h2>
+
+<p>Run an actual bootstrap on these same nine response times, and read its standard error beside the jackknife's from two steps back.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Bootstrap standard error of the mean, 2000 resamples of the same nine response times
+set.seed(2026)
+boot_means &lt;- replicate(2000, mean(sample(x, 9, replace = TRUE)))
+se_boot &lt;- sd(boot_means)
+round(c(se_jack = se_jack, se_boot = se_boot), 4)
+#&gt; se_jack se_boot 
+#&gt;  5.9218  5.7721 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>set.seed(2026)</code> fixes R's random number generator so the resamples are the same every time this code runs. <code>sample(x, 9, replace = TRUE)</code> draws nine calls with replacement from the nine response times, the same mechanic the widget just showed, and <code>replicate(2000, ...)</code> repeats that 2000 times, keeping the mean from each repeat. <code>sd(boot_means)</code> reads the spread of those 2000 means as <code>se_boot</code>: 5.7721.</p>
+
+<p>That sits close to <code>se_jack</code>'s 5.9218, but it is not identical, and the reason is worth naming. The jackknife is exhaustive for the mean: there are only nine ways to drop one observation out of nine, so <code>theta_i</code> already covers every single one of them. The bootstrap is a random approximation. Its 2000 resamples only sample from the enormous number of ways nine calls can be drawn with replacement, so <code>se_boot</code> wobbles a little depending on the seed.</p>
+
+<p>Run the bootstrap again with more resamples and <code>se_boot</code> would creep closer to 5.9218. Run the jackknife again on this same data and <code>se_jack</code> would not move at all, because there is nothing left in it to randomize.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Reading the replicates for the one observation driving the estimate</h2>
+
+<p>Those same nine <code>theta_i</code> values answer a second question too: which one call is really carrying the mean. Rank them by how far dropping each one moves the estimate.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rank the jackknife replicates by how far each one moved the mean
+delta &lt;- round(abs(theta_i - theta_hat), 4)
+data.frame(response_ms = x, theta_i = round(theta_i, 3), delta = delta)
+#&gt;   response_ms theta_i  delta
+#&gt; 1          42  48.625 0.7361
+#&gt; 2          39  49.000 1.1111
+#&gt; 3          45  48.250 0.3611
+#&gt; 4          41  48.750 0.8611
+#&gt; 5          44  48.375 0.4861
+#&gt; 6          40  48.875 0.9861
+#&gt; 7          43  48.500 0.6111
+#&gt; 8          42  48.625 0.7361
+#&gt; 9          95  42.000 5.8889</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>delta</code> measures the distance each <code>theta_i</code> sits from <code>theta_hat</code>, 47.8889. The bigger that gap, the more the mean changes when that one call goes missing.</p>
+
+<p>Row 9, the 95 ms call, has a delta of 5.8889, far larger than any other row. Row 2, the 39 ms call, has the next largest delta at 1.1111, less than a fifth of row 9's. Every other call moves the mean by under one millisecond.</p>
+
+<p>So the same nine numbers that gave a standard error three steps back also point straight at the observation driving the estimate: call 9, the 95 ms response after the garbage-collection pause. Drop it, and the mean of the remaining eight response times falls by almost six milliseconds. No other single call comes close.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<h2>Leverage and Cook's distance: the same influential point, now in a regression</h2>
+
+<p>The same idea, one observation dominating an estimate, shows up in a regression line too, under its own name: leverage.</p>
+<div class="lesson-widget" data-widget-type="leverage-point" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>This widget fits a straight line through seven ordinary points and one point far to the right. Drag that far point's value up and down with the slider, and watch the fitted line pivot toward it, while the dashed line, fit without that point, barely moves. The readout below the chart reports Cook's distance, a single number that grows as that one point pulls the fitted line further from where it would sit without it.</p>
+
+<p>Dragging that far point is the same act as dropping call 9 from the response times. Both ask the same question: how much does this one observation change the answer, just for a line's slope instead of a mean.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Why the median breaks the formula, and the extreme case that proves it</h2>
+
+<p>Run the exact same jackknife recipe, but on the median instead of the mean, and see what happens to the nine replicates.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Jackknife the median instead of the mean, on the same nine response times
+theta_i_med &lt;- sapply(1:n, function(i) median(x[-i]))
+theta_i_med
+se_jack_median &lt;- sqrt((n - 1) / n * sum((theta_i_med - mean(theta_i_med))^2))
+set.seed(2026)
+boot_medians &lt;- replicate(2000, median(sample(x, 9, replace = TRUE)))
+se_boot_median &lt;- sd(boot_medians)
+round(c(se_jack_median = se_jack_median, se_boot_median = se_boot_median), 4)
+#&gt; [1] 42.5 42.5 42.0 42.5 42.0 42.5 42.0 42.5 42.0
+#&gt; se_jack_median se_boot_median 
+#&gt;         0.7027         2.2791 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look closely at <code>theta_i_med</code>. It takes only two distinct values, 42.5 and 42, instead of nine different numbers the way the mean's <code>theta_i</code> did.</p>
+
+<p>Dropping calls 1, 2, 4, 6 or 8 leaves the median at 42.5. Dropping calls 3, 5, 7 or 9 leaves it at 42. Which call gets dropped barely matters, as long as it sits on the same side of the middle of the sorted data.</p>
+
+<p>Feed those nine replicates into the same <code>se_jack</code> formula from earlier and you get <code>se_jack_median</code>, 0.7027. But a real bootstrap on the median, 2000 resamples recomputing the median each time, gives <code>se_boot_median</code>, 2.2791, over three times larger. The two methods, which nearly agreed for the mean, now disagree by a factor of three.</p>
+
+<p>Push the comparison further. Drop the 95 ms call out of the data entirely, and jackknife the median of what is left.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Drop the outlier call entirely, then jackknife the median of the 8 remaining response times
+x8 &lt;- x[-9]
+x8
+theta_i_med8 &lt;- sapply(1:8, function(i) median(x8[-i]))
+theta_i_med8
+se_jack_median8 &lt;- sqrt((8 - 1) / 8 * sum((theta_i_med8 - mean(theta_i_med8))^2))
+set.seed(2026)
+boot_medians8 &lt;- replicate(2000, median(sample(x8, 8, replace = TRUE)))
+se_boot_median8 &lt;- sd(boot_medians8)
+round(c(se_jack_median8 = se_jack_median8, se_boot_median8 = se_boot_median8), 4)
+#&gt; [1] 42 39 45 41 44 40 43 42
+#&gt; [1] 42 42 42 42 42 42 42 42
+#&gt; se_jack_median8 se_boot_median8 
+#&gt;          0.0000          0.8518 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>x8</code> holds the eight ordinary response times, with call 9 removed before any jackknifing starts. <code>theta_i_med8</code> drops one of those eight at a time and recomputes the median of the remaining seven. Every single one of those eight leave-one-out medians comes out to exactly 42, not close to 42, equal to it, to every decimal place R prints.</p>
+
+<p>Feed eight identical replicates into <code>se_jack</code>, and the summed squared deviation from their own mean is zero, because there is no deviation to sum: <code>se_jack_median8</code> is exactly 0.0000. A real bootstrap on the same eight values disagrees. <code>se_boot_median8</code>, from 2000 resamples of <code>x8</code>, comes out to 0.8518, a real, nonzero spread.</p>
+
+<p>Here is why the two formulas split so badly. The mean responds to every observation by some amount: drop any one of the nine response times and the mean shifts, by a different amount each time, which is exactly what let <code>theta_i</code> take nine distinct values.</p>
+
+<p>The median only responds to which side of the middle an observation sits on. Drop one that is not near the middle at all, and the median does not move even a little. Eight response times where every single drop leaves the same median behind is the most extreme version of that: no two of the eight replicates ever differed, so the spread the jackknife formula depends on was never there to measure.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A jackknife standard error of exactly zero is not proof that a statistic has no error. It is a sign that this particular way of perturbing the data, dropping one observation at a time, never moved the statistic at all. The median's true sampling error is real, 0.8518 by the bootstrap's measure; the jackknife simply had nothing left to read it from.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why the jackknife failed on the median</h2>
+<section class="exercise" data-exercise-id="Estimating-Error-by-Leaving-One-Out-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The median moves by a fixed jump or not at all when one observation is dropped, instead of moving smoothly in proportion to how unusual the dropped observation is, and the jackknife's formula assumes smooth movement.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The sample was too small for the jackknife to work on the median.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The jackknife calculation has random noise in it, so re-running it would give a different answer.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The nine leave-one-out means took nine different values because the mean responds to every observation by some amount. The nine leave-one-out medians took only two values, and on the eight ordinary response times every one of the eight came out identical, so the spread the formula reads as error was never really there.</div><div class="lesson-qfb lesson-qfb-no">The jackknife drops the same observations in the same order every time; it is deterministic, unlike the bootstrap seen in the last step. Re-running se_jack_median8 would give exactly 0 again, not a different number.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: deciding whether to trust a jackknife standard error</h2>
+
+<p>Put the mean and the median side by side. For the mean, se_jack matched se_classical exactly at 5.9218, and the nine leave-one-out replicates took nine different values. For the median, se_jack_median started at 0.7027 against a 2.2791 bootstrap, then on the eight ordinary response times dropped to exactly 0 while the bootstrap still read 0.8518.</p>
+<section class="exercise" data-exercise-id="Estimating-Error-by-Leaving-One-Out-step10" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Whether the jackknife is trustworthy depends on whether the statistic moves smoothly when one observation is dropped, which you can check by counting how many distinct values the leave-one-out replicates actually take, the way the mean's nine and the median's one or two just did.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A bigger sample always fixes the jackknife's standard error.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Whichever method, jackknife or bootstrap, gives the smaller number is the more accurate one.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Nine distinct replicates, like the mean gave, is the smooth case the jackknife's formula was built for. One or two distinct replicates, like the median gave, is the sign to reach for a bootstrap instead.</div><div class="lesson-qfb lesson-qfb-no">For the mean, the two nearly agreed, so neither was obviously the smaller winner. For the median, the jackknife's smaller number, 0.7027 and then 0, was the wrong one both times, not the better one.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: jackknife a new statistic and find its influential point</h2>
+
+<p>A small delivery service logs the time, in minutes, for its last seven orders: 12, 11, 13, 12, 14, 11, 40. One order took far longer than the rest. Jackknife the mean of these seven delivery times the same way you jackknifed the response times, then find which order is most responsible for that mean.</p>
+<section class="exercise" data-exercise-id="Estimating-Error-by-Leaving-One-Out-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="sapply[(][\s\S]*?mean[(][\s\S]*?\x5B-i\x5D[\s\S]*?sqrt[(][\s\S]*?sum[(][\s\S]*?(which\.max|abs)"><textarea class="lesson-tryit-input" spellcheck="false"># times holds 7 delivery times, in minutes, for the service's last 7 orders
+times &lt;- c(12, 11, 13, 12, 14, 11, 40)
+
+# Write the three lines below, reusing the recipes from earlier steps:
+# theta_i     &lt;- the jackknife replicates of the mean of times
+# se_jack     &lt;- the jackknife standard error, from theta_i
+# influential &lt;- which position moves the mean the most when dropped</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: dropping the 40-minute order moves the mean by about 3.98, more than four times further than any other drop, so that order is carrying this mean the same way call 9 carried the response-time mean.</span><span class="lesson-tryit-fb lesson-tryit-no">Reuse the recipe from two steps back for theta_i: sapply over 1:length(times), dropping index i with the -i index inside mean(), then mean() on the rest. Reuse the recipe from three steps back for se_jack: sqrt of (n-1)/n times the summed squared deviations from the mean of the replicates themselves. Then rank with which.max(abs(theta_i - mean(times))).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Jackknife the mean of the 7 delivery times and find the influential order
+m &lt;- length(times)
+theta_i &lt;- sapply(1:m, function(i) mean(times[-i]))
+theta_i
+#&gt; [1] 16.83333 17.00000 16.66667 16.83333 16.50000 17.00000 12.16667
+se_jack &lt;- sqrt((m - 1) / m * sum((theta_i - mean(theta_i))^2))
+round(se_jack, 4)
+#&gt; [1] 3.9966
+which.max(abs(theta_i - mean(times)))
+#&gt; [1] 7</code></pre></details></div>
+</section>
+<p>Position 7, the 40-minute order, is the one <code>which.max</code> names. Dropping it moves the mean from 16.1429 down to 12.1667, a swing of almost 4 minutes, more than four times further than dropping any of the six ordinary deliveries. That is the same diagnosis call 9 got in the response-time data, just read off a different running example.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.2307/2332914">Notes on Bias in Estimation</a> - Quenouille, M.H. (1956), <em>Biometrika</em>, 43(3-4), 353-360. The paper that introduced dropping one observation at a time to estimate and correct bias.</li>
+
+<li>Tukey, J.W. (1958). Bias and Confidence in Not-quite Large Samples. <em>Annals of Mathematical Statistics</em>, 29(2), 614. Named the method the jackknife, and extended it from correcting bias to estimating a standard error.</li>
+
+<li><a href="https://doi.org/10.1093/biomet/61.1.1">The Jackknife - A Review</a> - Miller, R.G. (1974), <em>Biometrika</em>, 61(1), 1-15. Works out exactly which statistics the jackknife's standard error can be trusted for, and which it cannot.</li>
+
+<li><a href="https://doi.org/10.1201/9780429246593">An Introduction to the Bootstrap</a> - Efron, B. and Tibshirani, R.J. (1993), Chapman and Hall/CRC. Sets the jackknife and the bootstrap side by side and compares what each one costs and delivers.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Quick recap</h2>
+
+<ul>
+
+<li>The jackknife drops one observation at a time and recomputes the statistic. Nine response times gave nine leave-one-out means, <code>theta_i</code>.</li>
+
+<li>Their spread, read through <code>se_jack = sqrt((n - 1) / n * sum((theta_i - theta_bar)^2))</code>, gave 5.9218, matching the classical formula <code>sd(x) / sqrt(n)</code> exactly.</li>
+
+<li>The same nine numbers, ranked by how far each one moved the mean, also found the influential observation: dropping the 95 ms call moved the mean by 5.8889, over five times further than any other drop.</li>
+
+<li>Run on the median instead, the jackknife broke. Its leave-one-out replicates took only two distinct values on the nine response times, and on the eight ordinary ones every single replicate was 42, reporting a standard error of exactly zero while the bootstrap still measured 0.8518.</li>
+
+<li>Whether to trust a jackknife standard error comes down to one check: how many distinct values the leave-one-out replicates actually take. Many distinct values, the way the mean's nine did, means the statistic moves smoothly and the jackknife can be trusted. One or two, the way the median's did, means it cannot.</li>
+
+</ul>
+
+<p>Next time one observation looks like it might be carrying your estimate, you have a way to check it directly: drop it, recompute, and read the numbers that come back.</p>
+</section>
+
+{% endraw %}
