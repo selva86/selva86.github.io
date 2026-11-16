@@ -57,13 +57,13 @@ The same idea past the mean. Simulate the sampling distribution of a median, a v
 
 What makes an estimator good: bias, variance, and the mean squared error that trades them off, computed for two rival estimators of the same quantity. Where the square root of n in the formula comes from, why a bigger sample buys precision at a decelerating rate, and the three things beginners merge: an estimate, an estimator, and the parameter.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Point estimates and the standard error](Point-Estimates-and-the-Standard-Error.html)
 
 ### Lesson 7: Confidence intervals by bootstrap
 
 Resample your sample with replacement, recompute the statistic, read the interval off the resulting distribution. Build the percentile interval by hand in base R, see why it works with no formula for the standard error, learn what 95% actually promises, and meet the cases where the bootstrap quietly fails.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Confidence intervals by bootstrap](Confidence-Intervals-by-Bootstrap.html)
 
 ## Who this is for
 
