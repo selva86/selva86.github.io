@@ -131,7 +131,7 @@ def run_write_v4(cli, cid, entry, rewrite, slug, timeout):
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127
     try:
-        proc.communicate(input=prompt, timeout=timeout or None)
+        proc.communicate(input=prompt, timeout=bt.effective_timeout(timeout))
         return proc.returncode
     except subprocess.TimeoutExpired:
         print('  TIMEOUT: %s produced no result in %ss - killing the hung worker.'
