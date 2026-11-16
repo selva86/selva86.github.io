@@ -30,7 +30,7 @@ So: **the roadmap link = one entry in one file.**
 ### Case 2: a brand-new course (the full case)
 
 1. **Pick its home in the roadmap.** Open `www/roadmap-curriculum.js`, find the track and the `S(n, …)` section it belongs in. Note the **track key** and the **section number `n`** (see the track-key table below).
-2. **Add the course + lesson arc** to `Plans/lessons-curriculum.md`: `course_id`, `course_title`, `course_landing`, `curriculum_id`, and the ordered lessons (each ≤ 12 steps per R13; split a big topic into multiple lessons here, in the plan).
+2. **Add the course + lesson arc** to `Plans/lessons-curriculum.md`: `course_id`, `course_title`, `course_landing`, `curriculum_id`, and the ordered lessons (split a big topic into multiple lessons here, in the plan, at a genuine conceptual seam; there is no step budget, see R13 below).
 3. **Add the roadmap link**: one entry in `Scripts/build_lessons_tracker.py` (the `COURSE_ROADMAP` dict), keyed by your `course_id`:
    ```python
    'your-course-id': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 7,
@@ -54,10 +54,10 @@ So: **the roadmap link = one entry in one file.**
 1. **Validate**: slug dedupe / cross-dir collision guard (vs `posts/`, `_posts/`, `_lessons/`, root).
 2. **`/write-lesson`**
    - Pass 0: reads the SSOTs (`lesson-pedagogy.md`, `lesson-contract.md`, `lesson-visual-catalog.md`, `lessons-derive.md`, your `lessons-curriculum.md` entry) **+ the RF exemplar** (`lessons/RF-Course-Lesson-1.md`); derives metadata.
-   - Pass 1: writes the **plan** `post_plans/<slug>_lesson-plan.md` (objectives → step → check table; arc sized **≤ 12 steps**). No plan, no lesson.
+   - Pass 1: writes the **plan** `post_plans/<slug>_lesson-plan.md` (objectives → step → check table; the arc is sized by what the topic needs, not by a step budget). No plan, no lesson.
    - Pass 2: writes `lessons/<slug>.md` with a cover visual, depth-ladder prose + MathJax, `::widget`s **selected from `www/lesson-widgets/`** (never hand-drawn SVG), gated quiz + try-it, 3 to 5 references.
    - Pass 3: self-runs the gate.
-3. **`Scripts/lesson_quality_check.py`** (HARD): cover visual (R1), ≥1 quiz + ≥1 try-it (R5), refs resolve (R9), every `::widget` type exists, no inline `<svg>`, ≥1 widget, `mathjax:true` when formulas present, warns at > 12 steps (R13). Fail → retry once → `manual_review`.
+3. **`Scripts/lesson_quality_check.py`** (HARD): cover visual (R1), ≥1 quiz + ≥1 try-it (R5), refs resolve (R9), every `::widget` type exists, no inline `<svg>`, ≥1 widget, `mathjax:true` when formulas present, warns below 5 steps (R13). Fail → retry once → `manual_review`.
 4. **`/publish-lesson`** runs the chain:
    - `_build/md2lesson.py` → `_lessons/<slug>.html` (steps + nested `<section class="exercise">` for gated steps + widget mounts).
    - `_build/build.py` → **`/<slug>.html` at repo root** (the `post_type: LESSON` flag triggers the player shell; flat URL so `hub_slug == stem` and the grading/XP backend is reused with zero new server code).
@@ -98,7 +98,7 @@ So: **the roadmap link = one entry in one file.**
 Free if **level == 1 OR section == 1**, else Pro. Override with `lesson_access: free|pro` in frontmatter. Baked into `courses.json` per lesson; enforced by the player (2-step preview then paywall).
 
 ### Length (R13)
-Target 7 to 12 steps, **ceiling 12**. A bigger topic is a multi-lesson course split at a natural seam, decided in the plan (`Plans/lessons-curriculum.md`), never by chopping a finished lesson. The gate warns above 12.
+**No step cap.** Use as many steps as a beginner needs to understand the topic in detail, and never compress or omit to hit a budget. The quality signal is per-step density, a wall of text in one step, not how many steps there are. A bigger topic becomes a multi-lesson course only at a genuine conceptual seam, decided in the plan (`Plans/lessons-curriculum.md`), never by chopping a finished lesson. The gate warns only below 5 steps, because R13 favours thoroughness over brevity.
 
 ### Key files
 | File | Role |
