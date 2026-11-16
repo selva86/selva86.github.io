@@ -161,7 +161,7 @@ def write_chapter(row, cli, timeout):
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127
     try:
-        proc.communicate(input=prompt, timeout=timeout or None)
+        proc.communicate(input=prompt, timeout=bt.effective_timeout(timeout))
         return proc.returncode
     except subprocess.TimeoutExpired:
         print('  TIMEOUT: ch%s produced nothing in %ss - killing worker.'
@@ -227,7 +227,7 @@ def judge(slug, cli, timeout):
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127, False
     try:
-        proc.communicate(input=prompt, timeout=timeout or None)
+        proc.communicate(input=prompt, timeout=bt.effective_timeout(timeout))
         rc = proc.returncode
     except subprocess.TimeoutExpired:
         print('  TIMEOUT: judge for %s produced nothing in %ss - killing worker.'
@@ -292,7 +292,7 @@ def publish(slug, cli, timeout):
          '--settings', bt.WRITER_SETTINGS],
         stdin=subprocess.PIPE, cwd=bt.PROJECT_ROOT, text=True, encoding='utf-8')
     try:
-        proc.communicate(input=prompt, timeout=timeout or None)
+        proc.communicate(input=prompt, timeout=bt.effective_timeout(timeout))
     except subprocess.TimeoutExpired:
         bt._kill_tree(proc.pid)
         return 124

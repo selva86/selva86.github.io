@@ -140,6 +140,30 @@ def _kill_tree(pid):
                 pass
 
 
+DEFAULT_TIMEOUT = 1800     # 30 min, the argparse default for every driver here
+MAX_TIMEOUT = 7200         # 2 h absolute ceiling; nothing legitimate runs longer
+
+
+def effective_timeout(value):
+    """Return a real per-phase budget. NEVER None.
+
+    2026-11-15: a lesson worker sat for eighteen hours because the driver
+    passed `timeout or None` to proc.wait(), and `or` maps every falsy value
+    (0, None) to None, which means "block forever". The waiting mechanism is
+    fine; None was the only way in. An unattended driver has no business
+    waiting forever, so 0 and None mean "use the default" rather than "no
+    limit", and nothing exceeds the ceiling. Shared by batch_handbook and
+    batch_tutorials_v2, which import this module as bt.
+    """
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        v = 0
+    if v <= 0:
+        v = DEFAULT_TIMEOUT
+    return min(v, MAX_TIMEOUT)
+
+
 def run_phase(cli, skill, argument, timeout):
     print('+ [%s] %s %s  (--model %s --effort %s)' %
           (datetime.datetime.now().strftime('%H:%M'), skill, argument, BATCH_MODEL, BATCH_EFFORT),
@@ -153,7 +177,7 @@ def run_phase(cli, skill, argument, timeout):
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127
     try:
-        return proc.wait(timeout=timeout or None)
+        return proc.wait(timeout=effective_timeout(timeout))
     except subprocess.TimeoutExpired:
         print('  TIMEOUT: %s %s produced no result in %ss - killing the hung worker.'
               % (skill, argument, timeout), flush=True)
