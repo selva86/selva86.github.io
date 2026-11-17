@@ -47,7 +47,7 @@ Permutation tests and simulation-based inference: shuffle the labels, recompute 
 
 Coverage as something you measure rather than assume. Build an interval recipe, run it a few thousand times against a known truth, count how often it contains that truth, and compare the result with what the label claims. The recipes that fail are the interesting part: the z interval on a skewed population at small n, and the percentile bootstrap at n = 5, both visibly overconfident. The real subject is the habit, because a broken assumption is invisible inside any single interval.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Checking that your intervals actually cover](Checking-That-Your-Intervals-Actually-Cover.html)
 
 ### Lesson 5: Standard errors you can trust
 
