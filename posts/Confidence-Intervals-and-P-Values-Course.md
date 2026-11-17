@@ -59,7 +59,7 @@ When the default standard error is wrong, and what to do about it. Three cases, 
 
 The write-up. One result reported four ways, from a bare claim of significance to an estimate with an interval and a stated assumption, and the demonstration that all four describe the same analysis. Which numbers belong in a sentence, how to phrase an interval so a careful reader cannot misread it, what to say about a result that did not reach significance without pretending it did or pretending it is nothing, and the sentence to write when the assumption behind your interval is one you could not check.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Reporting uncertainty without overclaiming](Reporting-Uncertainty-Without-Overclaiming.html)
 
 ## Who this is for
 
