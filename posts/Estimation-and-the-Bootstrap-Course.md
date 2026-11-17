@@ -65,7 +65,7 @@ The jackknife: recompute the statistic n times, each time with one observation r
 
 The delta method: once you have a standard error for an estimate, how to get one for a function of that estimate without starting over. The rule is that the standard error gets multiplied by the absolute slope of the transformation, derived here from a one-term Taylor expansion and then checked against a bootstrap on the same data. The worked cases are the ones researchers actually hit, turning a rate into a mean and an odds into a probability, where the interval has to be transformed rather than its endpoints recomputed.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Standard errors for transformed estimates](Standard-Errors-for-Transformed-Estimates.html)
 
 ## Who this is for
 
