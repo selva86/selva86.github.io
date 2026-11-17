@@ -41,7 +41,7 @@ A p-value built from scratch as a tail area under a null distribution you simula
 
 Permutation tests and simulation-based inference: shuffle the labels, recompute the statistic, repeat, and read the p-value off the result. The payoff is that this works when no formula exists for your statistic, so you test a difference in medians and a difference in trimmed means, neither of which has a convenient table. Set against the t-test on the same data, it shows where the two agree and where the formula's assumptions were quietly doing work the shuffle never needed.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Inference by simulation instead of formula](Inference-by-Simulation-Instead-of-Formula.html)
 
 ### Lesson 4: Checking that your intervals actually cover
 
