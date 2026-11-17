@@ -53,7 +53,7 @@ Coverage as something you measure rather than assume. Build an interval recipe, 
 
 When the default standard error is wrong, and what to do about it. Three cases, each simulated so the damage is measured rather than asserted: unequal variance, where robust standard errors fix it; clustered data, where they do not and a cluster-robust estimator is needed; and the small-cluster case, where even that is optimistic. The decision rule at the end is short, and it is earned by the simulations above it instead of handed down as advice.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Standard errors you can trust](Standard-Errors-You-Can-Trust.html)
 
 ### Lesson 6: Reporting uncertainty without overclaiming
 
