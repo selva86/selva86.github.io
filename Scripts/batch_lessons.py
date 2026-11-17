@@ -167,9 +167,60 @@ def _title_rule(slug):
             'after the colon in the frontmatter `title` and as the cover step H2; never '
             'retitle it. ' % t) if t else ''
 
+def curriculum_access(slug):
+    """The owner's access value for `slug`, derived from Plans/lessons-curriculum.md.
+
+    Returns (access, why) or ('', '') when the slug's track has no explicit rule.
+
+    The value is fully determined by two things already written down: the
+    course header's `[roadmap SS N]` tag and the lesson's position in that
+    course's numbered arc. Deriving it inside a worker, which is what
+    write-lesson/SKILL.md used to do, means a money-gate depends on an LLM
+    reading a table correctly; it got the OLD rule and would have published
+    section 3 lesson 1 as pro, which also makes www/roadmap-role.js lie.
+    """
+    import re
+    path = os.path.join(ROOT, 'Plans', 'lessons-curriculum.md')
+    track, section, pos = '', 0, 0
+    try:
+        with open(path, encoding='utf-8') as f:
+            for line in f:
+                h = re.match(r'##\s+(\S+)\s+\((.*)\)\s*(?:\[roadmap\s+\S*?(\d+)\])?\s*$',
+                             line.strip())
+                if h:
+                    meta = h.group(2)
+                    mt = re.search(r'track:\s*([A-Za-z0-9_-]+)', meta)
+                    track = mt.group(1) if mt else ''
+                    section = int(h.group(3)) if h.group(3) else 0
+                    pos = 0
+                    continue
+                m = re.match(r'\s*(\d+)\.\s+' + re.escape(slug) + r'\s+-', line)
+                if m:
+                    pos = int(m.group(1))
+                    break
+    except OSError:
+        return '', ''
+    if not pos or not track:
+        return '', ''
+    if track == 'researcher':
+        free_upto = 2 if section == 1 else 1
+        access = 'free' if pos <= free_upto else 'pro'
+        return access, ('researcher track, roadmap section %d, lesson %d; the owner rule of '
+                        '2026-11-17 makes section 1 lessons 1-2 free and every later '
+                        "section's lesson 1 free, everything else pro" % (section, pos))
+    return '', ''
+
+
+def _access_rule(slug):
+    access, why = curriculum_access(slug)
+    if not access:
+        return ''
+    return ('The frontmatter `lesson_access` is fixed by the owner and is `%s` (%s). Set exactly '
+            'that value; do not derive it yourself and do not change it. ' % (access, why))
+
 def plan_prompt(slug):
     return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --plan-only mode "
-            "for the lesson `{slug}`. " + _WD + _title_rule(slug) +
+            "for the lesson `{slug}`. " + _WD + _title_rule(slug) + _access_rule(slug) +
             "The lesson's course arc is its entry in {root}/Plans/lessons-curriculum.md; "
             "derive its metadata per {root}/_build/lessons-derive.md. Produce ONLY "
             "{root}/post_plans/{slug}_lesson-plan.md. Do not write lesson prose. Do not run "
@@ -177,14 +228,14 @@ def plan_prompt(slug):
 
 def plan_check_prompt(slug):
     return ("Follow the skill at .claude/skills/check-lesson-plan/SKILL.md for the plan "
-            "{root}/post_plans/{slug}_lesson-plan.md. " + _WD + _title_rule(slug) +
+            "{root}/post_plans/{slug}_lesson-plan.md. " + _WD + _title_rule(slug) + _access_rule(slug) +
             "Fix flow directly in the plan, then set `status: approved`. Do not approve an "
             "unfixable plan. Do not write lesson prose. Do not touch git."
             ).format(slug=slug, root=ROOTP)
 
 def build_prompt(slug):
     return ("Follow the skill at .claude/skills/write-lesson/SKILL.md in --build mode for the "
-            "lesson `{slug}`. " + _WD + _title_rule(slug) +
+            "lesson `{slug}`. " + _WD + _title_rule(slug) + _access_rule(slug) +
             "The plan at {root}/post_plans/{slug}_lesson-plan.md is stamped approved: build "
             "strictly from it (floor, not ceiling; never reorder or re-plan). Write "
             "{root}/lessons/{slug}.md, run both gates until green, and finish with the short "
@@ -194,7 +245,7 @@ def build_prompt(slug):
 def check_prompt(slug):
     return ("Follow the skill at .claude/skills/check-lesson/SKILL.md for the lesson "
             "{root}/lessons/{slug}.md (its approved plan is at "
-            "{root}/post_plans/{slug}_lesson-plan.md). " + _WD + _title_rule(slug) +
+            "{root}/post_plans/{slug}_lesson-plan.md). " + _WD + _title_rule(slug) + _access_rule(slug) +
             "Apply bounded fixes, re-run both gates, and give the verdict the skill defines. "
             "Do not publish, build the site, or touch git.").format(slug=slug, root=ROOTP)
 
