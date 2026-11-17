@@ -29,7 +29,7 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 A path from the question to a named test, driven by three things: what is being compared, what kind of outcome was measured, and how the data were collected, meaning paired, independent, or more than two groups. Walked end to end on four real questions, one of which has no standard test that fits, where the honest answer is that a model is wanted instead. The point is the reasoning, so that an unfamiliar question is still tractable.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Choosing the right test](Choosing-the-Right-Test.html)
 
 ### Lesson 2: Checking assumptions and what breaks them
 
