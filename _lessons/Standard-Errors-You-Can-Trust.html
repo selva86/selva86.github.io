@@ -1,0 +1,523 @@
+---
+title: "Confidence Intervals and P-Values Lesson 5: Standard errors you can trust"
+description: "Heteroskedasticity and clustered data both break the ordinary standard error, but in different ways. Simulate both and measure which fix actually works."
+keywords: "standard error, heteroskedasticity, robust standard error, cluster-robust standard error, clustered data, intraclass correlation, design effect, White HC estimator, regression, R"
+mathjax: false
+webr: true
+curriculum_id: "4.30.5"
+post_type: "LESSON"
+course_id: "res-inference"
+course_title: "Confidence Intervals and P-Values"
+course_lesson: "5"
+course_total: "6"
+course_landing: "Confidence-Intervals-and-P-Values-Course.html"
+course_next: "Reporting-Uncertainty-Without-Overclaiming.html"
+course_prev: "Checking-That-Your-Intervals-Actually-Cover.html"
+lesson_access: "pro"
+catalog_blurb: "When the default standard error is wrong, and what actually fixes it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Standard errors you can trust</h2>
+
+<p>Today let's look at a standard error that can quietly fall far short of the truth, and learn when to trust it and when not to.</p>
+
+<p>Picture a regional retail chain that rolls out a new price-tag display to half of its stores and tracks the daily transaction value, in dollars, at every one of them. Fit the usual regression to measure the display's effect, and R hands back a standard error of 1.61. That number is supposed to say how much the estimate would bounce around if the chain ran this exact study again.</p>
+
+<p>So run it again. Not once, but 2,000 times over, each time with a fresh batch of stores and days. The estimate actually swings by 9.83, about six times wider than what the formula reported.</p>
+
+<p>The formula was not making an arithmetic mistake. It was built on a condition this data does not meet: that every row is an independent, equally noisy observation.</p>
+
+<p>Two very ordinary situations break that condition, each in its own way. One is when the scatter of the noise changes with the size of the thing you're measuring. The other is when individual rows are not actually independent, because they share something in common, like several days from the same store.</p>
+
+<p>Here is that gap, the formula's number against the real one.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"what the formula reports, on average","y":1.61},{"x":"what repeating the study 2000 times shows","y":9.83}],"x":"comparison","y":"standard error","geoms":["bar"]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Six times wider is not a rounding error. It is the gap this lesson exists to close.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What the standard error formula actually assumes</h2>
+
+<p>Start with what a standard error even measures, since everything else here leans on it.</p>
+
+<p>Fit a regression once, on one sample of data, and you get one estimate: a slope, a treatment effect, whatever number you're after. Run the exact same study again, on a fresh sample collected the same way, and you get a slightly different estimate. Do that over and over, and those estimates spread out into their own distribution. The standard error is just the spread of that distribution: how far a fresh estimate from a fresh sample would typically land from the last one.</p>
+
+<p>You almost never get to actually repeat a study thousands of times. So the ordinary least squares (OLS) formula for the standard error is a shortcut: it looks at the one sample you collected and works out, by formula, what that spread should be. But a formula is only as good as the conditions it was built on, and the ordinary formula leans on two of them.</p>
+
+<p>The first is that every row's noise has the same spread. A transaction at a tiny store and a transaction at a huge one are assumed to wander away from their true average by about the same number of dollars. Statisticians call this <strong>homoskedasticity</strong>: equal scatter, no matter the input.</p>
+
+<p>The second is that the rows are independent. What happened at row 1 is assumed to carry no information about row 2. Each row is a fresh, unrelated piece of evidence.</p>
+
+<p>Break either assumption and the formula keeps producing a number. It just stops being the right number.</p>
+
+<p>Here is the same retail chain, caught breaking each assumption in turn. First, the chain regresses a store's size against its daily transaction value, and the scatter of the noise grows with the store's size: that breaks equal spread. Then the chain rolls out a price-tag display to some of its stores and tracks results for several days at each one: days from the same store share something in common, and that breaks independence.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Case 1: when the spread of the mistakes changes with x</h2>
+
+<p>Here is the chain's first regression. Every one of 300 stores reports its size, in thousand square feet, and its average daily transaction value, in dollars. Build it and fit the usual regression of transaction value on store size.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build 300 stores and fit transaction value against store size
+set.seed(1)
+store_size &lt;- runif(300, min = 2, max = 15)
+noise_sd &lt;- 15 + 2.5 * store_size
+
+set.seed(11)
+transaction_value &lt;- 150 + 18 * store_size + rnorm(300, mean = 0, sd = noise_sd)
+size_fit &lt;- lm(transaction_value ~ store_size)
+round(coef(summary(size_fit))[&quot;store_size&quot;, c(&quot;Estimate&quot;, &quot;Std. Error&quot;)], 3)
+#&gt;   Estimate Std. Error 
+#&gt;     18.374      0.576</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R reports a slope of 18.374: each extra thousand square feet of store size is associated with about $18.37 more in daily transaction value. The standard error on that slope, from the ordinary formula, is 0.576.</p>
+
+<p>Before trusting that 0.576, look at what the regression left behind: the residuals, the gap between each store's actual transaction value and what the line predicts for its size.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot residuals against store size: does the leftover noise fan out?
+plot(store_size, residuals(size_fit),
+     xlab = &quot;store size (thousand sqft)&quot;, ylab = &quot;residual ($)&quot;,
+     main = &quot;Residuals fan out as stores get bigger&quot;)
+abline(h = 0, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The residuals fan out as store size grows. Small stores cluster tightly around zero. Large stores scatter much further in both directions.</p>
+
+<p>Nothing in the regression's own formula accounts for that growing spread. The only place it shows up is in the residuals, and this is not an accident of one draw: this data was built with a noise standard deviation that grows with store size, from about $20 at the smallest stores to about $52.50 at the largest.</p>
+
+<p>That widening fan is <strong>heteroskedasticity</strong>: the noise's spread is not constant, it changes with the size of the input. It is exactly the equal-scatter assumption breaking in the data.</p>
+
+<p>The ordinary formula assumes one shared noise spread for every row. When the real spread is not shared like that, the formula's number stops being trustworthy. The fix is a standard error that does not assume a shared spread at all. It is often called a <strong>robust standard error</strong>, or the <strong>White</strong> or <strong>HC</strong> (heteroskedasticity-consistent) standard error, after the statistician who proposed it.</p>
+
+<p>The idea: instead of pooling every row's residual into one shared variance, weight each row by its own squared residual. A row that happened to land far from the line gets to count that distance on its own account, rather than being averaged in with every other row.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the robust standard error by hand: weight each row by its own
+# squared residual instead of one shared variance
+hc0_se &lt;- function(fit) {
+  X &lt;- model.matrix(fit)
+  e &lt;- residuals(fit)
+  bread &lt;- solve(t(X) %*% X)
+  meat &lt;- t(X) %*% diag(e^2) %*% X
+  sqrt(diag(bread %*% meat %*% bread))
+}
+round(unname(hc0_se(size_fit)[&quot;store_size&quot;]), 3)
+#&gt; [1] 0.594</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For this one fit, the robust standard error comes out to 0.594, close to the ordinary 0.576, but built without the equal-spread assumption.</p>
+
+<p>One fit does not tell you which number to trust. The only way to know is to repeat the whole study, build a fresh 300 stores with fresh noise each time, and watch how far the slope estimate actually wanders.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the study 2000 times and compare the slope's real spread
+# against what each formula claims, on average
+set.seed(11)
+reps &lt;- replicate(2000, {
+  y &lt;- 150 + 18 * store_size + rnorm(300, mean = 0, sd = noise_sd)
+  fit &lt;- lm(y ~ store_size)
+  c(slope = unname(coef(fit)[&quot;store_size&quot;]),
+    ordinary_se = unname(coef(summary(fit))[&quot;store_size&quot;, &quot;Std. Error&quot;]),
+    robust_se = unname(hc0_se(fit)[&quot;store_size&quot;]))
+})
+true_slope_se &lt;- sd(reps[&quot;slope&quot;, ])
+round(true_slope_se, 3)
+#&gt; [1] 0.648
+round(mean(reps[&quot;ordinary_se&quot;, ]), 3)
+#&gt; [1] 0.599
+round(mean(reps[&quot;robust_se&quot;, ]), 3)
+#&gt; [1] 0.625
+round(100 * (1 - mean(reps[&quot;ordinary_se&quot;, ]) / true_slope_se), 0)
+#&gt; [1] 8
+round(100 * (1 - mean(reps[&quot;robust_se&quot;, ]) / true_slope_se), 0)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Over 2,000 repeats, the slope's real standard deviation is 0.648. That is the true answer, the number a standard error is supposed to estimate. The ordinary formula averages 0.599 across those same repeats, 8% too small. The hand-rolled robust standard error averages 0.625, within 4% of the truth.</p>
+
+<p>So, on this heteroskedastic data, the robust standard error is not a cosmetic fix. It closes most of the gap the ordinary formula leaves open.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a robust standard error actually repairs</h2>
+<section class="exercise" data-exercise-id="Standard-Errors-You-Can-Trust-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It corrects the standard error for unequal variance across rows, without changing the slope estimate itself.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It also corrects for rows that are correlated with each other, such as repeated visits to the same store.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It makes the slope estimate itself more accurate.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. It reweights each row by its own squared residual, so unequal spread stops fooling the standard error. The slope stays 18.374 either way; only the measure of uncertainty around it changes.</div><div class="lesson-qfb lesson-qfb-no">A standard error never touches the estimate, only how much that estimate would bounce around if the study repeated. And a robust (HC) standard error still assumes every row is independent of every other row, so it was built to fix unequal variance, not correlated rows, which is the different problem that a cluster-robust standard error exists to fix.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Case 2: when rows are not actually independent</h2>
+
+<p>Store size broke the first assumption. Here is a different study from the same chain that breaks the second.</p>
+
+<p>The chain picks 40 stores and installs a new price-tag display in half of them, chosen at random. For 10 days at every store, it records that day's transaction value. That is 400 rows in total: 40 stores times 10 days each.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a 40-store price-tag rollout: half get the display, 10 days each
+set.seed(101)
+store40 &lt;- rep(1:40, each = 10)
+arm40 &lt;- rep(0:1, length.out = 40)
+treat40 &lt;- arm40[store40]
+rollout_value40 &lt;- 220 + 15 * treat40 + rnorm(40, 0, 12)[store40] + rnorm(400, 0, 12)
+rollout_fit40 &lt;- lm(rollout_value40 ~ treat40)
+round(unname(coef(rollout_fit40)[&quot;treat40&quot;]), 2)
+#&gt; [1] 11.17
+round(unname(coef(summary(rollout_fit40))[&quot;treat40&quot;, &quot;Std. Error&quot;]), 2)
+#&gt; [1] 1.53</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The display's estimated effect on daily transaction value comes out to $11.17, with an ordinary standard error of 1.53. Run the same hand-rolled robust standard error on this fit.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse the robust standard error function, hc0_se(), on this new fit
+round(unname(hc0_se(rollout_fit40)[&quot;treat40&quot;]), 2)
+#&gt; [1] 1.52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The robust standard error comes out to 1.52, almost exactly the ordinary 1.53. Something is wrong, because this data does break an assumption, just not the one the robust standard error was built to catch.</p>
+
+<p>The problem here is not that noise varies with store size. It is that every day at the same store shares something that day's regression treats as 10 separate, independent pieces of evidence. If a store happens to run a slightly chatty cashier, or sits on a slightly busier street corner that month, that quirk shows up in all 10 of its days, not just one. The days are not independent, they are <strong>clustered</strong> by store.</p>
+
+<p>How clustered? Measure it with the <strong>intraclass correlation (ICC)</strong>: the share of the total variance that sits between stores rather than between days inside the same store. In this study, both the store-to-store variance and the day-to-day variance within a store were built with a standard deviation of $12, so each contributes a variance of 144.</p>
+
+<p>The ICC is 144 divided by the total 288, which is 0.5. Half of the total spread in this data comes from which store you are looking at, not which day.</p>
+
+<p>A robust standard error still assumes independent rows. It reweights each row by its own residual, but it has no mechanism that accounts for which store a row came from, so a cluster of 10 correlated days still gets treated as 10 independent pieces of evidence. What is needed instead is a <strong>cluster-robust standard error</strong>: instead of squaring each row's residual on its own, sum the residuals inside each store first, and only then square that sum. A store whose 10 days all lean the same direction contributes one large squared number, not 10 small ones treated as if they were independent.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the cluster-robust standard error by hand: sum residuals inside
+# each store before squaring, instead of row by row
+cluster_robust_se &lt;- function(y, treat, cluster) {
+  n &lt;- length(y)
+  k &lt;- length(unique(cluster))
+  fit &lt;- lm(y ~ treat)
+  e &lt;- residuals(fit)
+  cluster_sum &lt;- tapply(e, cluster, sum)
+  cluster_arm &lt;- tapply(treat, cluster, max)
+  nT &lt;- sum(treat == 1); nC &lt;- sum(treat == 0)
+  g_treated &lt;- sum(cluster_sum[cluster_arm == 1]^2)
+  g_control &lt;- sum(cluster_sum[cluster_arm == 0]^2)
+  correction &lt;- (k / (k - 1)) * ((n - 1) / (n - 2))
+  sqrt(correction * (g_treated / nT^2 + g_control / nC^2))
+}
+round(cluster_robust_se(rollout_value40, treat40, store40), 2)
+#&gt; [1] 3.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For this fit, the cluster-robust number comes out to 3.32, more than double the ordinary and robust numbers. But like before, one fit does not settle anything. Repeat the whole 40-store study 2,000 times and watch how far the display's effect truly wanders.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the 40-store rollout 2000 times and compare all three standard
+# errors against the effect's real spread
+set.seed(102)
+reps40 &lt;- replicate(2000, {
+  y &lt;- 220 + 15 * treat40 + rnorm(40, 0, 12)[store40] + rnorm(400, 0, 12)
+  fit &lt;- lm(y ~ treat40)
+  c(slope = unname(coef(fit)[&quot;treat40&quot;]),
+    ordinary = unname(coef(summary(fit))[&quot;treat40&quot;, &quot;Std. Error&quot;]),
+    robust = unname(hc0_se(fit)[&quot;treat40&quot;]),
+    cluster = cluster_robust_se(y, treat40, store40))
+})
+round(sd(reps40[&quot;slope&quot;, ]), 2)
+#&gt; [1] 3.97
+round(mean(reps40[&quot;ordinary&quot;, ]), 2)
+#&gt; [1] 1.67
+round(mean(reps40[&quot;robust&quot;, ]), 2)
+#&gt; [1] 1.67
+round(mean(reps40[&quot;cluster&quot;, ]), 2)
+#&gt; [1] 3.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The display effect's real standard deviation across those 2,000 repeats is 3.97. The ordinary formula averages 1.67. The robust formula also averages 1.67, confirming it carries no correction for the clustering at all. Only the cluster-robust standard error gets close, averaging 3.90, within 2% of the truth.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A robust (HC) standard error and a cluster-robust standard error fix two different problems. Robust fixes unequal variance across rows. Cluster-robust fixes rows that share an unobserved quirk, like all of one store's days. Here the first problem was absent and the second was severe, which is why robust did nothing and cluster-robust closed nearly all of a 58% shortfall: 1.67 against a true 3.97.</div></div>
+
+<p>The widget below runs the same comparison, with a slider that raises the ICC from 0 (truly independent days) up to 0.5 (this chain's actual data), and tracks four standard errors for the same estimate as that correlation rises.</p>
+<div class="lesson-widget" data-widget-type="cluster-icc-sim" data-widget-config='{"k":40,"m":10,"tau":0.88,"iccMax":0.5,"levels":11,"seed":23}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Push the slider to its highest setting, an ICC of 0.5, the same correlation this chain's data actually has. The ordinary and robust bars barely move from where they started at zero. Only the cluster-robust bar, and the fourth number next to it, labelled cluster means, climb to track the dashed line marking how much the estimate truly varies. That fourth number is what a mixed-effects model, one built with a random intercept for each store, would report for this exact design: a different route to the same destination as the cluster-robust formula.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Case 3: too few clusters to trust even the fix</h2>
+
+<p>The cluster-robust standard error just closed nearly all of the gap at 40 stores. Does it hold up just as well with fewer stores?</p>
+
+<p>Run the identical rollout, same $15 display effect, same ICC of 0.5 (store sd and day sd both still $12), but now on only 6 stores, tracked for 60 days each. That is 360 rows of data, not far short of the 40-store study's 400, just carved from far fewer stores.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the same rollout on only 6 stores, 60 days each
+set.seed(201)
+store6 &lt;- rep(1:6, each = 60)
+arm6 &lt;- rep(0:1, length.out = 6)
+treat6 &lt;- arm6[store6]
+rollout_value6 &lt;- 220 + 15 * treat6 + rnorm(6, 0, 12)[store6] + rnorm(360, 0, 12)
+rollout_fit6 &lt;- lm(rollout_value6 ~ treat6)
+round(unname(coef(summary(rollout_fit6))[&quot;treat6&quot;, &quot;Std. Error&quot;]), 2)
+#&gt; [1] 1.64
+round(unname(hc0_se(rollout_fit6)[&quot;treat6&quot;]), 2)
+#&gt; [1] 1.64
+round(cluster_robust_se(rollout_value6, treat6, store6), 2)
+#&gt; [1] 8.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ordinary and robust standard errors land near 1.6 again, the same story as the 40-store case: both miss the clustering entirely. Run the cluster-robust formula on this one fit and it jumps to 8.42, clearly reacting to the clustering this time.</p>
+
+<p>So has the fix solved the problem the same way it did before? Repeat the whole 6-store study 2,000 times to find out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the 6-store rollout 2000 times
+set.seed(202)
+reps6 &lt;- replicate(2000, {
+  y &lt;- 220 + 15 * treat6 + rnorm(6, 0, 12)[store6] + rnorm(360, 0, 12)
+  fit &lt;- lm(y ~ treat6)
+  c(slope = unname(coef(fit)[&quot;treat6&quot;]),
+    ordinary = unname(coef(summary(fit))[&quot;treat6&quot;, &quot;Std. Error&quot;]),
+    cluster = cluster_robust_se(y, treat6, store6))
+})
+round(sd(reps6[&quot;slope&quot;, ]), 2)
+#&gt; [1] 9.83
+round(mean(reps6[&quot;ordinary&quot;, ]), 2)
+#&gt; [1] 1.61
+round(mean(reps6[&quot;cluster&quot;, ]), 2)
+#&gt; [1] 8.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The display effect's real standard deviation jumps to 9.83, more than double what it was with 40 stores, because 6 stores is a much smaller, much noisier sample of store-level quirks than 40 was. The ordinary formula still averages only 1.61. But the cluster-robust formula, which closed nearly all of the gap at 40 stores, now averages only 8.25, 16% short of the truth, worse than the 40-store study's 2%.</p>
+
+<p>Why does the same formula get worse as the design gets smaller? Look at the <strong>design effect</strong>: 1 plus (days per store minus 1) times the ICC. At 40 stores with 10 days each, that was 1 + 9 x 0.5 = 5.5.</p>
+
+<p>Here, with 60 days per store, it is 1 + 59 x 0.5 = 30.5. Divide the 360 rows by that design effect and this study carries the information of only about 12 independent observations, not 360. A cluster-robust standard error is built from one summed number per store, so with only 6 stores it is doing the same thing as computing a standard deviation from just 6 numbers: a correct formula with too little to average over, which is why it runs optimistic.</p>
+
+<p>This is the same widget, now set to this 6-store, 60-day design.</p>
+<div class="lesson-widget" data-widget-type="cluster-icc-sim" data-widget-config='{"k":6,"m":60,"tau":0.88,"iccMax":0.5,"levels":11,"seed":23}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Push the slider to the same ICC of 0.5 as before. The cluster-robust bar climbs, same as it did at 40 stores, but this time it stops short of the dashed line marking the true spread. At 40 stores that same bar reached the marker. At 6 stores it does not, because six is not enough stores for the cluster sum to average out reliably.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing a standard error for clustered data</h2>
+
+<p>A different research team fits a similar model: 8 clinics, 200 patients each, 1,600 rows in total, testing whether a new intake script changes how long a visit takes. The ordinary standard error and the robust (HC) standard error come out small and nearly identical. The cluster-robust standard error comes out three times larger than either one.</p>
+<section class="exercise" data-exercise-id="Standard-Errors-You-Can-Trust-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Trust the ordinary number, since two of the three standard errors agree with each other.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The outcome is probably correlated within clinics, and with only 8 clusters even that larger cluster-robust number may still understate how much the estimate truly varies.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Enrolling more patients per clinic would close the gap between the three numbers.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Two numbers agreeing says nothing when both were built on the same broken assumption, independent rows. The cluster-robust number reacting that strongly is the real signal that visits inside a clinic share something the model does not see. And with only 8 clusters, treat even that number as a floor, the same way the 6-store rollout's cluster-robust number ran 16% short of its own true spread.</div><div class="lesson-qfb lesson-qfb-no">More patients per clinic raises the rows inside each cluster, not the number of clusters itself. A design effect that grows with days per cluster, not with the number of clusters, is what decides whether a cluster-robust correction can be trusted, and 8 clinics is a small number of clusters no matter how many patients each one holds.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<h2>Your turn: judge a new rollout's standard error</h2>
+
+<p>The chain tries this rollout once more, this time on 10 stores, 20 days each, 200 rows total, the same $15 effect and the same ICC of 0.5.</p>
+
+<p>Below is the same cluster-robust formula built by hand for the 40-store and 6-store rollouts, with one line blanked: the line that sums each store's residuals before squaring them, instead of squaring every row on its own. Fill it in and press Check.</p>
+<section class="exercise" data-exercise-id="Standard-Errors-You-Can-Trust-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="cluster_sum\s*&lt;-\s*tapply[(]\s*resid10\s*,\s*store10\s*,\s*sum\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Build the cluster-robust standard error by hand for a 10-store, 20-day rollout
+set.seed(301)
+store10 &lt;- rep(1:10, each = 20)
+arm10 &lt;- rep(0:1, length.out = 10)
+treat10 &lt;- arm10[store10]
+rollout_value10 &lt;- 220 + 15 * treat10 + rnorm(10, 0, 12)[store10] + rnorm(200, 0, 12)
+rollout_fit10 &lt;- lm(rollout_value10 ~ treat10)
+resid10 &lt;- residuals(rollout_fit10)
+
+n &lt;- length(rollout_value10)
+k &lt;- length(unique(store10))
+nT &lt;- sum(treat10 == 1)
+nC &lt;- sum(treat10 == 0)
+
+# Finish this line: sum the residuals inside each store first, with tapply()
+cluster_sum &lt;- resid10
+cluster_arm &lt;- tapply(treat10, store10, max)
+
+g_treated &lt;- sum(cluster_sum[cluster_arm == 1]^2)
+g_control &lt;- sum(cluster_sum[cluster_arm == 0]^2)
+correction &lt;- (k / (k - 1)) * ((n - 1) / (n - 2))
+
+round(sqrt(correction * (g_treated / nT^2 + g_control / nC^2)), 2)
+round(coef(summary(rollout_fit10))[&quot;treat10&quot;, &quot;Std. Error&quot;], 2)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: summing the residuals inside each store before squaring is exactly what makes this correction cluster-robust instead of row-robust.</span><span class="lesson-tryit-fb lesson-tryit-no">Sum the residuals inside each store first, with tapply(resid10, store10, sum), the same move used to build the cluster-robust formula by hand.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Sum the residuals inside each store first, then square those sums
+cluster_sum &lt;- tapply(resid10, store10, sum)
+cluster_arm &lt;- tapply(treat10, store10, max)
+
+g_treated &lt;- sum(cluster_sum[cluster_arm == 1]^2)
+g_control &lt;- sum(cluster_sum[cluster_arm == 0]^2)
+correction &lt;- (k / (k - 1)) * ((n - 1) / (n - 2))
+
+round(sqrt(correction * (g_treated / nT^2 + g_control / nC^2)), 2)
+#&gt; [1] 8.58
+round(coef(summary(rollout_fit10))[&quot;treat10&quot;, &quot;Std. Error&quot;], 2)
+#&gt; [1] 2.48</code></pre></details></div>
+</section>
+<p>The cluster-robust standard error comes out to 8.58, more than three times the ordinary formula's 2.48.</p>
+
+<p>Repeat this exact 10-store design 2,000 times, the same way as the 40-store and 6-store rollouts, and see where the true spread lands this time.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the 10-store rollout 2000 times and compare the true spread
+# against the cluster-robust average
+set.seed(302)
+reps10 &lt;- replicate(2000, {
+  y &lt;- 220 + 15 * treat10 + rnorm(10, 0, 12)[store10] + rnorm(200, 0, 12)
+  fit &lt;- lm(y ~ treat10)
+  e &lt;- residuals(fit)
+  cl_sum &lt;- tapply(e, store10, sum)
+  g_treated &lt;- sum(cl_sum[cluster_arm == 1]^2)
+  g_control &lt;- sum(cl_sum[cluster_arm == 0]^2)
+  c(slope = unname(coef(fit)[&quot;treat10&quot;]),
+    cluster = sqrt(correction * (g_treated / nT^2 + g_control / nC^2)))
+})
+round(sd(reps10[&quot;slope&quot;, ]), 2)
+#&gt; [1] 7.83
+round(mean(reps10[&quot;cluster&quot;, ]), 2)
+#&gt; [1] 7.09</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The display effect's real standard deviation across those 2,000 repeats is 7.83. The cluster-robust formula averages 7.09, 9% short of the truth: worse than the 40-store study's 2%, better than the 6-store study's 16%, which is exactly where 10 clusters belongs between those two.</p>
+
+<p>Notice something else. This one run gave a cluster-robust number of 8.58, actually a bit above the 2,000-repeat average of 7.09. A single run, like this one, can land on either side of that average. That is exactly why trustworthiness here comes from the many repeats, not from any one run, including this one.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.2307/1912934">A Heteroskedasticity-Consistent Covariance Matrix Estimator and a Direct Test for Heteroskedasticity</a>. White, H. (1980), Econometrica, 48(4), 817-838. The original paper behind the robust standard error built in this lesson.</li>
+
+<li><a href="https://doi.org/10.1016/0304-4076(86">Random Group Effects and the Precision of Regression Estimates</a>90021-7). Moulton, B.R. (1986), Journal of Econometrics, 32(3), 385-397. Shows how ignoring group structure, like the store-level clustering here, understates standard errors.</li>
+
+<li><a href="https://doi.org/10.3368/jhr.50.2.317">A Practitioner's Guide to Cluster-Robust Inference</a>. Cameron, A.C. and Miller, D.L. (2015), Journal of Human Resources, 50(2), 317-372. The cluster-robust formula built by hand in this lesson, including the few-clusters warning from Case 3.</li>
+
+<li><a href="https://www150.statcan.gc.ca/n1/en/pub/12-001-x/2002002/article/9058-eng.pdf">Bias Reduction in Standard Errors for Linear Regression with Multi-Stage Samples</a>. Bell, R.M. and McCaffrey, D.F. (2002), Survey Methodology, 28(2), 169-179. The small-sample correction behind the k/(k-1) term in the cluster-robust formula.</li>
+
+<li><a href="https://doi.org/10.1515/9781400829828">Mostly Harmless Econometrics: An Empiricist's Companion</a>. Angrist, J.D. and Pischke, J.S. (2009), Princeton University Press, Chapter 8. A fuller treatment of the clustering problem this lesson builds from scratch.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="complete">
+<h2>The decision rule, earned by three numbers</h2>
+
+<p>Three simulations, three numbers, one rule.</p>
+
+<ul>
+
+<li>Heteroskedasticity, the spread of the mistakes changing with store size, cost the ordinary formula 8%. A robust (HC) standard error, built by weighting each row's own squared residual, closed that gap to within 4%.</li>
+
+<li>Clustering, 10 correlated days inside each of 40 stores, cost both the ordinary and the robust formula far more: both averaged 1.67 against a true spread of 3.97, more than half the truth missing. Only the cluster-robust standard error, built by summing residuals inside each store before squaring, closed nearly all of that gap, averaging 3.90.</li>
+
+<li>The same fix, run on only 6 stores instead of 40, averaged just 8.25 against a true spread of 9.83, 16% short. The cluster-robust number itself was not a mistake. It was simply built from too few stores to average out reliably.</li>
+
+</ul>
+
+<p>So, the rule this lesson was built to earn: reach for the ordinary standard error only when the rows are genuinely independent and equally noisy. Reach for a robust (HC) standard error when only the equal-variance assumption is shaky. Reach for a cluster-robust standard error whenever rows inside a group, a store, a clinic, a patient tracked over time, can share some quirk the model never measures. And below a few dozen clusters, treat even that cluster-robust number as a floor on the truth, not the truth itself.</p>
+</section>
+
+{% endraw %}
