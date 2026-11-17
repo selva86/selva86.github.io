@@ -1,0 +1,392 @@
+---
+title: "Confidence Intervals and P-Values Lesson 3: Inference by simulation instead of formula"
+description: "A permutation test gives you a real p-value for any statistic, even one like the median with no formula, by shuffling group labels thousands of times."
+keywords: "permutation test, simulation-based inference, shuffle test, randomization test, null distribution, p-value, median, trimmed mean, resampling, group labels, t-test, R"
+mathjax: false
+webr: true
+curriculum_id: "4.30.3"
+post_type: "LESSON"
+course_id: "res-inference"
+course_title: "Confidence Intervals and P-Values"
+course_lesson: "3"
+course_total: "6"
+course_landing: "Confidence-Intervals-and-P-Values-Course.html"
+course_next: "Checking-That-Your-Intervals-Actually-Cover.html"
+course_prev: "What-a-P-Value-Is-and-Is-Not.html"
+lesson_access: "pro"
+catalog_blurb: "Test any statistic for significance by shuffling group labels thousands of times."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Inference by simulation instead of formula</h2>
+
+<p>Today let's look at a test where the usual formula already works, and then build a way to run that same test, and others like it, with no formula at all.</p>
+
+<p>A checkout redesign went out to twenty customers: ten saw the classic checkout and ten saw a new one, and the time each person took to finish, in seconds, was recorded for all twenty. The ten classic times run from 38 to 45 seconds. The ten new-flow times mostly sit lower, in the high twenties and low thirties, except for one customer whose checkout stalled at 95 seconds.</p>
+
+<p>Here is what those twenty checkout times look like, split by flow.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"Classic","y":38},{"x":"Classic","y":41},{"x":"Classic","y":44},{"x":"Classic","y":39},{"x":"Classic","y":42},{"x":"Classic","y":45},{"x":"Classic","y":40},{"x":"Classic","y":43},{"x":"Classic","y":41},{"x":"Classic","y":39},{"x":"New","y":30},{"x":"New","y":32},{"x":"New","y":29},{"x":"New","y":31},{"x":"New","y":33},{"x":"New","y":30},{"x":"New","y":28},{"x":"New","y":31},{"x":"New","y":32},{"x":"New","y":95}],"x":"flow","y":"seconds","geoms":["boxplot","histogram"],"code":{"boxplot":"ggplot(checkout, aes(flow, seconds)) +\n  geom_boxplot()","histogram":"ggplot(checkout, aes(seconds)) +\n  geom_histogram(bins = 8) +\n  facet_wrap(~flow)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The average checkout time, and what the t-test says about it</h2>
+
+<p>Start with the most familiar comparison there is: the average time for each group.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The checkout times for each flow, and the gap between their means
+classic &lt;- c(38, 41, 44, 39, 42, 45, 40, 43, 41, 39)
+new_flow &lt;- c(30, 32, 29, 31, 33, 30, 28, 31, 32, 95)
+checkout &lt;- data.frame(flow = rep(c(&quot;Classic&quot;, &quot;New&quot;), each = 10), seconds = c(classic, new_flow))
+
+mean(classic)
+mean(new_flow)
+mean(classic) - mean(new_flow)
+#&gt; [1] 41.2
+#&gt; [1] 37.1
+#&gt; [1] 4.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The new flow's average is 4.1 seconds faster. That looks promising, but a gap between two averages can show up even when nothing real changed, just from which ten customers happened to land in which group. The standard way to check that is a two-sample t-test.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A two-sample t-test on the same two groups
+t.test(classic, new_flow)
+#&gt;
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  classic and new_flow
+#&gt; t = 0.6316, df = 9.2288, p-value = 0.543
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -10.52938  18.72938
+#&gt; sample estimates:
+#&gt; mean of x mean of y
+#&gt;      41.2      37.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The line that matters is p-value = 0.543. That p-value comes from a formula: it assumes the sampling distribution of a mean difference follows a known shape, the t-distribution, and reads off how far 4.1 seconds sits inside that shape. A p-value this large, far above the usual 0.05 cutoff, gives no reason to think the two flows really differ. So on the mean alone, nothing here shows the new checkout is actually faster.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The median shows a bigger gap, and there is no table for it</h2>
+
+<p>The mean is not the only way to summarize these two groups. Look at the median instead: the middle value once each group's ten times are sorted from smallest to largest.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The median checkout time for each flow, and the gap between them
+median(classic)
+median(new_flow)
+median(classic) - median(new_flow)
+#&gt; [1] 41
+#&gt; [1] 31
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That gap is ten seconds, much bigger than the mean's 4.1 seconds, and it points the same way: the new flow looks faster. The one 95 second checkout barely moves the median, since the median only looks at the middle value and not how far the extremes sit. The mean gets pulled upward by that one outlier instead, which is part of why its own gap looked smaller.</p>
+
+<p>But here is the problem. For the mean, a ready-made test exists: the t-test, built on a known fact about how a sample mean behaves, whatever shape the underlying data takes. For the median, no such shortcut exists. At a sample size of ten, no formula and no table says how big a median gap should typically be if the two groups are really the same.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>The permutation idea: shuffle the labels, not the data</h2>
+
+<p>Here is the idea that gets around having no formula. If the checkout flow truly made no difference, then which 10 of the 20 recorded times happened to get called Classic, and which got called New, was arbitrary. Pool all 20 times together, shuffle them, and call the first ten shuffled values Classic and the last ten New. That is a random relabeling of the same 20 real times, and it shows what a median gap looks like when the label carries no real information.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pool both groups' times, shuffle them, then split the shuffled list the same way
+pooled &lt;- c(classic, new_flow)
+set.seed(1)
+shuffled &lt;- sample(pooled)
+
+shuffled[1:10]
+shuffled[11:20]
+median(shuffled[1:10]) - median(shuffled[11:20])
+#&gt;  [1] 39 40 38 41 29 32 30 28 31 44
+#&gt;  [1] 31 42 41 30 45 33 32 39 95 43
+#&gt; [1] -5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both the fast times and the one slow 95 second checkout can land on either side now, since the labels were reassigned at random. This particular shuffle happened to put more of the slower times on the first side, so its median gap comes out at -5, nowhere near the real 10. One shuffle like this is a single draw from what pure chance can produce, not nearly enough on its own to say anything.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Repeating the shuffle ten thousand times: the null distribution</h2>
+
+<p>One shuffle only shows one possible outcome under pure chance. To see the full range chance can produce, repeat the shuffle-and-recompute step thousands of times and store every result. The <code>replicate()</code> function does exactly that: run the code inside it a set number of times and collect each result into one vector.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the shuffle-and-recompute step 10,000 times, storing every result
+set.seed(2026)
+median_null &lt;- replicate(10000, {
+  shuffled &lt;- sample(pooled)
+  median(shuffled[1:10]) - median(shuffled[11:20])
+})
+
+sd(median_null)
+sum(abs(median_null) &gt;= 10)
+#&gt; [1] 5.610948
+#&gt; [1] 85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That vector, <code>median_null</code>, holds 10,000 median gaps, every one of them built from a random relabeling where the flow carried no real information. Together they spread out with a standard deviation of about 5.61 seconds. Only 85 of the 10,000 land at a gap of 10 seconds or more in either direction, the same size or bigger than the real 10 second gap between the two medians. In other words, a gap this large shows up only about 0.85% of the time by pure chance.</p>
+
+<p>The widget below plays out that same 0.85% chance over and over on its own, one simulated shuffle at a time, so you can watch how rarely it actually lands.</p>
+<div class="lesson-widget" data-widget-type="luck-simulator" data-widget-config='{"trials":1,"p":0.0085,"observed":1,"unit":"shuffles landing a median gap of 10 seconds or more"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a shuffle actually simulates</h2>
+<section class="exercise" data-exercise-id="Inference-by-Simulation-Instead-of-Formula-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It reassigns which 10 of the 20 recorded times are called Classic and which are called New, using every one of the 20 real times exactly once.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It draws 20 new times with replacement from the pooled 20, so some times can appear twice in a shuffle and others not at all.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It replaces each of the 20 recorded times with a freshly generated random number, so the checkout times themselves change from shuffle to shuffle.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Every real time gets used exactly once; only the label attached to it changes. That is why a label shuffle needs no new data, just a new assignment of the same 20 numbers.</div><div class="lesson-qfb lesson-qfb-no">A permutation shuffle never touches the 20 recorded times themselves, and it never draws a time twice or skips one, unlike sampling with replacement. It only reassigns which label sits on which time, keeping the set of 20 values exactly fixed.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Turning the shuffle count into a permutation p-value</h2>
+
+<p>85 out of 10,000 is already a rate, but it helps to turn it into a p-value using the exact formula a permutation test always uses.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Turn the shuffle count into an exact permutation p-value
+observed_median_gap &lt;- median(classic) - median(new_flow)
+count &lt;- sum(abs(median_null) &gt;= abs(observed_median_gap))
+p_value &lt;- (1 + count) / (10000 + 1)
+
+observed_median_gap
+count
+p_value
+#&gt; [1] 10
+#&gt; [1] 85
+#&gt; [1] 0.00859914</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula is p = (1 + count) / (B + 1), where count is 85, the number of shuffles that reached a gap this big, and B is 10,000, the number of shuffles run. The extra +1 on both sides counts the real, observed labeling itself as one more valid arrangement among the ones being considered, which is only fair since it really is one of the possible outcomes. That gives a permutation p-value of 0.0086: under pure chance, a median gap this size or bigger would turn up only about 9 times in every 1,000 shuffles. That is strong evidence the new checkout flow is typically faster, and it was found without ever needing a formula for how a median's sampling distribution behaves.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>The same machinery, a different statistic: trimmed means</h2>
+
+<p>Here is the real payoff of building a test this way. The exact same shuffle-and-count routine works for any statistic at all, not just the median. Try it on a 10% trimmed mean: the average after the lowest 10% and highest 10% of each group's values are dropped, a statistic built specifically to ignore outliers like the 95 second checkout.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The same shuffle routine, with a 10% trimmed mean standing in for the median
+set.seed(2026)
+trim_null &lt;- replicate(10000, {
+  shuffled &lt;- sample(pooled)
+  mean(shuffled[1:10], trim = 0.1) - mean(shuffled[11:20], trim = 0.1)
+})
+
+observed_trim_gap &lt;- mean(classic, trim = 0.1) - mean(new_flow, trim = 0.1)
+count &lt;- sum(abs(trim_null) &gt;= abs(observed_trim_gap))
+p_value &lt;- (1 + count) / (10000 + 1)
+
+observed_trim_gap
+sd(trim_null)
+count
+p_value
+#&gt; [1] 10.125
+#&gt; [1] 3.122244
+#&gt; [1] 4
+#&gt; [1] 0.00049995</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nothing changed in this code except which statistic gets computed inside the shuffle. The observed trimmed-mean gap is 10.125 seconds, close to the median's 10 seconds, and the 10,000 shuffled gaps spread out tighter this time, with a standard deviation of about 3.12 seconds instead of 5.61. Only 4 of the 10,000 shuffles reach a gap that large, giving a permutation p-value of 0.0005, smaller still than the median's 0.0086.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Where the shuffle and the t-test agree, and where the formula required an assumption</h2>
+
+<p>Now point the same routine at the mean itself, the very statistic the t-test is built to check.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The same shuffle routine, pointed at the mean itself
+set.seed(2026)
+mean_null &lt;- replicate(10000, {
+  shuffled &lt;- sample(pooled)
+  mean(shuffled[1:10]) - mean(shuffled[11:20])
+})
+
+observed_mean_gap &lt;- mean(classic) - mean(new_flow)
+count &lt;- sum(abs(mean_null) &gt;= abs(observed_mean_gap))
+p_value &lt;- (1 + count) / (10000 + 1)
+
+observed_mean_gap
+sd(mean_null)
+count
+p_value
+observed_mean_gap / sd(mean_null)
+#&gt; [1] 4.1
+#&gt; [1] 6.40323
+#&gt; [1] 7707
+#&gt; [1] 0.7707229
+#&gt; [1] 0.6403018</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The permutation p-value here is 0.7707, close to the t-test's own value of 0.543. Both agree on the conclusion: nothing here shows the new checkout flow is actually faster on the mean alone. But the two numbers are not identical, and the gap between 0.7707 and 0.543 is worth explaining rather than shrugging off.</p>
+
+<p>The t-test's p-value rests on an assumption: that the sampling distribution of the mean difference is close to a normal shape. With a sample of only ten per group, and one 95 second outlier dragging the new flow's values around, that assumption is a poor fit here, which is exactly why the t-test's p-value drifts away from the permutation test's. The permutation test never made that assumption in the first place, since it only ever works from what the data itself can produce by random relabeling, which is why its p-value holds up better on this particular dataset.</p>
+
+<p>The last line above, <code>observed_mean_gap / sd(mean_null)</code>, standardizes the 4.1 second gap against how much the shuffled means actually spread out, giving 0.64. The widget below plots a standard normal curve with that same value, 0.64, as the slider's starting point.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"start":0.64,"label":"observed mean gap, standardized"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: when the shuffle earns its keep</h2>
+
+<p>Of the three statistics covered so far, the mean, the median, and the 10% trimmed mean, which one actually had a ready-made, formula-based test available to check it?</p>
+<section class="exercise" data-exercise-id="Inference-by-Simulation-Instead-of-Formula-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Only the mean. The t-test gave it a formula-based p-value; the median and the 10% trimmed mean had no such formula, and the shuffle produced a p-value for all three anyway.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">None of the three. No summary statistic in this lesson has a known, formula-based sampling distribution.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">All three. A formula-based test exists for the mean, the median, and the trimmed mean alike.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. That gap is exactly the shuffle's advantage: it needs no formula for a statistic's sampling distribution, so a median or a trimmed mean gets the same treatment as a mean.</div><div class="lesson-qfb lesson-qfb-no">The mean has the t-test because of a known fact about how a sample mean behaves, whatever shape the data takes. The median and the 10% trimmed mean have no equivalent formula at a sample size of ten, which is exactly why this lesson reached for a shuffle instead.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: permutation-test a difference in spread</h2>
+
+<p>Everything built so far reused the same shuffle: pool the two groups, shuffle the pooled values, split the shuffle into two tens, and recompute one statistic on each side. Try it on a statistic not used yet: the difference in standard deviation between the two groups, a measure of spread rather than of a typical value.</p>
+<section class="exercise" data-exercise-id="Inference-by-Simulation-Instead-of-Formula-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="stat\s*&lt;-\s*function\s*[(]x[)]\s*sd[(]x[)]"><textarea class="lesson-tryit-input" spellcheck="false"># This permutation test currently checks a difference in medians.
+# Edit the stat() function so it checks a difference in standard
+# deviations instead, then run it.
+stat &lt;- function(x) median(x)
+
+set.seed(2026)
+stat_null &lt;- replicate(10000, {
+  shuffled &lt;- sample(pooled)
+  stat(shuffled[1:10]) - stat(shuffled[11:20])
+})
+
+observed_gap &lt;- stat(classic) - stat(new_flow)
+count &lt;- sum(abs(stat_null) &gt;= abs(observed_gap))
+p_value &lt;- (1 + count) / (10000 + 1)
+
+observed_gap
+count
+p_value</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. Swap the statistic and the whole routine, the shuffle, the replicate, the count, carries over untouched: a difference in spread comes back with a permutation p-value of about 0.0001, the smallest of any statistic in this lesson, because the one 95 second outlier makes the two groups' spreads almost impossible to match by chance alone.</span><span class="lesson-tryit-fb lesson-tryit-no">The routine only needs one change: what stat() computes. Swap median(x) for sd(x) inside the function, and leave the replicate() block and the rest of the code exactly as it is.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Permutation test on the difference in standard deviations
+stat &lt;- function(x) sd(x)
+
+set.seed(2026)
+stat_null &lt;- replicate(10000, {
+  shuffled &lt;- sample(pooled)
+  stat(shuffled[1:10]) - stat(shuffled[11:20])
+})
+
+observed_gap &lt;- stat(classic) - stat(new_flow)
+count &lt;- sum(abs(stat_null) &gt;= abs(observed_gap))
+p_value &lt;- (1 + count) / (10000 + 1)
+
+observed_gap
+#&gt; [1] -18.09877
+count
+#&gt; [1] 0
+p_value
+#&gt; [1] 9.999e-05</code></pre></details></div>
+</section>
+<p>The classic flow's standard deviation is smaller than the new flow's by 18.1 seconds, almost entirely because of that one 95 second checkout. Not one of the 10,000 shuffles reproduces a spread gap that large, so the permutation p-value lands at 0.0001, the smallest of any statistic tried in this lesson.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1007/b138696">Good, P. I. (2005). Permutation, Parametric, and Bootstrap Tests of Hypotheses (3rd ed.)</a>. Springer. The standard methodological reference for permutation testing.</li>
+
+<li><a href="https://doi.org/10.1214/088342304000000396">Ernst, M. D. (2004). Permutation methods: a basis for exact inference</a>. Statistical Science, 19(4), 676-685. On why and when a permutation test is exact.</li>
+
+<li><a href="https://doi.org/10.1080/00031305.1998.10480551">Ludbrook, J. and Dudley, H. (1998). Why permutation tests are superior to t and F tests in biomedical research</a>. The American Statistician, 52(2), 127-132. The direct comparison this lesson's closing steps echo.</li>
+
+<li><a href="https://doi.org/10.1080/00031305.2015.1089789">Hesterberg, T. C. (2015). What teachers should know about the bootstrap: resampling in the undergraduate statistics curriculum</a>. The American Statistician, 69(4), 371-386. Covers the shuffle-based logic behind both permutation and bootstrap methods.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What the shuffle buys you that a formula cannot</h2>
+
+<p>Three permutation p-values came out of this lesson, every one of them from the identical shuffle-and-count routine with only the statistic changed. The median gap of 10 seconds came back with a permutation p-value of 0.0086. The 10% trimmed mean gap of 10.125 seconds came back at 0.0005. The mean gap of 4.1 seconds came back at 0.7707, close to the t-test's own 0.543, which is the one case where a formula-based test was available to check the work.</p>
+
+<p>That is the whole payoff. A median and a trimmed mean have no textbook formula for their sampling distribution at a sample size this small, and the t-test cannot be borrowed for them either, since it was built specifically for a mean. The shuffle needed none of that. It only ever worked from what the data itself can produce when the group label carries no real information, and it gave back that answer the same way no matter which statistic sat inside it.</p>
+</section>
+
+{% endraw %}
