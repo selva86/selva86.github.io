@@ -35,7 +35,7 @@ What the 95% is actually attached to. Not this interval, but the procedure that 
 
 A p-value built from scratch as a tail area under a null distribution you simulate yourself, before the term is introduced. Then, carefully, what it does not mean: not the probability the null is true, not the probability the result was luck, not a measure of how big the effect is, and not something that grows more convincing without limit as it shrinks. Each misreading is shown failing on a concrete number instead of being forbidden.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: What a p-value is and is not](What-a-P-Value-Is-and-Is-Not.html)
 
 ### Lesson 3: Inference by simulation instead of formula
 
