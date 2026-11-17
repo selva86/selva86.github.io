@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "4.20.1"
 webr: true
 mathjax: false
-lesson_access: "pro"
+lesson_access: "free"
 course_id: "res-estimation"
 course_title: "Estimation and the Bootstrap"
 course_lesson: "1"

@@ -200,7 +200,7 @@
     { n: 5, key: 'researcher', persona: 'Researcher', color: '#9c5732',
       head: 'Statistical <em>inference</em> and reporting',
       become: 'Run and defend the right statistical test, model effects rigorously, and report results reproducibly.',
-      weeks: '~6 weeks', cert: 'Applied Statistics with R', track: 'statistics-for-ds',
+      weeks: '~6 weeks', cert: 'Certified R Researcher', track: 'researcher',
       arrive: 'Your analysis can withstand methodological review.',
       stages: [
         { title: 'Probability and sampling distributions',

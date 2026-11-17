@@ -14,7 +14,7 @@ course_total: "2"
 course_landing: "T-Test-Course.html"
 course_next: ""
 course_prev: "The-t-test-from-scratch.html"
-lesson_access: "free"
+lesson_access: "pro"
 ---
 
 === step === cover

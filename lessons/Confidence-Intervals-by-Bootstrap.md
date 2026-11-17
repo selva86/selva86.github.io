@@ -7,7 +7,7 @@ post_type: "LESSON"
 curriculum_id: "4.10.7"
 webr: true
 mathjax: false
-lesson_access: "free"
+lesson_access: "pro"
 course_id: "res-probability"
 course_title: "Probability and Estimation, from the ground up"
 course_lesson: "7"

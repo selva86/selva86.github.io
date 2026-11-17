@@ -12,7 +12,7 @@
   var ROLE={foundations:'New to R',analyst:'Data Analyst',ds:'Data Scientist',ts:'Forecaster',researcher:'Researcher',developer:'R Developer'};
   var CVAR={foundations:'--core',analyst:'--core',ds:'--ds',ts:'--ts',researcher:'--res',developer:'--dev'};
   var OUTCOME={foundations:'The R language itself: data types, data frames, control flow and functions.',analyst:'Turn raw data into tables and charts with dplyr, tidyr and ggplot2.',ds:'Build predictive models with tidymodels and check how well they hold up on new data.',ts:'Build forecasts with ETS, ARIMA and machine learning models, and measure their accuracy.',researcher:'Choose the right statistical test and report results the way journals expect.',developer:'Write and test R packages, and build Shiny applications.'};
-  var CERT={foundations:'R Fundamentals',analyst:'Tidyverse Practitioner',ds:'Machine Learning with R',ts:'Time Series Forecasting',researcher:'Applied Statistics with R',developer:'Advanced R'};
+  var CERT={foundations:'R Fundamentals',analyst:'Tidyverse Practitioner',ds:'Machine Learning with R',ts:'Time Series Forecasting',researcher:'Certified R Researcher',developer:'Advanced R'};
   var SPECCLS={ds:'spec-ds',ts:'spec-ts',researcher:'spec-res',developer:'spec-dev'};
   var TRACKTAG={ds:'Machine Learning',ts:'Time Series',researcher:'Applied Statistics',developer:'Advanced R'};
   var SLUG={foundations:'new-to-r',analyst:'data-analyst',ds:'data-scientist',ts:'forecaster',researcher:'researcher',developer:'r-developer'};

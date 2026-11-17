@@ -13,9 +13,16 @@ Usage:
   python Scripts/batch_lessons.py --slug RF-Course-Lesson-2     # one lesson
   python Scripts/batch_lessons.py --course random-forest        # a course's lessons
   python Scripts/batch_lessons.py --max 20                      # pending in tracker, capped
-  python Scripts/batch_lessons.py --regenerate                  # also retry failed
+  python Scripts/batch_lessons.py --resume                      # finish all not-done
+  python Scripts/batch_lessons.py --regenerate                  # rebuild failed from scratch
   python Scripts/batch_lessons.py --dry-run                     # plan only, no spawns
 Flags: --sync-every N (default 5), --claude <cli path>.
+
+--resume is the flag to reach for after a halt. It resumes each lesson at the
+stage that died, reusing the approved plan, the gated draft and the passed
+review, so a relaunch costs only the work that is actually missing. That is
+what makes repeated relaunching a safe recovery instead of a gamble; see
+.claude/skills/ship-lessons/SKILL.md for the supervisor loop built on it.
 
 lessons-status.json is gitignored (resumable state) and blocked by the middleware.
 """
@@ -68,10 +75,15 @@ def resolve_targets(args):
     # at 'writing' after the 2026-11-15 hang; Deep-Learning-DeepAR at
     # 'publishing'). manual_review stays out on purpose: it is a request for a
     # human, not a crash.
+    # --resume selects the same wide set as --regenerate, but the stages then
+    # resume rather than rebuild (see the cheap-resume block in main). That
+    # split is the point: --regenerate means "do it again", --resume means
+    # "finish what you started".
     want = {'pending', 'planned'} | ({'failed', 'publish_failed',
                                       'plan_failed', 'plan_review_failed',
                                       'writing', 'reviewing', 'publishing'}
-                                     if args.regenerate else set())
+                                     if (args.regenerate
+                                         or getattr(args, 'resume', False)) else set())
     return [slug for slug, v in st.items() if v.get('status', 'pending') in want]
 
 
@@ -305,6 +317,112 @@ NET_BACKOFF = (30, 90, 180)   # one entry per extra attempt
 NTSTATUS_FLOOR = 0xC0000000
 
 
+# ---- Machine health: the condition that killed runs 5 and 6 ----
+#
+# Two guards, because the failure has two shapes and only one of them is
+# recoverable by waiting.
+#
+# BEFORE a stage: if the box is ALREADY short of memory, launching a fresh
+# ~1 GB claude is the thing that pushes it over the edge. Wait for headroom
+# instead of spending the launch. This is the preventive half, and it is the
+# one that actually stops the failure happening.
+#
+# AFTER a refused launch: the condition is usually transient, clearing when
+# whatever held the memory lets go, so wait and retry the SAME stage rather
+# than abandoning the queue. This is the recovery half. It is deliberately
+# bounded, because a leaked process tree never releases anything (2026-11-16:
+# the harness reaped the driver's shell, the process tree survived and kept
+# holding memory, so nothing was ever coming back). In that case waiting only
+# delays an abort that is still the right answer.
+MIN_FREE_MB = 2200          # rough headroom one fresh `claude -p` needs
+HEADROOM_WAIT_TOTAL = 900   # seconds to wait for memory BEFORE a stage
+STARTUP_WAIT_TOTAL = 900    # seconds to wait AFTER a refused launch
+WAIT_STEP = 60
+MAX_STARTUP_WAITS = 3       # per stage, so at most 45 min before giving up
+
+
+def free_mb():
+    """Physical memory available, in MB. None when it cannot be read.
+
+    Advisory only. Every caller must behave sensibly when this returns None,
+    because a memory probe that fails must never be able to stall the queue."""
+    try:
+        import ctypes
+
+        class _MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [('dwLength', ctypes.c_ulong),
+                        ('dwMemoryLoad', ctypes.c_ulong),
+                        ('ullTotalPhys', ctypes.c_ulonglong),
+                        ('ullAvailPhys', ctypes.c_ulonglong),
+                        ('ullTotalPageFile', ctypes.c_ulonglong),
+                        ('ullAvailPageFile', ctypes.c_ulonglong),
+                        ('ullTotalVirtual', ctypes.c_ulonglong),
+                        ('ullAvailVirtual', ctypes.c_ulonglong),
+                        ('ullAvailExtendedVirtual', ctypes.c_ulonglong)]
+
+        m = _MEMORYSTATUSEX()
+        m.dwLength = ctypes.sizeof(_MEMORYSTATUSEX)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):
+            return None
+        return int(m.ullAvailPhys / (1024 * 1024))
+    except Exception:
+        return None
+
+
+def can_start_processes():
+    """Probe: will the OS still give us a process? The cheapest possible test.
+
+    A non-zero exit WITH output means python started and objected, which means
+    a healthy machine. A non-zero exit with NO output is the condition itself.
+    An empty error message is the signal, the same inversion Scripts/
+    verify_state.py keys on."""
+    try:
+        r = subprocess.run([sys.executable, '-c', 'pass'],
+                           capture_output=True, text=True, timeout=60)
+    except Exception:
+        return False
+    return r.returncode == 0 or bool(((r.stdout or '') + (r.stderr or '')).strip())
+
+
+def wait_for_headroom(label):
+    """Wait until there is memory for a fresh worker. Never raises, and always
+    returns: free_mb is advisory, so a wrong threshold must not be able to
+    block the run by itself. Worst case this costs 15 minutes and proceeds."""
+    mb = free_mb()
+    if mb is None or mb >= MIN_FREE_MB:
+        return
+    print('  %s: only %d MB free, want %d. Waiting up to %ds for headroom.'
+          % (label, mb, MIN_FREE_MB, HEADROOM_WAIT_TOTAL), flush=True)
+    waited = 0
+    while waited < HEADROOM_WAIT_TOTAL:
+        time.sleep(WAIT_STEP)
+        waited += WAIT_STEP
+        mb = free_mb()
+        if mb is None or mb >= MIN_FREE_MB:
+            print('  %s MB free after %ds; starting %s.' % (mb, waited, label), flush=True)
+            return
+    print('  still %s MB free after %ds. Starting %s anyway; the launch guard '
+          'below catches it if Windows refuses.' % (mb, waited, label), flush=True)
+
+
+def wait_for_process_startup(label):
+    """Poll until the machine can start processes again. True = recovered."""
+    print('  %s could not be STARTED by Windows (out of memory or handles). '
+          'Waiting up to %ds for the box to recover.'
+          % (label, STARTUP_WAIT_TOTAL), flush=True)
+    waited = 0
+    while waited < STARTUP_WAIT_TOTAL:
+        time.sleep(WAIT_STEP)
+        waited += WAIT_STEP
+        if can_start_processes():
+            print('  recovered after %ds (%s MB free); resuming %s.'
+                  % (waited, free_mb(), label), flush=True)
+            return True
+        print('  still cannot start a process (%ds of %ds, %s MB free).'
+              % (waited, STARTUP_WAIT_TOTAL, free_mb()), flush=True)
+    return False
+
+
 def run_claude_resilient(cli, prompt, timeout, label):
     """run_claude, but a FAST non-zero exit is retried with a backoff.
 
@@ -319,17 +437,33 @@ def run_claude_resilient(cli, prompt, timeout, label):
     failure that could never succeed: seven lessons times four attempts, with
     backoff, learning nothing. A transient API error is worth waiting out; a
     process that cannot start is not, because nothing else will start either
-    until the machine recovers. Abort the run instead."""
+    until the machine recovers.
+
+    2026-11-17: aborting on the spot was too blunt. The condition is usually
+    transient, so a refused launch now WAITS for the box and retries the same
+    stage, and every launch waits for memory headroom first, which is the half
+    that stops it happening at all. The abort survives for the case waiting
+    cannot fix: a leaked process tree that never gives the memory back."""
     rc = 1
-    for attempt in range(len(NET_BACKOFF) + 1):
+    attempt = 0
+    startup_waits = 0
+    while True:
+        wait_for_headroom(label)
         started = time.monotonic()
         rc = run_claude(cli, prompt, timeout, label)
         elapsed = time.monotonic() - started
         if rc >= NTSTATUS_FLOOR:
+            # Not an exit status the program chose: the process never ran. So
+            # do not spend an API attempt on it, and do not throw the queue
+            # away either. Wait for the machine, then retry this same stage.
+            startup_waits += 1
+            if startup_waits <= MAX_STARTUP_WAITS and wait_for_process_startup(label):
+                continue
             raise ProcessStartFailure(
-                '%s exited %d (0x%08X) after %.0fs: Windows could not start the '
-                'process. This is machine-wide, so every later stage would fail '
-                'the same way.' % (label, rc, rc, elapsed))
+                '%s exited %d (0x%08X) after %.0fs and the machine did not recover '
+                'after %d wait(s) of %ds: Windows cannot start processes. This is '
+                'machine-wide, so every later stage would fail the same way.'
+                % (label, rc, rc, elapsed, startup_waits, STARTUP_WAIT_TOTAL))
         if rc == 0 or elapsed >= FAST_FAIL_SEC or attempt == len(NET_BACKOFF):
             return rc
         wait = NET_BACKOFF[attempt]
@@ -337,7 +471,7 @@ def run_claude_resilient(cli, prompt, timeout, label):
               'as a transient API failure and retrying in %ds (attempt %d of %d).'
               % (label, rc, elapsed, wait, attempt + 2, len(NET_BACKOFF) + 1), flush=True)
         time.sleep(wait)
-    return rc
+        attempt += 1
 
 
 CATALOG_FILES = ['courses.json', 'functions/_data/pro-lessons.json',
@@ -389,13 +523,13 @@ def autofix(slug):
     return fixes
 
 
-def gate_ok(slug):
+def gate_ok(slug, label='after remediation'):
     """Re-run the deterministic lesson gate; True when it passes."""
     path = os.path.join(ROOT, 'lessons', slug + '.md')
     r = subprocess.run([sys.executable, os.path.join('Scripts', 'lesson_quality_check.py'), path],
                        cwd=ROOT, capture_output=True, text=True)
     ok = r.returncode == 0
-    print('  gate after remediation: %s' % ('PASS' if ok else 'FAIL'), flush=True)
+    print('  gate %s: %s' % (label, 'PASS' if ok else 'FAIL'), flush=True)
     if not ok:
         for l in (r.stdout or '').splitlines()[-6:]:
             print('    ' + l)
@@ -431,7 +565,14 @@ def main():
     ap.add_argument('--course')
     ap.add_argument('--max', type=int, default=0)
     ap.add_argument('--dry-run', action='store_true')
-    ap.add_argument('--regenerate', action='store_true')
+    ap.add_argument('--regenerate', action='store_true',
+                    help='rebuild from scratch: target failed lessons AND re-run every '
+                         'stage, discarding the plan and draft already on disk')
+    ap.add_argument('--resume', action='store_true',
+                    help='target every lesson that is not done (failed and in-flight ones '
+                         'included) and resume each at the stage it died, reusing the '
+                         'approved plan, the gated draft and the passed review. This is '
+                         'the flag a supervisor loop should use.')
     ap.add_argument('--plan-only', dest='plan_only', action='store_true',
                     help='write + review plans only; build later against the approved plans')
     ap.add_argument('--sync-every', type=int, default=5)
@@ -476,7 +617,38 @@ def main():
                 print('[%d/%d] %s already done, skip' % (i, len(targets), slug))
                 continue
             print('[%d/%d] %s' % (i, len(targets), slug))
-            st[slug] = {'course_id': args.course or st.get(slug, {}).get('course_id', ''), 'status': 'writing'}
+            prior = st.get(slug, {}).get('status', 'pending')
+            _course = args.course or st.get(slug, {}).get('course_id', '')
+
+            # ---- Cheap resume (2026-11-17) ----
+            #
+            # Every stage already checkpointed to disk, but a relaunch re-ran
+            # all of them anyway: a lesson sitting at publish_failed was
+            # re-planned, REBUILT (a second unreviewed draft overwriting a good
+            # one) and re-published. That made "just run it again" a gamble
+            # instead of a recovery, which is why halts needed hand-repair.
+            #
+            # The two checks below make a relaunch cost only the stages that
+            # are genuinely missing. Combined with the plan check further down,
+            # a rerun now resumes at the exact stage that failed. This is what
+            # makes the supervisor loop in .claude/skills/ship-lessons safe.
+            #
+            # --regenerate still forces the whole lesson to be rebuilt.
+            if not args.regenerate:
+                # Ask git, not the status file. The status file is written by a
+                # driver that may have been killed; git is what production
+                # serves. This also surfaces a sick machine BEFORE a launch is
+                # spent, because verify_published raises on a silent git.
+                pub_ok, _pub_why = verify_published(slug, fragment_dirs=('_lessons', '_posts'))
+                if pub_ok:
+                    print('  already published and committed; recording done without '
+                          'spending a worker: %s' % slug)
+                    st[slug] = {'course_id': _course, 'status': 'done'}
+                    save_status(st)
+                    done += 1
+                    continue
+
+            st[slug] = {'course_id': _course, 'status': 'writing'}
             save_status(st)
 
             # Three fresh sessions per lesson: plan -> plan review -> build.
@@ -514,8 +686,17 @@ def main():
                 continue
             _md = os.path.join(ROOT, 'lessons', slug + '.md')
             rescue_misfiled(os.path.join('lessons', slug + '.md'))
-            ok, why = run_stage(args.claude, slug, 'build', build_prompt(slug), effective_timeout(args.timeout),
-                                lambda: (os.path.exists(_md), 'no lesson markdown written'))
+            # A draft that exists AND passes the hard gate is not rebuilt. The
+            # gate is the condition, not mere existence: a half-written file
+            # left by a killed worker fails it and is correctly rebuilt.
+            draft_ready = (not args.regenerate) and os.path.exists(_md) \
+                and gate_ok(slug, 'on the existing draft')
+            if draft_ready:
+                print('  gated draft already written, skipping the build: %s' % slug)
+                ok, why = True, ''
+            else:
+                ok, why = run_stage(args.claude, slug, 'build', build_prompt(slug), effective_timeout(args.timeout),
+                                    lambda: (os.path.exists(_md), 'no lesson markdown written'))
             if not ok:
                 st[slug]['status'] = 'failed'
                 st[slug]['last_error'] = why
@@ -525,8 +706,13 @@ def main():
 
             st[slug]['status'] = 'reviewing'
             save_status(st)
-            if run_claude_resilient(args.claude, check_prompt(slug),
-                                    effective_timeout(args.timeout), 'lesson review') != 0:
+            # A lesson that already got past review and died in the publisher
+            # does not need reviewing again. Only these two statuses prove the
+            # review passed, and the draft must still be the gated one.
+            if draft_ready and prior in ('publishing', 'publish_failed'):
+                print('  review already passed before the publish failed, skipping it: %s' % slug)
+            elif run_claude_resilient(args.claude, check_prompt(slug),
+                                      effective_timeout(args.timeout), 'lesson review') != 0:
                 st[slug]['status'] = 'manual_review'
                 save_status(st)
                 print('  review flagged manual_review: %s (see Scripts/lesson-review.log)' % slug)

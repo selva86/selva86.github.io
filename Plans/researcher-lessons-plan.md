@@ -103,14 +103,43 @@ Four courses, sections 1 to 4. Lesson lists and widget assignments live in
 | `res-estimation` | 4.20 | §2 | pro | Estimation-and-the-Bootstrap-Course |
 | `res-inference` | 4.30 | §3 | pro | Confidence-Intervals-and-P-Values-Course |
 | `res-test-selection` | 4.40 | §4 | pro | Choosing-Statistical-Tests-Course |
+| `res-anova` | 4.50 | §5 | pro | ANOVA-and-Multiple-Comparisons-Course |
+| `res-linear-models` | 4.60 | §6 | pro | Linear-Regression-Properly-Course |
+| `res-model-strategy` | 4.70 | §7 | pro | Regression-Modeling-Strategies-Course |
+| `res-glm` | 4.80 | §8 | pro | Generalized-Linear-Models-Course |
+| `res-mixed` | 4.90 | §9 | pro | Mixed-Effects-and-Longitudinal-Models-Course |
+| `res-additive` | 4.100 | §10 | pro | Additive-and-Nonparametric-Models-Course |
+| `res-bayes` | 4.110 | §11 | pro | Bayesian-Data-Analysis-Course |
+| `res-design` | 4.120 | §12 | pro | Experimental-Design-and-A-B-Testing-Course |
+| `res-causal` | 4.130 | §13 | pro | Causal-Inference-from-Data-Course |
+| `res-survival` | 4.140 | §14 | pro | Survival-and-Event-History-Analysis-Course |
+| `res-multivariate` | 4.150 | §15 | pro | Multivariate-Measurement-and-Missing-Data-Course |
+| `res-reporting` | 4.160 | §16 | pro | Meta-Analysis-and-Defensible-Reporting-Course |
 
-Section 4 holds eight roadmap items. The live `t-test` course covers three of
-them and stays exactly as it is; `res-test-selection` covers the other five. Both
-rows in `COURSE_ROADMAP` carry the same `sectionLabel`, copied verbatim from
-`www/roadmap-curriculum.js`, or the player's breadcrumb and Back button point at
-the wrong section.
+The Access column is the COURSE default. Per-lesson access follows the owner's
+rule of 2026-11-17: section 1's first TWO lessons are free and the rest of
+section 1 is Pro; from section 2 on, lesson 1 alone is free and the rest are Pro.
+So every course above has one free opener except `res-probability`, which has
+two. Set it in frontmatter in BOTH `lessons/<slug>.md` and
+`_lessons/<slug>.html`, since the tracker reads the fragment while
+`md2lesson.py --force` regenerates the fragment from the source.
 
-Sections 5 to 16 are not designed yet.
+Section 4 holds eight roadmap items. The live `t-test` course covers TWO of
+them, items 1 "Hypothesis Testing" and 3 "t-Tests", and stays exactly as it is;
+`res-test-selection` covers the other SIX, items 2, 4, 5, 6, 7 and 8. (Corrected
+2026-11-17: this said three and five, which left item 7 "Effect Size" unowned and
+the section a lesson short. `Reporting-Effect-Size-Not-Just-Significance` now
+fills it.) Both rows in `COURSE_ROADMAP` carry the same `sectionLabel`, copied
+verbatim from `www/roadmap-curriculum.js`, or the player's breadcrumb and Back
+button point at the wrong section.
+
+Sections 5 to 16 were designed on 2026-11-17 and their arcs are in
+`Plans/lessons-curriculum.md`: 92 lessons, one per roadmap item, 120 items in
+total across the track. Two things to read there before planning any of them:
+the package-feasibility note (sections 5-16 need libraries that sections 1-3 did
+not, and six of them have never been proven to load in the browser), and the
+four new widgets that must be built first (`forest-plot`, `funnel-plot`,
+`spec-curve`, `missingness-pattern`).
 
 ## Widgets
 
@@ -128,10 +157,30 @@ that an audit can parse.
 
 ## Open decisions
 
-- **Merge gate.** The branch is unmerged by design while the arc is incomplete.
-  No decision yet on whether to merge section by section or in one pass.
-- **Certificate name mismatch.** The track advertises "Applied Statistics with R"
-  while the mintable certificate is "Statistics for Data Science".
+- **Merge gate. Decided 2026-11-17: merge per lesson, from a branch.** The two
+  reasons to hold the branch back are both gone. Access is now correct ahead of
+  the build (the owner's rule, set in frontmatter), and `batch_lessons.py
+  --resume` makes a relaunch cheap and idempotent, so continuity no longer
+  depends on one long run surviving. Run with `--sync-every 1`, which bounds the
+  window in which a published Pro lesson is still absent from
+  `pro-lessons.json`, and therefore being served in full to everyone, to a
+  single lesson. Merge to master after each lesson verifies. Thirteen finished
+  lessons currently sit unmerged and invisible to production, which is the cost
+  of the old policy. Running the track on master directly was considered and
+  rejected: it removes the Cloudflare preview and the one-commit rollback while
+  fixing none of the four observed halts, every one of which was a machine or
+  worker fault rather than anything to do with the branch.
+- ~~**Certificate name mismatch.**~~ **Resolved 2026-11-17: there is no live
+  mismatch.** The published page and the mintable certificate already agree on
+  **"Certified R Researcher"** (`www/roadmap-data.js:203` and
+  `functions/_data/tracks.json:2015`, and the page prints the former via
+  `RM.byKey(role).cert`). Two stale copies saying "Applied Statistics with R"
+  survive in DEAD code: `www/roadmap-page.js` (reached only by
+  `_build/sections/roadmap-fragment.html`, which reaches no live page) and
+  `www/roadmap-f2.js` (reached only by `_mocks/roadmap-rendered-base.html`).
+  Both corrected 2026-11-17. The page `<title>` set by
+  `_build/build_roadmap_f2.js` says "Applied Statistics in R", which is an SEO
+  title, not a certificate claim, and is left alone deliberately.
 - **`regression-intervals` on `Point-Estimates-and-the-Standard-Error`.** Its
   approved plan uses the widget as an explicit generalization beat on canned
   regression data. Defensible, and the step says so, but `chart-plotter` could

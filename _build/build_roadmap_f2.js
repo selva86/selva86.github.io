@@ -1,6 +1,18 @@
 // Generates the live F2 roadmap + 6 static SEO role pages from the shared www assets.
 // Run: node _build/build_roadmap_f2.js   (from repo root)
 // Idempotent: overwrites /roadmap/index.html + /roadmap/<slug>.html and updates sitemap.xml.
+//
+// !! THE ?v= STAMPS BELOW MUST MATCH THE COMMITTED PAGES BEFORE YOU RUN THIS !!
+// Every asset under /www/ is served immutable for a year, so a stamp LOWER than
+// what the live pages already ask for hands readers a year-old cached script.
+// On 2026-11-17 five of them had drifted behind, because the pages get hand-bumped
+// when an asset changes and nobody updates this file: roadmap-role 13 vs 21,
+// auth-hydrate 15 vs 17, persona-menu 4 vs 6, roadmap-curriculum 9 vs 10,
+// roadmap-data 4 vs 6. Running the builder would have regressed all seven track
+// pages. They are aligned now. Check them again before the next run:
+//   grep -oE "[a-z0-9-]+\.js\?v=[0-9]+" _build/build_roadmap_f2.js | sort -u
+//   grep -oE "[a-z0-9-]+\.js\?v=[0-9]+" roadmap/researcher.html  | sort -u
+// Raising a stamp is always safe (a cache miss). Lowering one is the bug.
 const fs=require('path'), p=require('path'), F=require('fs');
 const root=process.cwd();
 global.window={};
@@ -45,7 +57,7 @@ const ROLES=[
 const FONTS='<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600&family=IBM+Plex+Serif:wght@700&display=swap" rel="stylesheet">';
 const AUTHCSS='<style>.auth-anon{display:none;align-items:center}body.state-anon .auth-anon{display:inline-flex}.masthead-auth-link{font-size:14px;font-weight:600;color:var(--ink);border-bottom:2px solid var(--line);padding-bottom:1px}.masthead-auth-link:hover{border-color:var(--ink)}.nav .right{margin-left:auto;display:flex;align-items:center;gap:14px}</style>';
 const GA="<script>\n  window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}\n  gtag('js',new Date());\n  gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:1500});\n  gtag('config','G-D5XKCMN7FR');\n  (function(){var loaded=false;function load(){if(loaded)return;loaded=true;cleanup();var s=document.createElement('script');s.async=true;s.src='https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';document.head.appendChild(s);}var ev=['pointerdown','keydown','scroll','touchstart'];function cleanup(){ev.forEach(function(e){window.removeEventListener(e,load,{capture:true});});}function arm(){ev.forEach(function(e){window.addEventListener(e,load,{capture:true,once:true,passive:true});});setTimeout(load,6000);}if(document.readyState==='complete')arm();else window.addEventListener('load',arm,{once:true});})();\n</script>";
-const SHELL="<script defer src=\"/www/consent-banner.js?v=2\"></script>\n<script defer src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{\"token\": \"edf7e3d50c3e4130a913e7f144643624\"}'></script>\n<script defer src=\"/www/auth-hydrate.js?v=15\"></script>\n<script defer src=\"/www/signin-nudge.js?v=17\"></script>\n<script defer src=\"/www/persona-menu.js?v=4\"></script>";
+const SHELL="<script defer src=\"/www/consent-banner.js?v=2\"></script>\n<script defer src=\"https://static.cloudflareinsights.com/beacon.min.js\" data-cf-beacon='{\"token\": \"edf7e3d50c3e4130a913e7f144643624\"}'></script>\n<script defer src=\"/www/auth-hydrate.js?v=17\"></script>\n<script defer src=\"/www/signin-nudge.js?v=17\"></script>\n<script defer src=\"/www/persona-menu.js?v=6\"></script>";
 function nav(){return '<nav class="nav"><div class="wrap">\n  <a class="brand" href="/"><span class="brand-mark">R</span>r-statistics<span class="co">.co</span></a>\n  <div class="links"><a href="/roadmap/" class="on">Roadmap</a><a href="/tutorials/">Tutorials</a><a href="/exercises/">Exercises</a><a href="/tools/">Tools</a></div>\n  <div class="right"><a class="btn" href="/pricing.html">Get certified <span class="a">&rarr;</span></a><span class="auth-anon"><a class="masthead-auth-link" href="/signin.html">Sign in</a></span><span class="auth-user"></span></div>\n</div></nav>';}
 function foot(){return '<footer class="foot"><div class="wrap"><span>&copy; 2016&ndash;2026 r-statistics.co</span><nav class="foot-links"><a href="/tutorials/">Tutorials</a><a href="/tools/">Tools</a><a href="/pricing.html">Pricing</a><a href="/verify/">Verify a credential</a><a href="/about/">About</a></nav></div></footer>';}
 function jsonldRoadmap(){
@@ -122,7 +134,7 @@ const ROLE_MAIN=`<main class="wrap">
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;
-function dataScripts(render){return '<script src="/www/roadmap-data.js?v=4"></script>\n<script src="/www/roadmap-curriculum.js?v=9"></script>\n<script src="/www/'+render+'"></script>';}
+function dataScripts(render){return '<script src="/www/roadmap-data.js?v=6"></script>\n<script src="/www/roadmap-curriculum.js?v=10"></script>\n<script src="/www/'+render+'"></script>';}
 
 // --- roadmap index ---
 const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher, R developer or ML engineer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
@@ -136,7 +148,7 @@ ROLES.forEach(function(r){
      it, and this page defers to it rather than competing with it. */
   const canon=ORIGIN+'/roadmap/v2/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=13')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=21')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });
