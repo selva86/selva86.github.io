@@ -35,7 +35,7 @@ A path from the question to a named test, driven by three things: what is being 
 
 Every test assumes something, and the assumptions are nowhere near equally important. Normality, equal variance and independence are each violated on purpose by simulation, with the damage to the error rate measured, which shows a t-test shrugging off mild non-normality and being wrecked by dependence. Then why running a preliminary normality test is a poor way to decide anything, and what to look at instead.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Checking assumptions and what breaks them](Checking-Assumptions-and-What-Breaks-Them.html)
 
 ### Lesson 3: Nonparametric tests, Wilcoxon and Kruskal-Wallis
 
