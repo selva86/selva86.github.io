@@ -49,7 +49,7 @@ Interaction as a sentence before it is a term: the effect of this depends on tha
 
 The question is not statistical, it is what you want to generalise to, and the arithmetic follows from the answer. Four specific doses you chose are fixed; twenty randomly selected clinics are random. The same dataset analysed both ways, so the standard errors and the denominator of F visibly change, and so treating a random factor as fixed is shown to produce intervals that are too narrow because they describe only the clinics you happened to sample.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Fixed or random, which factor is which](Fixed-or-Random-Which-Factor-Is-Which.html)
 
 ### Lesson 5: Asking a specific question of your groups
 
