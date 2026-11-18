@@ -31,7 +31,7 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 Why you cannot answer "do these four teaching methods differ" with six t-tests, shown by simulating four identical groups and counting how often at least one pair looks significant. Then the one-way ANOVA built from its parts: variation between group means set against variation within groups, assembled by hand as two sums of squares before `aov()` is called, so the F statistic arrives as a ratio you computed rather than a number a function returned. What a significant F does and does not tell you, which is that something differs and not which thing.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Comparing several groups at once](Comparing-Several-Groups-at-Once.html)
 
 ### Lesson 2: Two factors and their combined effect
 
