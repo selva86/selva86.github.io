@@ -43,7 +43,7 @@ Two-way ANOVA on a design with both a treatment and a block, where the second fa
 
 Interaction as a sentence before it is a term: the effect of this depends on that. Two groups crossed with two conditions, plotted four ways, with the parallel-lines case set against the crossed-lines case so you can see what the interaction term is measuring. The trap that follows: once an interaction is in the model, a main effect is no longer "the effect of the factor" but its effect at one reference level, which is the single most common misreading of an ANOVA table. Simple effects computed at each level as the honest alternative.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: When an effect depends on another](When-an-Effect-Depends-on-Another.html)
 
 ### Lesson 4: Fixed or random, which factor is which
 
