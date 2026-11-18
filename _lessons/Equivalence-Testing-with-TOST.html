@@ -1,0 +1,380 @@
+---
+title: "Choosing Statistical Tests Lesson 6: Equivalence testing with TOST"
+description: "A one-week test gives p = 0.738, proving nothing. TOST runs two one-sided tests against a fixed margin to show when a difference is small enough to ignore."
+keywords: "TOST, equivalence testing, two one-sided tests, equivalence margin, non-significant result, power.t.test, sample size for equivalence testing, statistical equivalence, R"
+mathjax: false
+webr: true
+curriculum_id: "4.40.6"
+post_type: "LESSON"
+course_id: "res-test-selection"
+course_title: "Choosing Statistical Tests"
+course_lesson: "6"
+course_total: "6"
+course_landing: "Choosing-Statistical-Tests-Course.html"
+course_next: ""
+course_prev: "Reporting-Effect-Size-Not-Just-Significance.html"
+lesson_access: "pro"
+catalog_blurb: "Why a non-significant test doesn't prove two things are the same."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Equivalence testing with TOST</h2>
+
+<p>Today let's understand equivalence testing with TOST, step by step and on one real example.</p>
+
+<p>TechCo runs a recommendation algorithm, algorithm A, on its product page. A new, cheaper algorithm, algorithm B, is ready to take its place, but only if it does not change how long a visitor spends on a session by more than half a minute either way. That half minute is the equivalence margin, and TechCo fixed it before looking at any data: a shift smaller than that is close enough to not matter, a shift bigger than that is not.</p>
+
+<p>Here's the problem: an ordinary test tells you whether A and B are different. It does not tell you whether they are the same, or close enough to it. A non-significant result does not mean equivalence. It might just mean there is not yet enough data to tell the difference apart.</p>
+
+<p>Equivalence testing is the separate method built to answer that question directly. It runs two one-sided tests against the margin, which is why it is called TOST, short for Two One-Sided Tests.</p>
+
+<p>Here is the whole flow in three steps.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Fix the margin first","sub":"agree how small a difference has to be to count as the same, before any data are seen"},{"title":"Run two one-sided tests","sub":"test that the true difference is not below the margin, and test that it is not above it"},{"title":"Read one of four outcomes","sub":"equivalent, not equivalent, significant but trivial, or genuinely inconclusive"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Everything from here on works through those three steps on TechCo's own data, and shows exactly how each of those four outcomes can come about.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why a non-significant test doesn't prove two things are the same</h2>
+
+<p>TechCo's test has been running for a week. Fifty visitors have been randomised to algorithm A and fifty to algorithm B, and the obvious first move is to run an ordinary t-test on their session durations.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw the ongoing test's data: average session duration in minutes, algorithm A vs algorithm B
+set.seed(123)
+A_full &lt;- rnorm(800, mean = 18, sd = 4)
+B_full &lt;- rnorm(800, mean = 17.9, sd = 4)
+
+# Look at just the first 50 sessions per arm, one week into the test
+A_week &lt;- A_full[1:50]
+B_week &lt;- B_full[1:50]
+week_test &lt;- t.test(A_week, B_week)
+week_diff &lt;- mean(A_week) - mean(B_week)
+round(week_diff, 2)
+round(week_test$p.value, 3)
+round(as.numeric(week_test$conf.int), 2)
+#&gt; [1] 0.26
+#&gt; [1] 0.738
+#&gt; [1] -1.29  1.82</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A averages 0.26 minutes longer than B in this sample, and the t-test gives p = 0.738, nowhere near the usual 0.05 cutoff. So by the ordinary rule, there is no statistically significant difference between A and B.</p>
+
+<p>But look at the 95% confidence interval: -1.29 to 1.82 minutes. That is the range of true differences between A and B that this data cannot rule out. It includes 0, no difference at all, but it also includes 1.82, more than three times TechCo's 0.5-minute margin.</p>
+
+<p>A non-significant p-value only says this data could not detect a difference. It never says there is no difference, and this interval is the proof: a genuinely large difference is still sitting inside it, completely unruled out.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">With only fifty visitors per arm, one week into the test, this data has not yet gathered enough evidence to say anything about whether A and B are close enough to treat as the same.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Setting up and running the two one-sided tests</h2>
+
+<p>The margin is fixed before any data are looked at: TechCo already decided that a shift of up to 0.5 minutes, in either direction, counts as close enough to the same. TOST checks that margin with two separate one-sided tests, run on the same data.</p>
+
+<p>The first test rules out the possibility that B is slower than A by more than the margin. Its null hypothesis is that the true difference is -0.5 minutes or smaller, against the alternative that it is bigger than that. The second test rules out the opposite: its null is that the true difference is 0.5 minutes or bigger, against the alternative that it is smaller.</p>
+
+<p>Equivalence only gets declared when both of these one-sided tests reject their null at the usual 0.05 level. Because both have to reject together, running each of them at 0.05 keeps the overall chance of wrongly declaring equivalence at 0.05 too, not 0.10, so no correction for running two tests is needed.</p>
+
+<p>By the full quarter, TechCo has 800 visitors per arm instead of 50. Running the two one-sided tests on that larger cut, and checking the same conclusion with a familiar shortcut, looks like this.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the two one-sided tests against the +/-0.5 minute margin, full quarter of data
+margin &lt;- 0.5
+quarter_test &lt;- t.test(A_full, B_full)
+quarter_diff &lt;- mean(A_full) - mean(B_full)
+se &lt;- quarter_test$stderr
+df &lt;- quarter_test$parameter
+
+# Test 1: rule out that B beats A by more than the margin (diff &lt;= -0.5)
+t1 &lt;- (quarter_diff - (-margin)) / se
+p1 &lt;- pt(t1, df, lower.tail = FALSE)
+
+# Test 2: rule out that A beats B by more than the margin (diff &gt;= 0.5)
+t2 &lt;- (quarter_diff - margin) / se
+p2 &lt;- pt(t2, df, lower.tail = TRUE)
+
+round(c(diff = quarter_diff, t1 = t1, p1 = p1, t2 = t2, p2 = p2), 4)
+
+# The equivalent shortcut: a 90% confidence interval entirely inside the margin
+round(as.numeric(t.test(A_full, B_full, conf.level = 0.90)$conf.int), 2)
+#&gt;    diff      t1      p1      t2      p2 
+#&gt;  0.0230  2.6530  0.0040 -2.4197  0.0078 
+#&gt; [1] -0.30  0.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The difference has narrowed to 0.023 minutes, close to nothing. Test 1 gives t1 = 2.653 and p1 = 0.004, well under 0.05, so its null is rejected: B is not slower than A by more than the margin. Test 2 gives t2 = -2.420 and p2 = 0.0078, also under 0.05, so its null is rejected too: A is not slower than B by more than the margin either. Both one-sided nulls are rejected, so TOST declares A and B equivalent at the 0.5-minute margin.</p>
+
+<p>The 90% confidence interval confirms the same answer a different way: -0.30 to 0.35 minutes, sitting entirely inside +/-0.5. Running a 90% interval and checking that it fits inside the margin is mathematically the same test as running the two one-sided tests at alpha = 0.05 each, just read off a single number instead of two.</p>
+
+<p>With about 1,598 degrees of freedom behind this t-test, its distribution is close enough to a standard normal that the widget below, which draws a standard normal curve, is a fair stand-in for it. Drag the slider to 2.65, test 1's own t-statistic, and watch its one-sided tail.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":1,"start":2.65,"label":"test 1 t-statistic"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>At 2.65, the shaded tail area reads 0.004, the same p1 computed by hand above. Drag the slider down toward zero and the tail swells, the p-value climbs, and test 1 stops rejecting its null. Drag it further out and the tail shrinks instead.</p>
+
+<p>Several more cuts of TechCo's data get the same two tests, so it is worth wrapping that pair of tests into one reusable function.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrap the two one-sided tests into a function, so any cut of the data can reuse it
+tost_outcome &lt;- function(a, b, margin) {
+  test &lt;- t.test(a, b)
+  diff &lt;- mean(a) - mean(b)
+  se &lt;- test$stderr
+  df &lt;- test$parameter
+  t1 &lt;- (diff - (-margin)) / se
+  p1 &lt;- pt(t1, df, lower.tail = FALSE)
+  t2 &lt;- (diff - margin) / se
+  p2 &lt;- pt(t2, df, lower.tail = TRUE)
+  c(diff = diff, ord_p = test$p.value, p1 = p1, p2 = p2)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<h2>Quick check: inconclusive is not the same as "not equivalent"</h2>
+
+<p>Run the same two one-sided tests on the week-one cut, the one that gave the non-significant ordinary result. They come back with p1 = 0.166 and p2 = 0.381. What does that result say about algorithms A and B?</p>
+<section class="exercise" data-exercise-id="Equivalence-Testing-with-TOST-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A and B are equivalent, because neither one-sided test found a significant difference.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A and B differ by more than the 0.5-minute margin.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The result is inconclusive: this data cannot yet say A and B are equivalent, and it cannot say they differ by more than the margin either.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The 0.5-minute margin must have been set too narrow.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Neither one-sided null is rejected, so TOST has nothing to conclude either way. Inconclusive is its own honest outcome, not a stand-in for "not equivalent".</div><div class="lesson-qfb lesson-qfb-no">Neither of the other three outcomes applies here either: equivalence needs both p1 and p2 below 0.05, and a real difference needs the ordinary test to be significant. With p1 = 0.166 and p2 = 0.381, this result is inconclusive, and that says nothing about whether the margin itself was reasonable.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>The four outcomes a TOST and an ordinary test can give together</h2>
+
+<p>Put the ordinary test and TOST side by side and only four things can happen: the ordinary test is significant or it is not, and TOST finds equivalence or it does not. Seeing all four outcomes on real data makes the logic concrete.</p>
+
+<p>Two more cuts of TechCo's test, standing in for how the same test could have turned out under different true effects, make the picture complete: one where the true gap between A and B is small enough to not matter, and one where it is genuinely large.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Add two large cuts standing in for different true effects: a trivial gap and a real one
+set.seed(7)
+A_triv &lt;- rnorm(6000, mean = 18, sd = 4)
+B_triv &lt;- rnorm(6000, mean = 17.82, sd = 4)
+A_real &lt;- rnorm(6000, mean = 18, sd = 4)
+B_real &lt;- rnorm(6000, mean = 17.1, sd = 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now run the ordinary test and TOST on all four cuts of TechCo's data: the week-one cut, the full-quarter cut, and these two new ones.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the same ordinary test and TOST on all four cuts of TechCo's data
+cuts &lt;- list(
+  &quot;week one, n=50&quot;      = list(a = A_week, b = B_week),
+  &quot;full quarter, n=800&quot; = list(a = A_full, b = B_full),
+  &quot;trivial gap, n=6000&quot; = list(a = A_triv, b = B_triv),
+  &quot;real gap, n=6000&quot;    = list(a = A_real, b = B_real)
+)
+
+# Label each cut by crossing the ordinary test's significance with TOST's equivalence call
+outcome_label &lt;- function(ord_p, tost_p) {
+  if (ord_p &lt; 0.05 &amp;&amp; tost_p &lt; 0.05) &quot;significant but trivial&quot;
+  else if (ord_p &gt;= 0.05 &amp;&amp; tost_p &lt; 0.05) &quot;equivalent&quot;
+  else if (ord_p &lt; 0.05 &amp;&amp; tost_p &gt;= 0.05) &quot;real difference&quot;
+  else &quot;inconclusive&quot;
+}
+
+fmt_p &lt;- function(p) ifelse(p &lt; 0.0001, &quot;&lt; 0.0001&quot;, sprintf(&quot;%.4f&quot;, p))
+
+build_row &lt;- function(cut) {
+  r &lt;- tost_outcome(cut$a, cut$b, margin)
+  tost_p &lt;- max(r[&quot;p1&quot;], r[&quot;p2&quot;])
+  data.frame(diff = sprintf(&quot;%.3f&quot;, r[&quot;diff&quot;]),
+             ord_p = fmt_p(r[&quot;ord_p&quot;]),
+             tost_p = fmt_p(tost_p),
+             outcome = outcome_label(r[&quot;ord_p&quot;], tost_p),
+             stringsAsFactors = FALSE)
+}
+
+results &lt;- do.call(rbind, lapply(cuts, build_row))
+rownames(results) &lt;- names(cuts)
+results
+#&gt;                      diff    ord_p   tost_p                 outcome
+#&gt; week one, n=50      0.263   0.7379   0.3812            inconclusive
+#&gt; full quarter, n=800 0.023   0.9071   0.0078              equivalent
+#&gt; trivial gap, n=6000 0.160   0.0296 &lt; 0.0001 significant but trivial
+#&gt; real gap, n=6000    0.906 &lt; 0.0001   1.0000         real difference</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>tost_p</code> is the larger of p1 and p2: the more conservative of the two one-sided tests, since both have to reject for TOST to call equivalence. Read the four rows against the rule used to label them:</p>
+
+<ul>
+
+<li><strong>Week one</strong> (ord_p = 0.7379, tost_p = 0.3812): the ordinary test is not significant, and TOST does not find equivalence either. Neither question is answered. <strong>Inconclusive.</strong></li>
+
+<li><strong>Full quarter</strong> (ord_p = 0.9071, tost_p = 0.0078): the ordinary test is not significant, but TOST does find equivalence. <strong>Equivalent.</strong></li>
+
+<li><strong>Trivial gap</strong> (ord_p = 0.0296, tost_p < 0.0001): with 6,000 visitors per arm, even a real difference of about 0.16 minutes is large enough for the ordinary test to call significant. But 0.16 minutes is still safely inside the 0.5-minute margin, so TOST also calls it equivalent. <strong>Significant but trivial.</strong></li>
+
+<li><strong>Real gap</strong> (ord_p < 0.0001, tost_p = 1.0000): the ordinary test is overwhelmingly significant, and TOST's own tests fail to reject, meaning the true difference is not confidently inside the margin. <strong>A real difference outside the margin.</strong></li>
+
+</ul>
+
+<p>That is the whole decision rule: cross what the ordinary test found with what TOST found, and every pair of results lands in exactly one of those four boxes.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Why a tighter margin needs more data</h2>
+
+<p>A margin is a choice, and a tighter margin is a stricter bar to clear. It takes more data to show the true difference confidently sits inside a narrow band than a wide one.</p>
+
+<p>The widget below carries its own three built-in effect sizes rather than TechCo's minutes, so read it first in general terms: holding everything else fixed, a smaller effect you are trying to pin down needs a bigger sample to pin down reliably.</p>
+<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switch from the medium to the small effect and the sample size needed for 80% power jumps from a few dozen per group to a few hundred. That is the same relationship behind TechCo's own margin, just measured in minutes instead of in standardised effect sizes.</p>
+
+<p>Here is that relationship on TechCo's own scale: a session duration with a standard deviation of 4 minutes, and a margin to resolve with 90% power.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># How many visitors per arm does the 0.5-minute margin need for 90% power?
+ceiling(power.t.test(delta = 0.5, sd = 4, sig.level = 0.05, power = 0.90)$n)
+
+# And if the margin halves to 0.25 minutes?
+ceiling(power.t.test(delta = 0.25, sd = 4, sig.level = 0.05, power = 0.90)$n)
+#&gt; [1] 1346
+#&gt; [1] 5381</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>TechCo's 0.5-minute margin needs 1,346 visitors per arm for 90% power. Halve the margin to 0.25 minutes and the requirement rises to 5,381, roughly four times as many. The sample size needed scales with one over the margin squared, so halving the margin quadruples the data needed: the same inverse-square relationship the widget's curve showed in general terms above.</p>
+
+<p>This also explains how a 0.16-minute gap can be real yet still slip past a smaller sample. TechCo's actual quarter had only 800 visitors per arm, nowhere near the 1,346 that margin needs for reliable power.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># At n=800 per arm, what power did TechCo actually have to detect a 0.16-minute gap?
+power_800 &lt;- power.t.test(n = 800, delta = 0.16, sd = 4, sig.level = 0.05)$power
+round(100 * power_800, 1)
+#&gt; [1] 12.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only 12.3%. At TechCo's real sample size, a true difference as small as 0.16 minutes would be missed by the ordinary test about seven times out of eight. A difference that small needs 6,000 visitors per arm, not 800, before it can show up as statistically significant at all.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Closing quiz: classify a result you haven't seen before</h2>
+
+<p>A new cut of TechCo's test, 1,500 visitors per arm, gives an ordinary two-sided p-value of 0.137, and the two one-sided TOST tests give p1 < 0.0001 and p2 = 0.028. Using the four-outcome rule, which of the four outcomes is this?</p>
+<section class="exercise" data-exercise-id="Equivalence-Testing-with-TOST-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Inconclusive.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Equivalent: the ordinary test is not significant, and both one-sided tests reject, so TOST finds the true difference safely inside the 0.5-minute margin.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Significant but trivial.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A real difference outside the margin.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. Ordinary p = 0.137 means not significant, and p1 < 0.0001 together with p2 = 0.028 means both one-sided nulls are rejected, which is TOST's definition of equivalence.</div><div class="lesson-qfb lesson-qfb-no">A real difference needs the ordinary test to be significant, and at least one of the one-sided tests to fail to reject. Both p1 and p2 here are below 0.05, which is the opposite pattern: both one-sided nulls are rejected, and the ordinary test is not significant. That combination is TOST's equivalent outcome.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<h2>Closing try-it: find the sample size a tighter margin needs</h2>
+
+<p>TechCo needs 1,346 visitors per arm for the 0.5-minute margin, found with the power.t.test() call below. Edit it so the margin is 0.25 minutes instead, then press Run to read off the new n.</p>
+<section class="exercise" data-exercise-id="Equivalence-Testing-with-TOST-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="delta\s*=\s*0\.25"><textarea class="lesson-tryit-input" spellcheck="false"># Starting point: the 0.5-minute margin's sample size
+ceiling(power.t.test(delta = 0.5, sd = 4, sig.level = 0.05, power = 0.90)$n)
+#&gt; [1] 1346</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: delta = 0.25 needs n = 5381 per arm, four times the 1,346 the 0.5-minute margin needed.</span><span class="lesson-tryit-fb lesson-tryit-no">Change the delta argument from 0.5 to 0.25 in the power.t.test() call and run it again.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Change delta to 0.25 and read the new sample size off the output
+ceiling(power.t.test(delta = 0.25, sd = 4, sig.level = 0.05, power = 0.90)$n)
+#&gt; [1] 5381</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1007/BF01068419">A comparison of the two one-sided tests procedure and the power approach for assessing the equivalence of average bioavailability</a> - Schuirmann, D.J. (1987), Journal of Pharmacokinetics and Biopharmaceutics, 15(6), 657-680. The original paper behind the two one-sided tests this lesson runs by hand.</li>
+
+<li><a href="https://doi.org/10.1007/s11606-010-1513-8">Understanding equivalence and noninferiority testing</a> - Walker, E., and Nowacki, A.S. (2011), Journal of General Internal Medicine, 26(2), 192-196. A plain walkthrough of the margin and the 90% confidence interval shortcut used in this lesson.</li>
+
+<li><a href="https://doi.org/10.1177/1948550617697177">Equivalence tests: a practical primer for t-tests, correlations, and meta-analyses</a> - Lakens, D. (2017), Social Psychological and Personality Science, 8(4), 355-362. Worked TOST examples across several common test types.</li>
+
+<li><a href="https://doi.org/10.1177/2515245918770963">Equivalence testing for psychological research: a tutorial</a> - Lakens, D., Scheel, A.M., and Isager, P.M. (2018), Advances in Methods and Practices in Psychological Science, 1(2), 259-269. Covers how to choose a defensible margin before collecting data.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="complete">
+<h2>What a TOST result lets you claim, and what it doesn't</h2>
+
+<ul>
+
+<li>TOST answers a different question than an ordinary test: not whether there is a difference, but whether any difference is small enough to not matter.</li>
+
+<li>The margin has to be fixed before the data are seen, on subject-matter grounds. TOST runs it as two one-sided tests, and equivalence is declared only when both reject.</li>
+
+<li>A non-significant ordinary test is never, by itself, evidence of equivalence. The week-one cut proved nothing until there was more data to narrow down the true difference.</li>
+
+<li>Crossing the ordinary test with TOST gives four honest outcomes: equivalent, a real difference outside the margin, significant but trivial, or genuinely inconclusive.</li>
+
+<li>A tighter margin is a stricter bar, and it needs more data to clear. TechCo's 0.5-minute margin needed 1,346 visitors per arm; a 0.25-minute margin needed about four times that.</li>
+
+</ul>
+
+<p>So when TOST declares A and B equivalent, that is a claim about this margin and nothing wider: the true difference between them is unlikely to sit outside +/-0.5 minutes. It is not a claim that the difference is exactly zero, and a looser or tighter margin, chosen after the fact, could flip the conclusion entirely. Fix the margin first, for reasons that have nothing to do with the data, and the conclusion that follows from it will hold up.</p>
+</section>
+
+{% endraw %}
