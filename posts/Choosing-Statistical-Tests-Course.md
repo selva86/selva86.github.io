@@ -59,7 +59,7 @@ The question a p-value cannot answer: how big is it. Cohen's d, a correlation an
 
 Showing that a difference is small enough to ignore, which no ordinary test can do. The equivalence bound is chosen on subject-matter grounds before the data are seen, two one-sided tests are run against it, and the pair can return four outcomes including an honest inconclusive. Why a non-significant t-test is not evidence of equivalence, and how the power calculation changes when the real question is sameness.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Equivalence testing with TOST](Equivalence-Testing-with-TOST.html)
 
 ## Who this is for
 
