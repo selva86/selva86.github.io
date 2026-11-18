@@ -55,7 +55,7 @@ The question is not statistical, it is what you want to generalise to, and the a
 
 A planned contrast is a weighted combination of group means that encodes a question you had before the data arrived, which is why it costs less than a post-hoc search. Contrast weights written by hand for three real questions, a control against the mean of three treatments, a linear trend across doses, and one treatment against another, each tested, then Tukey's all-pairs comparison run on the same data so you can compare what the two approaches cost in power. Orthogonality explained as what makes contrasts non-overlapping questions.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Asking a specific question of your groups](Asking-a-Specific-Question-of-Your-Groups.html)
 
 ### Lesson 6: Controlling the family-wise error rate
 
