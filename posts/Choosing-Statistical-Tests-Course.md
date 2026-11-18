@@ -53,7 +53,7 @@ An exact p-value that comes from the design rather than from a distributional as
 
 The question a p-value cannot answer: how big is it. Cohen's d, a correlation and a risk ratio are all computed by hand from the same two groups a t-test was just run on, so significance and magnitude become two separate readings of one dataset rather than two names for one thing. Then the two simulations that settle it: a negligible difference reaching p below 0.05 at large n, and a large difference missing it at small n.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Reporting effect size, not just significance](Reporting-Effect-Size-Not-Just-Significance.html)
 
 ### Lesson 6: Equivalence testing with TOST
 
