@@ -37,11 +37,11 @@ Every test assumes something, and the assumptions are nowhere near equally impor
 
 [Start Lesson 2: Checking assumptions and what breaks them](Checking-Assumptions-and-What-Breaks-Them.html)
 
-### Lesson 3: Nonparametric tests, Wilcoxon and Kruskal-Wallis
+### Lesson 3: Testing on ranks with Wilcoxon and Kruskal-Wallis
 
 Testing on ranks when the measurements themselves cannot carry the weight. What the Wilcoxon rank-sum and the Kruskal-Wallis actually test, which is a shift in distribution and not a difference in means, worked through the ranks by hand on a small sample before any R function is called. What you gain on a skewed outcome, what you give up in interpretability, and the common error of reporting a mean next to a rank test.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Testing on ranks with Wilcoxon and Kruskal-Wallis](Nonparametric-Tests-Wilcoxon-and-Kruskal-Wallis.html)
 
 ### Lesson 4: Permutation and randomization tests
 
