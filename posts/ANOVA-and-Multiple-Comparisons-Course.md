@@ -37,7 +37,7 @@ Why you cannot answer "do these four teaching methods differ" with six t-tests, 
 
 Two-way ANOVA on a design with both a treatment and a block, where the second factor is the one that makes the first readable. Main effects computed from marginal means by hand, the sums-of-squares table reproduced line by line so every number in `summary(aov())` has a known origin, and the result that surprises people: adding a second factor that genuinely matters makes the first factor's test more sensitive, because the noise it was competing against has been named and removed. Balanced and unbalanced designs contrasted, with Type I against Type II sums of squares changing the answer on the unbalanced one.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Two factors and their combined effect](Two-Factors-and-Their-Combined-Effect.html)
 
 ### Lesson 3: When an effect depends on another
 
