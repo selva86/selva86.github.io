@@ -47,7 +47,7 @@ Testing on ranks when the measurements themselves cannot carry the weight. What 
 
 An exact p-value that comes from the design rather than from a distributional assumption. Enumerate every relabelling for a sample small enough to do it completely, see that the p-value is a counting fact, then sample the permutations once n is realistic. Where the test is genuinely exact, what exchangeability means in practice, and why a permutation test on clustered data is still the wrong answer.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Permutation and randomization tests](Permutation-and-Randomization-Tests.html)
 
 ### Lesson 5: Reporting effect size, not just significance
 
