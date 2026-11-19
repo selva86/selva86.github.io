@@ -1,0 +1,509 @@
+---
+title: "Linear Regression, Properly Lesson 6: The one point carrying your regression"
+description: "Eighteen home sales show why a far-out point and a big residual each fail alone to make a point influential, and how Cook's distance finds the one that does."
+keywords: "leverage, hat values, Cook's distance, influential points, regression diagnostics, standardized residuals, leave-one-out, outliers in regression, lm, hatvalues, R"
+mathjax: true
+webr: true
+curriculum_id: "4.60.6"
+post_type: "LESSON"
+course_id: "res-linear-models"
+course_title: "Linear Regression, Properly"
+course_lesson: "6"
+course_total: "8"
+course_landing: "Linear-Regression-Properly-Course.html"
+course_next: "Transformations-That-Earn-Their-Keep.html"
+course_prev: "Weighting-Observations-That-Deserve-Less-Say.html"
+lesson_access: "pro"
+catalog_blurb: "Why one point can swing your fitted line more than all the others."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>The one point carrying your regression</h2>
+
+<p>Today let's find out why a single point in your data can do more to shape a fitted regression line than all the other points put together.</p>
+
+<p>An appraiser pulls together the last 18 home sales in one neighborhood. For each sale she has two numbers: the home's square footage, running from 1,200 up to 2,200, and its sale price, in thousands of dollars, running from 143.7 up to 251.0. Here is what those 18 sales look like, plotted against each other.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1200,"y":159.1},{"x":1259,"y":178.8},{"x":1318,"y":168.9},{"x":1376,"y":174.7},{"x":1435,"y":182.5},{"x":1494,"y":187.9},{"x":1553,"y":179.1},{"x":1612,"y":188.7},{"x":1671,"y":143.7},{"x":1729,"y":203.5},{"x":1788,"y":224.7},{"x":1847,"y":209.4},{"x":1906,"y":199.8},{"x":1965,"y":231.8},{"x":2024,"y":232.5},{"x":2082,"y":189.8},{"x":2141,"y":242.1},{"x":2200,"y":251.0}],"geoms":["point"],"x":"sqft","y":"price"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Bigger homes sell for more, roughly along a straight line. Fit that line through all 18 points and every single home pulls on it, but not equally.</p>
+
+<p>Here is the question this whole lesson answers. Of these 18 homes, exactly one of them pulls harder on that line than any of the other 17. Drop that one home and refit the line, and it moves more than dropping any other home would. Which home is it, and how would you find that out without actually refitting the model 18 separate times?</p>
+
+<p>By the end of this lesson you will know exactly how to find that home, by hand and with two R functions, and what to do once you have found it.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Fitting the line through eighteen home sales</h2>
+
+<p>Let's build these 18 home sales in R, the same ones from the plot, and fit a straight line through them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 18 home sales and fit price (in thousands of dollars) against sqft
+homes &lt;- data.frame(
+  home  = 1:18,
+  sqft  = c(1200, 1259, 1318, 1376, 1435, 1494, 1553, 1612, 1671,
+            1729, 1788, 1847, 1906, 1965, 2024, 2082, 2141, 2200),
+  price = c(159.1, 178.8, 168.9, 174.7, 182.5, 187.9, 179.1, 188.7, 143.7,
+            203.5, 224.7, 209.4, 199.8, 231.8, 232.5, 189.8, 242.1, 251.0)
+)
+
+fit &lt;- lm(price ~ sqft, data = homes)
+coef(fit)
+#&gt; (Intercept)        sqft 
+#&gt; 69.90203753  0.07482887 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rounded, that is price = 69.90 + 0.07483 x sqft. Every extra square foot adds about 0.07483 (roughly 75 dollars) to the predicted price, starting from a baseline of 69.90 at zero square feet.</p>
+
+<p>That line did not come from one home. It came from all 18 at once, <code>lm()</code> choosing the intercept and slope that make the 18 leftover gaps, the residuals, as small as possible overall. But "as small as possible overall" hides a question: did every home contribute the same amount to landing on that particular line, or did some homes push harder than others?</p>
+
+<p>Let's check how well this line actually fits the 18 points before going any further.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check how well the fitted line explains the 18 home prices
+round(summary(fit)$r.squared, 3)
+#&gt; [1] 0.625
+round(summary(fit)$sigma, 2)
+#&gt; [1] 18.77
+fit$df.residual
+#&gt; [1] 16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An R-squared of 0.625 means sqft explains about 62.5% of the spread in price across these 18 homes. The residual standard error, 18.77, is the typical size of the leftover gap between a home's actual price and what the line predicts, measured in the same thousands-of-dollars units as price. The 16 is the degrees of freedom left over after the line uses up 2 of the 18 homes' worth of information to estimate its intercept and its slope.</p>
+
+<p>One honest way to measure each home's pull on the line is to refit it 18 times, once with each home left out, and see whose absence moves it most. That works, but doing it 18 separate times by hand is slow. A faster route to the same answer starts from a single quantity computed once: how far a home's own sqft sits from the group's average.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Leverage: how far a point sits from the average</h2>
+
+<p>The first piece of that shortcut is called leverage, and it has nothing to do with price. It only looks at where a home's square footage sits relative to the other homes' square footage.</p>
+
+<p>Formally, home i's leverage is called its hat value, written \(h_i\), and it is computed from how far that home's sqft sits from the average sqft of all 18 homes:</p>
+
+<p>$$h_i = \frac{1}{n} + \frac{(x_i - \bar{x})^2}{S_{xx}}$$</p>
+
+<p>Here \(n\) is 18, \(\bar{x}\) is the average sqft across all 18 homes, and \(S_{xx}\) is the sum of squared distances of every home's sqft from that average. A home exactly at the average sqft gets the smallest possible hat value, 1/n. The further a home's sqft sits from the average, in either direction, the larger its hat value grows.</p>
+
+<p>Let's compute each home's hat value by this formula, and check it against R's own <code>hatvalues()</code> function.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute each home's hat value by the leverage formula, and compare it to hatvalues()
+mean_sqft &lt;- mean(homes$sqft)
+Sxx &lt;- sum((homes$sqft - mean_sqft)^2)
+mean_sqft
+#&gt; [1] 1700
+Sxx
+#&gt; [1] 1676472
+
+hat_formula &lt;- 1 / 18 + (homes$sqft - mean_sqft)^2 / Sxx
+hat_function &lt;- hatvalues(fit)
+
+data.frame(home = homes$home, sqft = homes$sqft,
+           hat_formula = round(hat_formula, 4),
+           hat_function = round(hat_function, 4))
+#&gt;    home sqft hat_formula hat_function
+#&gt; 1     1 1200      0.2047       0.2047
+#&gt; 2     2 1259      0.1716       0.1716
+#&gt; 3     3 1318      0.1426       0.1426
+#&gt; 4     4 1376      0.1182       0.1182
+#&gt; 5     5 1435      0.0974       0.0974
+#&gt; 6     6 1494      0.0809       0.0809
+#&gt; 7     7 1553      0.0684       0.0684
+#&gt; 8     8 1612      0.0602       0.0602
+#&gt; 9     9 1671      0.0561       0.0561
+#&gt; 10   10 1729      0.0561       0.0561
+#&gt; 11   11 1788      0.0602       0.0602
+#&gt; 12   12 1847      0.0684       0.0684
+#&gt; 13   13 1906      0.0809       0.0809
+#&gt; 14   14 1965      0.0974       0.0974
+#&gt; 15   15 2024      0.1182       0.1182
+#&gt; 16   16 2082      0.1426       0.1426
+#&gt; 17   17 2141      0.1716       0.1716
+#&gt; 18   18 2200      0.2047       0.2047</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula and <code>hatvalues()</code> agree on every single home, which is exactly what you would expect since they compute the same quantity two different ways. Notice the shape of the column too: it sinks to its lowest point around home 9 and home 10, the two homes closest to the average sqft of 1,700, and climbs back up toward both ends. Home 1 (1,200 sqft, the smallest home) and home 18 (2,200 sqft, the largest home) tie for the highest hat value in the data, 0.2047, because they sit furthest from the average in opposite directions.</p>
+
+<p>From here on, home 18 is the one worth watching, since it sits at the far end of the data.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>What leverage does to a fitted line</h2>
+
+<p>Leverage is easier to feel than to read off a formula, so here is a plain illustration of it, using generic made-up points rather than the home sales.</p>
+<div class="lesson-widget" data-widget-type="leverage-point" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the point that sits far out on the x-axis, and watch how much the fitted line tilts as it moves. Now drag a point near the middle of the x-axis by the same amount, and compare how little the line responds. A point far out in x has more say over where the line goes, because the line is forced to pass close to every point, and a point sitting alone out at the edge pulls the whole line toward it, since no other point sits nearby to resist that pull.</p>
+
+<p>That is exactly what a high hat value is measuring. Home 18, sitting at 2,200 sqft, the far edge of this neighborhood's data, has that same kind of pull on the fitted line, just by virtue of where its sqft sits. Whether it actually uses that pull is a separate question.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Leverage alone vs. a big residual alone</h2>
+
+<p>Leverage only looks at a home's sqft. It says nothing at all about how far off the line that home's actual price landed. That second thing, how far a home's price sits from what the line predicts for it, is the home's residual, and it is a completely separate measurement from leverage.</p>
+
+<p>Let's list every home's raw residual and its standardized residual, largest first. The standardized residual, <code>rstandard()</code>, is the same residual rescaled so that homes can be compared fairly, in units of how many standard errors off the line each home landed.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># List every home's raw residual and standardized residual, largest first
+resid_raw &lt;- residuals(fit)
+resid_std &lt;- rstandard(fit)
+
+tbl &lt;- data.frame(home = homes$home, sqft = homes$sqft,
+                   hat = round(hat_function, 4),
+                   residual = round(resid_raw, 2),
+                   std_resid = round(resid_std, 2))
+tbl[order(-abs(tbl$residual)), ]
+#&gt;    home sqft    hat residual std_resid
+#&gt; 9     9 1671 0.0561   -51.24     -2.81
+#&gt; 16   16 2082 0.1426   -35.90     -2.07
+#&gt; 11   11 1788 0.0602    21.00      1.15
+#&gt; 18   18 2200 0.2047    16.47      0.98
+#&gt; 14   14 1965 0.0974    14.86      0.83
+#&gt; 2     2 1259 0.1716    14.69      0.86
+#&gt; 13   13 1906 0.0809   -12.73     -0.71
+#&gt; 17   17 2141 0.1716    11.99      0.70
+#&gt; 15   15 2024 0.1182    11.14      0.63
+#&gt; 7     7 1553 0.0684    -7.01     -0.39
+#&gt; 6     6 1494 0.0809     6.20      0.34
+#&gt; 5     5 1435 0.0974     5.22      0.29
+#&gt; 10   10 1729 0.0561     4.22      0.23
+#&gt; 4     4 1376 0.1182     1.83      0.10
+#&gt; 8     8 1612 0.0602    -1.83     -0.10
+#&gt; 12   12 1847 0.0684     1.29      0.07
+#&gt; 1     1 1200 0.2047    -0.60     -0.04
+#&gt; 3     3 1318 0.1426     0.37      0.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now look at home 18, the home that tied for the highest leverage in the data. Its residual is only 16.47, a standardized 0.98, nowhere near the top of this list. Dropping home 18 would barely move the line, despite its high hat value, because the fitted line already runs close to where home 18 actually sold.</p>
+
+<p>Home 9, on the other hand, has the largest residual of any home, -51.24, standardized -2.81. But home 9 sits at 1,671 sqft, almost exactly the neighborhood's average, so its hat value is only 0.0561, one of the lowest in the data. A point sitting near the middle of the x-axis cannot tilt the line much no matter how far its price missed, because the line is anchored there by every other home sitting nearby.</p>
+
+<p>So neither property on its own settled anything. Home 18 had the leverage to swing the line and did not use it. Home 9 had every reason to swing the line and sat in a spot with almost no power to do so.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: leverage vs. a big residual</h2>
+
+<p>Home 18 (2,200 sqft) has the highest hat value in the data, 0.2047, but its residual is only 16.47. Home 9 (1,671 sqft) has the largest residual in the data, -51.24, but its hat value is only 0.0561. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="The-One-Point-Carrying-Your-Regression-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Home 18 has the highest leverage of all 18 homes, so it must be the most influential home in the data.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Home 9 has the largest residual of all 18 homes, so it must be the most influential home in the data.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither home 18's high leverage nor home 9's large residual, taken alone, tells you which home is most influential. Each needs the other to matter.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Home 18 and home 9 are equally influential, since each tops one of the two measures.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Home 18 had the power to swing the line and did not use it, since its residual was small. Home 9 had every reason to swing the line and sat too close to the average sqft to use it. Influence needs both at once.</div><div class="lesson-qfb lesson-qfb-no">Topping one measure each does not make them equally influential. Home 18's small residual means dropping it barely moves the line. Home 9's low leverage means it has little power to move the line even with a large residual. Neither one is the home with the largest Cook's distance.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Influence: leverage and residual size, combined</h2>
+
+<p>What actually moves a fitted line when you drop a point is leverage and residual size acting together. A home needs enough leverage to have the power to swing the line, and a large enough residual for that power to actually move it. This combination is called influence, and it is a different quantity from either leverage or residual size alone.</p>
+
+<p>Here is a home that tops neither measure on its own: home 16, at 2,082 sqft.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Home</th>
+<th>Sqft</th>
+<th>Hat value</th>
+<th>Residual</th>
+<th>Standardized residual</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>18</td>
+<td>2,200</td>
+<td>0.2047</td>
+<td>16.47</td>
+<td>0.98</td>
+</tr>
+<tr>
+<td>9</td>
+<td>1,671</td>
+<td>0.0561</td>
+<td>-51.24</td>
+<td>-2.81</td>
+</tr>
+<tr>
+<td>16</td>
+<td>2,082</td>
+<td>0.1426</td>
+<td>-35.90</td>
+<td>-2.07</td>
+</tr>
+</tbody>
+</table>
+
+<p>Home 16's hat value, 0.1426, is sizeable but smaller than home 18's 0.2047. Its residual, -35.90, is large but smaller than home 9's -51.24. On either measure alone, home 16 loses to one of the two homes above it.</p>
+
+<p>But home 16 carries real size on both measures at once: enough leverage to have some pull on the line, and a residual large enough to matter. Home 18 had leverage with no residual to use it on. Home 9 had residual with no leverage to act on it. Home 16 has a working amount of each.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Cook's distance, computed by hand</h2>
+
+<p>Influence has a name and a formula: Cook's distance, written \(D_i\). It combines a home's standardized residual and its hat value into a single number.</p>
+
+<p>$$D_i = \frac{t_i^2}{p} \times \frac{h_i}{1 - h_i}$$</p>
+
+<p>Here \(t_i\) is home i's standardized residual, \(h_i\) is its hat value, and \(p\) is 2, the number of coefficients the model estimates (the intercept and the slope). The first factor grows with the size of the residual, squared. The second factor grows with leverage, and it grows fast as \(h_i\) approaches 1, because a home that explains almost all of its own position leaves almost nothing for the other 17 homes to check it against.</p>
+
+<p>Let's substitute home 16's own numbers from the table above. Its standardized residual is -2.07 and its hat value is 0.1426:</p>
+
+<p>$$D_{16} = \frac{(-2.07)^2}{2} \times \frac{0.1426}{1 - 0.1426} \approx 0.355$$</p>
+
+<p>Now let's compute Cook's distance by this formula for every home, and compare it to R's own <code>cooks.distance()</code> function.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute Cook's distance by its formula, and compare it to cooks.distance()
+p &lt;- 2  # number of coefficients the model estimates: intercept and slope
+
+cooksD_formula &lt;- (resid_std^2 / p) * (hat_function / (1 - hat_function))
+cooksD_function &lt;- cooks.distance(fit)
+
+data.frame(home = homes$home,
+           cooksD_formula = round(cooksD_formula, 4),
+           cooksD_function = round(cooksD_function, 4))[c(18, 9, 16), ]
+#&gt;    home cooksD_formula cooksD_function
+#&gt; 18   18         0.1247          0.1247
+#&gt; 9     9         0.2345          0.2345
+#&gt; 16   16         0.3549          0.3549</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hand formula and <code>cooks.distance()</code> agree exactly. And look at what that comparison just settled: home 18's Cook's distance is only 0.1247, the smallest of the three, despite tying for the highest leverage in the whole data set. Home 9's is 0.2345, higher than home 18's, because its residual is so large. But home 16's is 0.3549, the largest of the three and the largest of all 18 homes, even though it topped neither leverage nor residual size on its own. Leverage and residual size, acting together, outweighed either one acting alone.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Refitting eighteen times to see what Cook's distance approximates</h2>
+
+<p>Cook's distance was not invented as an arbitrary combination of two numbers. It is a stand-in for something more direct: refit the model with one home removed, see how much every prediction shifts, and repeat that for each of the 18 homes. Let's actually do that, and check that it lands on the same numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit the model 18 times, each time leaving one home out, and measure the shift
+yhat_full &lt;- fitted(fit)
+s2 &lt;- sigma(fit)^2
+
+loo_cooksD &lt;- numeric(18)
+for (i in 1:18) {
+  fit_i &lt;- lm(price ~ sqft, data = homes[-i, ])
+  yhat_i &lt;- predict(fit_i, newdata = homes)
+  shift &lt;- sum((yhat_full - yhat_i)^2)
+  loo_cooksD[i] &lt;- shift / (p * s2)
+}
+
+data.frame(home = homes$home,
+           loo_cooksD = round(loo_cooksD, 4),
+           cooksD_function = round(cooksD_function, 4))
+#&gt;    home loo_cooksD cooksD_function
+#&gt; 1     1     0.0002          0.0002
+#&gt; 2     2     0.0766          0.0766
+#&gt; 3     3     0.0000          0.0000
+#&gt; 4     4     0.0007          0.0007
+#&gt; 5     5     0.0046          0.0046
+#&gt; 6     6     0.0052          0.0052
+#&gt; 7     7     0.0055          0.0055
+#&gt; 8     8     0.0003          0.0003
+#&gt; 9     9     0.2345          0.2345
+#&gt; 10   10     0.0016          0.0016
+#&gt; 11   11     0.0427          0.0427
+#&gt; 12   12     0.0002          0.0002
+#&gt; 13   13     0.0220          0.0220
+#&gt; 14   14     0.0375          0.0375
+#&gt; 15   15     0.0268          0.0268
+#&gt; 16   16     0.3549          0.3549
+#&gt; 17   17     0.0510          0.0510
+#&gt; 18   18     0.1247          0.1247
+
+round(max(abs(loo_cooksD - cooksD_function)), 4)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside the loop, <code>homes[-i, ]</code> drops home i, refits the line on the remaining 17 homes, then <code>predict()</code> asks that new line for its fitted value at all 18 original homes, including the one it never saw. Summing the squared difference between those predictions and the original line's predictions, then dividing by \(p \times s^2\), reproduces <code>cooks.distance()</code> to the last decimal, for every home.</p>
+
+<p>So Cook's distance is not a convenient shortcut invented for its own sake. It is exactly what doing 18 honest refits and measuring how far every prediction moved would show you, computed in one pass from the single fit you already had. Home 16 produces the largest shift of all 18 refits, 0.3549, confirming by brute force what the formula already told you.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>What to do when you find one</h2>
+
+<p>Finding an influential home is not the end of the work. It is the start of a decision. Suppose home 16 turned up in a real appraisal dataset, not this teaching example. Here is the order to work through it in.</p>
+
+<ol>
+
+<li>Check whether it is a data-entry error first: a sqft figure typed wrong, or a price with a misplaced decimal. Fix only a genuine error, and only after confirming it against the original record.</li>
+
+<li>If the number is real, ask what makes that home different. Perhaps it had a recent renovation, an unusually small or large lot, or some other feature the model never saw, since the model only has sqft to work with.</li>
+
+<li>Refit without the influential home and report both fitted lines side by side, rather than quietly deleting the home and showing only one answer.</li>
+
+</ol>
+
+<p>Let's do that last step for home 16.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit the model without home 16, and compare the two slopes
+fit_no16 &lt;- lm(price ~ sqft, data = homes[-16, ])
+
+data.frame(
+  model = c(&quot;all 18 homes&quot;, &quot;without home 16&quot;),
+  intercept = round(c(coef(fit)[1], coef(fit_no16)[1]), 2),
+  slope = round(c(coef(fit)[2], coef(fit_no16)[2]), 5)
+)
+#&gt;              model intercept   slope
+#&gt; 1    all 18 homes       69.90 0.07483
+#&gt; 2 without home 16       56.01 0.08437</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With home 16 in the data, every extra square foot adds about 0.07483 to the predicted price. Without it, that climbs to 0.08437, a meaningfully steeper line, and the intercept drops from 69.90 to 56.01 to compensate. That is the honest cost of one influential home: a different answer to "how much does an extra square foot add," depending on whether you keep it or not. The right move is never to delete it silently and report only the line you prefer. Report both, and say why you kept or dropped the home.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="widget">
+<h2>Would an ordinary residual plot even catch this?</h2>
+
+<p>You might expect a plain residual-vs-fitted plot, the standard first check for a regression, to flag home 16 on its own. Here is a generic version of that plot, with canned data standing in for the homes, so you can see what each shape looks like.</p>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"healthy"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The toggle starts on "healthy": residuals scattered with no pattern, no widening funnel, no curve. The real residual-vs-fitted plot for price against sqft, built from these same 18 homes, looks about this unremarkable too. There is no funnel, no curve, nothing that jumps out as obviously wrong with the model.</p>
+
+<p>That is the uncomfortable part. A plain residual-vs-fitted plot shows how far each home's price missed the line, but it does not show leverage at all, so it has no way to flag that home 16's miss happened at a point with real pull on the line. That is exactly why hat values and Cook's distance exist as their own separate check, rather than something you could read off the usual diagnostic plot by eye.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading leverage, residual and influence together</h2>
+
+<p>A 19th home shows up with a hat value of 0.16 and a standardized residual of -1.7. Neither number is the largest in the data: home 18's hat value, 0.2047, and home 9's standardized residual, -2.81, are both bigger on their own measure. What should you conclude about this home's likely influence?</p>
+<section class="exercise" data-exercise-id="The-One-Point-Carrying-Your-Regression-step12" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="4"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Its hat value, 0.16, is below home 18's 0.2047, so it cannot be very influential.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Its standardized residual, -1.7, is smaller in size than home 9's -2.81, so it cannot be very influential.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A residual-vs-fitted plot would already flag a point like this, so there is nothing more to check.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Its hat value and residual are each only moderate on their own, but combined they can still produce a Cook's distance as large as a home that tops one measure by itself, so it is worth checking with cooks.distance() before ruling it out.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Plug the two numbers into the formula: (-1.7)^2/2 times 0.16/0.84 comes out to about 0.275, bigger than home 18's 0.1247 despite neither of this home's two numbers being a record. That is the whole point of combining them instead of reading each alone.</div><div class="lesson-qfb lesson-qfb-no">The real residual-vs-fitted plot for this exact data already looked unremarkable even with home 16 sitting in it. That plot does not carry leverage information at all, so it is not where you would catch this.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="tryit" data-gate="1">
+<h2>Your turn: find the home carrying the regression</h2>
+
+<p><code>fit</code> still holds the regression fitted on all 18 homes. Compute Cook's distance for every home, then find which home has the single largest one.</p>
+<section class="exercise" data-exercise-id="The-One-Point-Carrying-Your-Regression-step13" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="cooks[.]distance[(]fit[)]"><textarea class="lesson-tryit-input" spellcheck="false"># fit already holds the regression fitted on all 18 homes.
+# Compute Cook's distance for every home, then find which home
+# has the largest one.
+# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: home 16, with a Cook's distance of 0.3549, the largest of all 18. That is the same home the hand formula and the 18 refits both pointed to.</span><span class="lesson-tryit-fb lesson-tryit-no">Call cooks.distance(fit) to get all 18 values, then which.max() on that result to find the largest: cooks.distance(fit) followed by which.max(cooks.distance(fit)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Compute Cook's distance for every home, and find the largest
+round(cooks.distance(fit), 4)
+#&gt;      1      2      3      4      5      6      7      8      9     10     11 
+#&gt; 0.0002 0.0766 0.0000 0.0007 0.0046 0.0052 0.0055 0.0003 0.2345 0.0016 0.0427 
+#&gt;     12     13     14     15     16     17     18 
+#&gt; 0.0002 0.0220 0.0375 0.0268 0.3549 0.0510 0.1247 
+
+which.max(cooks.distance(fit))
+#&gt; 16 
+#&gt; 16 </code></pre></details></div>
+</section>
+<p>Home 16, at 0.3549, is the largest Cook's distance in the data by a clear margin over home 9's 0.2345 and home 18's 0.1247. <code>which.max()</code> returns the home's row number along with its name, both 16 here since the homes are numbered 1 through 18 in order.</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html">influence.measures: Regression Deletion Diagnostics</a> - R Core Team. The documentation for cooks.distance(), hatvalues() and the other leave-one-out influence diagnostics built by hand in this lesson.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html">lm: Fitting Linear Models</a> - R Core Team. The documentation for lm(), the function refitted 18 separate times in the leave-one-out comparison.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/predict.lm.html">predict.lm: Predict method for Linear Model Fits</a> - R Core Team. The documentation for predict(), used to score all 18 homes from each leave-one-out refit.</li>
+
+<li>Cook, R. D. (1977). "Detection of Influential Observations in Linear Regression." Technometrics, 19(1), 15-18. The paper that introduced the statistic this lesson is named after.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="15" data-step-type="complete">
+<h2>The decision rule for an influential point</h2>
+
+<p>Three homes, three lessons.</p>
+
+<ul>
+
+<li>Home 18 had the highest leverage in the data, a hat value of 0.2047, because it sat at the far edge of sqft. But its residual was small, so dropping it barely moved the line. Leverage alone did not make it influential.</li>
+
+<li>Home 9 had the largest residual in the data, -51.24, missing the line by more than any other home. But it sat close to the average sqft, so its hat value was only 0.0561. A big residual alone did not make it influential either.</li>
+
+<li>Home 16 topped neither measure on its own, yet its combination of a sizeable hat value, 0.1426, and a large residual, -35.90, gave it the largest Cook's distance of all 18 homes, 0.3549. You confirmed that number two separate ways: once from the formula, and once by actually refitting the model 18 times and measuring how far every prediction shifted.</li>
+
+</ul>
+
+<p>So leverage tells you how much power a point has to move a fitted line. Residual size tells you how far off the line that point actually landed. Influence, measured by Cook's distance, is what happens when a point has enough of both at once. Finding one is not a reason to delete it. Check whether it is a data error first, understand what makes it different if it is real, then refit without it and report both answers side by side.</p>
+
+<p>The next question close behind this one is what to do when the outcome itself is skewed enough that no single straight line fits it well, influential point or not, which is a story about reshaping the outcome before you fit anything at all.</p>
+</section>
+
+{% endraw %}
