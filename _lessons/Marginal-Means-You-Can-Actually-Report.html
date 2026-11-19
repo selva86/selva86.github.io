@@ -1,0 +1,314 @@
+---
+title: "ANOVA and Multiple Comparisons Lesson 8: Marginal means you can actually report"
+description: "mtcars shows cylinder groups' raw mpg averages distorted by an uneven mix of automatic and manual cars, and how a model's marginal mean corrects for it."
+keywords: "marginal means, estimated marginal means, emmeans, adjusted mean, prediction grid, unbalanced design, confounding, Tukey contrasts, lm, ANOVA"
+mathjax: false
+webr: true
+curriculum_id: "4.50.8"
+post_type: "LESSON"
+course_id: "res-anova"
+course_title: "ANOVA and Multiple Comparisons"
+course_lesson: "8"
+course_total: "8"
+course_landing: "ANOVA-and-Multiple-Comparisons-Course.html"
+course_next: ""
+course_prev: "When-False-Discovery-Rate-Beats-Bonferroni.html"
+lesson_access: "pro"
+catalog_blurb: "Get the adjusted group mean your report needs, not a misleading raw average."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Marginal means you can actually report</h2>
+
+<p>Today let's work out the one number a report actually wants for each cylinder group, and see why it is usually not that group's plain average.</p>
+
+<p>Here is the mtcars dataset: 32 cars, each with a cylinder count, either 4, 6 or 8, and a transmission type, either automatic or manual, measured on fuel economy in mpg. A report on this data wants one number per cylinder count: its average mpg. That sounds like something <code>tapply()</code> already gives you. Before computing it, look at all 32 cars plotted together, colored by transmission.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":5.93,"y":21,"fill":"Manual"},{"x":5.96,"y":21,"fill":"Manual"},{"x":4.02,"y":22.8,"fill":"Manual"},{"x":6.12,"y":21.4,"fill":"Automatic"},{"x":7.91,"y":18.7,"fill":"Automatic"},{"x":6.12,"y":18.1,"fill":"Automatic"},{"x":8.13,"y":14.3,"fill":"Automatic"},{"x":4.05,"y":24.4,"fill":"Automatic"},{"x":4.04,"y":22.8,"fill":"Automatic"},{"x":5.87,"y":19.2,"fill":"Automatic"},{"x":5.91,"y":17.8,"fill":"Automatic"},{"x":7.9,"y":16.4,"fill":"Automatic"},{"x":8.06,"y":17.3,"fill":"Automatic"},{"x":7.97,"y":15.2,"fill":"Automatic"},{"x":8.08,"y":10.4,"fill":"Automatic"},{"x":8,"y":10.4,"fill":"Automatic"},{"x":8.07,"y":14.7,"fill":"Automatic"},{"x":4.15,"y":32.4,"fill":"Manual"},{"x":3.96,"y":30.4,"fill":"Manual"},{"x":4.08,"y":33.9,"fill":"Manual"},{"x":4.13,"y":21.5,"fill":"Automatic"},{"x":7.91,"y":15.5,"fill":"Automatic"},{"x":8.05,"y":15.2,"fill":"Automatic"},{"x":7.89,"y":13.3,"fill":"Automatic"},{"x":7.93,"y":19.2,"fill":"Automatic"},{"x":3.97,"y":27.3,"fill":"Manual"},{"x":3.85,"y":26,"fill":"Manual"},{"x":3.97,"y":30.4,"fill":"Manual"},{"x":8.11,"y":15.8,"fill":"Manual"},{"x":5.95,"y":19.7,"fill":"Manual"},{"x":8,"y":15,"fill":"Manual"},{"x":4.03,"y":21.4,"fill":"Manual"}],"x":"cylinders","y":"mpg","geoms":["point"],"code":{"point":"ggplot(mtcars, aes(jitter(cyl, amount = 0.15), mpg, colour = transmission)) +\n  geom_point(size = 2.6)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at the colors within each cylinder count instead of just the overall spread. The 4-cylinder cars on the left are mostly the manual color. The 8-cylinder cars on the right are mostly the automatic color. Each cylinder group is not just a pile of mpg values, it is a pile with its own particular mix of transmission types sitting inside it, and that mix is different from one group to the next.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why a raw group mean is confounded by an uneven mix</h2>
+
+<p>Let's compute the obvious average anyway, and see exactly where that mix causes trouble.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the raw average mpg per cylinder count with how each group splits by transmission
+raw_means &lt;- round(tapply(mtcars$mpg, mtcars$cyl, mean), 2)
+raw_means
+#&gt;     4     6     8 
+#&gt; 26.66 19.74 15.10 
+
+mix &lt;- table(cylinders = mtcars$cyl, transmission = mtcars$am)
+mix
+#&gt;          transmission
+#&gt; cylinders  0  1
+#&gt;         4  3  8
+#&gt;         6  4  3
+#&gt;         8 12  2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>4-cylinder cars average 26.66 mpg, 6-cylinder cars average 19.74, and 8-cylinder cars average 15.10. On its own that looks like a complete answer: three cylinder counts, three averages, done.</p>
+
+<p>Now look at the second table. Transmission is coded 0 for automatic and 1 for manual, and it is nowhere near evenly spread across the three cylinder counts. The 4-cylinder group holds 3 automatic cars and 8 manual ones. The 8-cylinder group is close to the mirror image: 12 automatic cars and only 2 manual. The 6-cylinder group sits roughly in between, at 4 and 3.</p>
+
+<p>That split matters because transmission type, on its own, moves mpg by a lot.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare average mpg for automatic cars against manual cars, ignoring cylinder count
+am_means &lt;- round(tapply(mtcars$mpg, mtcars$am, mean), 2)
+am_means
+#&gt;     0     1 
+#&gt; 17.15 24.39 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Automatic cars average 17.15 mpg. Manual cars average 24.39, about 7 mpg higher, regardless of cylinder count. So the 4-cylinder group's raw mean of 26.66 is not purely measuring what 4 cylinders does to mpg. It is also picking up the fact that 8 of its 11 cars happen to be the higher-mileage manual kind. The 8-cylinder group has the opposite problem: its raw mean of 15.10 is weighed down by having almost no manual cars to lift it. Neither number is a clean read on cylinder count alone. Each one is a blend of cylinder count and whatever transmission mix happened to land in that group, and the two groups' mixes are not even close to the same. This is what confounded means here: cylinder count and transmission type are tangled together in the raw average, and that single number gives you no way to tell how much of it is one and how much is the other.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Fitting one model that accounts for both variables</h2>
+
+<p>To pull the two effects apart, fit one model that carries both cylinder count and transmission type at the same time, instead of averaging over one while the other hides inside it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit one model that adjusts mpg for both cylinder count and transmission type
+m &lt;- lm(mpg ~ factor(cyl) + factor(am), data = mtcars)
+round(coef(m), 2)
+#&gt;  (Intercept) factor(cyl)6 factor(cyl)8  factor(am)1 
+#&gt;        24.80        -6.16       -10.07         2.56 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read those four numbers as one baseline plus three offsets from it. <code>factor(cyl)</code> treats 4 cylinders as its reference level, and <code>factor(am)</code> treats 0, automatic, as its reference level, so the intercept, 24.80, is the model's predicted mpg for exactly that combination: a 4-cylinder car with an automatic transmission. Each remaining coefficient says how much to move away from that baseline for one specific change, holding everything else fixed.</p>
+
+<p><code>factor(cyl)6</code> is -6.16: moving from 4 cylinders to 6, transmission still automatic, costs 6.16 mpg. <code>factor(cyl)8</code> is -10.07: moving to 8 cylinders, still automatic, costs 10.07 mpg. <code>factor(am)1</code> is +2.56: switching from automatic to manual, at any cylinder count, adds 2.56 mpg.</p>
+
+<p>So to predict an 8-cylinder manual car, add the intercept, the cyl8 offset, and the am1 offset: 24.80 - 10.07 + 2.56 = 17.29. The model now carries transmission type explicitly as its own term, instead of letting it hide inside a group average the way it did in the step before this one.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>How uneven the two transmission groups really are</h2>
+
+<p>The count table two steps back said the 32 cars split unevenly by transmission within each cylinder count. Here is that same imbalance as a picture instead of a table: the same 32 cars, split into an automatic panel and a manual panel.</p>
+<div class="lesson-widget" data-widget-type="facet-grid" data-widget-config='{"data":[{"x":5.93,"y":21,"facet":"Manual"},{"x":5.96,"y":21,"facet":"Manual"},{"x":4.02,"y":22.8,"facet":"Manual"},{"x":6.12,"y":21.4,"facet":"Automatic"},{"x":7.91,"y":18.7,"facet":"Automatic"},{"x":6.12,"y":18.1,"facet":"Automatic"},{"x":8.13,"y":14.3,"facet":"Automatic"},{"x":4.05,"y":24.4,"facet":"Automatic"},{"x":4.04,"y":22.8,"facet":"Automatic"},{"x":5.87,"y":19.2,"facet":"Automatic"},{"x":5.91,"y":17.8,"facet":"Automatic"},{"x":7.9,"y":16.4,"facet":"Automatic"},{"x":8.06,"y":17.3,"facet":"Automatic"},{"x":7.97,"y":15.2,"facet":"Automatic"},{"x":8.08,"y":10.4,"facet":"Automatic"},{"x":8,"y":10.4,"facet":"Automatic"},{"x":8.07,"y":14.7,"facet":"Automatic"},{"x":4.15,"y":32.4,"facet":"Manual"},{"x":3.96,"y":30.4,"facet":"Manual"},{"x":4.08,"y":33.9,"facet":"Manual"},{"x":4.13,"y":21.5,"facet":"Automatic"},{"x":7.91,"y":15.5,"facet":"Automatic"},{"x":8.05,"y":15.2,"facet":"Automatic"},{"x":7.89,"y":13.3,"facet":"Automatic"},{"x":7.93,"y":19.2,"facet":"Automatic"},{"x":3.97,"y":27.3,"facet":"Manual"},{"x":3.85,"y":26,"facet":"Manual"},{"x":3.97,"y":30.4,"facet":"Manual"},{"x":8.11,"y":15.8,"facet":"Manual"},{"x":5.95,"y":19.7,"facet":"Manual"},{"x":8,"y":15,"facet":"Manual"},{"x":4.03,"y":21.4,"facet":"Manual"}],"geom":"point","x":"cylinders","y":"mpg","facetVar":"transmission"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Flip between the two panels. The manual panel is thin on 8-cylinder cars, only 2 of them. The automatic panel is thin on 4-cylinder cars, only 3 of them. That is the exact imbalance the raw group means were quietly absorbing: whichever cylinder count happens to pair with more manual cars gets a lift from the manual cars' higher mpg, and whichever cylinder count pairs with more automatic cars gets pulled down by the automatic cars' lower mpg.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Averaging the prediction grid by hand</h2>
+
+<p>The model from two steps back can predict mpg for any combination of cylinder count and transmission, even a combination that is rare in this particular sample of 32 cars. Build every combination it can predict, all six of them, and read off what it says.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build every combination of cylinder count and transmission, and predict mpg for each
+grid &lt;- expand.grid(cyl = c(4, 6, 8), am = c(0, 1))
+grid$pred &lt;- round(predict(m, newdata = grid), 2)
+grid
+#&gt;   cyl am  pred
+#&gt; 1   4  0 24.80
+#&gt; 2   6  0 18.65
+#&gt; 3   8  0 14.73
+#&gt; 4   4  1 27.36
+#&gt; 5   6  1 21.21
+#&gt; 6   8  1 17.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six rows, two for every cylinder count: one at automatic, one at manual. Now get one adjusted number per cylinder count by averaging its two rows together.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average the two transmission predictions equally within each cylinder count
+marginal_means &lt;- round(tapply(grid$pred, grid$cyl, mean), 2)
+marginal_means
+#&gt;     4     6     8 
+#&gt; 26.08 19.93 16.01 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That averaging step is the one technique this whole lesson rests on, so look closely at what it did. For 4 cylinders it took 24.80 (automatic) and 27.36 (manual) and averaged them straight: (24.80 + 27.36) / 2 = 26.08. It gave automatic and manual equal weight, one vote each, regardless of how many real 4-cylinder cars in this sample are actually automatic (3) versus manual (8). That equal weighting is exactly what separates this number, called a marginal mean, from the raw mean computed earlier in this lesson. The raw mean weighted automatic and manual by however many real cars happened to fall into each group. The marginal mean weights them 50/50 on purpose, as if the sample had been balanced all along.</p>
+
+<p>Compare the two sets of numbers directly. The raw means were 26.66, 19.74 and 15.10. The marginal means are 26.08, 19.93 and 16.01. Every one of them moved, and the direction makes sense once you remember the mix behind each group. 4 cylinders is mostly manual cars in this sample, so its raw mean was pulled up toward the manual average, and forcing an equal weighting on it pulls that number back down, from 26.66 to 26.08. 8 cylinders is mostly automatic, so the opposite happens: its raw mean was pulled down, and equal weighting lifts it, from 15.10 to 16.01.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why the adjusted mean moves away from the raw one</h2>
+
+<p>4-cylinder cars moved from a raw mean of 26.66 down to a marginal mean of 26.08. Why?</p>
+<section class="exercise" data-exercise-id="Marginal-Means-You-Can-Actually-Report-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model used to compute the marginal mean is wrong, so its number should not be trusted over the raw mean.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Most of this sample's 4-cylinder cars are manual, and manual cars average higher mpg, so the raw mean was inflated by that mix. Weighting automatic and manual equally corrects for it.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">4-cylinder cars have too few observations in this sample to average reliably.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Averaging always lowers a group's mean below its raw value.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. 8 of the 11 four-cylinder cars in this sample are manual, and manual cars average 24.39 mpg against automatic's 17.15. The raw mean rode along with that mix; the marginal mean does not.</div><div class="lesson-qfb lesson-qfb-no">Averaging does not always push a mean down. 8-cylinder cars moved the other way, rising from a raw mean of 15.10 to a marginal mean of 16.01, because that group is mostly automatic, and equal weighting pulls it toward the higher manual average instead. What happens here depends on each group's own mix of automatic and manual cars, not on some general rule about averaging.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>emmeans as the shortcut for the same number</h2>
+
+<p>The hand-built grid two steps back is exactly what a function called <code>emmeans()</code>, from the package of the same name, computes for you in one line. It is not available in this page's browser environment, so run this block locally in R instead of pressing a Run button on it.</p>
+
+<pre><code class="language-r"># Get the marginal mean of mpg for each cylinder count directly from the fitted model
+library(emmeans)
+emm &lt;- emmeans(m, ~ cyl)
+emm
+#&gt;  cyl emmean    SE df lower.CL upper.CL
+#&gt;    4   26.1 0.972 28     24.1     28.1
+#&gt;    6   19.9 1.170 28     17.5     22.3
+#&gt;    8   16.0 0.943 28     14.1     17.9
+#&gt; 
+#&gt; Results are averaged over the levels of: am 
+#&gt; Confidence level used: 0.95 </code></pre>
+
+<p>Read the <code>emmean</code> column first: 26.1, 19.9, 16.0. Those are the same three numbers from two steps back, 26.08, 19.93 and 16.01, just rounded to one decimal place instead of two. <code>emmeans()</code> did not use a different method to get there. It built the same six-row prediction grid internally and averaged it the same equal way.</p>
+
+<p>The <code>SE</code> and the two <code>CL</code> columns go further than the hand calculation did. <code>SE</code> is the standard error of each marginal mean, and <code>lower.CL</code>/<code>upper.CL</code> give a 95% confidence interval around it, 24.1 to 28.1 for 4 cylinders, for instance. Those come from the fitted model's own uncertainty about its coefficients, which a plain grid average does not carry on its own.</p>
+
+<p>The footer line, "Results are averaged over the levels of: am", is <code>emmeans()</code> telling you in plain words exactly what you did by hand two steps back: it averaged over the two levels of <code>am</code>, automatic and manual, instead of weighting them by how many real cars fell into each.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Reading a contrast between two marginal means</h2>
+
+<p>Having three marginal means invites an obvious next question: how far apart are they from each other? <code>pairs()</code>, run on the same <code>emm</code> object, answers that for every pair at once.</p>
+
+<pre><code class="language-r"># Compare every pair of marginal means and test whether the gap between them is real
+pairs(emm)
+#&gt;  contrast    estimate   SE df t.ratio p.value
+#&gt;  cyl4 - cyl6     6.16 1.54 28   4.009  0.0012
+#&gt;  cyl4 - cyl8    10.07 1.45 28   6.933 &lt;0.0001
+#&gt;  cyl6 - cyl8     3.91 1.47 28   2.660  0.0331
+#&gt; 
+#&gt; Results are averaged over the levels of: am 
+#&gt; P value adjustment: tukey method for comparing a family of 3 estimates </code></pre>
+
+<p>Each row is one marginal mean minus another, named directly in the <code>contrast</code> column. <code>cyl4 - cyl6</code> is 6.16, the gap between the first two marginal means from the step before this one, 26.1 and 19.9, before those were rounded to one decimal place for display. Every contrast here lists the smaller cylinder count first, and because mpg drops as cylinder count rises, that order always leaves a positive number.</p>
+
+<p>The <code>p.value</code> column tests whether each gap is bigger than noise alone would produce, and all three clear that bar: 0.0012, under 0.0001, and 0.0331. But notice the footer: "P value adjustment: tukey method for comparing a family of 3 estimates." Those three p-values are not computed the plain way a single t-test would. They are adjusted upward together so that testing all three pairs at once does not inflate the chance of calling at least one of them significant purely by accident. Without that adjustment, running three tests instead of one would make a false positive more likely, not because any single test changed, but because chance got three separate tries at fooling you instead of one.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>From console output to a table you can paste into a report</h2>
+
+<p>The console output above is correct, but it is not what belongs in a report. Here are the same three numbers turned into the kind of table a reader actually expects.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["cyl","adj_mean_mpg","ci_low","ci_high"],"rows":[[4,26.1,24.1,28.1],[6,19.9,17.5,22.3],[8,16.0,14.1,17.9]],"formats":{"adj_mean_mpg":"1dp","ci_low":"1dp","ci_high":"1dp"},"title":"Adjusted mean mpg by cylinder count","note":"Averaged equally over automatic and manual transmission."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Toggle between the raw and the formatted view. The numbers did not change: 26.1, 19.9 and 16.0 are the same marginal means from two steps back, and the confidence bounds are the same ones <code>emmeans()</code> printed. What changed is the presentation: named columns, one row per cylinder count, and a note that says plainly what the console output only implied in its footer, that these numbers are averaged equally over automatic and manual transmission.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: adjust the six-cylinder mean by hand</h2>
+
+<p>Earlier steps worked through 4 cylinders and 8 cylinders in detail. 6 cylinders never got the same treatment, so do it yourself here, straight from the coefficients already sitting in <code>m</code>.</p>
+<section class="exercise" data-exercise-id="Marginal-Means-You-Can-Actually-Report-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="factor[(]am[)]1|19\.9"><textarea class="lesson-tryit-input" spellcheck="false"># Your turn: predict mpg for a 6-cylinder car at each transmission, then average the two
+cf &lt;- coef(m)
+cyl6_am0 &lt;- cf[&quot;(Intercept)&quot;] + cf[&quot;factor(cyl)6&quot;]
+cyl6_am1 &lt;- cyl6_am0
+mean(c(cyl6_am0, cyl6_am1))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the same number emmeans gave in step 7.</span><span class="lesson-tryit-fb lesson-tryit-no">Predict mpg for a 6-cylinder car at am = 0, then again at am = 1 by adding the factor(am)1 offset to cyl6_am1, and average the two predictions together.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Predict mpg for a 6-cylinder car at each transmission, then average the two
+cf &lt;- coef(m)
+cyl6_am0 &lt;- cf[&quot;(Intercept)&quot;] + cf[&quot;factor(cyl)6&quot;]
+cyl6_am1 &lt;- cf[&quot;(Intercept)&quot;] + cf[&quot;factor(cyl)6&quot;] + cf[&quot;factor(am)1&quot;]
+round(mean(c(cyl6_am0, cyl6_am1)), 2)
+#&gt; [1] 19.93</code></pre></details></div>
+</section>
+<p><code>cyl6_am0</code> is already right: the intercept plus the cyl6 offset predicts a 6-cylinder automatic car. Fix <code>cyl6_am1</code> so it also adds the manual offset, <code>factor(am)1</code>, then average the two.</p>
+
+<p>19.93 is exactly the marginal mean for 6 cylinders from the hand-built grid earlier in this lesson, and the same number <code>emmeans()</code> printed as 19.9. Three different routes to the same model, the same number every time.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what happens if the sample's mix changed</h2>
+
+<p>Suppose next year's data collection happened to bring in mostly manual 8-cylinder cars instead of mostly automatic ones, with the underlying relationship between cylinder count, transmission and mpg staying exactly the same. What happens to the two numbers this lesson keeps comparing, the raw mean and the marginal mean, for 8 cylinders?</p>
+<section class="exercise" data-exercise-id="Marginal-Means-You-Can-Actually-Report-step11" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both the raw mean and the marginal mean would stay exactly where they are now.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The marginal mean would shrink to match the new, more manual-heavy raw mean.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The raw mean would move toward the marginal mean's 16.01, because it would no longer be pulled down by mostly-automatic cars. The marginal mean would not move at all.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The model would need refitting before either number means anything again.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The raw mean is at the mercy of whatever mix of automatic and manual cars actually showed up in the sample. The marginal mean never looked at that mix in the first place: it always weights automatic and manual 50/50, by construction, so a different sample mix has nothing in it to move.</div><div class="lesson-qfb lesson-qfb-no">A changed transmission mix does not break the model or require refitting it. What moves is the raw mean, because it is computed directly from whichever cars happened to show up. The marginal mean was built precisely so that a changed mix like this would not touch it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1080/00031305.1980.10483031">Population Marginal Means in the Linear Model: An Alternative to Least Squares Means</a> - Searle, S.R., Speed, F.M. and Milliken, G.A. (1980), The American Statistician, 34(4), 216 to 221. The paper that named the quantity this lesson builds by hand.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v069.i01">Least-Squares Means: The R Package lsmeans</a> - Lenth, R.V. (2016), Journal of Statistical Software, 69(1), 1 to 33. The package that became <code>emmeans</code>, and the reasoning behind its defaults.</li>
+
+<li><a href="https://cran.r-project.org/package=emmeans">emmeans: Estimated Marginal Means, aka Least-Squares Means</a> - Lenth, R.V., CRAN package documentation. The function run in steps 7 and 8.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/predict.lm.html">predict.lm documentation</a> - R Core Team, the documentation for <code>predict()</code> on a fitted <code>lm</code> object, used to build the prediction grid.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What a marginal mean is, and why it does not change with the sample</h2>
+
+<p>Here is the whole lesson in one line: a raw group mean blends in whatever mix of some other variable happened to land in that group, and a marginal mean replaces that mix with an equal weighting across the other variable's levels, computed either by hand from a model's full prediction grid or read straight off <code>emmeans()</code>.</p>
+
+<ul>
+
+<li>The raw mpg means for 4, 6 and 8 cylinders, 26.66, 19.74 and 15.10, were each distorted by how automatic and manual cars happened to split within that cylinder count.</li>
+
+<li>Fitting <code>mpg ~ factor(cyl) + factor(am)</code> gave one model that carries both variables at once, instead of letting transmission type hide inside a cylinder average.</li>
+
+<li>Averaging that model's six-row prediction grid equally within each cylinder count, rather than by the sample's real car counts, produced the marginal means: 26.08, 19.93 and 16.01.</li>
+
+<li><code>emmeans()</code> computes those exact same numbers in one line, and its <code>pairs()</code> output gives the gap between any two of them with a p-value adjusted for testing all three pairs at once.</li>
+
+<li>Because a marginal mean never looked at the sample's actual mix, it would not move even if next year's data brought in a completely different split of automatic and manual cars. A raw mean would.</li>
+
+</ul>
+
+<p>Now you have what a report actually wants: a mean for each group that describes the group itself, not the group plus whatever mix of something else happened to be sitting inside it.</p>
+</section>
+
+{% endraw %}
