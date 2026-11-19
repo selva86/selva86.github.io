@@ -45,11 +45,11 @@ The variance inflation factor built from its definition, by regressing each pred
 
 [Start Lesson 3: Diagnosing collinearity without panicking](Diagnosing-Collinearity-Without-Panicking.html)
 
-### Lesson 4: Robust standard errors and when they are not enough
+### Lesson 4: Robust standard errors, and when they are not enough
 
 Heteroskedasticity simulated so the damage is a coverage count rather than a worry: the fit stays unbiased, the default standard error does not. Sandwich estimators built from the formula and checked against `sandwich`, with coverage restored. Then the case that matters more and is treated as the same problem far too often: clustered data, where heteroskedasticity-robust standard errors do not help and cluster-robust ones do, followed by the small-number-of-clusters case where even those are optimistic. The decision rule at the end is earned by the three simulations above it.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Robust standard errors, and when they are not enough](Robust-Standard-Errors-and-When-They-Are-Not-Enough.html)
 
 ### Lesson 5: Weighting observations that deserve less say
 
