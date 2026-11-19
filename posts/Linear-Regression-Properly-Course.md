@@ -31,7 +31,7 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 The phrase every multiple regression is explained with, made literal. A coefficient recovered two ways on the same data: once from the full fit, and once by regressing the outcome on the residuals of one predictor after the others, which is what "holding constant" is doing arithmetically. Then the consequence people miss: the coefficient on a variable changes when you add a correlated one, and neither value is wrong, because they answer different questions. Simpson's paradox on a small dataset as the version that changes sign.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: What holding other variables constant really means](What-Holding-Other-Variables-Constant-Really-Means.html)
 
 ### Lesson 2: The five assumptions ranked by what they cost
 
