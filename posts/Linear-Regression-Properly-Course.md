@@ -61,7 +61,7 @@ Weighted least squares as the answer when you know the variance structure instea
 
 Leverage, residual and influence told apart, which most treatments blur. A point far out in x has leverage and may be harmless; a point with a big residual may have no influence; influence is the product, and Cook's distance is how you measure it. Built by refitting the model once per row with that row dropped and plotting how much the coefficient moves, so you see that leave-one-out influence is literally what the statistic approximates. What to do about an influential point, which is almost never to delete it silently.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: The one point carrying your regression](The-One-Point-Carrying-Your-Regression.html)
 
 ### Lesson 7: Transformations that earn their keep
 
