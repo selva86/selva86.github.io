@@ -55,7 +55,7 @@ Heteroskedasticity simulated so the damage is a coverage count rather than a wor
 
 Weighted least squares as the answer when you know the variance structure instead of merely suspecting it, worked on data where each row is a group mean of known size, so the correct weights are available and the improvement over ordinary least squares is measurable. The estimator derived as minimising a weighted sum of squares, implemented by hand, then by `lm(weights=)`. Generalised least squares introduced as the same move for correlated errors, and the honest warning: made-up weights are worse than no weights, because they shift the estimate as well as the standard error.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Weighting observations that deserve less say](Weighting-Observations-That-Deserve-Less-Say.html)
 
 ### Lesson 6: The one point carrying your regression
 
