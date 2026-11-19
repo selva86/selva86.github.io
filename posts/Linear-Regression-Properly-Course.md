@@ -67,7 +67,7 @@ Leverage, residual and influence told apart, which most treatments blur. A point
 
 A log, a square root and a reciprocal applied to the same skewed outcome, with the diagnostic improvement and the interpretability cost both shown, because a transformation that fixes a residual plot and makes the coefficient unexplainable is rarely a good trade. The log-log model's coefficient read as an elasticity and the log-linear model's as a percentage change, both derived rather than asserted. Then the trap: the mean of a log is not the log of the mean, so back-transforming a prediction understates it, and the correction is shown.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Transformations that earn their keep](Transformations-That-Earn-Their-Keep.html)
 
 ### Lesson 8: From coefficients to predictions people understand
 
