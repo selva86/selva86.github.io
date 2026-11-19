@@ -33,11 +33,11 @@ The phrase every multiple regression is explained with, made literal. A coeffici
 
 [Start Lesson 1: What holding other variables constant really means](What-Holding-Other-Variables-Constant-Really-Means.html)
 
-### Lesson 2: The five assumptions ranked by what they cost
+### Lesson 2: The five assumptions, ranked by what they cost
 
 Linearity, independence, equal variance, normal residuals and no influential outliers, each violated on purpose by simulation with the damage measured in interval coverage rather than described. The ranking is the lesson: dependence is catastrophic, non-constant variance is serious for intervals and harmless for the fit, non-normal residuals are nearly free at moderate sample sizes, and the whole exercise is what makes a diagnostic plot worth reading. Why a significance test for an assumption is a poor decision rule, since it answers a question about sample size as much as about the assumption.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: The five assumptions, ranked by what they cost](The-Five-Assumptions-Ranked-by-What-They-Cost.html)
 
 ### Lesson 3: Diagnosing collinearity without panicking
 
