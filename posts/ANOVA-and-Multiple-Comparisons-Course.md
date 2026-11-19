@@ -73,7 +73,7 @@ A different promise: not "probably no false positives anywhere" but "of the thin
 
 The number a reader wants is rarely a coefficient; it is a group's predicted mean with the other variables held somewhere sensible. Estimated marginal means computed by hand from the fitted model, by building the prediction grid and averaging over it, so "adjusted mean" is a thing you have done before any helper is used. Then `emmeans` as the shortcut, with its contrast and confidence-interval output read line by line. Why marginal means from an unbalanced design differ from raw group means, which is the whole point of reporting them.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: Marginal means you can actually report](Marginal-Means-You-Can-Actually-Report.html)
 
 ## Who this is for
 
