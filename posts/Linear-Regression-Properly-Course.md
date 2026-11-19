@@ -43,7 +43,7 @@ Linearity, independence, equal variance, normal residuals and no influential out
 
 The variance inflation factor built from its definition, by regressing each predictor on the others, so VIF becomes a quantity rather than a threshold. Two correlated predictors introduced gradually, with the coefficient estimates jumping around while the fitted values and the predictions stay stable, which is exactly what collinearity does: it makes individual coefficients imprecise without making the model wrong. Why the interval already told you this, why dropping a variable to fix VIF usually changes the question, and the cases that genuinely need action.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Diagnosing collinearity without panicking](Diagnosing-Collinearity-Without-Panicking.html)
 
 ### Lesson 4: Robust standard errors and when they are not enough
 
