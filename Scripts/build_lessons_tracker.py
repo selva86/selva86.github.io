@@ -105,6 +105,34 @@ COURSE_ROADMAP = {
                   'sectionLabel': 'ANOVA, contrasts and multiple comparisons'},
     'res-linear-models': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 6,
                           'sectionLabel': 'Linear regression, properly'},
+    # Researcher sections 7-16, added 2026-11-19 BEFORE any of their lessons
+    # exist, so the 'any' leak described above cannot happen again on this
+    # track. An unused row costs nothing: this dict is only ever read as
+    # COURSE_ROADMAP[cid] for a course that already has built lessons, so a row
+    # for a course with no lessons is never looked up. Every sectionLabel below
+    # is copied verbatim from the researcher S(n, ...) rows in
+    # www/roadmap-curriculum.js. Take them from the RESEARCHER array only: other
+    # tracks have their own S(7) and S(8) with different labels.
+    'res-model-strategy': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 7,
+                           'sectionLabel': 'Regression modeling strategies'},
+    'res-glm': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 8,
+                'sectionLabel': 'Generalized linear models'},
+    'res-mixed': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 9,
+                  'sectionLabel': 'Mixed-effects and longitudinal models'},
+    'res-additive': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 10,
+                     'sectionLabel': 'Additive and nonparametric models'},
+    'res-bayes': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 11,
+                  'sectionLabel': 'Bayesian data analysis'},
+    'res-design': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 12,
+                   'sectionLabel': 'Experimental design and A/B testing'},
+    'res-causal': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 13,
+                   'sectionLabel': 'Causal inference from data'},
+    'res-survival': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 14,
+                     'sectionLabel': 'Survival and event-history analysis'},
+    'res-multivariate': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 15,
+                         'sectionLabel': 'Multivariate, measurement and missing data'},
+    'res-reporting': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 16,
+                      'sectionLabel': 'Meta-analysis, reproducibility and defensible reporting'},
     'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
                    'sectionLabel': 'The frontier (2026): LLMs and modern ML'},
     # Data Scientist track sections 1-5 (the "core" tier; section 4 sits alongside random-forest).
