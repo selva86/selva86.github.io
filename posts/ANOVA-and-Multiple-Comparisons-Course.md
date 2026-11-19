@@ -61,7 +61,7 @@ A planned contrast is a weighted combination of group means that encodes a quest
 
 What a 5% error rate per test becomes across twenty tests, derived and then simulated so the number is a count rather than a formula. Bonferroni built in one line and shown to be exactly as conservative as advertised, Holm built as its step-down improvement and shown to reject strictly more while controlling the same quantity, and the price of both measured in missed true effects on simulated data where the truth is known. Why controlling the family-wise rate is the right goal for a confirmatory study and the wrong one for a screen.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Controlling the family-wise error rate](Controlling-the-Family-Wise-Error-Rate.html)
 
 ### Lesson 7: When false discovery rate beats Bonferroni
 
