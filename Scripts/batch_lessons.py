@@ -328,7 +328,21 @@ def run_claude(cli, prompt, timeout=None, label='stage'):
     timeout = effective_timeout(timeout)
     print('+ %s -p "%s..."  (--model %s --effort %s, timeout %ds, no-global-CLAUDE.md, cwd=%s)' % (cli, prompt[:90], BATCH_MODEL, BATCH_EFFORT, timeout, PROJECT_ROOT), flush=True)
     try:
+        # --strict-mcp-config: load NO MCP servers (none are passed via
+        # --mcp-config). Without it every worker inherits the user-level config
+        # from ~/.claude.json, whose playwright entry is
+        # `cmd /c npx @playwright/mcp@latest`. The `@latest` tag forces npx to
+        # contact the npm registry on EVERY worker launch, so each of the five
+        # stages per lesson pays a network round-trip before doing any work, and
+        # a stalled fetch leaves a `cmd.exe` child wedged at zero CPU (seen
+        # 2026-11-19 on When-False-Discovery-Rate-Beats-Bonferroni, where the
+        # launcher sat for 3522s of wall clock). None of write-lesson,
+        # check-lesson-plan, check-lesson or publish-lesson reference an mcp__
+        # tool: they write markdown and run python/node gates, and the og image
+        # comes from _build/gen_og_images.py, so the servers buy this factory
+        # nothing and can only cost it.
         proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions',
+                                 '--strict-mcp-config',
                                  '--model', BATCH_MODEL, '--effort', BATCH_EFFORT,
                                  '--settings', WRITER_SETTINGS], cwd=PROJECT_ROOT)
     except FileNotFoundError:

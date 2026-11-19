@@ -83,6 +83,28 @@ COURSE_ROADMAP = {
     # carry the same section number and the same label.
     'res-test-selection': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
                            'sectionLabel': 'Hypothesis testing and test selection'},
+    # Researcher sections 5 and 6. Absence from this dict is NOT harmless: a
+    # course with no row gets `roadmap: {}`, and that has two consequences, one
+    # cosmetic and one that costs money.
+    #   1. www/dashboard.js reads c.roadmap.track, so the course and every
+    #      lesson in it is invisible on the track page and the roadmap.
+    #   2. line ~288 computes pro-lessons.json as
+    #      `(c.get('roadmap') or {}).get('track') or 'any'`, so every Pro lesson
+    #      in the course is published with track 'any'. In
+    #      functions/_lib/entitlement.ts, scopeCovers() returns TRUE for
+    #      track === 'any' on any scope other than "0", so the paid body is
+    #      served in full to every Single Track buyer of any other track AND to
+    #      any holder of the free Data Analyst pass.
+    # Found on 2026-11-19 with five res-anova lessons already built and tagged
+    # 'any' on the branch. The branch workflow is what caught it before merge.
+    # `sectionLabel` is copied VERBATIM from the S(n, ...) row in
+    # www/roadmap-curriculum.js, which is NOT the course title: section 5 reads
+    # 'ANOVA, contrasts and multiple comparisons', not 'ANOVA and Multiple
+    # Comparisons'. Add the row BEFORE the course's first lesson publishes.
+    'res-anova': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 5,
+                  'sectionLabel': 'ANOVA, contrasts and multiple comparisons'},
+    'res-linear-models': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 6,
+                          'sectionLabel': 'Linear regression, properly'},
     'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
                    'sectionLabel': 'The frontier (2026): LLMs and modern ML'},
     # Data Scientist track sections 1-5 (the "core" tier; section 4 sits alongside random-forest).
