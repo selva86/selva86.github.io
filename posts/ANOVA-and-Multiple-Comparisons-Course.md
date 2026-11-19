@@ -67,7 +67,7 @@ What a 5% error rate per test becomes across twenty tests, derived and then simu
 
 A different promise: not "probably no false positives anywhere" but "of the things I flagged, this fraction are wrong". Benjamini-Hochberg implemented by hand, sorting the p-values and comparing each to its own threshold, on a thousand-test screen where two hundred effects are real. Set against Bonferroni on the identical data, so you see BH find most of the real effects while Bonferroni finds a handful, and see the cost, which is that some flagged findings are false and the method says so up front.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: When false discovery rate beats Bonferroni](When-False-Discovery-Rate-Beats-Bonferroni.html)
 
 ### Lesson 8: Marginal means you can actually report
 
