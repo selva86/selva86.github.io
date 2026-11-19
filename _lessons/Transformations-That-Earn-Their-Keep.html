@@ -1,0 +1,396 @@
+---
+title: "Linear Regression, Properly Lesson 7: Transformations that earn their keep"
+description: "Thirty-six stores show why a log transform beats square root and reciprocal, how to read a log coefficient as a percentage, and how to fix a biased prediction."
+keywords: "transformations, log transformation, square root transformation, reciprocal transformation, skewness, log-linear model, log-log model, elasticity, percentage change, retransformation bias, smearing estimator, R"
+mathjax: true
+webr: true
+curriculum_id: "4.60.7"
+post_type: "LESSON"
+course_id: "res-linear-models"
+course_title: "Linear Regression, Properly"
+course_lesson: "7"
+course_total: "8"
+course_landing: "Linear-Regression-Properly-Course.html"
+course_next: "From-Coefficients-to-Predictions-People-Understand.html"
+course_prev: "The-One-Point-Carrying-Your-Regression.html"
+lesson_access: "pro"
+catalog_blurb: "How to choose a transformation and read what its coefficient actually means."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Transformations that earn their keep</h2>
+
+<p>Today let's find out which transformation of a skewed outcome is actually worth using, and which one only looks like it helps.</p>
+
+<p>Here are 36 small online stores. For each one you have two numbers: how much it spent on ads last month, from \$560 up to \$8,910, and how much it made in sales that same month, from \$2,724 up to \$78,668. Plot ad spend against sales and this is what you get.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":560,"y":3674},{"x":840,"y":5448},{"x":900,"y":2724},{"x":1050,"y":9812},{"x":1230,"y":15469},{"x":1290,"y":4858},{"x":1530,"y":2899},{"x":1570,"y":7446},{"x":2240,"y":16039},{"x":2340,"y":8511},{"x":2520,"y":8878},{"x":2920,"y":16757},{"x":3210,"y":7208},{"x":3460,"y":8384},{"x":3770,"y":14360},{"x":4020,"y":14282},{"x":4550,"y":14710},{"x":4780,"y":24530},{"x":5130,"y":10731},{"x":5490,"y":13580},{"x":5520,"y":12745},{"x":5760,"y":78668},{"x":6030,"y":48592},{"x":6220,"y":22403},{"x":6260,"y":34192},{"x":6280,"y":56932},{"x":6670,"y":22000},{"x":6850,"y":8863},{"x":6890,"y":18518},{"x":7090,"y":12910},{"x":7370,"y":23016},{"x":7850,"y":18222},{"x":7870,"y":7629},{"x":8330,"y":14204},{"x":8520,"y":29045},{"x":8910,"y":9608}],"geoms":["point"],"x":"ad_spend","y":"sales"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Most stores sit low and bunched close together, but a handful run far higher than the rest, a shape that is going to give an ordinary straight line some trouble.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>A skewed outcome and what it does to an ordinary fit</h2>
+
+<p>Fit an ordinary straight line through ad spend and sales, and check two things: how well it fits, and how skewed its leftovers are.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a straight line through ad spend and sales, and check how skewed each is
+stores &lt;- data.frame(
+  ad_spend = c(560, 840, 900, 1050, 1230, 1290, 1530, 1570, 2240, 2340,
+               2520, 2920, 3210, 3460, 3770, 4020, 4550, 4780, 5130, 5490,
+               5520, 5760, 6030, 6220, 6260, 6280, 6670, 6850, 6890, 7090,
+               7370, 7850, 7870, 8330, 8520, 8910),
+  sales = c(3674, 5448, 2724, 9812, 15469, 4858, 2899, 7446, 16039, 8511,
+            8878, 16757, 7208, 8384, 14360, 14282, 14710, 24530, 10731, 13580,
+            12745, 78668, 48592, 22403, 34192, 56932, 22000, 8863, 18518, 12910,
+            23016, 18222, 7629, 14204, 29045, 9608)
+)
+
+skew &lt;- function(x) {
+  n &lt;- length(x)
+  m &lt;- mean(x)
+  sum((x - m)^3) / n / sd(x)^3
+}
+
+fit_raw &lt;- lm(sales ~ ad_spend, data = stores)
+cat(sprintf(&quot;Intercept: %.2f, slope: %.3f\n&quot;, coef(fit_raw)[1], coef(fit_raw)[2]))
+cat(sprintf(&quot;R-squared: %.3f\n&quot;, summary(fit_raw)$r.squared))
+cat(sprintf(&quot;Skewness of sales: %.2f\n&quot;, skew(stores$sales)))
+cat(sprintf(&quot;Skewness of the residuals: %.2f\n&quot;, skew(resid(fit_raw))))
+#&gt; Intercept: 6435.58, slope: 2.389
+#&gt; R-squared: 0.153
+#&gt; Skewness of sales: 2.22
+#&gt; Skewness of the residuals: 2.29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fit says sales equals 6435.58 plus 2.389 times ad spend: every extra dollar of ad spend adds 2.389 dollars to the line's prediction. But the R-squared is only 0.153, so this line explains just 15.3% of how sales vary across the 36 stores. That is a poor fit.</p>
+
+<p>A residual is the gap between what a store actually made in sales and what the fitted line predicts for it. <code>skew()</code> above computes skewness from its definition: it averages the cubed distance of each value from the mean, then divides by the standard deviation cubed so the result does not depend on the scale the data happens to be measured in.</p>
+
+<p>Skewness is a single number that says how lopsided a set of values is around its average. A value of 0 means the values spread out evenly on both sides, the shape of a symmetric bell. A large positive number means a long tail stretching out to the right: most values sit low and close together, but a few sit far above the rest, exactly the shape the plot showed a moment ago.</p>
+
+<p>Skewness of sales comes out to 2.22, confirming that long right tail. And the residuals left over after fitting the line carry nearly the same skew, 2.29. The line is not just missing some variation. It is missing it in a lopsided way, undershooting the handful of big stores far more than it undershoots the small ones.</p>
+
+<p>This matters because a fit whose residuals are this skewed cannot be trusted to give an even, well behaved estimate of how ad spend relates to sales. Something about the scale sales is measured on is working against the fit.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>A log, a square root and a reciprocal, compared by the same number</h2>
+
+<p>Three common fixes exist for an outcome shaped like this: take its log, take its square root, or take its reciprocal, one divided by it. Each one squashes big values down harder than small ones, exactly the move needed to pull in a long right tail.</p>
+
+<p>Compute the skewness of sales under each of these three transformations, right alongside the raw version.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the skewness of sales under three candidate transformations
+cat(sprintf(&quot;%-12s %6s\n&quot;, &quot;version&quot;, &quot;skew&quot;))
+cat(sprintf(&quot;%-12s %6.2f\n&quot;, &quot;sales&quot;, skew(stores$sales)))
+cat(sprintf(&quot;%-12s %6.2f\n&quot;, &quot;log(sales)&quot;, skew(log(stores$sales))))
+cat(sprintf(&quot;%-12s %6.2f\n&quot;, &quot;sqrt(sales)&quot;, skew(sqrt(stores$sales))))
+cat(sprintf(&quot;%-12s %6.2f\n&quot;, &quot;1/sales&quot;, skew(1 / stores$sales)))
+#&gt; version        skew
+#&gt; sales          2.22
+#&gt; log(sales)     0.11
+#&gt; sqrt(sales)    1.23
+#&gt; 1/sales        1.78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Raw sales comes in at 2.22, the same number as before. Taking the log brings it all the way down to 0.11, close enough to 0 that log(sales) looks close to symmetric. The square root only reaches 1.23, and the reciprocal 1.78: both still noticeably skewed, far short of what the log achieved.</p>
+
+<p>So on this diagnostic alone, log is the clear winner, the only one of the three that lands near the 0 a symmetric distribution shows. But fixing the diagnostic is not the whole story. A square-root-scale or reciprocal-scale coefficient does not translate into a sentence anyone can say out loud: a unit of the square root of dollars, or a unit of one over dollars, has no everyday meaning.</p>
+
+<p>A log-scale coefficient does translate into something plain: a one-unit change in log(sales) turns into a fixed percentage change in sales itself, in a way a square-root or reciprocal scale cannot manage. So earning a place in the final model takes two things: shrinking the skew, and leaving behind a coefficient that still means something. Log is the only one of the three that does both here.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Watching a transform reshape a skewed histogram</h2>
+
+<p>The three numbers above came from the 36 stores' own sales figures. Here is the same idea on a different, generic right-skewed sample, so you can watch the shape change as you toggle the transform instead of just reading a table of numbers.</p>
+<div class="lesson-widget" data-widget-type="transform-shaper" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Toggle through none, log, square root and Box-Cox, a wider family of power transformations that log and square root both belong to, and watch two things move together: the histogram's shape, and the skew statistic printed above it. None starts out stretched to the right, the same shape sales had. Switch to log and watch the bars pull in toward a symmetric hump while the skew number drops toward 0, the same move that took sales from a skewness of 2.22 down to 0.11 a moment ago.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing a transform for what it costs, not only what it fixes</h2>
+
+<p>Suppose a different dataset comes along where the square root nearly matches what log achieves: it brings skewness down to, say, 0.15, barely behind log's 0.11. Which transform should you reach for?</p>
+<section class="exercise" data-exercise-id="Transformations-That-Earn-Their-Keep-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Log, because it brings skewness down close to 0, nearly as well as the square root does here, and a log-scale coefficient still turns into a plain percentage change, while a square-root-scale coefficient does not translate into anything you can say in a sentence.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The square root, because whichever transform brings skewness closest to 0 is always the right one to use.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither. You should never transform the outcome, only the predictors.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The diagnostic alone was nearly a tie, so the interpretability cost is what decides it. A square-root-scale coefficient is in units of the square root of dollars, which nobody can read as a sentence.</div><div class="lesson-qfb lesson-qfb-no">A transform on the outcome is sometimes exactly the right move, as the log did here, bringing sales from a skewness of 2.22 down to 0.11 while keeping a coefficient you can still read as a percentage change. And the choice is never just "whichever shrinks skewness the most" either, because a coefficient nobody can interpret is not a win.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>The log-linear model: a coefficient read as a percentage change</h2>
+
+<p>Fit sales on the log scale instead, using ad spend as the predictor: log(sales) regressed on ad_spend. Call the fitted slope \(b\).</p>
+
+<p>Take two stores whose ad spend differs by exactly one dollar. The model predicts their log(sales) to differ by exactly \(b\):</p>
+
+<p>$$\log(\text{sales}_{\text{new}}) - \log(\text{sales}_{\text{old}}) = b$$</p>
+
+<p>Subtracting two logs is the same as taking the log of a ratio, so this is really saying</p>
+
+<p>$$\log\left(\frac{\text{sales}_{\text{new}}}{\text{sales}_{\text{old}}}\right) = b$$</p>
+
+<p>Exponentiate both sides and the log cancels:</p>
+
+<p>$$\frac{\text{sales}_{\text{new}}}{\text{sales}_{\text{old}}} = e^{b}$$</p>
+
+<p>So \(e^{b}\) is the ratio sales grow by for every extra dollar of ad spend, and \(e^{b} - 1\), written as a percentage, is the percentage change in sales that one more dollar buys.</p>
+
+<p>One dollar is too small a unit to think in, so look at what \$1,000 more a month in ad spend buys, both the exact way and by a shortcut practitioners often use: 100 times \(b\) times 1,000.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit sales on the log scale against ad spend, and read the coefficient as a percentage
+fit_loglin &lt;- lm(log(sales) ~ ad_spend, data = stores)
+b &lt;- coef(fit_loglin)[&quot;ad_spend&quot;]
+cat(sprintf(&quot;Coefficient on ad_spend: %.5f\n&quot;, b))
+cat(sprintf(&quot;R-squared: %.3f\n&quot;, summary(fit_loglin)$r.squared))
+exact_pct &lt;- (exp(b * 1000) - 1) * 100
+shortcut_pct &lt;- 100 * b * 1000
+cat(sprintf(&quot;Exact pct change for $1,000 more spend: %.2f\n&quot;, exact_pct))
+cat(sprintf(&quot;Shortcut pct change (100 * b * 1000): %.2f\n&quot;, shortcut_pct))
+#&gt; Coefficient on ad_spend: 0.00017
+#&gt; R-squared: 0.329
+#&gt; Exact pct change for $1,000 more spend: 18.53
+#&gt; Shortcut pct change (100 * b * 1000): 17.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficient comes out to 0.00017 per dollar, which sounds tiny because one dollar is a tiny amount of extra spend. But \$1,000 more buys sales a lift of 18.53% exactly. The quick shortcut, 100 times \(b\) times 1,000, gives 17.00%, close but not equal.</p>
+
+<p>The two answers part ways because \(e^{b}\) grows a little faster than \(1 + b\) once \(b\) is not vanishingly small, so the shortcut always runs a touch low for a positive effect like this one. The shortcut is handy for a fast estimate, but the exact version, built from \(e^{b} - 1\), is the one that is actually correct.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>The log-log model: a coefficient read as an elasticity</h2>
+
+<p>Now put ad spend on the log scale too, regressing log(sales) on log(ad_spend). Call this slope \(b\) as well, though it is a different number from the one just found.</p>
+
+<p>Take two stores whose ad spend differs by exactly 1%, so \(\text{spend}_{\text{new}} = 1.01 \times \text{spend}_{\text{old}}\). For a number just above 1, its log is almost exactly how far above 1 it sits, so</p>
+
+<p>$$\log(\text{spend}_{\text{new}}) - \log(\text{spend}_{\text{old}}) = \log(1.01) \approx 0.01$$</p>
+
+<p>The model says log(sales) moves by \(b\) times that amount, about \(0.01b\), which as a percentage is \(b\) percent. So \(b\) is the percentage change in sales for every 1% change in ad spend, a reading statisticians call an elasticity.</p>
+
+<p>Fit that model and check the shortcut, \(b\) times 10, against the exact percentage change for a 10% rise in ad spend.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit sales on the log scale against log ad spend, and read the coefficient as an elasticity
+fit_loglog &lt;- lm(log(sales) ~ log(ad_spend), data = stores)
+b2 &lt;- coef(fit_loglog)[&quot;log(ad_spend)&quot;]
+cat(sprintf(&quot;Coefficient on log(ad_spend): %.3f\n&quot;, b2))
+cat(sprintf(&quot;R-squared: %.3f\n&quot;, summary(fit_loglog)$r.squared))
+exact_pct2 &lt;- (1.10^b2 - 1) * 100
+shortcut_pct2 &lt;- b2 * 10
+cat(sprintf(&quot;Exact pct change for a 10%% rise in spend: %.2f\n&quot;, exact_pct2))
+cat(sprintf(&quot;Shortcut pct change (b * 10): %.2f\n&quot;, shortcut_pct2))
+#&gt; Coefficient on log(ad_spend): 0.637
+#&gt; R-squared: 0.419
+#&gt; Exact pct change for a 10% rise in spend: 6.26
+#&gt; Shortcut pct change (b * 10): 6.37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficient comes out to 0.637: a 1% rise in ad spend moves sales by about 0.637%. For a 10% rise, the shortcut gives 6.37%, and the exact version, \((1.10^{b} - 1) \times 100\), gives 6.26%, close for the same reason as before: the shortcut is a first approximation that holds well as long as the percentage change stays modest.</p>
+
+<p>An elasticity below 1 means sales grow less than proportionally to ad spend: double your ad spend and sales do not double, they grow by a smaller percentage. That is worth knowing on its own, well before anyone asks what the next dollar is worth.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>The mean of a log is not the log of a mean</h2>
+
+<p>Here is a trap that catches the careless later use of any log-scale model. Take the average of sales across all 36 stores directly, then compare it with a different route: take the log of each store's sales, average those logs, and exponentiate the result back.</p>
+
+<p>Compute both routes and the percentage gap between them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the mean of sales with the exponentiated mean of log(sales)
+m_sales &lt;- mean(stores$sales)
+m_log_sales &lt;- mean(log(stores$sales))
+exp_m_log &lt;- exp(m_log_sales)
+gap_pct &lt;- (m_sales - exp_m_log) / m_sales * 100
+cat(sprintf(&quot;mean(sales): %.2f\n&quot;, m_sales))
+cat(sprintf(&quot;mean(log(sales)): %.4f\n&quot;, m_log_sales))
+cat(sprintf(&quot;exp(mean(log(sales))): %.2f\n&quot;, exp_m_log))
+cat(sprintf(&quot;Percent the exponentiated mean falls short: %.2f\n&quot;, gap_pct))
+#&gt; mean(sales): 17440.19
+#&gt; mean(log(sales)): 9.4764
+#&gt; exp(mean(log(sales))): 13047.67
+#&gt; Percent the exponentiated mean falls short: 25.19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The direct average is \$17,440.19. But average the logs first and exponentiate back, and you only get \$13,047.67, 25.19% lower.</p>
+
+<p>The reason is that <code>exp()</code> curves upward: it grows slowly for small inputs and increasingly fast for large ones. Because of that curve, exponentiating the average of a set of numbers is never larger than averaging their exponentiated values, and the two only agree when every number in the set is identical, with no spread at all. The 36 stores' sales values spread out a lot, so the gap here is large.</p>
+
+<p>This matters past this one example, because any time you fit a model on the log scale and then want to undo the log to get back to the original units, you are doing exactly this exponentiate-the-average move, and it will run low for the same reason.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Correcting a back-transformed prediction</h2>
+
+<p>Suppose you want to predict sales for a store that spends \$3,000 a month on ads, using the elasticity model you just fit.</p>
+
+<p><code>predict()</code> on that model hands back a prediction of log(sales), not sales itself, so the obvious next move is to exponentiate it. Do that, and see how far it lands from a corrected version built from the model's own residuals.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Predict log(sales) at ad_spend = 3000, then correct the naive back-transformed guess
+log_pred &lt;- predict(fit_loglog, newdata = data.frame(ad_spend = 3000))
+naive &lt;- exp(log_pred)
+correction &lt;- mean(exp(resid(fit_loglog)))
+corrected &lt;- naive * correction
+cat(sprintf(&quot;Predicted log(sales) at ad_spend = 3000: %.3f\n&quot;, log_pred))
+cat(sprintf(&quot;Naive exp() prediction: %.2f\n&quot;, naive))
+cat(sprintf(&quot;Correction factor (mean(exp(resid))): %.3f\n&quot;, correction))
+cat(sprintf(&quot;Corrected prediction: %.2f\n&quot;, corrected))
+#&gt; Predicted log(sales) at ad_spend = 3000: 9.349
+#&gt; Naive exp() prediction: 11484.45
+#&gt; Correction factor (mean(exp(resid))): 1.196
+#&gt; Corrected prediction: 13734.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predicted log(sales) is 9.349, and exponentiating it the naive way gives \$11,484.45. But this is exactly the same trap as a moment ago: exponentiating a single predicted value runs into the same convexity that made averaging and then exponentiating run low.</p>
+
+<p>The fix has a name: Duan's smearing estimator. Take every store's residual on the log scale, the gap between its actual log(sales) and the model's predicted log(sales) for it, exponentiate each one, and average them. That average, 1.196 here, is the correction factor. Multiply it onto the naive guess and the prediction becomes \$13,734.69.</p>
+
+<p>The naive guess sits about 16% below the corrected one, the same kind of shortfall as the dataset-wide gap from a moment ago, just computed from this one model's own leftover variation instead of from the whole dataset directly. The same fix carries over to the log-linear model fit a few steps back: any time you exponentiate a prediction that came out of a log-scale fit, multiply it by the mean of <code>exp(resid())</code> from that specific model before trusting the number.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<h2>Reading a residual plot once the outcome is on the right scale</h2>
+
+<p>A residual-vs-fitted plot puts a model's fitted values on one axis and its residuals on the other. A healthy one scatters points evenly above and below zero across the whole range, with no pattern. A funnel widens or narrows as the fitted values grow, a sign the spread of the residuals is not constant. A curve bends systematically instead of scattering randomly, a sign the model is missing some shape in the relationship.</p>
+
+<p>Toggle through the three shapes below and see what each one looks like.</p>
+<div class="lesson-widget" data-widget-type="residual-plot" data-widget-config='{"start":"healthy"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>This plot uses its own canned data, not the 36 stores above, but the healthy shape it starts on is exactly what the elasticity model's own residuals look like. Regress log(sales) on log(ad_spend) and its residuals come out with a skewness of just 0.48, far closer to the symmetric 0 a healthy fit should show than the raw fit's 2.29 from the very start. Toggle to the funnel and the curve to see the two patterns that mean trouble instead.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: a coefficient and a residual plot, read together</h2>
+
+<p>Two different teams report back on two different models. The first regressed log(Y) on X directly and got a coefficient of 0.05; its residual-vs-fitted plot looks healthy, scattered evenly with no pattern. The second regressed log(Y) on log(X) and got a coefficient of 0.3; its residual-vs-fitted plot shows a funnel, fanning out as the fitted values grow. Which statement reads both correctly?</p>
+<section class="exercise" data-exercise-id="Transformations-That-Earn-Their-Keep-step11" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The first coefficient reads as about 5% more Y for every extra unit of X, and the second as about 0.3% more Y for every 1% rise in X. Trust the first model's reading over the second: a funnel in a residual plot means the second model's standard errors, and so its coefficient, cannot be trusted as reported.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The first coefficient reads as an elasticity, about 0.05% more Y for every 1% rise in X, and the second as a percentage change, about 30% more Y for every unit of X.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both coefficients mean the same thing: Y rises by that coefficient's value, regardless of whether X moved by one unit or by one percent.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The first is a log-linear coefficient, read with 100 times b, or exactly e to the b minus 1, as a percentage change per unit of X. The second is a log-log coefficient, an elasticity read directly as a percentage per percent. And a funnel is a warning sign on the second model specifically, not a tiebreaker you get to ignore.</div><div class="lesson-qfb lesson-qfb-no">The two models answer different questions. A log-linear coefficient is read with X in its own units; a log-log coefficient is read with X in percent. Swapping those readings, or treating them as interchangeable, gets both numbers wrong.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: correct your own back-transformed prediction</h2>
+
+<p>The elasticity model and the stores data are both still around from earlier. Predict sales for a store spending \$5,000 a month on ads, the naive way, then correct it the same way you just saw: a correction factor from the model's own residuals, multiplied onto the naive guess.</p>
+<section class="exercise" data-exercise-id="Transformations-That-Earn-Their-Keep-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*resid[(])(?=[\s\S]*exp[(])"><textarea class="lesson-tryit-input" spellcheck="false"># Predict log(sales) at ad_spend = 5000, then correct the naive back-transformed guess
+naive_pred &lt;- exp(predict(fit_loglog, newdata = data.frame(ad_spend = 5000)))
+cat(sprintf(&quot;Naive prediction: %.2f\n&quot;, naive_pred))
+#&gt; Naive prediction: 15902.95
+
+# Your turn: compute the correction factor as mean(exp(resid(fit_loglog))),
+# then multiply it onto naive_pred to get the corrected prediction.
+# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: the correction factor is 1.196, and multiplying it onto the naive guess corrects it from \$15,902.95 up to \$19,018.94.</span><span class="lesson-tryit-fb lesson-tryit-no">Call resid(fit_loglog) to get this model's own residuals, wrap it in exp(), and average with mean(): mean(exp(resid(fit_loglog))). Multiply that onto naive_pred.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Compute the correction factor from the model's own residuals, then apply it
+correction_factor &lt;- mean(exp(resid(fit_loglog)))
+corrected_pred &lt;- naive_pred * correction_factor
+cat(sprintf(&quot;Correction factor: %.3f\n&quot;, correction_factor))
+cat(sprintf(&quot;Corrected prediction: %.2f\n&quot;, corrected_pred))
+#&gt; Correction factor: 1.196
+#&gt; Corrected prediction: 19018.94</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li>Duan, N. (1983). "Smearing Estimate: A Nonparametric Retransformation Method." Journal of the American Statistical Association, 78(383), 605-610. The paper behind the correction factor used to fix the back-transformed prediction in this lesson.</li>
+
+<li>Box, G. E. P. and Cox, D. R. (1964). "An Analysis of Transformations." Journal of the Royal Statistical Society, Series B, 26(2), 211-252. The paper behind the wider family of power transformations, including the Box-Cox option in the widget earlier in this lesson.</li>
+
+<li>Wooldridge, J. M. Introductory Econometrics: A Modern Approach, the chapter on functional form and log models. The standard reference for reading log-linear and log-log coefficients as percentage changes and elasticities.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/boxcox.html">boxcox: Box-Cox Transformations for Linear Models</a> - R Core Team, the MASS package. The documentation for the function behind the Box-Cox option in the widget earlier in this lesson.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/predict.lm.html">predict.lm: Predict method for Linear Model Fits</a> and <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html">lm: Fitting Linear Models</a> - R Core Team. The documentation for <code>predict()</code> and <code>lm()</code>, used throughout this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>What a transformation actually gives you</h2>
+
+<p>Three checks decide whether a transformation of a skewed outcome earns its place in a model, and you now have numbers behind each one.</p>
+
+<ul>
+
+<li>Does it fix the diagnostic? Raw sales had a skewness of 2.22. Log brought it to 0.11, square root only to 1.23, and the reciprocal to 1.78.</li>
+
+<li>Does it leave a coefficient you can still explain? A log-linear coefficient reads as a percentage change, 18.53% more sales for every extra \$1,000 of ad spend here. A log-log coefficient reads as an elasticity, 0.637% more sales for every 1% more ad spend.</li>
+
+<li>Does the prediction need correcting once you undo the transform? Exponentiating a log-scale prediction runs low for the same reason the mean of a log is not the log of a mean, and the fix is a correction factor built from the model's own residuals, 1.196 for this model.</li>
+
+</ul>
+
+<p>A reader who checks all three before trusting a transformed model is doing something most practitioners skip. Next, this same regression gets turned into the three things a reader actually wants from it: a prediction with an honest interval, a plot across the range of one predictor, and a plain sentence worth putting in front of someone who was not in the room when the model was fit.</p>
+</section>
+
+{% endraw %}
