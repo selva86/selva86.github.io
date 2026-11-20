@@ -55,7 +55,7 @@ Ridge and lasso introduced as the bias-variance trade applied to coefficients: a
 
 The number from the data you fitted on is always too good, and this lesson measures by how much rather than warning about it. Apparent R-squared compared with a bootstrap-optimism estimate computed by hand: resample, refit, score on the original data, average the gap. Cross-validation run on the same model for comparison, with the two agreeing. Then the point that makes it matter: the optimism is large exactly when the model was selected or tuned on the same data, which ties straight back to lesson 1.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Measuring how optimistic your model is](Measuring-How-Optimistic-Your-Model-Is.html)
 
 ### Lesson 6: How many events per variable you can afford
 
