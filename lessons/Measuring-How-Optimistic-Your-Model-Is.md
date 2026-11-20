@@ -1,0 +1,301 @@
+---
+title: "Regression Modeling Strategies Lesson 5: Measuring how optimistic your model is"
+catalog_blurb: "Why the R-squared you compute on the data you fit is always too good."
+description: "A model's R-squared on its own training data is always optimistic. Measure that optimism by hand with a bootstrap and check it against cross-validation."
+keywords: "R-squared, optimism bias, bootstrap optimism, cross-validation, overfitting, model validation, Harrell, regression modeling strategies, variable selection bias, R"
+post_type: "LESSON"
+course_id: "res-model-strategy"
+course_title: "Regression Modeling Strategies"
+course_lesson: "5"
+course_total: "7"
+course_landing: "Regression-Modeling-Strategies-Course.html"
+course_prev: "Paying-a-Penalty-to-Get-a-Better-Model.html"
+course_next: "How-Many-Events-per-Variable-You-Can-Afford.html"
+curriculum_id: "4.70.5"
+lesson_access: "pro"
+mathjax: false
+webr: true
+---
+
+=== step === cover
+## Measuring how optimistic your model is
+
+Today let's understand why the R-squared you compute on the same data you fitted your model on is almost always too good, and how to measure exactly how much too good it is.
+
+Let's say you are a researcher with data on 60 patients. You measured 10 candidate predictor variables on each one, x1 through x10, but only two of them, x1 and x2, actually move the outcome y you care about. You fit a regression using just those two predictors and score it on the same 60 patients it was built on. The R-squared comes back at 0.085.
+
+Now correct that number honestly, for exactly how much it overstates the model's real performance. Once that correction is applied, the R-squared drops to -0.01, telling you the model barely predicts anything about a patient it has not seen.
+
+Look at those two numbers side by side.
+
+::widget chart-plotter {"data": [{"x": "Apparent (same data)", "y": 0.085}, {"x": "Honest (bootstrap-corrected)", "y": -0.01}], "geoms": ["bar"], "x": "measure", "y": "R_squared"}
+
+That is the whole gap this lesson measures. Same model, same 60 patients, but the score changes completely depending on whether it is scored on the data that built it or corrected for how much that data overstates it.
+
+=== step === concept
+## The score you get from your own data is too good
+
+Start with the usual way to judge how well a regression fits: R-squared. It is the share of the variation in the outcome that the model's predictions account for. An R-squared of 1 means the model explains all of that variation, an R-squared of 0 means the model does no better than guessing the average outcome every time, and R-squared can drop below 0 once the model's predictions are further off than that plain average would be.
+
+Now build the 60 patients. Each one carries 10 candidate predictor columns, x1 through x10, drawn as plain random noise. Only x1 and x2 actually move the outcome y, with coefficients 1.5 and -1.0. The other 8 columns carry no real relationship to y at all, they exist because real datasets arrive full of columns like that, plausible-looking but empty.
+
+Fit a regression of y on x1 and x2, the two predictors that genuinely matter here, and check its R-squared.
+
+```r
+# Build the patient data (10 predictor columns, only x1 and x2 truly matter) and fit the honest model
+set.seed(1)
+patients <- data.frame(
+  x1 = rnorm(60), x2 = rnorm(60), x3 = rnorm(60), x4 = rnorm(60), x5 = rnorm(60),
+  x6 = rnorm(60), x7 = rnorm(60), x8 = rnorm(60), x9 = rnorm(60), x10 = rnorm(60)
+)
+patients$y <- 3 + 1.5 * patients$x1 - 1.0 * patients$x2 + rnorm(60, sd = 5)
+
+honest_fit <- lm(y ~ x1 + x2, data = patients)
+round(coef(honest_fit), 2)
+#> (Intercept)          x1          x2
+#>        2.14        1.54       -1.11
+round(summary(honest_fit)$r.squared, 3)
+#> [1] 0.085
+```
+
+The coefficients land close to the true 1.5 and -1.0, so the model found roughly the right relationship. Call 0.085 the apparent R-squared: the honest model's score, computed on the same 60 patients it was fitted on.
+
+[NOTE]
+0.085 is already a weak score, and the noise added to y has a standard deviation of 5 against true effects of only 1.5 and -1.0, so there was never much signal here to find. But even 0.085 overstates how well this model will do on a new patient. The fit has already bent itself to this exact batch of noise while it was being estimated, and part of what it "explains" is noise that will never repeat.
+
+=== step === concept
+## How much too good: estimating optimism by resampling
+
+In real life you do not have a second batch of 60 patients sitting around to test the honest model on. What you do have is a way to imitate collecting new data from the one sample you already have, and that is the bootstrap.
+
+A bootstrap resample draws 60 rows from your 60 patients with replacement: some patients get picked more than once, others get left out entirely. That resample varies from the original sample the same way a brand new batch of 60 patients would, just built from the same underlying pool.
+
+Here is the procedure, repeated 200 times. Draw a resample, refit y ~ x1 + x2 on it, and score that refit on the resample itself, the same inflated way the honest model was scored on its own data. Then score the same refit on the original 60 patients, a stand-in for data that refit was not tuned to in quite the same way. The gap between those two scores, resample score minus stand-in score, is one estimate of optimism, and averaging 200 of those gaps gives a stable number.
+
+```r
+# Estimate the optimism in that R-squared by resampling the 60 patients 200 times
+r2_score <- function(actual, predicted) {
+  1 - sum((actual - predicted)^2) / sum((actual - mean(actual))^2)
+}
+
+set.seed(2)
+gaps <- numeric(200)
+for (b in 1:200) {
+  resample_rows  <- sample(1:60, 60, replace = TRUE)
+  resample       <- patients[resample_rows, ]
+  resample_fit   <- lm(y ~ x1 + x2, data = resample)
+  resample_r2    <- r2_score(resample$y, predict(resample_fit, resample))
+  honest_standin <- r2_score(patients$y, predict(resample_fit, patients))
+  gaps[b]        <- resample_r2 - honest_standin
+}
+
+optimism_honest <- mean(gaps)
+round(optimism_honest, 3)
+#> [1] 0.095
+
+corrected_honest <- summary(honest_fit)$r.squared - optimism_honest
+round(corrected_honest, 3)
+#> [1] -0.01
+```
+
+`r2_score()` computes R-squared by hand, because `predict()` on data a model was not fitted on does not come with an R-squared attached the way `summary()` does for the training data. The subtraction at the end is the whole trick: corrected R-squared is the apparent R-squared, 0.085, minus the optimism you just estimated, 0.095.
+
+[KEY INSIGHT]
+Corrected R-squared comes out to -0.01. Once you remove the part of the apparent score that came from the model fitting its own noise, there is no real predictive value left in this model for a new patient. The apparent 0.085 was mostly built from the data it was scored on.
+
+=== step === quiz
+## Quick check: what the resampling gap is actually measuring
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The average standard error of the R-squared across the 200 resamples. ::no
+- The average difference between a resample model's score on the resample it was refit on and its score on the original 60 patients. ::ok Exactly. Refit a copy of the model on a resample, score it where it was just refit, then score it on the original 60 patients. The gap between those two scores, averaged over enough resamples, is the optimism estimate.
+- How much the R-squared would rise if the model had more than 60 patients to learn from. ::no The gap is not about sample size or sampling variability. It comes entirely from refitting the same model on a resample and comparing where it scores well, the data it was just refit on, against where it does not, the original 60 patients. That difference is a bias from reusing data to both fit and score a model, and more data of the same kind would not make it disappear on its own.
+
+=== step === widget
+## Cross-validation lands on the same honest number
+
+The bootstrap is not the only way to get an honest score. K-fold cross-validation does it differently: split the 60 patients into 5 roughly equal folds, hold one fold out, fit the model on the other 4, and predict the held-out fold with it. Rotate through all 5 folds so every patient gets predicted exactly once by a model that never saw it while fitting, then pool all 60 held-out predictions into one R-squared.
+
+The widget below shows that fold-rotation mechanic on its own small example, 100 rows of generic x and y, not this lesson's 60 patients, so you can watch one fold at a time rotate between training and validation before seeing the real numbers.
+
+::widget cv-folds {"k": 5}
+
+Now do it on the running example itself.
+
+```r
+# 5-fold cross-validate the honest model and pool the held-out predictions into one R-squared
+set.seed(3)
+fold_id <- sample(rep(1:5, length.out = 60))
+pooled_pred <- numeric(60)
+for (fold_num in 1:5) {
+  train_rows <- patients[fold_id != fold_num, ]
+  valid_rows <- patients[fold_id == fold_num, ]
+  fold_fit   <- lm(y ~ x1 + x2, data = train_rows)
+  pooled_pred[fold_id == fold_num] <- predict(fold_fit, valid_rows)
+}
+
+round(r2_score(patients$y, pooled_pred), 3)
+#> [1] -0.015
+```
+
+That is -0.015, close to the bootstrap's -0.01. Two completely different procedures, one resampling with replacement and scoring twice, the other splitting into folds and scoring once per patient, land in almost the same place. That agreement is exactly why you can trust the optimism estimate instead of treating it as an artifact of whichever resampling trick you happened to use.
+
+=== step === widget
+## Why a searched model's optimism runs so much higher
+
+So far the honest model used x1 and x2 because you, the researcher, picked them in advance. Now build a second model the way it often happens in practice: search the data itself for whichever predictors look best, and let the data decide.
+
+With 10 candidate predictors, there are 210 different ways to choose 4 of them. Try every single one, fit y on each 4-predictor subset, and keep whichever subset gets the highest training R-squared.
+
+```r
+# Search all 4-predictor subsets of x1..x10 for the one with the best training R-squared
+predictor_names <- paste0("x", 1:10)
+all_subsets <- combn(predictor_names, 4, simplify = FALSE)
+length(all_subsets)
+#> [1] 210
+
+# The subset with the lowest residual sum of squares also has the highest
+# R-squared, since both are fit on the same y, so compare the cheaper one.
+subset_formulas <- lapply(all_subsets, function(subset) {
+  as.formula(paste("y ~", paste(subset, collapse = " + ")))
+})
+
+best_rss <- Inf
+best_index <- NULL
+for (i in seq_along(subset_formulas)) {
+  subset_fit <- lm(subset_formulas[[i]], patients)
+  subset_rss <- sum(residuals(subset_fit)^2)
+  if (subset_rss < best_rss) {
+    best_rss <- subset_rss
+    best_index <- i
+  }
+}
+best_subset <- all_subsets[[best_index]]
+best_subset
+#> [1] "x1" "x2" "x5" "x7"
+
+search_fit <- lm(subset_formulas[[best_index]], patients)
+best_r2 <- summary(search_fit)$r.squared
+round(best_r2, 3)
+#> [1] 0.121
+```
+
+The winning subset is x1, x2, x5, x7, and its apparent R-squared is 0.121, better-looking than the honest model's 0.085. That should make you suspicious rather than pleased. Searching 210 subsets for whichever one fits this particular batch of noise best is guaranteed to turn up something that looks good on this data, whether or not x5 and x7 carry any real relationship with y at all.
+
+To correct this one honestly, the bootstrap has to redo everything the search did, not just refit the final x1 + x2 + x5 + x7 formula. On every resample, search all 210 subsets again from scratch, since that search is now part of the procedure being corrected.
+
+```r
+# Redo the subset search itself inside the bootstrap, not just the final formula.
+# .lm.fit() fits straight from a matrix, skipping the usual formula setup, which
+# keeps 210 refits per resample fast; the winning subset still gets a normal lm().
+search_procedure <- function(input_rows) {
+  predictor_matrix <- as.matrix(input_rows[, predictor_names])
+  y <- input_rows$y
+  local_best_rss <- Inf
+  local_best_index <- NULL
+  for (i in seq_along(all_subsets)) {
+    x <- cbind(1, predictor_matrix[, all_subsets[[i]]])
+    subset_rss <- sum(.lm.fit(x, y)$residuals^2)
+    if (subset_rss < local_best_rss) {
+      local_best_rss <- subset_rss
+      local_best_index <- i
+    }
+  }
+  lm(subset_formulas[[local_best_index]], input_rows)
+}
+
+set.seed(2)
+search_gaps <- numeric(200)
+for (b in 1:200) {
+  resample_rows  <- sample(1:60, 60, replace = TRUE)
+  resample       <- patients[resample_rows, ]
+  resample_fit   <- search_procedure(resample)
+  resample_r2    <- r2_score(resample$y, predict(resample_fit, resample))
+  honest_standin <- r2_score(patients$y, predict(resample_fit, patients))
+  search_gaps[b] <- resample_r2 - honest_standin
+}
+
+optimism_search <- mean(search_gaps)
+round(optimism_search, 3)
+#> [1] 0.316
+
+corrected_search <- best_r2 - optimism_search
+round(corrected_search, 3)
+#> [1] -0.195
+```
+
+Optimism comes out to 0.316, over three times the honest model's 0.095, and the corrected R-squared is -0.195, well below the honest model's -0.01. Cross-validation that redoes the search inside each fold agrees.
+
+```r
+# 5-fold cross-validate the search procedure, redoing the search inside each fold
+set.seed(3)
+fold_id2 <- sample(rep(1:5, length.out = 60))
+pooled_pred_search <- numeric(60)
+for (fold_num in 1:5) {
+  train_rows <- patients[fold_id2 != fold_num, ]
+  valid_rows <- patients[fold_id2 == fold_num, ]
+  fold_fit   <- search_procedure(train_rows)
+  pooled_pred_search[fold_id2 == fold_num] <- predict(fold_fit, valid_rows)
+}
+
+round(r2_score(patients$y, pooled_pred_search), 3)
+#> [1] -0.361
+```
+
+-0.361, the worst number in this entire lesson, for the model with the best-looking apparent score. Here is the same shape in a different setting, so you can see it is not a quirk of this one example.
+
+::widget learning-curve {"rounds": 40}
+
+This widget tracks a different model entirely, boosting rounds on its own built-in example, not the patients above. But the shape is the same one you just computed by hand: training performance keeps improving while honest performance bottoms out and gets worse, the longer a procedure keeps chasing the exact data it is scored on.
+
+[WARNING]
+Optimism is not a fixed tax every model pays at the same rate. It runs largest exactly where a model's form was chosen by looking at the same data it will be scored on. The honest model used x1 and x2, picked in advance, and carried an optimism of 0.095. The searched model came out of 210 subsets competing for the best apparent fit, and carried 0.316, more than three times as much, for a model that ends up predicting worse.
+
+=== step === quiz
+## Quick check: reading two models' optimism side by side
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The searched model, because its apparent R-squared, 0.121, beats the honest model's 0.085. ::no
+- The honest model, because its optimism gap, 0.095, is far smaller than the searched model's, 0.316, so its corrected R-squared is the more trustworthy number. ::ok Right. The honest model's corrected R-squared, -0.01, beats the searched model's, -0.195, even though the searched model's apparent number looked better. The apparent number only says how well a model fits the data it already saw, the optimism gap says how much of that fit to discount.
+- Either model, since comparing the two apparent R-squared values already tells you which one will predict a new patient better. ::no Apparent R-squared is computed on the same data used to build the model, so a model built by searching 210 subsets for the best-looking fit will win that comparison almost by construction, that is exactly what the search was built to do. The only way to tell which model does better on a new patient is to correct each one for its own optimism, and on that measure the honest model wins by a wide margin.
+
+=== step === tryit
+## Your turn: correct an apparent R-squared by hand
+
+Earlier you saw the searched model's corrected R-squared reported as -0.195, but you have not computed it yourself yet. You already have everything you need: the searched model's apparent R-squared, 0.121, and its mean bootstrap gap, 0.316. Apply the same formula as before, apparent minus optimism, to these two numbers.
+
+```r
+# Correct the searched model's apparent R-squared using its own optimism estimate
+search_apparent <- 0.121
+search_optimism <- 0.316
+
+# Apply the correction formula here: apparent R-squared minus optimism.
+# One line. Press Check when you have it.
+```
+::check {"regex": "search_apparent\\s*-\\s*search_optimism|0\\.121\\s*-\\s*0\\.316", "gate": true, "difficulty": "beginner", "ok": "Right: -0.195. The same correction, apparent minus optimism, just applied to the searched model's own numbers.", "no": "Apply the correction formula here, apparent R-squared minus optimism, in that order: search_apparent - search_optimism."}
+::solution
+```r
+# Apply the correction formula: apparent R-squared minus optimism
+search_apparent <- 0.121
+search_optimism <- 0.316
+search_corrected <- search_apparent - search_optimism
+search_corrected
+#> [1] -0.195
+```
+
+=== step === concept
+## References
+
+- [Regression Modeling Strategies, 2nd ed.](https://link.springer.com/10.1007/978-3-319-19425-7) - Harrell, F.E. (2015), Springer Series in Statistics. Chapter 5 covers the bootstrap optimism-correction procedure this lesson builds by hand.
+- [Estimating the Error Rate of a Prediction Rule: Improvement on Cross-Validation](https://sites.stat.washington.edu/courses/stat527/s13/readings/Efron_jasa1983.pdf) - Efron, B. (1983), Journal of the American Statistical Association, 78(382), 316-331. The original bootstrap optimism estimator.
+- [An Introduction to Statistical Learning](https://www.statlearning.com/) - James, G., Witten, D., Hastie, T. and Tibshirani, R., the chapter on cross-validation, for the k-fold procedure used here for comparison.
+- [A Note on Screening Regression Equations](https://doi.org/10.1080/00031305.1983.10482729) - Freedman, D.A. (1983), The American Statistician, 37(2), 152-155. A classic demonstration that searching predictors inflates apparent fit.
+
+=== step === complete
+## Reporting the honest number
+
+For the honest model, the apparent R-squared was 0.085 and the bootstrap-corrected R-squared was -0.01. For the model built by searching 210 subsets, the apparent R-squared was 0.121, higher-looking, and the corrected R-squared was -0.195, far worse. Same 60 patients, two procedures, two very different honest answers.
+
+The rule that connects them: the more a model's form was chosen by looking at this exact data, the bigger the gap between its apparent score and its honest one. A model specified in advance, like the honest model here, carries a modest optimism. A model tuned or selected by searching the data, like the search procedure here, carries a much larger one, and the only way to know how much larger is to run the correction, not to guess at it.
+
+Next time someone hands you an R-squared, the first question worth asking is not how high it is. It is whether it was computed on the same data that built the model, and if so, by how much that number needs to be corrected before you believe it.
