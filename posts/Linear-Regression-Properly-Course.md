@@ -73,7 +73,7 @@ A log, a square root and a reciprocal applied to the same skewed outcome, with t
 
 The last mile of a regression. A fitted model turned into the three things a reader actually wants: a predicted value with an interval, a marginal effect at a meaningful covariate setting, and a plot of the predicted outcome across the range of one predictor with the rest held fixed. The confidence interval for a mean set against the prediction interval for a new observation, with the reason the second is much wider derived from the variance it includes.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: From coefficients to predictions people understand](From-Coefficients-to-Predictions-People-Understand.html)
 
 ## Who this is for
 
