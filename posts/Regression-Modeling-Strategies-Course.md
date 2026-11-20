@@ -61,7 +61,7 @@ The number from the data you fitted on is always too good, and this lesson measu
 
 A sample-size rule derived rather than quoted. Models fitted at descending events-per-variable ratios on simulated data with a known truth, with coefficient bias, interval coverage and calibration all degrading together, so you see where a model stops being trustworthy and why the familiar rule of thumb sits where it does. Calibration introduced here as the thing that breaks first and is reported least: a model can rank cases well and still give predicted probabilities that are systematically too extreme.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: How many events per variable you can afford](How-Many-Events-per-Variable-You-Can-Afford.html)
 
 ### Lesson 7: Presenting a model so it survives review
 
