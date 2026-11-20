@@ -43,7 +43,7 @@ Restricted cubic splines explained as what they are: a few fixed basis columns a
 
 The combinatorial problem stated plainly: ten predictors offer forty-five two-way interactions, and testing all of them guarantees findings. So interactions get chosen the way predictors do, from subject-matter reasoning. Three real cases where an interaction was predicted in advance, and one where a tempting one should be refused. The degrees-of-freedom accounting made explicit, and the pre-specified interaction test contrasted with the same test found by searching, on identical data, so the difference in what the p-value means is visible.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Choosing interactions before you look](Choosing-Interactions-Before-You-Look.html)
 
 ### Lesson 4: Paying a penalty to get a better model
 
