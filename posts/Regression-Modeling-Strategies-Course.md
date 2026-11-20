@@ -49,7 +49,7 @@ The combinatorial problem stated plainly: ten predictors offer forty-five two-wa
 
 Ridge and lasso introduced as the bias-variance trade applied to coefficients: accept some bias, buy a large reduction in variance, come out ahead on prediction error. The penalty path computed and plotted so you watch coefficients shrink toward zero as the penalty grows, lasso's ability to reach exactly zero contrasted with ridge's inability, and the penalty chosen by cross-validation rather than by eye. The cost named honestly: a penalized coefficient is no longer an unbiased estimate of anything, so inference on it needs care.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Paying a penalty to get a better model](Paying-a-Penalty-to-Get-a-Better-Model.html)
 
 ### Lesson 5: Measuring how optimistic your model is
 
