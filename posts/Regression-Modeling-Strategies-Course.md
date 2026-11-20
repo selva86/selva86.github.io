@@ -37,7 +37,7 @@ Stepwise selection run on data where every predictor is pure noise, which reliab
 
 Restricted cubic splines explained as what they are: a few fixed basis columns added to an ordinary linear model, so the fit stays an `lm()` and every tool from the previous course still applies. The basis matrix printed and plotted so it stops being magic, knots placed at quantiles as the default that needs no tuning, and the restriction at the tails motivated by showing an unrestricted polynomial going wild outside the data. Three, four and five knots compared, with the honest finding that the choice rarely matters much.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Fitting a curve without guessing its shape](Fitting-a-Curve-Without-Guessing-Its-Shape.html)
 
 ### Lesson 3: Choosing interactions before you look
 
