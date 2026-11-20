@@ -67,7 +67,7 @@ A sample-size rule derived rather than quoted. Models fitted at descending event
 
 The write-up, but for a model rather than a single estimate. One fitted model presented four ways: a coefficient table, partial-effect plots across each predictor's range, a nomogram, and a plain-language paragraph. What belongs in each, which numbers a reviewer will ask for and should already be there, meaning the validation estimate, the calibration, the handling of missing data and the pre-specification, and the sentence to write about a predictor whose effect the data could not pin down.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Presenting a model so it survives review](Presenting-a-Model-So-It-Survives-Review.html)
 
 ## Who this is for
 
