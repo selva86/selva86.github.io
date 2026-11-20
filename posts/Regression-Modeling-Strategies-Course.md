@@ -31,7 +31,7 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 Stepwise selection run on data where every predictor is pure noise, which reliably returns a model with several significant predictors and a respectable R-squared. That demonstration is the lesson. Then why it happens, stated precisely: the p-values reported after a search are computed as though no search occurred, so they are wrong by construction, and the coefficients that survive are biased away from zero because they were selected for being large. What to do instead, which is to choose predictors on subject-matter grounds and spend the degrees of freedom you have on the ones you kept.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Why stepwise selection lies to you](Why-Stepwise-Selection-Lies-to-You.html)
 
 ### Lesson 2: Fitting a curve without guessing its shape
 
