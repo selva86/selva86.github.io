@@ -1,0 +1,454 @@
+---
+title: "Regression Modeling Strategies Lesson 4: Paying a penalty to get a better model"
+catalog_blurb: "Why ridge and lasso trade a little bias for a lot less variance."
+description: "Ridge and lasso add a penalty to regression, trading a small amount of bias for a large cut in variance, winning on prediction error for new apartments."
+keywords: "ridge regression, lasso regression, regularization, L1 penalty, L2 penalty, bias-variance tradeoff, cross-validation, glmnet, coefficient shrinkage, feature selection, R"
+post_type: "LESSON"
+curriculum_id: "4.70.4"
+webr: true
+mathjax: true
+lesson_access: "pro"
+course_id: "res-model-strategy"
+course_title: "Regression Modeling Strategies"
+course_lesson: "4"
+course_total: "7"
+course_landing: "Regression-Modeling-Strategies-Course.html"
+course_next: "Measuring-How-Optimistic-Your-Model-Is.html"
+course_prev: "Choosing-Interactions-Before-You-Look.html"
+---
+
+=== step === cover
+## Paying a penalty to get a better model
+
+Today let's understand how ridge and lasso regression trade a little bias for a large cut in variance, and why that usually wins once you are predicting on apartments you have not seen yet.
+
+Let's say you are a real-estate analyst in a mid-size city. You have sale records for 50 apartments that sold recently, and for each one you have 12 measured features: size in square metres, distance from the city centre in kilometres, and number of bedrooms, the 3 that genuinely move the price, plus 9 more columns that a real dataset tends to pick up along the way, columns that look plausible but carry no real relationship to price at all.
+
+Fit an ordinary linear regression, OLS for "ordinary least squares", on all 50 apartments using all 12 columns, and look at what comes back.
+
+```r
+# Build the 50-apartment data (3 real features, 9 noise features), fit OLS on all 12 and print the coefficients
+set.seed(42)
+n <- 50
+size_m2 <- round(runif(n, 40, 160))
+distance_km <- round(runif(n, 0.5, 15), 1)
+bedrooms <- sample(1:4, n, replace = TRUE)
+
+noise_mat <- matrix(round(rnorm(n * 9), 2), nrow = n, ncol = 9)
+colnames(noise_mat) <- paste0("noise_", 1:9)
+
+price <- 50 + 1.8 * size_m2 - 4 * distance_km + 10 * bedrooms + rnorm(n, 0, 15)
+price <- round(price, 1)
+apt <- data.frame(price, size_m2, distance_km, bedrooms, noise_mat)
+
+fit_ols <- lm(price ~ ., data = apt)
+coefs <- coef(fit_ols)[-1]
+round(coefs, 2)
+#>     size_m2 distance_km    bedrooms     noise_1     noise_2     noise_3 
+#>        1.82       -4.92        9.33        1.53       -2.81        1.44 
+#>     noise_4     noise_5     noise_6     noise_7     noise_8     noise_9 
+#>        0.40       -0.55       -0.85        0.55        0.17       -1.57 
+```
+
+Here are those same 12 numbers again, ranked from largest to smallest by size, with each bar's actual signed coefficient written next to it.
+
+::widget importance-bars {"items": [{"label": "bedrooms (+9.33)", "value": 9.33}, {"label": "distance_km (-4.92)", "value": 4.92}, {"label": "noise_2 (-2.81)", "value": 2.81}, {"label": "size_m2 (+1.82)", "value": 1.82}, {"label": "noise_9 (-1.57)", "value": 1.57}, {"label": "noise_1 (+1.53)", "value": 1.53}, {"label": "noise_3 (+1.44)", "value": 1.44}, {"label": "noise_6 (-0.85)", "value": 0.85}, {"label": "noise_5 (-0.55)", "value": 0.55}, {"label": "noise_7 (+0.55)", "value": 0.55}, {"label": "noise_4 (+0.40)", "value": 0.40}, {"label": "noise_8 (+0.17)", "value": 0.17}]}
+
+`bedrooms` and `distance_km`, 2 of the 3 real features, take the top two spots, no surprise there. But sitting right behind them, in third place, is `noise_2` at -2.81, a column with nothing to do with price, outranking even `size_m2`, one of the real features.
+
+That ranking is the whole problem in one picture. A column with nothing to do with price has picked up a coefficient you would not shrug off if you saw it in a report.
+
+=== step === concept
+## Why more predictors can make a fit less trustworthy
+
+The fit you just saw used all 50 apartments at once. But any real sale sample is really just one particular draw of buyers and sellers. Had a different 50 apartments sold that month, the numbers would come out differently. So split your 50 apartments into two halves and refit the same model on each half separately, and see which coefficients hold up.
+
+```r
+# Refit OLS separately on two random 25-apartment halves and compare the 12 coefficients
+set.seed(42)
+idx <- sample(1:n)
+half1 <- apt[idx[1:25], ]
+half2 <- apt[idx[26:50], ]
+
+fit_half1 <- lm(price ~ ., data = half1)
+fit_half2 <- lm(price ~ ., data = half2)
+
+round(cbind(half1 = coef(fit_half1)[-1], half2 = coef(fit_half2)[-1]), 2)
+#>             half1 half2
+#> size_m2      1.75  1.79
+#> distance_km -4.26 -5.62
+#> bedrooms    10.80  5.67
+#> noise_1      5.89 -0.41
+#> noise_2      3.95 -2.99
+#> noise_3     -0.54 -1.63
+#> noise_4     -6.21  3.55
+#> noise_5      5.27 -2.25
+#> noise_6      1.39 -4.09
+#> noise_7     -6.35  4.85
+#> noise_8     10.64 -3.97
+#> noise_9     -3.76 -1.01
+```
+
+Read the first 3 rows first. `size_m2` stays close, 1.75 against 1.79. `distance_km` stays negative in both halves, -4.26 against -5.62. `bedrooms` stays positive in both, 10.80 against 5.67, even though it moves more than the other two.
+
+Now read the 9 rows below them. 7 of the 9 noise coefficients flip sign between the two halves. `noise_8` is the most dramatic: plus 10.64 in the first half, almost as large as that same half's own `bedrooms` coefficient of 10.80, and minus 3.97 in the second half.
+
+A coefficient that size, on a column with no real relationship to price, is not a fluke of one bad half. It is what happens whenever you ask 25 or 50 rows of data to pin down 12 coefficients at once: some of that noise ends up looking like signal, and which noise looks like signal changes completely depending on which apartments you happened to sample.
+
+This is the bias-variance trade, and it is worth defining precisely. An estimator is biased if, averaged over many samples, it misses the true value. OLS is not biased in that sense: averaged over endless different 50-apartment samples, its coefficients would land on the truth. But an estimator can be unbiased on average and still be a poor estimator on any one sample, because its variance, how much it swings from sample to sample, is too large, and that is exactly what the noise coefficients just showed you: correct on average, useless on this one sample.
+
+=== step === concept
+## What a penalty adds to the fitting objective
+
+OLS has one job: pick the coefficients that make the residual sum of squares, RSS, as small as possible. RSS is just the sum, over all 50 apartments, of each apartment's squared prediction error. OLS does not care how large the coefficients are, only how small the errors are.
+
+Ridge and lasso add a second term to that objective: a penalty that grows with the size of the coefficients.
+
+Ridge minimizes:
+
+\[ \text{RSS} + \lambda \sum_{j=1}^{12} \beta_j^2 \]
+
+Lasso minimizes:
+
+\[ \text{RSS} + \lambda \sum_{j=1}^{12} |\beta_j| \]
+
+The term added to RSS is called the L2 penalty for ridge, built from the squared coefficients, and the L1 penalty for lasso, built from the absolute coefficients. Lambda controls how much that penalty matters. At lambda = 0, the penalty term vanishes and both objectives collapse back to plain OLS. As lambda rises, holding a coefficient away from zero costs more, so the fit that minimizes RSS plus the penalty settles on smaller coefficients than OLS would.
+
+Let's see that trade with real numbers. Fit OLS using just the 3 real features, and compute both penalty terms at one trial lambda.
+
+```r
+# Compute RSS, the ridge penalty and the lasso penalty at the 3-feature OLS fit
+fit_real <- lm(price ~ size_m2 + distance_km + bedrooms, data = apt)
+b <- coef(fit_real)[c("size_m2", "distance_km", "bedrooms")]
+round(b, 3)
+#>     size_m2 distance_km    bedrooms 
+#>       1.776      -5.138       9.619 
+
+rss <- sum(residuals(fit_real)^2)
+l2_penalty <- sum(b^2)
+l1_penalty <- sum(abs(b))
+round(c(RSS = rss, L2_penalty = l2_penalty, L1_penalty = l1_penalty), 2)
+#>        RSS L2_penalty L1_penalty 
+#>    9946.19     122.08      16.53 
+
+lambda <- 20
+round(c(ridge_total = rss + lambda * l2_penalty, lasso_total = rss + lambda * l1_penalty), 1)
+#> ridge_total lasso_total 
+#>     12387.7     10276.8 
+```
+
+RSS at this OLS fit is 9946.19. At lambda = 20, that fit's ridge total, RSS plus 20 times the L2 penalty, comes to 12387.7, and its lasso total comes to 10276.8. OLS never minimized these totals.
+
+It only minimized RSS. But ridge and lasso minimize the total, so a smaller coefficient vector can beat the OLS point on that total, even while scoring a slightly worse RSS.
+
+Here is one that does, by shaving the `bedrooms` coefficient down a little and leaving the other two alone.
+
+```r
+# A smaller candidate vector: shave 0.2 off the bedrooms coefficient, leave size and distance alone
+b_small <- b
+b_small["bedrooms"] <- b_small["bedrooms"] - 0.2
+
+xmeans <- colMeans(apt[, c("size_m2", "distance_km", "bedrooms")])
+b0_small <- mean(apt$price) - sum(xmeans * b_small)
+fitted_small <- b0_small + as.matrix(apt[, c("size_m2", "distance_km", "bedrooms")]) %*% b_small
+rss_small <- sum((apt$price - fitted_small)^2)
+l2_small <- sum(b_small^2)
+l1_small <- sum(abs(b_small))
+round(c(RSS = rss_small, L2_penalty = l2_small, L1_penalty = l1_small), 2)
+#>       RSS L2_penalty L1_penalty 
+#>   9948.93     118.27      16.33 
+
+round(c(ridge_total = rss_small + lambda * l2_small, lasso_total = rss_small + lambda * l1_small), 1)
+#> ridge_total lasso_total 
+#>     12314.3     10275.6 
+```
+
+RSS went up, from 9946.19 to 9948.93, a rise of less than 3 out of nearly 10,000. But both totals went down: the ridge total fell from 12387.7 to 12314.3, and the lasso total fell from 10276.8 to 10275.6. A tiny step away from the OLS point, in exactly this direction, buys more in penalty than it costs in RSS. That is what minimizing `RSS + lambda * penalty` is actually choosing: not the smallest RSS, but the smallest total.
+
+=== step === widget
+## Watching every coefficient shrink as the penalty grows
+
+Ridge and lasso do not pick one lambda and stop. They fit a whole path: one set of 12 coefficients for every value of lambda, from close to 0 (almost no penalty, almost OLS) up to very large (every coefficient pulled hard toward 0). The R package `glmnet` does exactly this.
+
+```r
+# Fit the ridge (alpha = 0) and lasso (alpha = 1) paths on the 12-feature apartment data
+library(glmnet)
+X <- model.matrix(price ~ . , data = apt)[, -1]   # the 12 predictor columns, intercept dropped
+y <- apt$price
+
+fit_ridge <- glmnet(X, y, alpha = 0)
+fit_lasso <- glmnet(X, y, alpha = 1)
+
+round(as.matrix(coef(fit_lasso, s = 40)), 2)
+#>                s=40
+#> (Intercept) 168.01
+#> size_m2       0.68
+#> distance_km   0.00
+#> bedrooms      0.00
+#> noise_1       0.00
+#> noise_2       0.00
+#> noise_3       0.00
+#> noise_4       0.00
+#> noise_5       0.00
+#> noise_6       0.00
+#> noise_7       0.00
+#> noise_8       0.00
+#> noise_9       0.00
+
+round(as.matrix(coef(fit_lasso, s = 10)), 2)
+#>               s=10
+#> (Intercept) 86.63
+#> size_m2      1.51
+#> distance_km -2.85
+#> bedrooms     3.66
+#> noise_1      0.00
+#> noise_2      0.00
+#> noise_3      0.00
+#> noise_4      0.00
+#> noise_5      0.00
+#> noise_6      0.00
+#> noise_7      0.00
+#> noise_8      0.00
+#> noise_9      0.00
+
+round(as.matrix(coef(fit_lasso, s = 1)), 2)
+#>                s=1
+#> (Intercept) 60.60
+#> size_m2      1.76
+#> distance_km -4.72
+#> bedrooms     8.77
+#> noise_1      0.00
+#> noise_2     -1.53
+#> noise_3      0.42
+#> noise_4      0.00
+#> noise_5      0.00
+#> noise_6      0.00
+#> noise_7      0.00
+#> noise_8      0.00
+#> noise_9     -1.61
+```
+
+At lambda = 40, the penalty is so strong that only `size_m2` survives, and even it is pulled down to 0.68 from its OLS value of 1.82. At lambda = 10, 3 coefficients survive: `size_m2`, `distance_km` and `bedrooms`, the 3 real features, every noise feature already at exactly 0. At lambda = 1, the penalty is light enough that 2 of the 9 noise features sneak back in, `noise_2` and `noise_9`, alongside the 3 real ones.
+
+That middle row, at lambda = 10, is worth sitting with. Lasso did not just shrink the coefficients. It picked out the 3 real features and zeroed out every single noise feature, with no one telling it which 3 were real.
+
+The widget below runs the same mechanics on a smaller, built-in dataset of its own: 6 predictors, 3 real and 3 noise, on 200 rows, not the 50 apartments. Drag its lambda slider and watch what you just saw in code happen continuously, for both ridge and lasso, as the penalty rises from weak to strong.
+
+::widget coef-path {}
+
+Drag the slider on the lasso side and the widget's own readout says it plainly: lasso drives weak coefficients to exactly zero. Switch to ridge, and the readout changes: all 6 shrink, none vanish, the identical contrast you just read off the apartment data in code.
+
+=== step === concept
+## Why lasso can land on exactly zero and ridge cannot
+
+Here is the geometric reason lasso hits exactly 0 and ridge does not. Picture the penalty as a budget. Lasso's budget region, built from the sum of absolute values, is shaped like a diamond with its corners sitting right on the axes. Ridge's budget region, built from the sum of squares, is a circle, smooth all the way around with no corners anywhere.
+
+Minimizing RSS subject to a budget means finding where the best-fit point first touches that budget's boundary. A diamond has corners, and a corner is exactly where one coefficient equals 0 while the others do not. Because the diamond has corners and the circle does not, the best-fit point is far more likely to land on one of the diamond's corners than on any single point of the circle's smooth edge. That is the entire mechanical reason lasso can set a coefficient to exactly 0 and ridge, geometrically, cannot.
+
+You already saw this in code. Count how many of the 12 coefficients are exactly 0 for each fit, at the same lambda = 10.
+
+```r
+# Count exactly-zero coefficients for lasso vs ridge at the same lambda
+lasso10 <- as.matrix(coef(fit_lasso, s = 10))
+ridge10 <- as.matrix(coef(fit_ridge, s = 10))
+sum(lasso10 == 0)
+#> [1] 9
+sum(ridge10 == 0)
+#> [1] 0
+
+round(ridge10, 2)
+#>                s=10
+#> (Intercept)   81.40
+#> size_m2        1.52
+#> distance_km   -4.04
+#> bedrooms       9.12
+#> noise_1       -2.95
+#> noise_2       -2.15
+#> noise_3        1.13
+#> noise_4       -0.14
+#> noise_5        1.57
+#> noise_6        0.59
+#> noise_7        0.27
+#> noise_8       -0.87
+#> noise_9       -3.56
+```
+
+9 of lasso's 12 coefficients are exactly 0 at this lambda, the 9 noise features. 0 of ridge's 12 are 0. Every single noise feature still has a nonzero ridge coefficient, some of them, like `noise_1` at -2.95, not even small.
+
+[KEY INSIGHT]
+Ridge keeps every feature, shrunk. Lasso drops some features out completely. That difference is purely about the shape of the penalty, not about which one is "better" at spotting real effects.
+
+=== step === quiz
+## Quick check: which penalty hits exactly zero?
+
+A lambda = 10 penalty is applied to the apartment data's 12 features, same as the path you just read off in code.
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- Ridge, because a large enough lambda eventually drives every coefficient to zero. ::no
+- Lasso, because its penalty's corners let the best fit land exactly on a coefficient of zero, something ridge's smooth, round penalty never does. ::ok Right. The diamond-shaped lasso budget has corners on the axes; a round ridge budget does not. That is the whole mechanical reason, nothing about which features matter more.
+- Both reach exactly zero at a high enough lambda; lasso just gets there first. ::no
+- Neither; a coefficient only becomes exactly zero if you remove that feature before fitting. ::no Ridge and lasso both work on all 12 features without removing any beforehand. Only lasso's diamond-shaped penalty has corners on the axes, which is where a coefficient can land at exactly zero; ridge's round penalty has no corners, so it shrinks every coefficient without ever zeroing one out.
+
+=== step === concept
+## Choosing the penalty strength by cross-validation
+
+Every lambda value in the path you saw is a different model. Lambda = 1 keeps almost everything; lambda = 40 keeps almost nothing. Picking one by eye, by looking at which coefficients "look right," defeats the whole point: you would be putting your own judgment back into a problem you built this machinery to avoid.
+
+Cross-validation picks lambda using only prediction error, the way you would actually use the model. Split the 50 apartments into k equally sized folds, say k = 10. Fit the model on 9 of those folds and measure its prediction error on the 1 fold you held out.
+
+Rotate which fold is held out until every fold has had its turn, then average the 10 error scores. Do that at every lambda in the grid, and you get one average error per lambda. The lambda with the lowest average error is your best single guess; a flatter, simpler lambda one standard error above it is the more cautious pick.
+
+`cv.glmnet()` runs that whole rotation automatically, for lasso by default.
+
+```r
+# Run 10-fold cross-validation to choose lambda for the lasso fit
+set.seed(42)
+cvfit <- cv.glmnet(X, y, alpha = 1)
+round(cvfit$lambda.min, 3)
+#> [1] 1.884
+round(cvfit$lambda.1se, 3)
+#> [1] 3.966
+
+plot(cvfit)
+```
+
+`lambda.min`, 1.884, is the lambda with the lowest average cross-validated error. `lambda.1se`, 3.966, is a larger, more cautious lambda, one standard error above that minimum, favouring a simpler model that is barely worse. Read off how many coefficients survive at each.
+
+```r
+# Count nonzero coefficients at lambda.min and at lambda.1se
+coef_min <- coef(cvfit, s = "lambda.min")
+sum(coef_min != 0) - 1
+#> [1] 5
+coef_1se <- coef(cvfit, s = "lambda.1se")
+sum(coef_1se != 0) - 1
+#> [1] 3
+```
+
+At `lambda.min`, 5 of the 12 features survive. At `lambda.1se`, only 3, which turn out to be exactly the 3 real features: `size_m2`, `distance_km` and `bedrooms`. The curve you just plotted shows why: average error is close to flat across a wide stretch of lambda, so a more cautious, simpler lambda barely costs anything in prediction error while cutting 2 more noise features loose.
+
+=== step === concept
+## The cost: a penalized coefficient is not an ordinary estimate
+
+Look back at `lambda.min`'s survivors: `size_m2`, `distance_km`, `bedrooms`, `noise_2` and `noise_9`. Two noise features made it through. That is not a bug in cross-validation; with only 50 apartments and 9 noise features, a couple of them will look just useful enough to survive, at whichever lambda minimizes average error.
+
+Here is the part that is easy to miss. Having picked those 5 survivors, it is tempting to refit plain OLS using only them and read off standard errors and p-values, the way you always would. Refit plain OLS using just those 5 columns, and look at what its p-values report.
+
+```r
+# Refit plain OLS using only the 5 features lasso kept nonzero at lambda.min
+fit_survivors <- lm(price ~ size_m2 + distance_km + bedrooms + noise_2 + noise_9, data = apt)
+round(summary(fit_survivors)$coefficients, 3)
+#>             Estimate Std. Error t value Pr(>|t|)
+#> (Intercept)   57.080      8.664   6.588    0.000
+#> size_m2        1.787      0.059  30.322    0.000
+#> distance_km   -4.891      0.542  -9.031    0.000
+#> bedrooms       9.362      1.874   4.996    0.000
+#> noise_2       -2.604      2.501  -1.041    0.303
+#> noise_9       -2.001      2.167  -0.924    0.361
+```
+
+[WARNING]
+Those p-values are not trustworthy, even though the code ran without any error. They were computed as if these 5 columns were chosen before you ever looked at price, when in fact lasso searched all 12 columns against this same price data and kept the 5 that happened to help most. The formula behind a p-value assumes no such search took place. Reporting these numbers as ordinary evidence repeats the same mistake as hunting through predictors and testing the survivors on the data that picked them.
+
+There is a second reason a penalized coefficient is not an ordinary estimate, true even for `size_m2`, `distance_km` and `bedrooms`, the 3 real features. Ridge and lasso shrink every coefficient toward 0 on purpose, to cut variance. A shrunk coefficient is, by construction, biased toward 0, so it is no longer an unbiased estimate of the true effect and should not be reported the way an OLS coefficient is.
+
+So what should you report instead? The number that does not depend on any coefficient being unbiased: cross-validated prediction error, already sitting in `cvfit` from the last step.
+
+```r
+# Report cross-validated prediction error instead of coefficient p-values
+round(min(cvfit$cvm), 2)
+#> [1] 247.81
+round(sqrt(min(cvfit$cvm)), 2)
+#> [1] 15.74
+```
+
+That 247.81 is the average squared prediction error across the held-out folds, at the best lambda. Its square root, 15.74, is in the same units as price: on an apartment this model has not seen, expect the prediction to be off by around 15.74 on average. That number is honest about what the model can do. A p-value borrowed from a search it was never meant to survive is not.
+
+=== step === widget
+## The same trade-off, applied to a group mean instead of a coefficient
+
+Step back from regression coefficients for a moment and look at a completely different setting: a hospital network with 8 clinics, each reporting its own average patient outcome. Some clinics saw many patients. Others saw only a handful. The smallest clinics' raw averages are noisy for exactly the same reason the noise coefficients earlier were noisy: too little data to pin the number down.
+
+Picture clinic E, which saw only 2 patients and reports a raw average outcome of 66, against the grand average of 50 across all 8 clinics combined. Is clinic E really running 16 points above average, or did 2 patients happen to land on the high side? With only 2 patients, you cannot tell.
+
+Partial pooling answers that by shrinking each clinic's raw average toward the grand mean, shrinking the smallest, noisiest clinics the hardest. It is fit with a mixed model, `lme4::lmer()`, and it is the identical trade you have been looking at all lesson: give up a little bias, by pulling every clinic's number away from what it actually measured, to buy a large cut in variance.
+
+The widget below runs this on its own 8-clinic dataset, not the apartment data and not ridge or lasso. The mechanics are the same: a slider moving from no pooling (trust every clinic's raw average alone) to complete pooling (collapse every clinic to one shared number), with partial pooling in between.
+
+::widget shrinkage-pool {}
+
+Pull the slider toward partial pooling and watch clinic E, the smallest one, get pulled hardest toward 50, while clinic D, which saw 40 patients, barely moves. That is shrinkage doing exactly what ridge and lasso did to the noise coefficients: trusting the data you have in proportion to how much of it there actually is.
+
+=== step === quiz
+## Quick check: reading the penalty's trade-off
+
+::prose-only the quiz question covers the bias-variance trade on a new apartment; two short worked answers right after it cover the honest cost from the last section and the clinic widget, pulling the whole lesson together without a second gated question
+
+A new apartment comes up for sale. You have two fits ready: the plain OLS fit from the first step, and a penalized fit at a sensible lambda.
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- The OLS fit, because it is unbiased and a penalized fit never is. ::no
+- The penalized fit, because trading a little bias for a large cut in variance usually gives a smaller prediction error on an apartment it has not seen. ::ok Right. Unbiased on average is not the same as accurate on one new apartment. The penalized fit gives up a little of that average correctness to stop overreacting to noise, and that usually wins on prediction error.
+- Whichever fit has the higher R-squared on the original 50 apartments. ::no
+- They perform identically, since both use the same 12 features. ::no
+
+Two more scenarios worth settling before moving on, both answered already by what you have seen on this page.
+
+Suppose you refit plain OLS using only the columns lasso kept nonzero, and its p-values come back looking perfectly normal, with no error or warning anywhere. Those p-values are still not trustworthy. A clean run and a valid p-value are different things: the formula behind a p-value assumes the columns were chosen before you looked at the data, and here lasso had already searched all 12 columns against this same data to decide which 5 to keep.
+
+And the 8 clinics from the partial-pooling widget: is that the same method as ridge or lasso, just applied to medical data? No, it is the same trade, shrinking an estimate toward a reference point to cut variance at the cost of some bias, but a different method. Ridge and lasso are specific to regression coefficients; partial pooling is specific to group averages.
+
+Recognizing the trade is the useful habit. Mixing up the methods themselves is the trap.
+
+=== step === tryit
+## Your turn: fit and read a penalized model
+
+Every step so far fit `glmnet` and `cv.glmnet` on all 50 apartments. In practice you would hold some data back to check the model honestly. Here, 35 of the 50 apartments are set aside as a training slice, and the starter code below already fits a lasso path on just that slice.
+
+```r
+# X_train and y_train are a 35-apartment training slice of the data.
+set.seed(42)
+train_idx <- sample(1:50, 35)
+X_train <- X[train_idx, ]
+y_train <- y[train_idx]
+
+# A lasso path fit on just this training slice.
+fit_tryit <- glmnet(X_train, y_train, alpha = 1)
+
+# Your turn: run cross-validation on this training slice to pick lambda,
+# then count how many of the 12 coefficients are nonzero at lambda.min.
+# Two lines. Press Check when you have them.
+```
+::check {"regex": "(?=.*cv[.]glmnet[(])(?=.*!=\\s*0)", "gate": true, "difficulty": "intermediate", "ok": "Right: cv.glmnet finds lambda.min at 2.195 on this training slice, and 7 of the 12 coefficients are nonzero there: the 3 real features plus 4 noise features that a smaller training slice was not able to rule out.", "no": "Call cv.glmnet(X_train, y_train, alpha = 1), then pull lambda.min off it and count the nonzero entries: coef(cv_tryit, s = \"lambda.min\") != 0, summed."}
+::solution
+```r
+# Run cross-validation on the training slice, then count nonzero coefficients at lambda.min
+cv_tryit <- cv.glmnet(X_train, y_train, alpha = 1)
+round(cv_tryit$lambda.min, 3)
+#> [1] 2.195
+
+coef_tryit <- coef(cv_tryit, s = "lambda.min")
+sum(coef_tryit != 0) - 1
+#> [1] 7
+```
+
+With 15 fewer apartments to learn from, cross-validation has a harder time telling noise from signal: 4 of the 9 noise features now slip through alongside the 3 real ones, against only 2 when all 50 apartments were used. Less data does not just widen your uncertainty. It changes which features survive in a penalized fit.
+
+=== step === concept
+## References
+
+- [Ridge Regression: Biased Estimation for Nonorthogonal Problems](https://doi.org/10.1080/00401706.1970.10488634) - Hoerl, A. and Kennard, R. (1970), Technometrics 12(1), 55-67. The paper that introduced the L2 penalty.
+- [Regression Shrinkage and Selection via the Lasso](https://www.jstor.org/stable/2346178) - Tibshirani, R. (1996), Journal of the Royal Statistical Society, Series B, 58(1), 267-288. The paper that introduced the L1 penalty and its exact-zero property.
+- [Regularization Paths for Generalized Linear Models via Coordinate Descent](https://doi.org/10.18637/jss.v033.i01) - Friedman, J., Hastie, T. and Tibshirani, R. (2010), Journal of Statistical Software 33(1). The paper behind the `glmnet` package used in this lesson.
+- [An Introduction to Statistical Learning](https://www.statlearning.com/) - James, G., Witten, D., Hastie, T. and Tibshirani, R., the chapter on linear model selection and regularization.
+- [The Elements of Statistical Learning](https://hastie.su.domains/ElemStatLearn/) - Hastie, T., Tibshirani, R. and Friedman, J., the chapter on shrinkage methods.
+
+=== step === complete
+## Where ridge and lasso leave you, and what to read next
+
+Here is the whole arc in one place. OLS minimizes RSS alone, and with 12 features and only 50 apartments, some of its coefficients end up fitting noise instead of price. Ridge and lasso add a penalty to that objective, lambda times the sum of squared coefficients for ridge, lambda times the sum of absolute coefficients for lasso, so the fit trades a little bias for a large cut in variance.
+
+Lasso's penalty region has corners, so it can set a weak coefficient to exactly 0; ridge's smooth, round region cannot, so it shrinks every coefficient without ever removing one. Lambda itself is chosen by cross-validation, scoring prediction error on held-out folds, never by eye.
+
+And the one caution to carry forward: once a coefficient has been shrunk or selected by a penalty, it is no longer an ordinary unbiased estimate, so its standard errors and p-values should not be read the way an OLS coefficient's are. Report cross-validated prediction error instead.
+
+Next, the same honesty gets pointed at the model's own fit statistics: by how much the R-squared you compute on your training data is too optimistic.
