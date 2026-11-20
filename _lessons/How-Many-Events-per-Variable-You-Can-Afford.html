@@ -1,0 +1,319 @@
+---
+title: "Regression Modeling Strategies Lesson 6: How many events per variable you can afford"
+description: "A simulated study with a known true model shows bias, coverage and calibration breaking down differently as events per variable falls, and which warns earliest."
+keywords: "events per variable, EPV, logistic regression, sample size, calibration slope, confidence interval coverage, Peduzzi rule, model calibration, overfitting, Wald interval, R"
+mathjax: false
+webr: true
+curriculum_id: "4.70.6"
+post_type: "LESSON"
+course_id: "res-model-strategy"
+course_title: "Regression Modeling Strategies"
+course_lesson: "6"
+course_total: "7"
+course_landing: "Regression-Modeling-Strategies-Course.html"
+course_next: "Presenting-a-Model-So-It-Survives-Review.html"
+course_prev: "Measuring-How-Optimistic-Your-Model-Is.html"
+lesson_access: "pro"
+catalog_blurb: "Why a model's probabilities can be wrong even when its coefficients look fine."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>How many events per variable you can afford</h2>
+
+<p>Today let's understand how many patients a logistic regression model actually needs, by building a study where the correct answer is already known and watching a model get it wrong anyway.</p>
+
+<p>A hospital wants to predict which patients get readmitted within 30 days of discharge, from 5 measurements taken at discharge, x1 through x5. We will simulate these patients ourselves and fix the true relationship between those 5 measurements and readmission before fitting a single model. That is the one advantage a simulation gives that a real dataset never can: we already know the right answer, so we can measure exactly how far a fitted model drifts from it.</p>
+
+<p>We will build this same simulated study five times over, giving the model fewer and fewer patients to learn from each time, while the true relationship underneath stays exactly the same. The chart below plots what happened each time. Moving right to left, each point is this same model fitted with less and less data relative to its 5 predictors, and the height of each point is how much the model's predicted probabilities can still be trusted on a patient it has never seen: 1.0 means fully, and well below 1 means the model is overconfident.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2,"y":0.53},{"x":6,"y":0.76},{"x":11,"y":0.9},{"x":22,"y":0.93},{"x":55,"y":0.97}],"geoms":["line","point"],"x":"events_per_variable","y":"calibration_slope"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That line drops from 0.97 on the right down to 0.53 on the left, as the model saw fewer and fewer patients.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What events per variable actually counts</h2>
+
+<p>A study like the one you just saw actually has three separate quantities buried inside it, not one. The sample size, n, is how many patients are in the study. The number of events is how many of those patients had the outcome you actually care about, a readmission here, and it is never the same number as n, because not every patient gets readmitted.</p>
+
+<p>Why does the event count matter more than n on its own? A model learns what distinguishes the readmitted patients from everyone else, so it is the readmitted patients, the rarer group, that actually carry that information. A study with 10,000 patients but only 20 readmissions has barely more to learn from than a much smaller study with those same 20 readmissions.</p>
+
+<p>The third quantity is p, the number of predictor variables the model uses. Events per variable, or EPV, is the number of events divided by p. It measures how much evidence the model actually has relative to how many things it is trying to estimate, which is a very different question from how many patients it has.</p>
+
+<p>Because readmission is a yes or no outcome, this lesson uses logistic regression rather than ordinary linear regression. A logistic regression does not predict the readmission probability directly. It predicts the log odds of readmission, log(prob / (1 - prob)), as a straight-line combination of the predictors, then converts that number back into a probability. Each coefficient, like the 0.8 you will see on x1 below, is how much that log odds number moves for a one-unit change in that predictor.</p>
+
+<p>Here is the running example this whole lesson uses. A hospital records 5 measurements at discharge, x1 through x5. We rig the true relationship between them and readmission ourselves: x1 raises the log odds of readmission by 0.8, x2 lowers it by 0.6, x3 raises it by 0.5, x4 lowers it by 0.4, and x5 raises it by 0.3. An intercept of -1.6 keeps the overall readmission rate close to 20%.</p>
+
+<p>Let's build one such dataset and see its EPV.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build one simulated set of patients and see how many had the outcome
+set.seed(1)
+n &lt;- 1250
+x1 &lt;- rnorm(n)
+x2 &lt;- rnorm(n)
+x3 &lt;- rnorm(n)
+x4 &lt;- rnorm(n)
+x5 &lt;- rnorm(n)
+true_log_odds &lt;- -1.6 + 0.8 * x1 - 0.6 * x2 + 0.5 * x3 - 0.4 * x4 + 0.3 * x5
+y &lt;- rbinom(n, 1, plogis(true_log_odds))
+
+n_events &lt;- sum(y)
+epv &lt;- n_events / 5
+cat(sprintf(&quot;patients (n): %d\n&quot;, n))
+cat(sprintf(&quot;events (readmissions): %d\n&quot;, n_events))
+cat(sprintf(&quot;events per variable (EPV): %.1f\n&quot;, epv))
+#&gt; patients (n): 1250
+#&gt; events (readmissions): 272
+#&gt; events per variable (EPV): 54.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 1250 patients, only 272 of them were actually readmitted, and with 5 predictors that gives an EPV of 54.4. A long-standing rule of thumb, from Peduzzi and colleagues in 1996, says a logistic regression needs at least 10 events per variable to be trusted. Rather than take that on faith, let's refit this exact true model at several descending events-per-variable levels and watch what actually happens to it.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Running the same model at five events-per-variable ratios</h2>
+
+<p>One dataset is just one draw. To see a real pattern rather than one lucky or unlucky draw, let's refit this same true model 300 times over, at each of five sample sizes: 1250, 500, 250, 125 and 50 patients. Everything about the true relationship stays exactly as it was. Only the sample size changes.</p>
+
+<p>At each of those 300 fits, we track three things about the fitted model.</p>
+
+<ol>
+
+<li>How far the estimated coefficient for x1 lands from its true value of 0.8, as a percent bias.</li>
+
+<li>Whether the usual 95% confidence interval for that coefficient, a Wald interval, actually contains 0.8. A Wald interval is the estimate plus or minus 1.96 standard errors, the standard formula behind most reported confidence intervals.</li>
+
+<li>A fourth number called the calibration slope, which checks whether the model's predicted probabilities on new patients it never saw are as confident as they deserve to be. A slope of 1 means yes. A slope below 1 means the model is overconfident, so its probabilities sit closer to 0 or 1 than reality actually supports.</li>
+
+</ol>
+
+<pre><code class="language-r"># Refit the true model 300 times at each of 5 sample sizes and track bias,
+# interval coverage and calibration
+simulate_patients &lt;- function(n) {
+  x1 &lt;- rnorm(n)
+  x2 &lt;- rnorm(n)
+  x3 &lt;- rnorm(n)
+  x4 &lt;- rnorm(n)
+  x5 &lt;- rnorm(n)
+  log_odds &lt;- -1.6 + 0.8 * x1 - 0.6 * x2 + 0.5 * x3 - 0.4 * x4 + 0.3 * x5
+  y &lt;- rbinom(n, 1, plogis(log_odds))
+  data.frame(x1, x2, x3, x4, x5, y)
+}
+
+fit_and_check &lt;- function(n) {
+  train &lt;- simulate_patients(n)
+  fit &lt;- suppressWarnings(glm(y ~ x1 + x2 + x3 + x4 + x5, data = train, family = binomial))
+  x1_coef &lt;- coef(fit)[[&quot;x1&quot;]]
+  x1_se &lt;- summary(fit)$coefficients[&quot;x1&quot;, &quot;Std. Error&quot;]
+  interval_covers_truth &lt;- (x1_coef - 1.96 * x1_se &lt;= 0.8) &amp;&amp; (x1_coef + 1.96 * x1_se &gt;= 0.8)
+
+  test &lt;- simulate_patients(5000)
+  predicted_log_odds &lt;- predict(fit, newdata = test, type = &quot;link&quot;)
+  calibration_fit &lt;- suppressWarnings(glm(test$y ~ predicted_log_odds, family = binomial))
+  calibration_slope &lt;- coef(calibration_fit)[[&quot;predicted_log_odds&quot;]]
+
+  c(events = sum(train$y), bias_pct = 100 * (x1_coef - 0.8) / 0.8,
+    covered = interval_covers_truth, calibration_slope = calibration_slope)
+}
+
+set.seed(1)
+sample_sizes &lt;- c(1250, 500, 250, 125, 50)
+reps &lt;- 300
+epv_table &lt;- data.frame()
+for (n in sample_sizes) {
+  runs &lt;- t(replicate(reps, fit_and_check(n)))
+  epv_table &lt;- rbind(epv_table, data.frame(
+    n = n,
+    epv = round(mean(runs[, &quot;events&quot;]) / 5),
+    bias_pct = round(median(runs[, &quot;bias_pct&quot;])),
+    coverage_pct = round(100 * mean(runs[, &quot;covered&quot;])),
+    calibration_slope = round(median(runs[, &quot;calibration_slope&quot;]), 2)
+  ))
+}
+print(epv_table, row.names = FALSE)
+#&gt;     n epv bias_pct coverage_pct calibration_slope
+#&gt;  1250  55        1           95              0.97
+#&gt;   500  22        3           94              0.93
+#&gt;   250  11        1           95              0.90
+#&gt;   125   6       14           94              0.76
+#&gt;    50   2       12           97              0.53</code></pre>
+
+<p>Read that table one column at a time. The bias column stays small, 1% to 3%, all the way down to an EPV of 11, and only below that does it jump, to 14% at EPV 6 and 12% at EPV 2. At every one of these five levels the typical estimate for x1 came out above its true value of 0.8, never below it, so a small sample does not just add noise here, it pushes the estimate further out than the truth.</p>
+
+<p>The coverage column barely moves at all. It stays between 94% and 97% at every level tested, including the worst one, never once giving a reason for concern.</p>
+
+<p>The calibration column is the one that actually moves, and moves first. It starts at 0.97, drops to 0.93, and by an EPV of 11, the rule of thumb's own safe threshold, it has already fallen to 0.90. By EPV 2 it has fallen all the way to 0.53.</p>
+
+<p>Bias and coverage both still look healthy at EPV 11. Calibration does not.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Why the usual confidence interval stops matching the truth</h2>
+
+<p>Why would coverage stay fine while calibration is already breaking down? The answer is in the shape of the curve a Wald interval assumes.</p>
+
+<p>Fitting a model by maximum likelihood means scoring every possible value of a parameter by how well it explains the data you saw, then picking the best-scoring one. That scoring function is called the likelihood, and plotted against the parameter it traces out a curve with a single peak at the best-scoring value. A Wald interval assumes that curve is a smooth, symmetric parabola around its peak.</p>
+
+<p>At a large sample size that assumption holds well. At a small sample size it does not: the real curve turns lopsided, wider on one side than the other, while the parabola the Wald formula assumes stays perfectly symmetric.</p>
+
+<p>The widget below shows this directly, with a simpler example: flips of a coin, instead of patients. The number of flips plays the same role the number of events plays in this lesson's simulated study, both setting how much information the fit actually has.</p>
+<div class="lesson-widget" data-widget-type="likelihood-curve" data-widget-config='{"model":"bern","n":20}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Slide the sample size down and watch the solid curve and the dashed parabola pull apart. When they disagree, the Wald interval does not shrink or mis-centre quietly. It widens, because the parabola it is built from has drifted away from the real curve.</p>
+
+<p>That is why this lesson's simulated readmission study never saw its interval coverage collapse at a low events-per-variable ratio. A wider interval is more likely to contain the truth even while the point estimate inside it, x1's coefficient, keeps drifting further from 0.8.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: can you trust interval coverage?</h2>
+
+<p>Across the five events-per-variable levels in this simulated study, the 95% Wald interval's coverage stayed between 94% and 97% at every level tested, right down to the worst one. What does that tell you about using interval coverage to catch a model fitted on too little data?</p>
+<section class="exercise" data-exercise-id="How-Many-Events-per-Variable-You-Can-Afford-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Coverage fell well below 80% once events per variable dropped under 10, so it did warn of trouble, just a little later than the other two diagnostics.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Coverage stayed close to 95% at every level tested, from 94% up to 97%, so it gave no warning at all, even at the lowest level where the calibration slope had already fallen to 0.53.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Coverage cannot be computed for a logistic regression, so the comparison does not really mean anything.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Coverage dropped in step with the calibration slope, reaching 0.53 at the lowest events-per-variable level, just like the calibration slope did.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. The interval widens to compensate for the extra uncertainty at a low events-per-variable ratio instead of exposing it, so coverage keeps its nominal rate even while the model's predicted probabilities are already drifting off.</div><div class="lesson-qfb lesson-qfb-no">Coverage and calibration are two different numbers, computed two different ways. Coverage checks whether an interval contains the true coefficient. Calibration checks whether predicted probabilities match reality on new patients. In this simulated study coverage stayed between 94% and 97% at every level tested, while calibration fell steadily from 0.97 to 0.53. The two did not move together, so coverage alone would have told you nothing was wrong.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Calibration: why it degrades earliest</h2>
+
+<p>Here is exactly how that calibration slope gets computed. Fit the model once, on one set of patients. Then take a fresh set of patients the model has never seen, and get its predicted probabilities for them, converted to predicted log odds.</p>
+
+<p>Regress the new patients' true outcomes on those predicted log odds. The slope of that regression is the calibration slope.</p>
+
+<p>A slope of 1 means the predictions are exactly as confident as they deserve to be. A slope below 1 means the model is overconfident: on patients it called very likely or very unlikely to be readmitted, reality agrees less often than the model's own number says it should.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A coefficient's bias and an interval's coverage are both properties of one number, the coefficient itself. Calibration is a property of the model's actual predictions, checked against patients it never saw. That is a strictly harder thing to get right, which is exactly why it breaks down first.</div></div>
+
+<p>Let's compute it by hand at an events-per-variable ratio of 11, fitting on 250 patients.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the true model once at EPV 11, then check its calibration on a
+# fresh set of patients it never saw
+set.seed(2)
+n &lt;- 250
+x1 &lt;- rnorm(n)
+x2 &lt;- rnorm(n)
+x3 &lt;- rnorm(n)
+x4 &lt;- rnorm(n)
+x5 &lt;- rnorm(n)
+log_odds &lt;- -1.6 + 0.8 * x1 - 0.6 * x2 + 0.5 * x3 - 0.4 * x4 + 0.3 * x5
+y &lt;- rbinom(n, 1, plogis(log_odds))
+train &lt;- data.frame(x1, x2, x3, x4, x5, y)
+fit &lt;- glm(y ~ x1 + x2 + x3 + x4 + x5, data = train, family = binomial)
+
+n_test &lt;- 5000
+x1 &lt;- rnorm(n_test)
+x2 &lt;- rnorm(n_test)
+x3 &lt;- rnorm(n_test)
+x4 &lt;- rnorm(n_test)
+x5 &lt;- rnorm(n_test)
+test_log_odds &lt;- -1.6 + 0.8 * x1 - 0.6 * x2 + 0.5 * x3 - 0.4 * x4 + 0.3 * x5
+y_test &lt;- rbinom(n_test, 1, plogis(test_log_odds))
+test &lt;- data.frame(x1, x2, x3, x4, x5, y = y_test)
+
+predicted_log_odds &lt;- predict(fit, newdata = test, type = &quot;link&quot;)
+calibration_fit &lt;- glm(test$y ~ predicted_log_odds, family = binomial)
+cat(sprintf(&quot;events at this sample size (n = 250): %d\n&quot;, sum(train$y)))
+cat(sprintf(&quot;calibration slope: %.2f\n&quot;, coef(calibration_fit)[[&quot;predicted_log_odds&quot;]]))
+#&gt; events at this sample size (n = 250): 59
+#&gt; calibration slope: 0.90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>59 events over 5 predictors is an EPV of about 11.8, the same safe-looking level this lesson's simulated study ran at 250 patients. At that level, x1's bias came out at only 1% and the interval's coverage at a reassuring 95%. The calibration slope here comes out at 0.90.</p>
+
+<p>Two of the three diagnostics look fine at this sample size. Calibration has already moved.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<h2>What an overconfident model's probabilities look like</h2>
+
+<p>A calibration slope has a direct picture: the reliability diagram. Bin a model's predicted probabilities into groups, from near 0 up to near 1, then for each group plot the actual fraction of patients who were readmitted against the model's average prediction in that group. A perfectly calibrated model lands every group right on the diagonal, where predicted matches observed.</p>
+
+<p>The widget below carries its own simulated fit rather than this lesson's readmission model, and a slider that tilts it from under-confident to over-confident. A slope like 0.53, the weakest events-per-variable level tested in this lesson, bows the curve below the diagonal the same way this widget does once you push its slider toward over-confident.</p>
+<div class="lesson-widget" data-widget-type="calibration-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Push the slider up past 1 and watch the curve sag below the diagonal: the model's high predictions, close to 1, do not come true as often as their own number says. Pull it below 1 and the curve bows the other way, above the diagonal, the model hedging more than the data call for. A calibration slope is just a single number that summarises how far that curve has bowed off the diagonal, in one direction or the other.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which diagnostic to trust</h2>
+
+<p>At an events-per-variable ratio of 11, the textbook-safe threshold, the typical x1 coefficient was biased by about 1%, the 95% interval's coverage was 95%, and the calibration slope had already fallen to 0.90. Which of the three diagnostics already showed trouble at that point, and why trust it over the other two?</p>
+<section class="exercise" data-exercise-id="How-Many-Events-per-Variable-You-Can-Afford-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Coverage, because a 95% interval is the only one of the three built from a formal confidence level.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Bias, because a 1% bias is already large enough to change a treatment decision.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Calibration, because its slope had already dropped to 0.90, the same overconfident, bowed-off-the-diagonal pattern a reliability diagram draws for an overconfident model, while bias and coverage both still looked fine.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">None of them, because a model fitted at an events-per-variable ratio of 11 should be thrown out entirely.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Bias stayed near 1% and coverage near 95% at this same sample size, both looking perfectly healthy. Only the calibration slope had already moved, from 1.0 down to 0.90, a 10% overconfidence the other two diagnostics gave no hint of.</div><div class="lesson-qfb lesson-qfb-no">Look at all three numbers at this one events-per-variable level together: bias about 1%, coverage 95%, calibration slope 0.90. Two of the three diagnostics look fine here. Only the calibration slope has already moved away from 1.0, which is what makes it the one worth checking first.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<h2>Your turn: measure how far calibration has drifted</h2>
+
+<p>The calibration slope was 0.90 at an events-per-variable ratio of 11, and the table of simulated results found it at 0.53 at an events-per-variable ratio of 2. Compute how far the slope dropped between those two levels, as a percent of its starting value.</p>
+<section class="exercise" data-exercise-id="How-Many-Events-per-Variable-You-Can-Afford-step9" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="(?=.*calibration_epv11)(?=.*calibration_epv2)(?=.*100)(?=.*/)"><textarea class="lesson-tryit-input" spellcheck="false"># calibration_epv11 is the calibration slope at EPV 11
+# calibration_epv2 is the calibration slope at EPV 2
+calibration_epv11 &lt;- 0.90
+calibration_epv2 &lt;- 0.53
+
+# Compute the percent drop from the EPV 11 slope to the EPV 2 slope
+# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: a drop of 41.1%. The calibration slope fell by more than 40% between these two events-per-variable levels, even though at the higher of the two levels the x1 coefficient's bias and the interval's coverage both still looked perfectly healthy.</span><span class="lesson-tryit-fb lesson-tryit-no">Divide the drop by the starting value, then multiply by 100: 100 * (calibration_epv11 - calibration_epv2) / calibration_epv11.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Compute the percent drop from the EPV 11 slope to the EPV 2 slope
+percent_drop &lt;- 100 * (calibration_epv11 - calibration_epv2) / calibration_epv11
+round(percent_drop, 1)
+#&gt; [1] 41.1</code></pre></details></div>
+</section>
+<p>A 41.1% drop in the calibration slope, between two events-per-variable levels where bias and interval coverage barely moved at all. Calibration is not just the diagnostic that fails earliest. Once it starts failing, it keeps falling a long way while the other two diagnostics stay quiet.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1016/s0895-4356(96">A simulation study of the number of events per variable in logistic regression analysis</a>00236-3) - Peduzzi, P., Concato, J., Kemper, E., Holford, T.R. and Feinstein, A.R. (1996), Journal of Clinical Epidemiology, 49(12), 1373-1379. The source of the events-per-variable-of-10 rule of thumb this lesson tests.</li>
+
+<li><a href="https://hbiostat.org/rmsc">Regression Modeling Strategies, course notes</a> - Harrell, F.E. Companion to the book (2nd ed., Springer, 2015); sample size, overfitting and events-per-variable guidance for a fitted model.</li>
+
+<li><a href="https://doi.org/10.1002/9781118548387">Applied Logistic Regression, 3rd ed.</a> - Hosmer, D.W., Lemeshow, S. and Sturdivant, R.X. (2013), Wiley. Calibration and goodness-of-fit in logistic regression.</li>
+
+<li><a href="https://doi.org/10.1007/978-3-030-16399-0">Clinical Prediction Models, 2nd ed.</a> - Steyerberg, E.W. (2019), Springer. Overfitting, shrinkage and the validation of a fitted prediction model.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Spending an events budget honestly</h2>
+
+<p>Across this simulated study, three diagnostics told three different stories as events per variable fell from 55 to 2.</p>
+
+<p>Bias stayed small, 1% to 3%, all the way down to an events-per-variable ratio of 11, then jumped to 14% and 12% below that. Coverage barely moved: it stayed between 94% and 97% at every level tested, including the worst one. Calibration told the real story. Its slope had already fallen to 0.90, a 10% overconfidence, at an events-per-variable ratio of 11, the textbook-safe threshold, and it kept falling to 0.53 by an events-per-variable ratio of 2.</p>
+
+<p>So the familiar rule, at least 10 events per variable, is not wrong. It just is not the safety net it looks like. A model that clears it can still be handing out overconfident probabilities, and the two diagnostics people check most often, a coefficient's bias and a confidence interval's coverage, will not tell you so.</p>
+
+<p>Treat an events-per-variable ratio of 10 as a floor worth clearing, not a guarantee worth trusting. And check a fitted model's calibration against patients it has not seen, rather than trusting a confidence interval's coverage to warn you if something has gone wrong.</p>
+</section>
+
+{% endraw %}
