@@ -1,0 +1,324 @@
+---
+title: "Regression Modeling Strategies Lesson 2: Fitting a curve without guessing its shape"
+catalog_blurb: "A safer way to fit a bending relationship than a polynomial."
+description: "A regression line misses a bend in salary data, and a flexible polynomial fits it but collapses just past the range. A restricted cubic spline avoids both."
+keywords: "restricted cubic splines, natural splines, ns(), knot placement, polynomial regression, overfitting, AIC, nonlinear regression, R"
+post_type: "LESSON"
+curriculum_id: "4.70.2"
+webr: true
+mathjax: false
+lesson_access: "pro"
+course_id: "res-model-strategy"
+course_title: "Regression Modeling Strategies"
+course_lesson: "2"
+course_total: "7"
+course_landing: "Regression-Modeling-Strategies-Course.html"
+course_next: "Choosing-Interactions-Before-You-Look.html"
+course_prev: "Why-Stepwise-Selection-Lies-to-You.html"
+---
+
+=== step === cover
+## Fitting a curve without guessing its shape
+
+Today let's understand how to fit a regression curve without guessing its shape ahead of time.
+
+Vantage Analytics has experience and salary on file for 150 of its data scientists: years of experience on one axis, annual salary in thousands of dollars on the other. Here is what that relationship looks like.
+
+::widget chart-plotter {"data":[{"x":27.5,"y":98},{"x":28.2,"y":98.8},{"x":9.3,"y":85.7},{"x":25.1,"y":91.6},{"x":19.6,"y":89},{"x":16.1,"y":97.4},{"x":22.4,"y":95.5},{"x":4.9,"y":74.6},{"x":20.1,"y":93.1},{"x":21.4,"y":89.3},{"x":14.3,"y":92.4},{"x":21.9,"y":93.4},{"x":28.1,"y":95},{"x":8.4,"y":86},{"x":14.4,"y":93.3},{"x":28.3,"y":101.3},{"x":29.4,"y":94},{"x":4.4,"y":75.4},{"x":14.8,"y":96},{"x":17.2,"y":87.7},{"x":27.2,"y":92.2},{"x":5,"y":70},{"x":29.7,"y":90.1},{"x":28.5,"y":96.1},{"x":3.4,"y":72.2},{"x":15.9,"y":96},{"x":12.3,"y":92.2},{"x":27.3,"y":91.6},{"x":14,"y":97.1},{"x":25.2,"y":92.5},{"x":22.4,"y":94.9},{"x":24.5,"y":93.3},{"x":12.3,"y":87.5},{"x":20.9,"y":94.7},{"x":1.1,"y":60.9},{"x":25.2,"y":95.1},{"x":1.2,"y":61.3},{"x":7,"y":77.6},{"x":27.3,"y":93.6},{"x":18.7,"y":86.3},{"x":12,"y":86.1},{"x":13.6,"y":87.3},{"x":2.1,"y":75.5},{"x":29.2,"y":90.5},{"x":13.5,"y":89.8},{"x":28.8,"y":89.9},{"x":26.7,"y":89.6},{"x":19.6,"y":93.9},{"x":29.2,"y":91.9},{"x":18.9,"y":93},{"x":10.7,"y":84.3},{"x":11.1,"y":84.1},{"x":12.6,"y":80.2},{"x":23.8,"y":90},{"x":2.1,"y":65.4},{"x":22.7,"y":96.8},{"x":20.6,"y":91.8},{"x":6,"y":77.2},{"x":8.6,"y":87.2},{"x":15.9,"y":97},{"x":20.6,"y":89.4},{"x":29.5,"y":95.5},{"x":23,"y":99.4},{"x":17.4,"y":90.3},{"x":25.6,"y":95.1},{"x":6.5,"y":78},{"x":8.9,"y":79.6},{"x":25,"y":93.4},{"x":21.1,"y":93.9},{"x":8,"y":79.9},{"x":2.2,"y":69.6},{"x":5.1,"y":72.9},{"x":7.3,"y":78.4},{"x":14.9,"y":93.3},{"x":6.7,"y":74.6},{"x":21.9,"y":94.1},{"x":1.2,"y":54.6},{"x":11.9,"y":92.2},{"x":15.9,"y":90.1},{"x":1,"y":58.1},{"x":17.9,"y":87.6},{"x":5.6,"y":76.1},{"x":11.4,"y":83.7},{"x":19.7,"y":91.3},{"x":23.5,"y":99.9},{"x":17.3,"y":91.5},{"x":7.8,"y":76.9},{"x":3.6,"y":70.9},{"x":3.5,"y":68.4},{"x":9.9,"y":87.2},{"x":20.4,"y":99.5},{"x":1,"y":56},{"x":7,"y":81.3},{"x":28.1,"y":96.1},{"x":27.8,"y":99.3},{"x":22.3,"y":93.5},{"x":10.7,"y":89.3},{"x":15.9,"y":84.3},{"x":22.6,"y":101.3},{"x":19,"y":96.6},{"x":19.2,"y":92.6},{"x":7.3,"y":74.3},{"x":7.3,"y":82.7},{"x":12.3,"y":89.9},{"x":28.3,"y":95.8},{"x":28.9,"y":96.5},{"x":22.5,"y":92.1},{"x":22.3,"y":95.9},{"x":16.5,"y":92.8},{"x":1.1,"y":59.3},{"x":18.7,"y":87.6},{"x":25.3,"y":98},{"x":22.8,"y":96.8},{"x":14.1,"y":86.4},{"x":16.5,"y":85.3},{"x":16.6,"y":92.5},{"x":1,"y":58.6},{"x":11.3,"y":87.8},{"x":18.8,"y":87.8},{"x":25,"y":91.3},{"x":11.3,"y":91.1},{"x":12.9,"y":90.2},{"x":17.6,"y":94.7},{"x":18.1,"y":99.9},{"x":21.9,"y":94.8},{"x":12.5,"y":80.2},{"x":27.7,"y":97},{"x":28.9,"y":100.6},{"x":7.8,"y":89.4},{"x":22,"y":88.8},{"x":27.2,"y":91},{"x":18.5,"y":90},{"x":19.3,"y":89},{"x":28.2,"y":93.2},{"x":25.7,"y":94.6},{"x":17.8,"y":87.7},{"x":24.8,"y":103.3},{"x":4.3,"y":72.9},{"x":23.2,"y":94.4},{"x":19.1,"y":95.1},{"x":5.3,"y":75.5},{"x":3.3,"y":68.7},{"x":14.5,"y":96.1},{"x":23.6,"y":93.9},{"x":22.3,"y":89.3},{"x":24.7,"y":96.6},{"x":5.9,"y":75.5},{"x":28.4,"y":93.7},{"x":9.5,"y":79.9},{"x":5.3,"y":77.1}],"geoms":["point"],"x":"experience","y":"salary","code":{"point":"ggplot(vantage_data, aes(experience, salary)) +\n  geom_point()"}}
+
+Salary climbs fast in the first several years of experience, then the climb slows until it nearly flattens out. A straight line could not follow a bend shaped like that, which is exactly the shape a curve needs to pick up without anyone hand picking it in advance.
+
+=== step === concept
+## Why a straight line misses this bend
+
+Vantage Analytics' numbers live in `vantage_data`: one row per data scientist, with their years of experience and their annual salary in thousands of dollars. Start the simplest way possible: fit a straight line through it with `lm()`, and see how well that line does.
+
+```r
+# Simulate 150 data scientists' experience and salary, then fit a straight line through them
+set.seed(42)
+n <- 150
+experience <- round(runif(n, 1, 30), 1)
+salary <- round(55 + 42 * (1 - exp(-experience / 8)) + rnorm(n, 0, 4), 1)
+vantage_data <- data.frame(experience, salary)
+
+fit_line <- lm(salary ~ experience, data = vantage_data)
+summary(fit_line)
+#> 
+#> Call:
+#> lm(formula = salary ~ experience, data = vantage_data)
+#> 
+#> Residuals:
+#>      Min       1Q   Median       3Q      Max 
+#> -17.4829  -3.3823   0.1382   3.2235  12.1375 
+#> 
+#> Coefficients:
+#>             Estimate Std. Error t value Pr(>|t|)    
+#> (Intercept) 70.87546    1.02515   69.14   <2e-16 ***
+#> experience   1.00622    0.05499   18.30   <2e-16 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> Residual standard error: 5.727 on 148 degrees of freedom
+#> Multiple R-squared:  0.6935,    Adjusted R-squared:  0.6914 
+#> F-statistic: 334.9 on 1 and 148 DF,  p-value: < 2.2e-16
+```
+
+R-squared comes out at 0.6935, so the line explains about 69% of the variation in salary. Each extra year of experience adds about $1,006 to the predicted salary, since the slope, 1.00622, is in the same thousands-of-dollars unit as salary itself, starting from an intercept near $70,875.
+
+That R-squared alone does not say whether the line is missing something systematic. For that, look at its residuals: the gap between each data scientist's actual salary and what the line predicts for them. Split experience into five equal-width bands, each spanning about six years, and average the residuals inside each one.
+
+```r
+# Average the line's residuals inside five equal-width bands of experience
+breaks <- c(1, 6.7, 12.5, 18.2, 24, 29.7)
+bands <- cut(vantage_data$experience, breaks = breaks, include.lowest = TRUE)
+round(tapply(resid(fit_line), bands, mean), 2)
+#>     [1,6.7]  (6.7,12.5] (12.5,18.2]   (18.2,24]   (24,29.7] 
+#>       -5.26        3.70        4.82        1.09       -3.57 
+```
+
+Read that from left to right. In the lowest band the line overpredicts salary by 5.26 thousand dollars on average, a negative residual. Move into the next three bands and it underpredicts, by 3.70, then 4.82, then 1.09. Then in the highest band it overpredicts again, by 3.57.
+
+That is not noise. If the line were catching the real relationship, its residuals would scatter randomly above and below zero with no pattern tied to experience. Instead they run negative, then positive for a stretch, then negative again. That shape is exactly what you would see if the true relationship is concave, rising fast and then levelling off: a curve like that sits above its own straight-line approximation through the middle of the data, and below it at both ends.
+
+The straight line is missing the bend, and its residuals are the proof.
+
+=== step === widget
+## Any curve fit is still least squares
+
+Before going further, it helps to recall exactly what `lm()` is doing when it fits a line. Whatever the predictor columns are, `lm()` always does the same thing: it picks the coefficients that make the summed squared residuals as small as possible. That is what "least squares" means.
+
+The widget below is not Vantage Analytics' data. It is a small nine-point demo you can drag by hand.
+
+::widget ols-fit {}
+
+Drag the line's slope and intercept and watch the total of the squared residuals change with every move. Press "snap to least squares" and the line jumps straight to the one `lm()` would have found on its own.
+
+Hold on to that mechanic. Soon the predictor is not going to be a single straight line's slope and intercept anymore. It is going to be a handful of fixed columns built from experience. But the fitting step underneath stays exactly the same: minimize the summed squared residuals. Moving from a straight line to a curve does not change that.
+
+=== step === concept
+## A polynomial can bend it, and explode past the data
+
+One natural way to let the line bend is to add power terms of experience: experience squared, cubed, and so on. In R, `poly(experience, 8)` builds a degree-8 polynomial, meaning it builds columns for experience raised up to its eighth power, and lets `lm()` fit all of them at once.
+
+```r
+# Fit a degree-8 polynomial and see how well it fits inside the data
+fit_poly <- lm(salary ~ poly(experience, 8), data = vantage_data)
+summary(fit_poly)$r.squared
+#> [1] 0.8804598
+```
+
+R-squared jumps from 0.6935 for the straight line to 0.8805 for this polynomial. Inside the range of experience the data actually covers, 1 to 29.7 years, this is a good fit: flexible enough to bend with the real shape of the data.
+
+The trouble starts the moment it has to predict outside that range. Vantage Analytics will eventually want a salary estimate for someone with 35, 40 or 45 years of experience, just past what the training data covers.
+
+```r
+# Predict salary at three experience values just past the data's range
+new_experience <- data.frame(experience = c(35, 40, 45))
+predict(fit_poly, newdata = new_experience)
+#>           1           2           3 
+#>   -103.6383  -2048.6944 -12453.3632 
+```
+
+Read those numbers as thousands of dollars, the same unit salary is in throughout. At 35 years the polynomial predicts a salary of about negative $103,600. At 40 it predicts about negative $2.05 million. At 45 it predicts about negative $12.45 million. Every one of those is impossible, and each is far worse than the last.
+
+Nothing in the fit itself warns you this is coming. The R-squared of 0.8805 only measures how well the curve matches the x-values it was actually fitted on, between 1 and 29.7 years. A polynomial is still just a straight line through its own power columns, fit by the same least squares mechanic as any other `lm()`: minimizing summed squared residuals over its own columns. Once experience moves past 29.7, those power columns keep growing by the rules of ordinary algebra, and nothing in the model holds them back. The eighth power of a number past the data's range grows enormously, and whatever coefficient multiplies it carries that growth straight into the prediction.
+
+That is the real danger of a high-degree polynomial: it buys a good fit inside the data by accepting behavior outside the data that nobody checked and nobody wanted.
+
+=== step === quiz
+## Quick check: what the polynomial's explosion means
+
+A model fits very well inside the data it was trained on, then gives an impossible prediction just past that range. Which statement explains why?
+
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- The polynomial's fit is still ordinary least squares over its power-of-experience columns, and those columns were only ever constrained to match the data across the x-values the model actually saw. Nothing stops it from curving however the algebra allows once x leaves that range. ::ok Right. The model was never fit on x-values outside 1 to 29.7 years, so it says nothing about them. It only minimized squared residuals on the data it saw, and the power columns are free to grow however the algebra dictates once you leave that range.
+- An R-squared of 0.88 means the fit is wrong everywhere, including inside the training data. ::no
+- A higher-degree polynomial is always a worse choice than a straight line. ::no
+- Adding more rows inside the same 1-to-29.7-year range would fix the prediction without changing the model's form. ::no An R-squared of 0.88 describes how well the curve matches the data it was fitted on, between 1 and 29.7 years here, and inside that range the fit is genuinely good; the failure is specific to extrapolation, not a verdict on the whole model. No amount of additional data inside the same range would change what the polynomial does once x leaves it, because it is the columns themselves, not the row count, that misbehave outside the data.
+
+=== step === concept
+## Restricted cubic splines: a few fixed columns, still an lm()
+
+`splines::ns()` offers a different way to let salary bend with experience. Instead of raising experience to higher and higher powers, `ns(experience, df = 3)` builds three fixed new columns from experience, called a basis. Hand those three columns to `lm()` in place of experience itself, and it fits exactly the way it fit the plain straight line earlier: minimize the summed squared residuals, this time over three columns instead of one.
+
+```r
+# Build 3 fixed basis columns from experience with ns(), then fit an ordinary lm() on them
+library(splines)
+fit_ns3 <- lm(salary ~ ns(experience, df = 3), data = vantage_data)
+summary(fit_ns3)
+#> 
+#> Call:
+#> lm(formula = salary ~ ns(experience, df = 3), data = vantage_data)
+#> 
+#> Residuals:
+#>     Min      1Q  Median      3Q     Max 
+#> -9.0163 -2.9305  0.1463  2.2867 10.5057 
+#> 
+#> Coefficients:
+#>                         Estimate Std. Error t value Pr(>|t|)    
+#> (Intercept)               61.771      1.023   60.38   <2e-16 ***
+#> ns(experience, df = 3)1   22.670      1.250   18.13   <2e-16 ***
+#> ns(experience, df = 3)2   59.527      2.598   22.91   <2e-16 ***
+#> ns(experience, df = 3)3   15.349      1.019   15.07   <2e-16 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> Residual standard error: 3.794 on 146 degrees of freedom
+#> Multiple R-squared:  0.8673,    Adjusted R-squared:  0.8646 
+#> F-statistic:   318 on 3 and 146 DF,  p-value: < 2.2e-16
+```
+
+R-squared comes out at 0.8673, close to the polynomial's 0.8805 and well past the straight line's 0.6935. `summary()`, `coef()` and `predict()` all still work exactly as they did on `fit_line`, the plain straight-line fit from earlier, because `fit_ns3` is still an ordinary `lm()` object underneath. The only thing that changed is which columns went into it.
+
+The word "restricted" in "restricted cubic spline" names the one thing that is different from the polynomial: `ns()` forces the curve to keep going in a straight line past its two boundary knots, the outer edges of the data, instead of leaving it free to curve there. Predict at experience 35, 40 and 45, the exact same three values the polynomial collapsed on.
+
+```r
+# Compare the degree-8 polynomial's predictions with the spline's, at the same three points
+comparison <- data.frame(
+  experience = c(35, 40, 45),
+  polynomial = round(predict(fit_poly, newdata = new_experience), 1),
+  spline = round(predict(fit_ns3, newdata = new_experience), 2)
+)
+comparison
+#>   experience polynomial  spline
+#> 1         35     -103.6   97.36
+#> 2         40    -2048.7   99.08
+#> 3         45   -12453.4  100.79
+```
+
+Where the polynomial collapsed to negative millions, the spline keeps giving sensible numbers: 97.36, then 99.08, then 100.79 thousand dollars, a smooth and slightly rising continuation of the trend the data already showed. That is what "restricted" buys you. Past the boundary knots, `ns()` does not keep raising experience to higher powers the way the polynomial does. It only lets the curve continue in a straight line at whatever slope it had right at the edge of the data, so there is no room for an eighth-power term to run away.
+
+=== step === widget
+## How much flexibility is enough?
+
+How many basis columns should `ns()` use? More columns, a higher `df`, let the curve bend more sharply. Fewer columns keep it closer to a straight line. Before bringing Vantage Analytics' own numbers back in, play with that trade-off on a widget's own built-in curve.
+
+::widget spline-smoother {}
+
+Push the smoothness slider toward its stiffest setting and the fitted curve barely bends, close to a straight line through the middle of the points. Push it toward its most flexible setting and the curve starts to wiggle, chasing individual noisy points instead of the true shape underneath them. Somewhere in between, across a fairly wide middle range, the fit stays close to the true curve either way.
+
+That middle range is the useful finding here. Once a spline has enough flexibility to capture the real bend, giving it noticeably more rarely buys much, and giving it too much starts to cost you by fitting noise instead of signal.
+
+=== step === concept
+## Three, four or five knots: does it matter?
+
+The widget just now showed the general shape of this trade-off on its own demo curve. Time to check it for real, on Vantage Analytics' data, by raising `ns()`'s `df` argument and watching what happens.
+
+`df` is the number of basis columns `ns()` builds. Each `df` beyond the first adds one interior knot, a point where the curve is allowed to bend more sharply, in addition to the two boundary knots already sitting at the edges of the data. So `df = 2` places one interior knot, three knots in total; `df = 3` places two interior knots, four in total; and `df = 4` places three interior knots, five in total.
+
+```r
+# Compare spline fits across 3, 4 and 5 knots: R-squared and AIC for each
+fit_df2 <- lm(salary ~ ns(experience, df = 2), data = vantage_data)
+fit_df3 <- lm(salary ~ ns(experience, df = 3), data = vantage_data)
+fit_df4 <- lm(salary ~ ns(experience, df = 4), data = vantage_data)
+
+data.frame(
+  knots = c(3, 4, 5),
+  r_squared = round(c(summary(fit_df2)$r.squared, summary(fit_df3)$r.squared, summary(fit_df4)$r.squared), 4),
+  AIC = round(c(AIC(fit_df2), AIC(fit_df3), AIC(fit_df4)), 2)
+)
+#>   knots r_squared    AIC
+#> 1     3    0.8486 849.40
+#> 2     4    0.8673 831.66
+#> 3     5    0.8721 828.09
+```
+
+AIC, the Akaike Information Criterion, scores a model by balancing how well it fits against how many parameters it used; lower is better. Read both columns together. Going from 3 knots to 4, R-squared rises from 0.8486 to 0.8673, a gain of about 0.019, and AIC drops by nearly 18 points. Going from 4 knots to 5, R-squared rises again, but only to 0.8721, a gain of under 0.005, and AIC drops by less than 4 points.
+
+So the big improvement happened once, going from 3 knots to 4. Adding a fifth knot barely moved either number. Past a certain point, more knots do not buy you much.
+
+Where does `ns()` even put these knots? By default, at the quantiles of experience itself, so you never have to pick the locations by hand.
+
+```r
+# Where ns() places its interior knots, by default
+attr(ns(vantage_data$experience, df = 3), "knots")
+#> [1] 12.30000 21.93333
+quantile(vantage_data$experience, probs = c(1/3, 2/3))
+#> 33.33333% 66.66667% 
+#>  12.30000  21.93333 
+```
+
+The two interior knots for `df = 3` sit at 12.3 and 21.93 years, exactly experience's own one-third and two-thirds quantiles. `ns()` reads that off the data automatically; nothing here was tuned by hand.
+
+Those knots define where the basis columns bend. Here is what the basis itself actually looks like, the three columns `ns(experience, df = 3)` built, at six experience values spread across the full range.
+
+```r
+# A 6-row sample of the df = 3 basis matrix, spread across the range of experience
+basis3 <- ns(vantage_data$experience, df = 3)
+ord <- order(vantage_data$experience)
+idx <- round(seq(1, 150, length.out = 6))
+basis_df <- as.data.frame(basis3)
+colnames(basis_df) <- c("basis1", "basis2", "basis3")
+cbind(experience = vantage_data$experience, round(basis_df, 4))[ord, ][idx, ]
+#>     experience  basis1 basis2  basis3
+#> 80         1.0  0.0000 0.0000  0.0000
+#> 103        7.3 -0.0854 0.3960 -0.2738
+#> 143       14.5  0.1978 0.5070 -0.3480
+#> 84        19.7  0.5428 0.3577 -0.1512
+#> 120       25.0  0.4025 0.3255  0.2452
+#> 23        29.7 -0.1356 0.4395  0.6962
+```
+
+Nothing magic is happening here. These three columns are just numbers, computed once from experience, and `lm()` combines them with ordinary coefficients exactly the way it combined the single experience column in the very first fit. At the left boundary knot, experience 1.0, all three columns are exactly zero. Move further in and each column traces its own smooth, bounded curve, and none of them explode the way a high power of experience would. That is the real difference from the polynomial: the columns themselves stay bounded, so there is nothing inside them that could produce a collapse once experience moves past the data.
+
+=== step === quiz
+## Quiz: reading a knot-count comparison
+
+A colleague is fitting a similar restricted cubic spline on a different dataset. They raise the knot count from 4 to 7. The AIC barely moves, and the fitted curve looks almost identical to the 4-knot version. Which conclusion is best supported by the knot-count comparison you just worked through?
+
+::quiz {"correct": 1, "gate": true, "difficulty": "advanced"}
+- The relationship does not need that many knots. A smaller count is already capturing the bend, and the extra flexibility past it is not buying a meaningfully better fit. ::ok Right. Going from 3 to 4 knots bought a real gain in both R-squared and AIC, and going from 4 to 5 bought almost nothing. A knot count can run well past the point where it is still earning its place.
+- More knots always fits the data better, so the colleague should keep raising the count. ::no
+- The AIC barely moving means the spline is misspecified and a polynomial should be used instead. ::no
+- The fitted curve looking almost the same at 4 and 7 knots proves the true relationship is linear. ::no More knots never hurts the in-sample fit, R-squared can only rise or stay flat as columns are added, so "always fits better" is not the real issue here. A flat AIC is not a sign to switch to a polynomial either; that would trade a bounded, well-behaved curve for one that can explode past the data, the opposite of an improvement. And a curve that stops changing once it already bends is evidence the bend was found early, not evidence that the true relationship was a straight line all along.
+
+=== step === tryit
+## Your turn: fit a restricted cubic spline
+
+`vantage_data` is still sitting in this page's session, with the same experience and salary columns you have been using all along. Fit a restricted cubic spline with `df = 2`, then one with `df = 4`, and read off each one's R-squared.
+
+```r
+# vantage_data is already loaded: experience and salary for 150 data scientists
+library(splines)
+
+# Fit a restricted cubic spline with df = 2, then one with df = 4.
+# For each, read off summary(...)$r.squared.
+# Then write one line: do the two values differ enough to matter?
+```
+::check {"regex": "ns\\s*[(][\\s\\S]*?df\\s*=[\\s\\S]*?lm\\s*[(][\\s\\S]*?summary\\s*[(]", "gate": true, "difficulty": "intermediate", "ok": "Right. df = 2 gives an R-squared of 0.8486, df = 4 gives 0.8721, a gain of about 0.024. That is the same small movement found earlier between 3 and 5 knots: real, but nowhere near as large as the jump a straight line to a spline bought in the first place.", "no": "Build the basis with an ns( call that includes a df = argument, hand it to an lm( call against salary, then read summary(...)$r.squared off the result. Do this once for df = 2 and once for df = 4, then write one line comparing the two values."}
+::solution
+```r
+# Fit df = 2 and df = 4, and compare their R-squared
+ns_df2 <- ns(vantage_data$experience, df = 2)
+fit_df2 <- lm(salary ~ ns_df2, data = vantage_data)
+summary(fit_df2)$r.squared
+#> [1] 0.8486161
+
+ns_df4 <- ns(vantage_data$experience, df = 4)
+fit_df4 <- lm(salary ~ ns_df4, data = vantage_data)
+summary(fit_df4)$r.squared
+#> [1] 0.8721237
+
+# Judgment: no. 0.8486 against 0.8721 is a gain of about 0.024 in R-squared,
+# in line with the earlier finding that the fit barely moves once a few
+# knots are already in place.
+```
+
+=== step === concept
+## References
+
+- [Regression Modeling Strategies, 2nd ed.](https://doi.org/10.1007/978-3-319-19425-7) - Harrell, F.E. (2015), Springer. Chapter 2 covers restricted cubic splines and knot placement at quantiles.
+- [Flexible Regression Models with Cubic Splines](https://doi.org/10.1002/sim.4780080504) - Durrleman, S. & Simon, R. (1989), Statistics in Medicine, 8(5), 551-561. The paper that introduced restricted cubic splines.
+- [splines package: ns() and bs()](https://stat.ethz.ch/R-manual/R-devel/library/splines/html/ns.html) - R Core Team, R documentation, stats package.
+- [Regression Modeling Strategies, course notes](https://hbiostat.org/rmsc) - Harrell, F.E. Section on nonlinear terms and why polynomials extrapolate poorly.
+
+=== step === complete
+## One lm(), a few extra columns, no collapse past the data
+
+Here is the whole arc in one place.
+
+A straight line left a systematic residual pattern, not noise: R-squared of 0.6935, with residuals running negative, then positive, then negative again across experience. A degree-8 polynomial fixed that inside the data, reaching R-squared 0.8805, but it collapsed to an impossible negative salary the moment it had to predict just past the data it was fitted on.
+
+A restricted cubic spline avoided both problems. Built with `ns()`, it added a handful of fixed columns to an ordinary `lm()`, so `summary()`, `coef()` and `predict()` all worked unchanged. Past its boundary knots it kept going in a straight line instead of exploding, giving 97.36, 99.08 and 100.79 thousand dollars at the same three experience values where the polynomial fell apart. And its knots sat at experience's own quantiles automatically, with 3 to 4 knots buying a real gain in fit and every knot after that buying almost nothing.
+
+So the restricted cubic spline let the bend in the data decide its own shape, using nothing more exotic than `lm()` itself.
