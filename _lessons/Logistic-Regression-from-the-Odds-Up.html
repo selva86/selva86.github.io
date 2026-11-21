@@ -1,0 +1,451 @@
+---
+title: "Generalized Linear Models Lesson 1: Logistic regression, from the odds up"
+description: "See why a straight line fails a yes/no outcome, then build logistic regression from odds to log odds to a fitted odds ratio you can read in plain words."
+keywords: "logistic regression, odds, log odds, odds ratio, glm, binomial regression, logit, probability, coefficient, R"
+mathjax: false
+webr: true
+curriculum_id: "4.80.1"
+post_type: "LESSON"
+course_id: "res-glm"
+course_title: "Generalized Linear Models"
+course_lesson: "1"
+course_total: "8"
+course_landing: "Generalized-Linear-Models-Course.html"
+course_next: ""
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Why a straight line can't model a yes-or-no outcome, and what actually does."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Logistic regression, from the odds up</h2>
+
+<p>Today let's understand logistic regression very clearly, built up one step at a time starting from a plain pass-or-fail outcome.</p>
+
+<p>A coding bootcamp runs a certification test at the end of its course. 40 students took it: 10 of them after just 1 hour of exam prep, another 10 after 2 hours, another 10 after 3 hours, and the last 10 after 4 hours. Out of each group of 10, 2, 5, 8 and 9 students passed.</p>
+
+<p>Turn those counts into a pass rate for each group and you get 0.2, 0.5, 0.8 and 0.9. One in five passed after 1 hour of prep. Nine in ten passed after 4.</p>
+
+<p>Here is that climb.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":0.2},{"x":2,"y":0.5},{"x":3,"y":0.8},{"x":4,"y":0.9}],"geoms":["bar"],"x":"hours","y":"pass_rate"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The bars climb steadily as prep hours go up. The whole question ahead is what rule turns an hours number like these into a passing chance like these.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="widget">
+<h2>From pass rate to odds to log odds</h2>
+
+<p>Go back to the bootcamp's four pass rates: 0.2, 0.5, 0.8 and 0.9, one for each hours-of-prep group. Rebuild the full table behind those four numbers and let R count the passes itself.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rebuild the bootcamp table from counts, then confirm the pass counts per group
+hours &lt;- rep(1:4, each = 10)
+pass &lt;- c(1,1,0,0,0,0,0,0,0,0,
+          1,1,1,1,1,0,0,0,0,0,
+          1,1,1,1,1,1,1,1,0,0,
+          1,1,1,1,1,1,1,1,1,0)
+bootcamp &lt;- data.frame(hours = hours, pass = pass)
+
+table(hours = bootcamp$hours, pass = bootcamp$pass)
+#&gt;      pass
+#&gt; hours 0 1
+#&gt;     1 8 2
+#&gt;     2 5 5
+#&gt;     3 2 8
+#&gt;     4 1 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the same 2, 5, 8 and 9 passes out of 10 at each hours value, now counted straight from the 40 rows of data.</p>
+
+<p>A pass rate is easy to read, but it is not the scale the model to come is actually built on. The first step toward that scale is odds. Odds compare the chance something happens to the chance it does not: for a pass rate <code>p</code>, the odds are <code>p / (1 - p)</code>.</p>
+
+<p>Compute the odds for each group, then take the next step and compute the log of each: the log odds.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute each group's pass rate, its odds, and the log of the odds
+p &lt;- tapply(bootcamp$pass, bootcamp$hours, mean)
+odds &lt;- p / (1 - p)
+logodds &lt;- log(odds)
+round(rbind(p = p, odds = odds, logodds = logodds), 4)
+#&gt;               1   2      3      4
+#&gt; p        0.2000 0.5 0.8000 0.9000
+#&gt; odds     0.2500 1.0 4.0000 9.0000
+#&gt; logodds -1.3863 0.0 1.3863 2.1972</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the odds row first.</p>
+
+<ul>
+
+<li>At 1 hour, the odds are 0.25: 1-to-4 against passing.</li>
+
+<li>At 2 hours, the odds are 1: even odds.</li>
+
+<li>At 3 hours, the odds are 4: 4-to-1 in favor.</li>
+
+<li>At 4 hours, the odds are 9: 9-to-1 in favor.</li>
+
+</ul>
+
+<p>Odds and pass rate carry exactly the same information. They are just stated as a ratio instead of a fraction.</p>
+
+<p>Now look at the logodds row, and specifically at how much it moves from one column to the next.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The size of the step in log odds from one hours group to the next
+round(diff(logodds), 4)
+#&gt;      2      3      4 
+#&gt; 1.3863 1.3863 0.8109 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pass rate's own steps are 0.3, then 0.3, then 0.1: not constant. The odds' steps jump from 0.25 to 1, then 1 to 4, then 4 to 9: nowhere close to constant either. But the log odds step by 1.3863, then 1.3863, then 0.8109: close to the same amount each time one more hour of prep is added.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">On the log odds scale, one more hour of prep adds close to a fixed amount to the chance of passing. That near-constant, additive behavior is exactly what a straight line produces, which is why the model this lesson builds is written on the log odds scale rather than directly on the probability or the odds.</div></div>
+
+<p>Here are those same four log odds, plotted against hours of prep.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":-1.3863},{"x":2,"y":0},{"x":3,"y":1.3863},{"x":4,"y":2.1972}],"geoms":["point","line"],"x":"hours","y":"log_odds"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switch to the line view and the four points sit almost exactly on a straight line. That straight line is the next thing to actually fit.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<h2>Why an ordinary straight line can't model a yes/no outcome</h2>
+
+<p>The four log odds almost lined up. Try fitting a line to the four pass rates themselves instead, the numbers a non-specialist would actually want reported, and see what happens.</p>
+
+<p>Drag the slope and intercept below until the line fits the four points as closely as you can, then press Snap to least squares to see the best line R would find.</p>
+<div class="lesson-widget" data-widget-type="ols-fit" data-widget-config='{"points":[{"x":1,"y":0.2},{"x":2,"y":0.5},{"x":3,"y":0.8},{"x":4,"y":0.9}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Snap to least squares lands on an intercept of 0 and a slope of 0.24. Fit that same line in R, then predict at two hours values nobody in the data has: -1 hour, and 6 hours.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a straight line to the four pass rates, then predict at two hours values outside the data
+rates &lt;- aggregate(pass ~ hours, data = bootcamp, FUN = mean)
+rates
+#&gt;   hours pass
+#&gt; 1     1  0.2
+#&gt; 2     2  0.5
+#&gt; 3     3  0.8
+#&gt; 4     4  0.9
+
+line_fit &lt;- lm(pass ~ hours, data = rates)
+round(coef(line_fit), 4)
+#&gt; (Intercept)       hours 
+#&gt;        0.00        0.24 
+
+preds &lt;- predict(line_fit, newdata = data.frame(hours = c(-1, 6)))
+names(preds) &lt;- c(-1, 6)
+round(preds, 4)
+#&gt;    -1     6 
+#&gt; -0.24  1.44 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At -1 hour the line predicts a pass rate of -0.24. At 6 hours it predicts 1.44. Neither one is a valid probability: a fraction of students passing cannot be negative, and it cannot be bigger than 1.</p>
+
+<p>The problem is not the data or the sample size. An ordinary straight line is built to run from negative infinity to positive infinity in both directions, and nothing in its equation stops it at 0 or at 1. Ask it for a prediction far enough from the data it was fit on, and it will hand back a number outside the range a probability is allowed to take.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>The logistic curve: bounded between 0 and 1 by construction</h2>
+
+<p>A straight line fails because nothing in its equation stops it at 0 or at 1. The fix is a curve whose equation cannot do that by its own construction, no matter how far out you push it.</p>
+
+<p>Here is that curve's formula, written the way you would type it in R:</p>
+
+<p><code>p = 1 / (1 + exp(-(b0 + b1 * x)))</code></p>
+
+<p><code>b0 + b1 * x</code> is the exact same straight-line expression as before, an intercept plus a slope times x. The difference is that this straight line is never reported directly. It is first passed through <code>1 / (1 + exp(-...))</code>.</p>
+
+<ul>
+
+<li>When <code>b0 + b1 * x</code> runs very negative, <code>exp(-(b0 + b1 * x))</code> becomes a huge number, so 1 divided by a huge number lands close to 0.</li>
+
+<li>When <code>b0 + b1 * x</code> runs very positive, <code>exp(-(b0 + b1 * x))</code> shrinks toward 0, so 1 divided by something close to 1 lands close to 1.</li>
+
+</ul>
+
+<p>For any finite value of <code>x</code>, the result sits strictly between 0 and 1. That S-shaped curve is what people call the logistic curve.</p>
+
+<p>The widget below uses its own 12 illustrative points, not the bootcamp table, so you can see the curve and the threshold clearly. The same shape is what gets fitted to the bootcamp data in the next step.</p>
+
+<p>Drag the decision threshold and watch how the points above and below it get called positive or negative.</p>
+<div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Lower the threshold and the curve calls more points positive. That catches more of the real 1s, but it also mislabels more of the real 0s as positive: a false positive.</p>
+
+<p>Raise the threshold and it goes the other way: fewer false positives, more false negatives, points that were really 1 but got called 0. The S-curve itself never changes shape, only where you choose to cut it.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why a curve instead of a line</h2>
+
+<p>A straight line fitted to pass-or-fail data predicts a probability of 1.44 for a student who studies 6 hours. Which statement reads that correctly?</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-from-the-Odds-Up-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Collecting more students for the experiment would have kept that 1.44 inside the valid 0-to-1 range.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A predicted value of 1.44 is not a real problem, because probability is only one of several numbers a fitted model can report.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">An ordinary straight line has no mechanism that keeps its output between 0 and 1, so it can report numbers that are not valid probabilities at all.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Six hours is too large a value to plug into a fitted line in the first place.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A straight line's equation runs from negative infinity to positive infinity by construction. Nothing in it stops at 0 or 1, so 1.44 is exactly the kind of number you should expect once x moves far enough from the data.</div><div class="lesson-qfb lesson-qfb-no">A line accepts any x you give it; the trouble is never the input, only the output. More students would not fix this either, since the issue is the shape of the model, not the size of the sample, and a probability above 1 is never valid no matter what else the model happens to compute.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Fitting the logistic model to the bootcamp data</h2>
+
+<p>The logistic curve from a moment ago had two made-up numbers, b0 and b1, just to show the shape. Fit the real model and R works out the best values of those two numbers for the bootcamp data itself.</p>
+
+<p>Fit the logistic model on the full 40-student table with <code>glm()</code>, told <code>family = binomial</code> because the outcome being modeled is a plain 0 or 1, and look at its summary.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the logistic model: pass as a function of hours, on the full 40-student table
+m &lt;- glm(pass ~ hours, data = bootcamp, family = binomial)
+summary(m)
+#&gt;
+#&gt; Call:
+#&gt; glm(formula = pass ~ hours, family = binomial, data = bootcamp)
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)   
+#&gt; (Intercept)  -2.5451     0.9887  -2.574  0.01005 * 
+#&gt; hours         1.2540     0.4087   3.068  0.00215 **
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; (Dispersion parameter for binomial family taken to be 1)
+#&gt;
+#&gt;     Null deviance: 53.841  on 39  degrees of freedom
+#&gt; Residual deviance: 40.509  on 38  degrees of freedom
+#&gt; AIC: 44.509
+#&gt;
+#&gt; Number of Fisher Scoring iterations: 4
+
+round(coef(m), 4)
+#&gt; (Intercept)       hours 
+#&gt;     -2.5451      1.2540 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Estimate</code> column holds the two numbers this lesson needs: -2.5451 for the intercept, 1.2540 for hours. The other columns, the standard error and the significance test for each one, say how precisely each was estimated, but they are not this lesson's subject.</p>
+
+<p>Both of those two numbers live on the log odds scale from a few steps back. In R's own notation: <code>log odds = -2.5451 + 1.2540 * hours</code>. That is a straight line, the same ordinary kind that broke down a moment ago, except it lives on the log odds scale instead of the probability scale. Pass it through <code>1 / (1 + exp(-...))</code> and you get back the S-curve: bounded, and never outside 0 and 1.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Reading the coefficient as a log odds ratio</h2>
+
+<p>Look again at the hours coefficient, 1.2540. It lives on the log odds scale, the same scale where adding one hour of prep added a close-to-constant amount a few steps back. That is exactly what this coefficient is: 1.2540 is the amount one more hour of prep adds to the log odds of passing, whatever the log odds happened to be before.</p>
+
+<p>Nobody reports a log odds number out loud, though. Undo the logarithm and you get something that can actually be said in plain words.</p>
+
+<p>Exponentiate the hours coefficient to undo the log and get that number back.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Exponentiate the hours coefficient: that turns a log odds ratio into an odds ratio
+round(exp(coef(m)), 4)
+#&gt; (Intercept)       hours 
+#&gt;      0.0785      3.5043 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>3.5043 is the odds ratio for hours. It says: for one more hour of prep, the odds of passing get multiplied by about 3.5043, whatever those odds were before. Multiplied, not added.</p>
+
+<p>Check that multiplying claim directly against the model's own fitted odds: compute the fitted probability at 2 hours and at 3 hours, turn each into odds, then divide one by the other.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Get the model's own fitted odds at 2 and 3 hours, then divide one by the other
+p2 &lt;- unname(predict(m, newdata = data.frame(hours = 2), type = &quot;response&quot;))
+p3 &lt;- unname(predict(m, newdata = data.frame(hours = 3), type = &quot;response&quot;))
+odds2 &lt;- p2 / (1 - p2)
+odds3 &lt;- p3 / (1 - p3)
+round(c(odds2 = odds2, odds3 = odds3, ratio = odds3 / odds2), 4)
+#&gt;  odds2  odds3  ratio 
+#&gt; 0.9636 3.3767 3.5043 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 2 hours the fitted odds are 0.9636. At 3 hours they are 3.3767. Divide the second by the first and you get 3.5043, the exact same number <code>exp()</code> handed back from the coefficient alone.</p>
+
+<p>That match is not a coincidence. It is what "the hours coefficient is a log odds ratio" means, worked out two different ways on the same model.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>From an odds ratio to a probability you can actually use</h2>
+
+<p>3.5043 is a clean number on the odds scale, but say it out loud to someone outside statistics and it does not land. What a non-specialist actually wants to know is simpler: how many more students pass?</p>
+
+<p>Get the model's fitted passing probability at each of 1 through 5 hours of prep.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Get the fitted probability of passing at each of 1 through 5 hours
+fitted_p &lt;- predict(m, newdata = data.frame(hours = 1:5), type = &quot;response&quot;)
+names(fitted_p) &lt;- 1:5
+round(fitted_p, 4)
+#&gt;      1      2      3      4      5 
+#&gt; 0.2157 0.4907 0.7715 0.9221 0.9765 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted probability climbs from 0.2157 at 1 hour to 0.9765 at 5 hours. Take the difference between each pair of neighbouring hours to see exactly how much each extra hour buys.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The rise in probability from one hour of prep to the next
+round(diff(fitted_p), 4)
+#&gt;      2      3      4      5 
+#&gt; 0.2751 0.2808 0.1506 0.0544 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Going from 2 to 3 hours of prep raises the passing probability by 0.2808, 28 percentage points. Going from 4 to 5 hours, under the exact same odds ratio of 3.5043, it raises the probability by only 0.0544, barely 5.4 points.</p>
+
+<p>The odds ratio itself never changes: it is fixed at 3.5043 no matter which hour you start from. But the S-curve from a few steps back is steepest in the middle and flattest near 0 and near 1. A fixed multiplicative push on the odds turns into a big jump in probability where the curve is steep, and a tiny jump where the curve is flat.</p>
+
+<p>That is why the honest way to report a fitted coefficient to someone outside statistics names a probability change at a stated hours value, like "28 points more likely to pass going from 2 to 3 hours," rather than the odds ratio alone. The odds ratio stays fixed. What it buys you in probability does not.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quiz: reading a fitted logistic model</h2>
+
+<p>A fitted logistic model reports an hours coefficient of 1.2540, and <code>exp(1.2540)</code> works out to 3.5043. Which statement correctly describes what that 3.5043 measures?</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-from-the-Odds-Up-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The probability of passing rises by 3.5043 for every additional hour of prep.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is the odds ratio for one more hour of prep: the odds of passing get multiplied by about 3.5043 for each extra hour.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">3.5043 is the number of extra students expected to pass for each additional hour of prep.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">1.2540 itself, not its exponent, is the odds ratio.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Exponentiating a log odds coefficient turns an added amount on the log odds scale into a multiplier on the odds scale, for one more unit of the predictor.</div><div class="lesson-qfb lesson-qfb-no">1.2540 is the log odds ratio, the amount added to the log odds for one more hour. Exponentiating it is what turns that addition into a multiplication on the odds scale, which is what 3.5043 actually is. Probability does not rise by a fixed amount per hour either, as the fitted values a few steps back showed, and an odds ratio says nothing about a count of students, only how the odds themselves scale.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: predict, then convert to odds</h2>
+
+<p>The model <code>m</code> is still fitted from a few steps back. Use it to answer a question nobody asked it directly yet: what is the passing probability at 2.5 hours of prep, halfway between two of the original groups, and what odds go with that probability?</p>
+<section class="exercise" data-exercise-id="Logistic-Regression-from-the-Odds-Up-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*hours\s*=\s*2\.5)(?=[\s\S]*type\s*=\s*&quot;response&quot;)(?=[\s\S]*p_hat\s*/\s*[(]\s*1\s*-\s*p_hat\s*[)])"><textarea class="lesson-tryit-input" spellcheck="false"># Predict the passing probability at 2.5 hours of prep, then convert it to odds
+p_hat &lt;- unname(predict(m, newdata = data.frame(hours = ____), type = &quot;response&quot;))
+odds_hat &lt;- ____
+round(c(p_hat = p_hat, odds_hat = odds_hat), 4)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: p_hat comes out at 0.6433 and odds_hat at 1.8038. Odds above 1 means passing is now more likely than not at 2.5 hours, which fits right between the 0.5 pass rate at 2 hours and the 0.8 at 3.</span><span class="lesson-tryit-fb lesson-tryit-no">Two things are needed: predict() with hours = 2.5 and type = "response" inside newdata, and odds_hat computed as p_hat divided by (1 - p_hat), the same odds formula from a few steps back.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Predict the passing probability at 2.5 hours of prep, then convert it to odds
+p_hat &lt;- unname(predict(m, newdata = data.frame(hours = 2.5), type = &quot;response&quot;))
+odds_hat &lt;- p_hat / (1 - p_hat)
+round(c(p_hat = p_hat, odds_hat = odds_hat), 4)
+#&gt;    p_hat odds_hat 
+#&gt;   0.6433   1.8038 </code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li>Cox, D.R. (1958). <a href="https://doi.org/10.1111/j.2517-6161.1958.tb00292.x">The Regression Analysis of Binary Sequences</a>. Journal of the Royal Statistical Society, Series B. The paper that first worked out logistic regression for binary outcomes.</li>
+
+<li>Hosmer, D.W., Lemeshow, S. & Sturdivant, R.X. (2013). <a href="https://doi.org/10.1002/9781118548387">Applied Logistic Regression, 3rd edition</a>. Wiley.</li>
+
+<li>Agresti, A. (2013). Categorical Data Analysis, 3rd edition. Wiley, ISBN 978-0-470-46363-5. Chapter 5 covers logistic regression in depth.</li>
+
+<li>Harrell, F.E. (2015). <a href="https://doi.org/10.1007/978-3-319-19425-7">Regression Modeling Strategies, 2nd edition</a>. Springer. Chapter 10 covers binary logistic models and their extensions.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>The whole chain: probability to odds to a usable number</h2>
+
+<p>Walk the whole chain back from the start, this time with every number already on the page.</p>
+
+<ul>
+
+<li>The bootcamp's four pass rates ran from 0.2 to 0.9 across the four hours groups.</li>
+
+<li>Turned into odds, those same four rates ran from 0.25 to 9.</li>
+
+<li>Turned into log odds, they ran from -1.3863 to 2.1972, rising by a near-constant 1.3863 and then 0.8109 per extra hour.</li>
+
+<li>An ordinary straight line fit to the four pass rates broke down outside the data, predicting -0.24 at -1 hour and 1.44 at 6 hours.</li>
+
+<li>The logistic fit's hours coefficient, 1.2540, is a log odds ratio. Exponentiated, it becomes an odds ratio of 3.5043.</li>
+
+<li>That same 3.5043 odds ratio reads as a 28-point rise in passing probability from 2 to 3 hours of prep, but only a 5.4-point rise from 4 to 5.</li>
+
+</ul>
+
+<p>That is the full path: a probability, turned into odds, turned into log odds so a straight line can model it honestly, then a fitted coefficient turned back into an odds ratio and finally into a probability change you can actually report.</p>
+
+<p>The logistic curve is only one shape that can model a yes-or-no outcome. The next lesson looks at two other shapes and when the choice between them actually matters.</p>
+</section>
+
+{% endraw %}
