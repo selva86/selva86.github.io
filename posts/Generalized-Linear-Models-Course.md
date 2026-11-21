@@ -27,11 +27,11 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 ## What the course covers
 
-### Lesson 1: Logistic regression from the odds up
+### Lesson 1: Logistic regression, from the odds up
 
 Built in the order that makes it stick: a probability, then odds, then log odds, each computed on the same small table so you can convert between them by hand before any model is fitted. Why a linear model on a zero-or-one outcome gives predictions outside zero and one, demonstrated rather than asserted. Then the logistic fit, with the coefficient read as a log odds ratio, exponentiated to an odds ratio, and converted to a change in probability at a stated covariate setting, which is the only one of the three a non-specialist reader will understand.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Logistic regression, from the odds up](Logistic-Regression-from-the-Odds-Up.html)
 
 ### Lesson 2: Three link functions and why the choice rarely matters
 
