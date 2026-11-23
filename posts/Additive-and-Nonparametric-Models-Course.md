@@ -33,7 +33,7 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 A scatter plot with a real curve in it, and four smoothers laid over it: a moving average, a loess fit, a regression spline and a smoothing spline, each with its tuning parameter swept from far too smooth to far too wiggly, so you watch the same bias-variance trade appear in a new costume. The sweep is the lesson, not the menu. Under-smoothing chases noise, over-smoothing erases the feature you came for, and the right setting is a decision a criterion should make rather than your eye.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Smoothing without smoothing away the signal](Smoothing-Without-Smoothing-Away-the-Signal.html)
 
 ### Lesson 2: Generalized additive models, one smooth at a time
 

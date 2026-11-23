@@ -33,43 +33,43 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 Thirty clinics, ten patients each, and an ordinary regression whose interval is far too narrow because it counts three hundred independent observations when it has closer to thirty. Simulated so the failure arrives as a coverage count rather than a caution. Then the three analyses a researcher might reach for, which are ignoring the grouping, averaging within group, and adding the group as a fixed factor, each shown to answer a different question and two of them to answer the wrong one. The mixed model previewed as the one that uses both levels of information at once.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Why grouped data breaks ordinary regression](Why-Grouped-Data-Breaks-Ordinary-Regression.html)
 
 ### Lesson 2: Random intercepts and random slopes
 
 The model written out before it is fitted, so you know which quantities are being estimated: one intercept per group drawn from a distribution whose variance is the estimated thing, and then optionally one slope per group the same way. Fitted with `lmer()`, with the output's variance components mapped line by line onto the model just written. Random intercepts set against random slopes on data where the effect genuinely varies by group, and the fixed-effect interval widening appropriately once that variation is modelled instead of ignored.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Random intercepts and random slopes](Random-Intercepts-and-Random-Slopes.html)
 
 ### Lesson 3: Modeling change within a person
 
 Repeated measurements on the same subjects, where the grouping factor is the person and the interesting coefficient is a slope over time. A growth-curve model with a random intercept and a random slope for time, so each subject gets their own trajectory, plotted against the population average. Why the within-subject comparison is more precise than the between-subject one, derived from the variance decomposition rather than asserted, and the trap of reading a population slope as though it described every individual.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Modeling change within a person](Modeling-Change-Within-a-Person.html)
 
 ### Lesson 4: Reading variance components and the ICC
 
 The numbers most people skip past, turned into the answer to a question. Between-group and within-group variance computed by hand from group means, their ratio formed into the intraclass correlation, and that number interpreted two ways: as the correlation between two observations from the same group, and as the fraction of total variation the grouping explains. The design consequence computed directly, which is the effective sample size of a clustered study, and why adding more patients to the same thirty clinics stops helping.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Reading variance components and the ICC](Reading-Variance-Components-and-the-ICC.html)
 
 ### Lesson 5: GEE or mixed model, two different questions
 
 Two methods that fit the same data and estimate different things, which is why "which is better" has no answer. A mixed model estimates a subject-specific effect; GEE estimates a population-averaged one, and for a nonlinear link those two numbers genuinely differ, shown numerically on the same dataset rather than described. GEE's working correlation structure explained as something that need not be right for the estimate to stay consistent, which is its main attraction, and the mixed model's advantage named: it hands you the variance components lesson 4 just made useful.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: GEE or mixed model, two different questions](GEE-or-Mixed-Model-Two-Different-Questions.html)
 
 ### Lesson 6: Correlated residuals inside a group
 
 What is left after the random effects. Observations close in time within a subject are still more alike than distant ones, and a random intercept alone does not capture that. An autoregressive residual structure added, with the improvement measured and the consequence for the fixed-effect standard error shown. Why this matters most for long series per subject and barely at all for three visits, demonstrated by varying the number of measurements, so you leave with a rule for when to bother rather than one more thing to always do.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Correlated residuals inside a group](Correlated-Residuals-Inside-a-Group.html)
 
 ### Lesson 7: What to do when your mixed model will not converge
 
 The most common practical failure in this material, treated as a diagnosable problem rather than bad luck. Four causes reproduced on purpose: a variance component that is genuinely zero, a random-effects structure too complex for the number of groups, predictors on wildly different scales, and near-perfect separation. Each one's warning message shown and mapped to its cause, then fixed, in the order worth trying them. Why a singular fit is sometimes the correct answer rather than an error, and when simplifying the random structure is honest and when it quietly changes the question.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: What to do when your mixed model will not converge](What-to-Do-When-Your-Mixed-Model-Will-Not-Converge.html)
 
 ## Who this is for
 

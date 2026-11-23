@@ -1,0 +1,409 @@
+---
+title: "Mixed Effects and Longitudinal Models Lesson 5: GEE or mixed model, two different questions"
+description: "A mixed model and GEE fit the same clustered binary data and report different coefficients. See why both are right, and what each one actually measures."
+keywords: "GEE, generalized estimating equations, subject-specific effect, population-averaged effect, mixed model in R, geeglm, cluster-robust standard error, sandwich estimator, working correlation, logistic mixed model"
+mathjax: false
+webr: true
+curriculum_id: "4.90.5"
+post_type: "LESSON"
+course_id: "res-mixed"
+course_title: "Mixed Effects and Longitudinal Models"
+course_lesson: "5"
+course_total: "7"
+course_landing: "Mixed-Effects-and-Longitudinal-Models-Course.html"
+course_next: "Correlated-Residuals-Inside-a-Group"
+course_prev: "Reading-Variance-Components-and-the-ICC"
+lesson_access: "pro"
+catalog_blurb: "Why a mixed model and GEE answer different questions on the same data."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>GEE or mixed model, two different questions</h2>
+
+<p>Today let's look at two methods that fit the exact same data and are both correct, yet hand back two different numbers for the very same treatment effect.</p>
+
+<p>Thirty clinics take part in a trial of a new treatment protocol. Fifteen clinics run the new protocol, and fifteen keep the standard care they have always used. Each clinic enrolls ten patients, so the trial covers three hundred patients in total. Eight weeks later, every patient's treatment either succeeded or it did not, recorded as a 1 or a 0.</p>
+
+<p>Here is every one of those three hundred patients, already grouped into each clinic's own share of successes, split by arm.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"New protocol","y":0.9},{"x":"New protocol","y":0.1},{"x":"New protocol","y":0.9},{"x":"New protocol","y":0.8},{"x":"New protocol","y":0.6},{"x":"New protocol","y":0.5},{"x":"New protocol","y":0.8},{"x":"New protocol","y":0.2},{"x":"New protocol","y":0.9},{"x":"New protocol","y":0.5},{"x":"New protocol","y":0.9},{"x":"New protocol","y":1},{"x":"New protocol","y":0.6},{"x":"New protocol","y":0.7},{"x":"New protocol","y":0.7},{"x":"Standard care","y":0.4},{"x":"Standard care","y":0.2},{"x":"Standard care","y":0.1},{"x":"Standard care","y":0},{"x":"Standard care","y":0.9},{"x":"Standard care","y":0.5},{"x":"Standard care","y":0},{"x":"Standard care","y":0.1},{"x":"Standard care","y":0.7},{"x":"Standard care","y":0.8},{"x":"Standard care","y":0.4},{"x":"Standard care","y":0.4},{"x":"Standard care","y":0.1},{"x":"Standard care","y":0.4},{"x":"Standard care","y":0.1}],"geoms":["point","boxplot"],"x":"Arm","y":"Success rate","code":{}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Build that same trial in R now, and reproduce this picture yourself.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the clinic trial and plot each clinic's own success rate by arm
+set.seed(42)
+n_clinics &lt;- 30
+n_patients &lt;- 10
+clinic &lt;- factor(rep(1:n_clinics, each = n_patients))
+treatment &lt;- rep(c(1, 0), each = n_clinics / 2 * n_patients)
+clinic_effect &lt;- rnorm(n_clinics, mean = 0, sd = 1)
+logit_p &lt;- -0.5 + 1 * treatment + clinic_effect[clinic]
+success &lt;- rbinom(n_clinics * n_patients, 1, plogis(logit_p))
+trial &lt;- data.frame(clinic = clinic, treatment = treatment, success = success)
+
+library(dplyr)
+library(ggplot2)
+
+clinic_rate &lt;- trial %&gt;%
+  group_by(clinic, treatment) %&gt;%
+  summarise(success_rate = mean(success), .groups = &quot;drop&quot;) %&gt;%
+  mutate(arm = ifelse(treatment == 1, &quot;New protocol&quot;, &quot;Standard care&quot;))
+
+arm_rate &lt;- trial %&gt;%
+  group_by(treatment) %&gt;%
+  summarise(success_rate = mean(success), .groups = &quot;drop&quot;) %&gt;%
+  mutate(arm = ifelse(treatment == 1, &quot;New protocol&quot;, &quot;Standard care&quot;))
+
+ggplot(clinic_rate, aes(x = arm, y = success_rate)) +
+  geom_jitter(width = 0.1, size = 2.6, alpha = 0.7, color = &quot;steelblue&quot;) +
+  geom_point(data = arm_rate, shape = 18, size = 5, color = &quot;firebrick&quot;) +
+  labs(x = NULL, y = &quot;Clinic's own success rate&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each blue dot is one clinic's own success rate. The two red diamonds are the overall rate for each arm: 0.34 for standard care, 0.673 for the new protocol, so the new protocol does look better on average.</p>
+
+<p>But look at the blue dots themselves. Among the standard-care clinics alone, one sits at a success rate of 0.0 and another at 0.9. Among the new-protocol clinics, one sits at 0.1 and another reaches 1.0. Clinics in the same arm do not land anywhere near each other, and some clinics from different arms overlap completely.</p>
+
+<p>That spread, sitting right there in the plot above, is why this lesson needs two different methods instead of one.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Two questions about the same effect</h2>
+
+<p>When you ask how much the new protocol helps, you are actually asking one of two different questions, and they are not the same question wearing two names.</p>
+
+<ul>
+
+<li>Subject-specific: if one particular clinic's own patients switched from standard care to the new protocol, how much would that clinic's own log odds of success move?</li>
+
+<li>Population-averaged: across the whole population of clinics, some that start low and some that start high, how much higher is the overall success probability under the new protocol than under standard care?</li>
+
+</ul>
+
+<p>If the two arms differed by a fixed number of percentage points, these two questions would have the same answer. They do not, because a logistic model does not work on probabilities directly. It works on log odds, and the function that turns a log odds back into a probability, <code>plogis()</code>, is curved rather than straight.</p>
+
+<p>Take two toy clinics that have nothing to do with the trial above. Clinic A starts at a baseline success probability of 0.2 under standard care, and clinic B starts at 0.8. Watch what the exact same log-odds bump of 1, the size this lesson's trial was built around, does to each of their probabilities.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Give two toy clinics with different baselines the SAME log-odds bump
+pA &lt;- 0.2
+pB &lt;- 0.8
+log_odds_bump &lt;- 1
+
+pA_new &lt;- plogis(qlogis(pA) + log_odds_bump)
+pB_new &lt;- plogis(qlogis(pB) + log_odds_bump)
+
+round(c(A_before = pA, A_after = pA_new, A_change = pA_new - pA), 3)
+#&gt; A_before  A_after A_change 
+#&gt;    0.200    0.405    0.205 
+round(c(B_before = pB, B_after = pB_new, B_change = pB_new - pB), 3)
+#&gt; B_before  B_after B_change 
+#&gt;    0.800    0.916    0.116 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>qlogis()</code> turns a probability into a log odds, and <code>plogis()</code> turns a log odds back into a probability. Adding the bump in between is exactly what a treatment coefficient in a logistic model does to a clinic's own log odds. The same bump of 1 moves clinic A's probability up by 0.205, but moves clinic B's probability up by only 0.116, even though both clinics received the identical log-odds effect.</p>
+
+<p>A clinic that starts near 0.5 has the most room for a log-odds bump to move its probability. A clinic that already starts near 0 or near 1 has less room, because a probability cannot go below 0 or above 1. Average that bump across a population of clinics sitting at all sorts of starting probabilities, as the thirty clinics in this trial do, and the average probability shift comes out smaller than the shift any single clinic gets in log odds.</p>
+
+<p>That gap between a subject-specific effect and a population-averaged effect is exactly what the next two models go on to measure, on the real clinic trial.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Fitting the subject-specific model: a GLMM</h2>
+
+<p>The subject-specific question, how much moving one clinic's own patients onto the new protocol changes their own log odds, is exactly what a mixed logistic model answers. Fit one now on the full trial, with a random intercept for clinic.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the mixed logistic model and read off the subject-specific treatment effect
+library(lme4)
+glmm_fit &lt;- glmer(success ~ treatment + (1 | clinic), data = trial, family = binomial)
+
+fixef(glmm_fit)
+#&gt; (Intercept)   treatment 
+#&gt;  -0.8913038   1.8099390 
+
+round(sqrt(diag(vcov(glmm_fit))), 3)
+#&gt; (Intercept)   treatment 
+#&gt;       0.391       0.553 
+
+VarCorr(glmm_fit)
+#&gt;  Groups Name        Std.Dev.
+#&gt;  clinic (Intercept) 1.2713  
+
+exp(fixef(glmm_fit)[&quot;treatment&quot;])
+#&gt; treatment 
+#&gt;  6.110075 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The treatment coefficient is 1.810, with a standard error of 0.553. That coefficient is a log odds ratio, subject-specific by construction: it says how much a single clinic's own log odds of success move when that clinic switches from standard care to the new protocol, holding that clinic's own baseline fixed. Exponentiate it, and the new protocol multiplies a clinic's own odds of success by about 6.11.</p>
+
+<p>The <code>(1 | clinic)</code> term is the random intercept, one adjustment per clinic, and its standard deviation, 1.271, is the GLMM's own measure of how much the thirty clinics' baseline log odds genuinely differ from each other, on top of the treatment effect. Hold on to that number. GEE, the method this lesson is building toward, will never produce it.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>How much should a clinic's own rate be trusted?</h2>
+
+<p>That clinic standard deviation of 1.271 is not just a number to report. It controls how much the mixed model trusts any one clinic's own raw rate against the shared pattern across all thirty clinics, an idea called partial pooling.</p>
+
+<p>This widget swaps in its own eight clinics, each measuring a different, continuous outcome rather than a yes-or-no success, so its numbers will not match the trial above. But the pooling behavior is exactly the one the random intercept you just fit was doing to all thirty clinics at once.</p>
+<div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Slide the dial from "no pooling" toward "complete pooling" and watch clinic E, which has only 2 patients, get pulled 12.8 points toward the grand mean, while clinic D, which has 40 patients, barely moves, pulled by only 0.2. A clinic with just 2 patients is almost pure guesswork on its own, so the model leans hard on everything else it knows about the other clinics. A clinic with 40 patients already has a fairly reliable number of its own, so there is little left to correct.</p>
+
+<p>That is partial pooling, and it is exactly what the <code>(1 | clinic)</code> random intercept did to every one of the trial's thirty clinics: pulling each one's own rate toward the shared pattern by an amount that depends on how much evidence that particular clinic actually has.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Building the population-averaged estimate without a package</h2>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">geepack, the package built specifically for GEE, is not yet available to run in this browser. Everything below that calls it directly is shown as real output from a local R session, labelled to run on your own machine.</div></div>
+
+<p>The population-averaged question, how much higher the overall success probability is across the whole population of clinics, is what GEE answers, and under the simplest working correlation, independence, you do not even need the geepack package to get GEE's own answer. GEE's estimating equations under independence work out to be exactly a plain logistic regression that ignores clinic altogether, confirmed against a real local <code>geeglm()</code> call. Fit that pooled model on the same three hundred rows now.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the pooled logistic regression, ignoring which clinic each patient came from
+pooled_fit &lt;- glm(success ~ treatment, data = trial, family = binomial)
+
+coef(pooled_fit)
+#&gt; (Intercept)   treatment 
+#&gt;  -0.6632942   1.3865944 
+
+round(summary(pooled_fit)$coefficients[, &quot;Std. Error&quot;], 3)
+#&gt; (Intercept)   treatment 
+#&gt;       0.172       0.245 
+
+exp(coef(pooled_fit)[&quot;treatment&quot;])
+#&gt; treatment 
+#&gt;    4.0012 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The treatment coefficient here is 1.387, exponentiating to an odds ratio of 4.00. Put it beside the mixed model's 1.810 and 6.11 from a moment ago. Same three hundred rows, same treatment, two different coefficients.</p>
+
+<p>Neither one is a mistake. The mixed model's 1.810 is subject-specific, the pooled model's 1.387 is population-averaged, and the gap between them is exactly the curved-link gap the two toy clinics showed earlier in this lesson.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why two numbers from the same 300 rows</h2>
+
+<p>A different clustered trial fits the same binary outcome two ways on its own data: a GLMM returns a log odds ratio of 2.10, and a pooled regression with a GEE-style robust standard error returns a log odds ratio of 1.55. Which statement reads that correctly?</p>
+<section class="exercise" data-exercise-id="GEE-or-Mixed-Model-Two-Different-Questions-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both numbers are valid. They differ because the logistic link is curved, so a subject-specific effect and a population-averaged effect are genuinely different quantities, not because either model is wrong.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">One of the two numbers must be wrong, because the same data cannot hold two different real effects.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">With enough data, the two numbers would eventually converge to the same value.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A GLMM's coefficient and a pooled or GEE coefficient answer two different questions about the same treatment, and a curved link lets both answers be true at once.</div><div class="lesson-qfb lesson-qfb-no">Neither number is wrong, and more data will not make them agree. A GLMM's coefficient answers how much the log odds move for one group's own members, while a pooled or GEE coefficient answers how much the overall probability moves across the whole population of groups. For a straight-line link these would be the same question, but the logistic link is curved, so they stay two different, equally real numbers no matter how much data you collect.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Correcting the standard error for clustering</h2>
+
+<p>The pooled model's standard error of 0.245 came from treating all three hundred rows as independent, but they are not: patients at the same clinic share more with each other than patients at different clinics do. Correct it with a cluster-robust sandwich estimator, the same move you would reach for even without a GEE package at all.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Correct the pooled model's standard error for clustering by clinic
+library(sandwich)
+library(lmtest)
+
+coeftest(pooled_fit, vcov = vcovCL(pooled_fit, cluster = trial$clinic))
+#&gt;
+#&gt; z test of coefficients:
+#&gt;
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)   
+#&gt; (Intercept) -0.66329    0.32768 -2.0242 0.042949 * 
+#&gt; treatment    1.38659    0.44665  3.1045 0.001906 **
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficient, 1.387, has not moved. Only the standard error has, from a naive 0.245 to a cluster-robust 0.447, almost twice as large, because the naive version was overstating how much independent information three hundred clustered rows actually carry.</p>
+
+<p>Here is the real GEE package confirming the same thing two different ways.</p>
+
+<pre><code class="language-r"># Run this locally: geeglm() under independence matches the pooled fit exactly
+library(geepack)
+
+gee_indep &lt;- geeglm(success ~ treatment, id = clinic, data = trial,
+                     family = binomial, corstr = &quot;independence&quot;)
+summary(gee_indep)$coefficients
+#&gt;              Estimate   Std.err     Wald    Pr(&gt;|W|)
+#&gt; (Intercept) -0.6632942 0.3221733 4.238706 0.039512265
+#&gt; treatment    1.3865944 0.4391389 9.970000 0.001591115
+
+gee_exch &lt;- geeglm(success ~ treatment, id = clinic, data = trial,
+                    family = binomial, corstr = &quot;exchangeable&quot;)
+summary(gee_exch)$coefficients
+#&gt;              Estimate   Std.err     Wald    Pr(&gt;|W|)
+#&gt; (Intercept) -0.6632942 0.3221733 4.238706 0.039512265
+#&gt; treatment    1.3865944 0.4391389 9.970000 0.001591115
+summary(gee_exch)$corr
+#&gt;       Estimate    Std.err
+#&gt; alpha 0.2462071 0.07689892</code></pre>
+
+<p>Under independence, <code>geeglm()</code> returns the exact coefficient, 1.387, that the plain <code>glm()</code> gave you, with a standard error of 0.439, matching your hand-built sandwich correction almost exactly. Ask for exchangeable instead, GEE's guess that any two patients at the same clinic correlate equally no matter which two you pick, and <code>geeglm()</code> estimates that correlation at 0.246 but returns the identical coefficient and standard error.</p>
+
+<p>The working correlation was only ever a guess about the correlation structure used to weight the estimating equations. GEE's coefficient and its corrected standard error stay trustworthy even when that guess is not exactly right, which is the whole reason practitioners reach for GEE over a model that requires the correlation structure to be correct.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>Four standard errors, one clustered design</h2>
+
+<p>The naive-to-corrected jump you just made by hand, 0.245 to 0.447, is one example of something you can now watch happen more generally. This version uses its own continuous outcome instead of a yes-or-no success, with thirty clusters of ten observations each, the same shape as the clinic trial.</p>
+<div class="lesson-widget" data-widget-type="cluster-icc-sim" data-widget-config='{"k":30,"m":10,"tau":4,"iccMax":0.6,"levels":13,"start":6,"sims":3000,"seed":11}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>It opens at an intraclass correlation of 0.30. At that setting, "Ordinary OLS" and "Robust (HC1)" both sit at about 0.11, while "Cluster-robust" and "Cluster means / mixed model" both sit at about 0.24, roughly twice as large. Drag the dial up to 0.60 and the gap widens further: the first two barely move, to about 0.12, while the last two climb to about 0.32. Drag it back toward zero and all four bars draw close together, because with little clustering left, there is little left to correct for.</p>
+
+<p>That is the same split you worked out by hand a moment ago. A method that assumes independent rows, robust to unequal variance or not, understates the uncertainty once rows are clustered. Only a method that accounts for the clustering itself, whether that is a cluster-robust sandwich or a mixed model's own random intercept, reports it honestly.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what GEE's working correlation can and cannot do</h2>
+
+<p>Which model tells you how much the clinics genuinely vary from each other, and why?</p>
+<section class="exercise" data-exercise-id="GEE-or-Mixed-Model-Two-Different-Questions-step9" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The GLMM, because it is the only one of the two that estimates a variance component for the clinic random intercept.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">GEE, because its working correlation estimate of 0.246 already is the between-clinic variance.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither model gives you that number; a third model would be needed.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The GLMM's clinic standard deviation, 1.271, is a genuine variance component. GEE's working correlation is a different kind of number entirely, and it never estimates how much the clinics vary.</div><div class="lesson-qfb lesson-qfb-no">The GLMM already gives you that number: its clinic standard deviation, 1.271, is a genuine variance component, estimated from how far the clinics' own intercepts spread around the population intercept. GEE's alpha, 0.246, is a correlation parameter inside its working correlation matrix, a bookkeeping device for weighting the estimating equations correctly. It is not a variance, and it does not even need to be right for GEE's coefficient to stay valid, which is exactly GEE's main attraction.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: find the population-averaged effect for a new clustered trial</h2>
+
+<p>A call centre chain tests a new sales script. Ten call centres try the new script, and ten keep the standard one, each with eight agents, a hundred and sixty agent-shifts in total. The outcome is whether a call converted to a sale, yes or no.</p>
+
+<p>Build that trial, and fit the subject-specific model the same way you just did for the clinics.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the call-centre trial and fit the subject-specific (GLMM) model
+set.seed(99)
+n_center &lt;- 20
+n_agents &lt;- 8
+center &lt;- factor(rep(1:n_center, each = n_agents))
+script &lt;- rep(c(1, 0), each = n_center / 2 * n_agents)
+center_effect &lt;- rnorm(n_center, mean = 0, sd = 0.8)
+logit_p2 &lt;- -0.3 + 0.9 * script + center_effect[center]
+converted &lt;- rbinom(n_center * n_agents, 1, plogis(logit_p2))
+calls &lt;- data.frame(center = center, script = script, converted = converted)
+
+library(lme4)
+glmm_calls &lt;- glmer(converted ~ script + (1 | center), data = calls, family = binomial)
+
+fixef(glmm_calls)
+#&gt; (Intercept)      script 
+#&gt;  -0.7669754   1.0121002 
+
+exp(fixef(glmm_calls)[&quot;script&quot;])
+#&gt;   script 
+#&gt; 2.751373 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the subject-specific answer: moving one centre's own agents from the standard script to the new one multiplies their own odds of a conversion by about 2.75.</p>
+
+<p>Now find the population-averaged answer the same way you did for the clinics. Fit the pooled logistic regression, ignoring which centre each row came from, then correct its standard error for clustering with <code>vcovCL()</code> and <code>coeftest()</code>. Two lines.</p>
+<section class="exercise" data-exercise-id="GEE-or-Mixed-Model-Two-Different-Questions-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="glm[(]\s*converted\s*~\s*script[\s\S]*family\s*=\s*binomial[\s\S]*(?:vcovCL[(][\s\S]*coeftest[(]|coeftest[(][\s\S]*vcovCL[(])"><textarea class="lesson-tryit-input" spellcheck="false"># calls still holds the 160-row trial, with center as the clustering variable
+library(sandwich)
+library(lmtest)
+# Line 1: fit the pooled logistic regression of converted on script
+# Line 2: correct its standard error for clustering and print the result</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. The pooled coefficient comes out to 0.820, an odds ratio of 2.27, next to the GLMM's 2.75: the same subject-specific versus population-averaged gap you saw for the clinics. The naive standard error, 0.325, undersold the clustering again; vcovCL() corrects it to 0.497.</span><span class="lesson-tryit-fb lesson-tryit-no">Fit the pooled model the same way as the clinic trial: glm(converted ~ script, data = calls, family = binomial). Then wrap it in coeftest(), passing vcov = vcovCL(pooled_calls, cluster = calls$center) to correct for the fact that agents share a centre.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Pooled logistic regression, then its cluster-robust standard error
+pooled_calls &lt;- glm(converted ~ script, data = calls, family = binomial)
+coeftest(pooled_calls, vcov = vcovCL(pooled_calls, cluster = calls$center))
+#&gt;
+#&gt; z test of coefficients:
+#&gt;
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)  
+#&gt; (Intercept) -0.61904    0.41271 -1.4999  0.13363  
+#&gt; script       0.81971    0.49658  1.6507  0.09879 .
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre></details></div>
+</section>
+<p>0.820 and 0.497. The pooled, population-averaged coefficient comes in lower than the GLMM's 1.012, exactly the attenuation the toy clinics predicted, and the naive standard error of 0.325 again understated the true uncertainty until clustering was taken into account.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1093/biomet/73.1.13">Longitudinal data analysis using generalized linear models</a> - Liang, K.Y. and Zeger, S.L. (1986), Biometrika, 73(1), 13-22. The paper that introduced GEE and the sandwich standard error corrected by hand in this lesson.</li>
+
+<li><a href="https://doi.org/10.2307/2531734">Models for longitudinal data: a generalized estimating equation approach</a> - Zeger, S.L., Liang, K.Y. and Albert, P.S. (1988), Biometrics, 44(4), 1049-1060. Extends GEE to binary outcomes like the one fitted in this lesson.</li>
+
+<li>Hardin, J.W. and Hilbe, J.M. (2012). <em>Generalized Estimating Equations</em>, 2nd edition. CRC Press. A full treatment of GEE's working correlation structures, including the independence and exchangeable structures used here.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v067.i01">Fitting Linear Mixed-Effects Models Using lme4</a> - Bates, D., Machler, M., Bolker, B. and Walker, S. (2015), Journal of Statistical Software, 67(1). The paper behind the glmer() function used to fit this lesson's subject-specific model.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v015.i02">The R Package geepack for Generalized Estimating Equations</a> - Halekoh, U., Hojsgaard, S. and Yan, J. (2006), Journal of Statistical Software, 15(2). The package behind geeglm(), the real GEE implementation this lesson checked its hand-built pooled model against.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What GEE and a mixed model each actually told you</h2>
+
+<p>Thirty clinics, one trial, two models, two honest numbers for the very same treatment effect.</p>
+
+<p>The mixed model's coefficient, 1.810, is subject-specific: exponentiated, it says that moving one clinic's own patients onto the new protocol multiplies their odds of success by about 6.11. The pooled model's coefficient, 1.387, is population-averaged: exponentiated, it says the overall odds of success across the whole population of clinics rise by a factor of about 4.00. Both numbers are correct. They differ because the logistic link is curved, so a shift that looks identical in log odds does not look identical in probability for a clinic that starts low versus one that starts high, exactly what the two toy clinics showed near the start of this lesson.</p>
+
+<p>The pooled model's naive standard error, 0.245, assumed all three hundred rows were independent, which they were not: patients at the same clinic share more with each other than patients at different clinics do. Correcting it with a sandwich estimator pushed it up to 0.447, matching a real <code>geeglm()</code> almost exactly, whichever working correlation it assumed. That is GEE's real advantage: its coefficient and its corrected standard error stay trustworthy even when its guess about the within-clinic correlation is not exactly right.</p>
+
+<p>What GEE cannot give you is the one number the mixed model estimated for free: 1.271, the standard deviation of the clinics' own random intercepts, a genuine measure of how much the clinics differ from each other. If that is the number you need, the mixed model is the only one of the two that has it.</p>
+
+<p>The next part of this course asks what is left inside a single clinic's own patients once that random intercept is already in the model.</p>
+</section>
+
+{% endraw %}
