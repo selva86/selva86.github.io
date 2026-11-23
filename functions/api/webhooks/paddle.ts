@@ -39,6 +39,7 @@ import {
 } from "../../_lib/billing";
 import { individualPlan, isPriceLock, teamsSeatQuantity, planLabel } from "../../_lib/paddle-plan";
 import { recordPayment, recordAdjustment, subHistory, money, ordinal, type PaymentKind } from "../../_lib/payments";
+import { buyerDossier, type Dossier } from "../../_lib/buyer-dossier";
 
 interface PaddlePrice {
   id?: string;
@@ -585,6 +586,37 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       context.waitUntil((async () => {
         const extra: Array<[string, string]> = [];
         const ledgerSub = data.subscription_id || (eventType.startsWith("subscription.") ? subId : "");
+
+        /* WHO BOUGHT, AND WHAT THEY DID FIRST.
+           Attached to the money events only. transaction.completed is the
+           "Payment received" / "Renewal charged" notice, and payment_failed is
+           where knowing who it is matters most. subscription.created fires
+           alongside a first sale and would only mail the same dossier twice,
+           so it stays lean. Never allowed to cost the notification: a throw
+           here would swallow the whole email, so the dossier is optional by
+           construction and an empty one just means fewer rows. */
+        const wantsDossier = eventType === "transaction.completed" || eventType === "transaction.payment_failed";
+        let dossier: Dossier = { rows: [], journey: [] };
+        if (wantsDossier) {
+          try {
+            dossier = await buyerDossier(context.env.DB, {
+              email: buyer,
+              paddleCustomerId: data.customer_id || "",
+              subscriptionId: data.subscription_id || "",
+              txnId: data.id || "",
+              now,
+            });
+          } catch (e) {
+            console.warn(`[webhook.paddle] buyer dossier failed: ${(e as Error).message}`);
+          }
+        }
+        /* The account the dossier resolved, which is authoritative: it came
+           from our own subscriptions row or the users table. `buyer` is
+           whatever the browser put in custom_data at checkout, so when the
+           two differ the person paid from one address and owns another. That
+           is a support ticket in waiting, and worth its own line. */
+        const resolved = (dossier.rows.find((r) => r[0] === "Buyer") || ["", ""])[1];
+        const mismatch = !!buyer && !!resolved && buyer.toLowerCase() !== resolved.toLowerCase();
         try {
           if (ledgerSub) {
             const h = await subHistory(context.env.DB, ledgerSub);
@@ -646,13 +678,29 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             ...(plan ? [["Plan", plan] as [string, string]] : []),
             ...(normalizeTrack(data.custom_data?.track) ? [["Track", normalizeTrack(data.custom_data?.track)] as [string, string]] : []),
             ...(moneyStr ? [["Amount", moneyStr] as [string, string]] : []),
-            ...(buyer ? [["Customer", buyer] as [string, string]] : []),
+            /* The dossier opens with the resolved account, so it replaces the
+               old bare "Customer" line. Events without a dossier keep it. */
+            ...(dossier.rows.length ? dossier.rows : (buyer ? [["Customer", buyer] as [string, string]] : [])),
+            ...(mismatch ? [["Checkout email", `${buyer}, which is NOT the account email`] as [string, string]] : []),
             ...extra,
             ...(subId ? [["Subscription", subId] as [string, string]] : []),
             ["Ref", data.id || eventId],
             ["Note", processedNote],
             ["Ledger", "https://r-statistics.co/admin/contacts.html#tab=money"],
           ],
+          /* A sequence, not a fact, so it gets its own block under the table
+             rather than being crushed into one cell. Only the money events
+             build one, so this is empty and skipped everywhere else. */
+          ...(dossier.journey.length
+            ? {
+              sections: [{
+                title: eventType === "transaction.payment_failed"
+                  ? "What they were doing"
+                  : isRenewal ? "Recent activity" : "Path to purchase",
+                lines: dossier.journey,
+              }],
+            }
+            : {}),
           ...(buyer ? { replyTo: buyer } : {}),
         });
       })());

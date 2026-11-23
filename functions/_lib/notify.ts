@@ -1,5 +1,5 @@
 // Admin notifications. Currently: email selva86@gmail.com on each CONFIRMED
-// new signup. Best-effort — never blocks/breaks the signup flow.
+// new signup. Best-effort, and never blocks or breaks the signup flow.
 //
 // Exactly-once across all trigger paths (webhook confirm-INSERT, webhook
 // confirm-UPDATE, /api/me lazy-create, signup-context flush) via a permanent
@@ -8,7 +8,7 @@
 //
 // Attribution (from page / trigger / heading-to) timing: magic-link signups
 // carry it in user_metadata, so the webhook path has it immediately. OAuth
-// signups cannot carry metadata pre-auth — the client posts it to
+// signups cannot carry metadata pre-auth, so the client posts it to
 // /api/me/signup-context after landing back, which is usually SLOWER than the
 // webhook (the webhook fires while the user is still on the provider's
 // consent screen). Instead of racing that with a sleep (the old design, which
@@ -46,17 +46,35 @@ function providerLabel(p?: string): string {
 // callers fire-and-forget, a failure never affects the triggering request.
 export async function notifyAdminEvent(
   env: Env,
-  opts: { subject: string; headline: string; rows: Array<[string, string]>; replyTo?: string },
+  opts: {
+    subject: string;
+    headline: string;
+    rows: Array<[string, string]>;
+    replyTo?: string;
+    /* Optional blocks under the table, for anything that is a sequence rather
+       than a fact: a buyer's path to purchase, for instance. The table is
+       strictly label/value and squeezing a timeline into one cell made it
+       unreadable, so sequences get their own section with one line each. */
+    sections?: Array<{ title: string; lines: string[] }>;
+  },
 ): Promise<void> {
   try {
     const when = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
     const rows = opts.rows.concat([["When", when]]);
+    const sections = (opts.sections || []).filter((s) => s.lines.length);
+    const sectionHtml = sections.map((s) => `
+      <p style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;margin:18px 0 6px">${escapeHtml(s.title)}</p>
+      <div style="font-size:13px;line-height:1.7;color:#0a0d14;border-left:3px solid #d4d9e3;padding:2px 0 2px 12px">
+        ${s.lines.map((l) => escapeHtml(l)).join("<br>")}
+      </div>`).join("");
     const contentHtml = `
       <p style="font-size:17px;font-weight:600;color:#0a0d14;margin:0 0 12px">${escapeHtml(opts.headline)}</p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:14px;margin:8px 0">
         ${rows.map(([k, v]) => `<tr><td style="padding:2px 12px 2px 0;color:#6b7280">${escapeHtml(k)}</td><td><strong>${escapeHtml(v)}</strong></td></tr>`).join("\n")}
-      </table>`;
-    const textBody = opts.headline + "\n" + rows.map(([k, v]) => `${k}: ${v}`).join("\n") + "\n\n-- r-statistics.co";
+      </table>${sectionHtml}`;
+    const textBody = opts.headline + "\n" + rows.map(([k, v]) => `${k}: ${v}`).join("\n")
+      + sections.map((s) => `\n\n${s.title}\n${s.lines.join("\n")}`).join("")
+      + "\n\n-- r-statistics.co";
     await sendMail(env, {
       to: { email: ADMIN_EMAIL, name: "Selva" },
       subject: opts.subject,
@@ -130,7 +148,7 @@ async function sendSignupEmail(
 ): Promise<void> {
   // Once-guard (permanent). get→put is not atomic, but concurrent confirm
   // events for the same user are vanishingly rare; worst case is one extra
-  // admin email — acceptable for an internal notification.
+  // admin email, which is acceptable for an internal notification.
   const guardKey = `signup-notified:${user.id}`;
   if (await env.KV.get(guardKey)) return;
   await env.KV.put(guardKey, "1");
@@ -215,7 +233,7 @@ export async function notifyNewSignup(
   source?: SignupSource,
 ): Promise<void> {
   try {
-    // Flag gate — off by default; flip with `wrangler kv key put` / dashboard.
+    // Flag gate, off by default; flip with `wrangler kv key put` or the dashboard.
     if ((await env.KV.get("flag:signup-admin-email")) !== "on") return;
     if (await env.KV.get(`signup-notified:${user.id}`)) return;
 
@@ -260,7 +278,7 @@ export async function notifyNewSignup(
 }
 
 // Flush a parked signup notification. Called by /api/me/signup-context the
-// moment attribution arrives (source in hand — no KV read race), and by
+// moment attribution arrives (source in hand, no KV read race), and by
 // /api/me for freshly created users as a source-less fallback. No-ops fast
 // (one KV get) when nothing is parked.
 export async function flushPendingSignup(
