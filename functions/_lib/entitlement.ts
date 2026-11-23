@@ -87,8 +87,50 @@ export async function resolveScope(
     return "0";
   }
   if (ent.source === "team") return "all";
+  // Lifetime is the whole catalog by definition; no track key can narrow it.
+  if (ent.source === "lifetime") return "all";
+  /* A scope key narrows Pro to ONE track, so it may only be honoured when a
+     Single Track plan is the broadest thing the user pays for. The key is keyed
+     on the USER, not on the subscription that scoped them, so a Single purchase
+     by somebody who already holds All-Access would otherwise overwrite the
+     wider entitlement and lock them out of the catalog they had already bought.
+     Found in production 2026-11-23: a customer sat scoped to "ds" for 38 days
+     with an active allaccess_month beside it, and paid a third time to escape
+     it. Buying a narrower plan alongside a wider one is allowed; reducing what
+     somebody already paid for is not. */
+  if (await hasBroaderActiveSub(env.DB, user.id)) return "all";
   const t = await env.KV.get(`tracks:${user.id}`).catch(() => null);
   return t || "all";
+}
+
+/* True when an active individual subscription pays for more than one track.
+   Deliberately NOT activeIndividualSub() from plan.ts: that returns the most
+   recently updated row, which for a user holding both plans answers "single",
+   and that is precisely how a scope key came to narrow an All-Access customer.
+   This asks a different question (is ANY active row broader?) so it cannot be
+   fooled by which webhook happened to arrive last.
+
+   Statuses are the paying ones only. A cancelled plan running out its paid term
+   is not covered here; the webhook's matching guard stops a key from being
+   written during such a window in the first place, which is the cheaper half of
+   the same rule.
+
+   Fails closed: a DB error returns false and falls through to the key, so a
+   transient failure can never hand out the catalog. */
+export async function hasBroaderActiveSub(db: D1Database, userId: string): Promise<boolean> {
+  const row = await db
+    .prepare(
+      `SELECT 1 AS found
+         FROM subscriptions
+        WHERE provider = 'paddle' AND user_id = ? AND external_id LIKE 'sub_%'
+          AND status IN ('active', 'trialing', 'past_due')
+          AND plan NOT LIKE 'single%'
+        LIMIT 1`,
+    )
+    .bind(userId)
+    .first<{ found: number }>()
+    .catch(() => null);
+  return !!row;
 }
 
 // Tracks every paid scope includes: New to R (free content anyway) and the

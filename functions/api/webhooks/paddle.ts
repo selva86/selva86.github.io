@@ -38,6 +38,7 @@ import {
   applyLifetimePurchase, linkPaddleCustomer,
 } from "../../_lib/billing";
 import { individualPlan, isPriceLock, teamsSeatQuantity, planLabel } from "../../_lib/paddle-plan";
+import { hasBroaderActiveSub } from "../../_lib/entitlement";
 import { recordPayment, recordAdjustment, subHistory, money, ordinal, type PaymentKind } from "../../_lib/payments";
 
 interface PaddlePrice {
@@ -279,7 +280,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
               // the change takes effect on the very next page load.
               const track = normalizeTrack(data.custom_data?.track);
               if (plan.startsWith("single") && track) {
-                await context.env.KV.put(`tracks:${user.id}`, track).catch(() => {});
+                /* Scope them only if Single Track is the broadest plan they
+                   hold. Adding a Single Track on top of All-Access is allowed,
+                   but writing the key would narrow the wider plan they already
+                   paid for. resolveScope enforces the same rule on read; this
+                   half keeps the bad state from ever being stored. */
+                if (await hasBroaderActiveSub(context.env.DB, user.id)) {
+                  console.log(`[webhook.paddle] single sub ${subId}: broader active plan held, scope key not written`);
+                  processedNote += "_scope_kept_broad";
+                } else {
+                  await context.env.KV.put(`tracks:${user.id}`, track).catch(() => {});
+                }
               } else if (!plan.startsWith("single")) {
                 await context.env.KV.delete(`tracks:${user.id}`).catch(() => {});
               }
