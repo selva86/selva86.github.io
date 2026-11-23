@@ -1,0 +1,518 @@
+---
+title: "Generalized Linear Models Lesson 5: Rates, offsets and unequal exposure"
+description: "Comparing raw counts across groups observed for different lengths of time hides the real pattern. An offset fixes that, turning a count model into a rate model."
+keywords: "poisson regression offset, rate model in r, exposure variable, offset log exposure, rate ratio, unequal exposure, count data regression, glm offset in r, generalized linear models, log link function"
+mathjax: true
+webr: true
+curriculum_id: "4.80.5"
+post_type: "LESSON"
+course_id: "res-glm"
+course_title: "Generalized Linear Models"
+course_lesson: "5"
+course_total: "8"
+course_landing: "Generalized-Linear-Models-Course.html"
+course_next: "Outcomes-with-an-Order-and-Outcomes-Without"
+course_prev: "When-Your-Counts-Are-Too-Variable-for-Poisson"
+lesson_access: "pro"
+catalog_blurb: "Compare counts fairly when groups were observed for different amounts of time."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Rates, offsets and unequal exposure</h2>
+
+<p>Today let's understand the offset: the fix for comparing counts that were logged over windows of very different sizes.</p>
+
+<p>Here is the example for the whole lesson. A factory floor runs twenty machines, ten of them old and ten of them new. For every machine, March logged two numbers: how many hours it ran that month, and how many times it broke down.</p>
+
+<p>Below are eight of the twenty machines, four old and four new.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["type","hours","breakdowns"],"rows":[["old",211,7],["old",214,2],["old",149,8],["old",203,8],["new",592,6],["new",644,7],["new",687,5],["new",551,5]],"title":"Eight of the twenty factory machines","note":"Full-sample averages: the ten old machines ran 183.7 hours in March, the ten new machines ran 618.0."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at the hours column in that table. Even in these eight rows, the old machines and the new machines were not run anywhere close to the same number of hours. Keep that in mind as you read the breakdowns column next to it.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What the raw numbers hide</h2>
+
+<p>Let's build the full 20-machine dataset first, since every number in this lesson comes from it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 20-machine dataset: hours run and breakdowns logged in March
+set.seed(42)
+hours_old &lt;- round(runif(10, 120, 220))
+hours_new &lt;- round(runif(10, 500, 700))
+breakdowns_old &lt;- rpois(10, lambda = 0.020 * hours_old)
+breakdowns_new &lt;- rpois(10, lambda = 0.008 * hours_new)
+
+machines &lt;- data.frame(
+  type       = rep(c(&quot;old&quot;, &quot;new&quot;), each = 10),
+  hours      = c(hours_old, hours_new),
+  breakdowns = c(breakdowns_old, breakdowns_new)
+)
+
+range(hours_old)
+#&gt; [1] 133 214
+range(hours_new)
+#&gt; [1] 523 696</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ten old machines ran between 133 and 214 hours in March. The ten new machines ran between 523 and 696. Those two ranges do not overlap at all: even the busiest old machine ran fewer hours than the quietest new one.</p>
+
+<p>Plot all twenty machines by type and the same gap shows up as a picture.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"old","y":211},{"x":"old","y":214},{"x":"old","y":149},{"x":"old","y":203},{"x":"old","y":184},{"x":"old","y":172},{"x":"old","y":194},{"x":"old","y":133},{"x":"old","y":186},{"x":"old","y":191},{"x":"new","y":592},{"x":"new","y":644},{"x":"new","y":687},{"x":"new","y":551},{"x":"new","y":592},{"x":"new","y":688},{"x":"new","y":696},{"x":"new","y":523},{"x":"new","y":595},{"x":"new","y":612}],"geoms":["point","boxplot"],"x":"type","y":"hours"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switch to the boxplot view. The two boxes sit nowhere near each other, which is the same non-overlapping ranges you just computed, drawn instead of counted.</p>
+
+<p>Now look at what happened to breakdowns, the thing you actually care about.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the two groups' raw breakdown counts, and check how they relate to hours
+mean(breakdowns_old)
+#&gt; [1] 4.6
+mean(breakdowns_new)
+#&gt; [1] 4.7
+cor(machines$hours, machines$breakdowns)
+#&gt; [1] 0.03613574</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Old machines averaged 4.6 breakdowns in March. New machines averaged 4.7. Almost identical. And the correlation between hours and raw breakdowns, across all twenty machines, is 0.036, about as flat as a correlation gets.</p>
+
+<p>Put those two facts next to the hours chart you just saw, and something does not add up. The new machines ran more than three times as many hours as the old ones, yet they logged about the same number of breakdowns and hours barely correlates with breakdowns at all. Either hours genuinely have nothing to do with how often a machine breaks down, or the raw count is hiding something that a look at hours alone cannot show.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>What exposure means, and the rate it defines</h2>
+
+<p>The missing piece is called <strong>exposure</strong>: the window a count was observed over. Here, exposure is hours run. In other settings it takes other forms: clinics watched for different numbers of months, villages with different populations, web pages viewed by different numbers of visitors. Whatever form it takes, a count means something different once you know how much exposure produced it.</p>
+
+<p>Dividing a count by its exposure gives a <strong>rate</strong>: breakdowns per hour, visits per month, clicks per visitor. A rate lets you compare machines, clinics or villages fairly, because it answers "how often per unit of exposure", not "how many in total".</p>
+
+<p>Compute it for one machine of each type.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the breakdown rate for one old machine and one new machine
+rate_machine1 &lt;- 7 / 211     # an old machine: 7 breakdowns over 211 hours
+rate_machine11 &lt;- 6 / 592    # a new machine: 6 breakdowns over 592 hours
+round(c(old_machine = rate_machine1, new_machine = rate_machine11), 4)
+#&gt; old_machine new_machine 
+#&gt;      0.0332      0.0101 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That one old machine broke down 0.0332 times an hour. That one new machine broke down 0.0101 times an hour, a third as often per hour, even though its raw count, 6, is close to the old machine's 7.</p>
+
+<p>A single machine's rate can still be noisy. A better comparison pools every machine of a type together: add up all its breakdowns, add up all its hours, then divide.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pool each group's breakdowns and hours, then divide, to get a group rate
+pooled_rate_old &lt;- sum(breakdowns_old) / sum(hours_old)
+pooled_rate_new &lt;- sum(breakdowns_new) / sum(hours_new)
+round(c(old = pooled_rate_old, new = pooled_rate_new), 4)
+#&gt;    old    new 
+#&gt; 0.0250 0.0076 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pooled across all ten machines of each type, old machines break down at 0.0250 times an hour, new machines at 0.0076. That is more than three times the rate, hiding behind two almost identical raw averages, 4.6 and 4.7. Pooling the sums rather than averaging the ten individual rates matters too: it weights every hour equally, so a machine that happened to run very few hours does not get the same vote as one that ran for hundreds.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<h2>Quick check: does a flat correlation mean exposure does not matter</h2>
+<section class="exercise" data-exercise-id="Rates-Offsets-and-Unequal-Exposure-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, a correlation of 0.036 is close enough to zero to say hours have no effect on breakdowns here.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No. Within each type, more hours should still mean more breakdowns. The flat correlation only shows up because old machines ran few hours at a high rate and new machines ran many hours at a low rate, and pooling both groups into one correlation lets those two patterns cancel out.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No, because a correlation can only be trusted once you have at least a few hundred machines.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Yes, since a flat correlation always means the two variables have no real relationship.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Old machines ran few hours at a high rate, new machines ran many hours at a low rate, and pooling both groups into one number lets those two patterns cancel out.</div><div class="lesson-qfb lesson-qfb-no">A flat correlation between hours and raw breakdowns here is not proof that hours do not matter. It is what happens when two groups with opposite hours-to-rate patterns get pooled into a single correlation. Old machines ran few hours at a high rate, new machines ran many hours at a low rate, and those two patterns cancel out once you stop looking at the groups separately.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Fitting the model without an offset</h2>
+
+<p>Start simple: fit a Poisson model on the raw breakdown counts alone, with no exposure term, and see what it finds.</p>
+
+<p>A Poisson regression with no offset models <code>log(expected breakdowns)</code> as an intercept plus a coefficient on type. R turns the <code>type</code> column into a 0/1 indicator automatically, and by default it picks whichever category comes first alphabetically, here <code>new</code>, as the baseline. The coefficient <code>typeold</code> you will see in the output is how much old machines differ from that <code>new</code> baseline, on the log scale.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a Poisson model of breakdowns on type alone, with no exposure term
+machines$type &lt;- factor(machines$type)
+fit_naive &lt;- glm(breakdowns ~ type, data = machines, family = poisson)
+summary(fit_naive)
+#&gt;
+#&gt; Call:
+#&gt; glm(formula = breakdowns ~ type, family = poisson, data = machines)
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)    
+#&gt; (Intercept)  1.54756    0.14586  10.610   &lt;2e-16 ***
+#&gt; typeold     -0.02151    0.20740  -0.104    0.917    
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; (Dispersion parameter for poisson family taken to be 1)
+#&gt;
+#&gt;     Null deviance: 34.412  on 19  degrees of freedom
+#&gt; Residual deviance: 34.402  on 18  degrees of freedom
+#&gt; AIC: 101.21
+#&gt;
+#&gt; Number of Fisher Scoring iterations: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Call this the <strong>naive model</strong>, because it ignores exposure entirely. The <code>typeold</code> coefficient, -0.0215, has a standard error of 0.207 and a p-value of 0.917, nowhere near significant. Exponentiate it, <code>exp(-0.0215)</code> is 0.979, and old machines look like they break down 0.979 times as often as new ones: practically the same. This is exactly what the raw averages, 4.6 and 4.7, already suggested. The naive model just confirms, in a p-value, what the misleading raw counts showed.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Deriving the offset: turning a count model into a rate model</h2>
+
+<p>So the real comparison that matters is between rates, not raw counts. But <code>glm()</code> with the Poisson family fits counts, not rates directly. The question is how to get it to estimate a rate comparison without changing what it fits.</p>
+
+<p>A Poisson regression models the log of the expected count as a linear function of its predictors. Start instead from what you actually want: the log of the expected rate as a linear function of type.</p>
+
+<p>$$\log(\text{rate}) = \beta_0 + \beta_1 \times \text{type}$$</p>
+
+<p>A rate is a count divided by its exposure, so substitute that in.</p>
+
+<p>$$\log\left(\frac{\text{count}}{\text{exposure}}\right) = \beta_0 + \beta_1 \times \text{type}$$</p>
+
+<p>The log of a ratio is the difference of two logs, so the left side splits apart.</p>
+
+<p>$$\log(\text{count}) - \log(\text{exposure}) = \beta_0 + \beta_1 \times \text{type}$$</p>
+
+<p>Move the log of exposure to the right side, and the equation is now about the log of the count again, exactly what a Poisson regression fits.</p>
+
+<p>$$\log(\text{count}) = \beta_0 + \beta_1 \times \text{type} + \log(\text{exposure})$$</p>
+
+<p>That last term, <code>log(exposure)</code>, is added to the linear predictor the same way any other predictor would be, except for one difference: its coefficient is fixed at 1, not estimated from the data. A term added to a model with its coefficient fixed, rather than estimated, is called an <strong>offset</strong>. Fixing it at 1 is not a simplification. It is forced by the algebra two lines up: that coefficient has to be exactly 1 for the equation to still say what it started out saying, that <code>count / exposure</code> is the rate. Fit a Poisson model this way and you are still fitting counts, the thing <code>glm()</code> knows how to do, but the coefficient on type now answers a question about rates.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Fitting the offset model: a rate ratio of 3.29</h2>
+
+<p>Now fit the model with that offset added: the same formula, with <code>offset(log(hours))</code> added. The <code>offset()</code> function marks that term's coefficient as fixed at 1, not estimated, exactly as the algebra required.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the offset model: breakdowns explained by type, with hours as the offset
+fit_offset &lt;- glm(breakdowns ~ type + offset(log(hours)), data = machines, family = poisson)
+summary(fit_offset)
+#&gt;
+#&gt; Call:
+#&gt; glm(formula = breakdowns ~ type + offset(log(hours)), family = poisson, 
+#&gt;     data = machines)
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)    
+#&gt; (Intercept)  -4.8789     0.1459 -33.448  &lt; 2e-16 ***
+#&gt; typeold       1.1917     0.2074   5.746 9.15e-09 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; (Dispersion parameter for poisson family taken to be 1)
+#&gt;
+#&gt;     Null deviance: 66.904  on 19  degrees of freedom
+#&gt; Residual deviance: 35.799  on 18  degrees of freedom
+#&gt; AIC: 102.61
+#&gt;
+#&gt; Number of Fisher Scoring iterations: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Everything changed. The <code>typeold</code> coefficient is now 1.1917, with the same standard error as before, 0.207, but a p-value of 9.15e-09, nowhere near 0.917. Exponentiate it: <code>exp(1.1917)</code> rounds to 3.29. Old machines break down 3.29 times as often per hour as new machines, a result the naive model, and the flat correlation before it, both completely missed.</p>
+
+<p>Check that number against a model fit directly on rates instead of counts, weighting each machine's row by its hours.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the same comparison directly on rates, weighted by hours, and compare coefficients
+machines$rate &lt;- machines$breakdowns / machines$hours
+fit_rate_direct &lt;- suppressWarnings(glm(rate ~ type, data = machines, family = poisson, weights = hours))
+round(coef(fit_offset), 6)
+#&gt; (Intercept)     typeold 
+#&gt;   -4.878926    1.191678 
+round(coef(fit_rate_direct), 6)
+#&gt; (Intercept)     typeold 
+#&gt;   -4.878926    1.191678 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two coefficient vectors match to six decimal places. Fitting breakdowns with hours as an offset and fitting rates directly with hours as weights are the same computation, reached two different ways. That agreement is the proof that the offset is doing exactly what the algebra above said it would: turning a count model into a rate model.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Why the offset's coefficient has to stay fixed at 1</h2>
+
+<p>It is tempting to think of <code>log(hours)</code> as just another predictor and let <code>glm()</code> estimate its coefficient too, instead of fixing it at 1. Try it and see what happens.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Let the log(hours) coefficient estimate itself, instead of fixing it at 1
+fit_floated &lt;- glm(breakdowns ~ type + log(hours), data = machines, family = poisson)
+summary(fit_floated)
+#&gt;
+#&gt; Call:
+#&gt; glm(formula = breakdowns ~ type + log(hours), family = poisson, 
+#&gt;     data = machines)
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)
+#&gt; (Intercept)  1.75468    5.50497   0.319    0.750
+#&gt; typeold     -0.06082    1.06522  -0.057    0.954
+#&gt; log(hours)  -0.03225    0.85690  -0.038    0.970
+#&gt;
+#&gt; (Dispersion parameter for poisson family taken to be 1)
+#&gt;
+#&gt;     Null deviance: 34.412  on 19  degrees of freedom
+#&gt; Residual deviance: 34.400  on 17  degrees of freedom
+#&gt; AIC: 103.21
+#&gt;
+#&gt; Number of Fisher Scoring iterations: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Call this the <strong>floated model</strong>, because it lets the exposure term float instead of fixing it. Two things broke at once. The estimated <code>log(hours)</code> coefficient, -0.0322, is nowhere near the 1 the derivation requires. And the <code>typeold</code> coefficient collapsed to -0.0608 with a p-value of 0.954, right back to "no difference", the same dead end the naive model reached. The standard error on <code>typeold</code> also inflated from 0.207 to 1.065, roughly five times wider, so even the little the floated model could say about type, it says with far less confidence.</p>
+
+<p>Here is why. The hours chart from earlier showed old machines ran 133 to 214 hours and new machines ran 523 to 696, ranges that never overlapped. A Welch t-test on hours by type confirms just how strongly type and hours move together.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check how strongly hours and type are related
+t.test(hours ~ type, data = machines)
+#&gt;
+#&gt; 	Welch Two Sample t-test
+#&gt;
+#&gt; data:  hours by type
+#&gt; t = 21.146, df = 12.331, p-value = 4.622e-11
+#&gt; alternative hypothesis: true difference in means between group new and group old is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  389.6838 478.9162
+#&gt; sample estimates:
+#&gt; mean in group new mean in group old 
+#&gt;             618.0             183.7 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With a p-value of 4.6e-11, knowing a machine's type almost tells you its hours, and knowing its hours almost tells you its type. Once both <code>type</code> and <code>log(hours)</code> are free to estimate their own coefficients, they are competing to explain the same variation in breakdowns, and the model cannot tell which one deserves the credit. Fixing the offset's coefficient at 1 sidesteps that competition entirely, because the proportionality between a count and its rate is not something to estimate from this data. It is a mathematical identity, true by definition rather than by fit.</p>
+
+<p>The three fits, side by side:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>Coefficient on type</th>
+<th>p-value</th>
+<th>AIC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Naive (no exposure term)</td>
+<td>-0.0215</td>
+<td>0.917</td>
+<td>101.2</td>
+</tr>
+<tr>
+<td>Offset (<code>log(hours)</code> fixed at 1)</td>
+<td>1.1917</td>
+<td>9.15e-09</td>
+<td>102.6</td>
+</tr>
+<tr>
+<td>Floated (<code>log(hours)</code> estimated)</td>
+<td>-0.0608</td>
+<td>0.954</td>
+<td>103.2</td>
+</tr>
+</tbody>
+</table>
+
+<p>Only the offset model finds the rate gap that was there all along.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: three fits, three different conclusions</h2>
+
+<p>The same twenty machines, the same breakdown counts, three different fits. Here are their rates, breakdowns per hour, plotted by type.</p>
+
+<p>::widget chart-plotter {"data": [{"x": "old", "y": 0.0332}, {"x": "old", "y": 0.0093}, {"x": "old", "y": 0.0537}, {"x": "old", "y": 0.0394}, {"x": "old", "y": 0.0054}, {"x": "old", "y": 0.0174}, {"x": "old", "y": 0.0155}, {"x": "old", "y": 0.0376}, {"x": "old", "y": 0.0161}, {"x": "old", "y": 0.0314}, {"x": "new", "y": 0.0101}, {"x": "new", "y": 0.0109}, {"x": "new", "y": 0.0073}, {"x": "new", "y": 0.0091}, {"x": "new", "y": 0}, {"x": "new", "y": 0.0116}, {"x": "new", "y": 0.0014}, {"x": "new", "y": 0.0038}, {"x": "new", "y": 0.0134}, {"x": "new", "y": 0.0082}], "geoms": ["point", "boxplot"], "x": "type", "y": "rate"}</p>
+
+<p>Switch to the boxplot view. The old machines' rates sit clearly above the new machines' rates, matching the pooled 0.0250 against 0.0076 computed earlier, the same gap the offset model's 3.29 rate ratio put a number on.</p>
+<section class="exercise" data-exercise-id="Rates-Offsets-and-Unequal-Exposure-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The naive model, fit on raw counts with no exposure term, found no real difference between old and new machines (p = 0.917). The offset model, with <code>log(hours)</code> fixed at 1, found old machines break down 3.29 times as often per hour (p = 9.15e-09). The floated model, which let <code>log(hours)</code> estimate its own coefficient, collapsed back to no difference (p = 0.954).</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The naive model found the 3.29 times rate gap, and both the offset and the floated model agreed there was no real difference.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">All three models agree: once you allow for enough noise, there is no real difference between old and new machines.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The offset model and the floated model disagree only because the floated model used a smaller effective sample size.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The naive model never saw the gap because it never accounted for exposure. The offset model found it by turning the count model into a rate model. The floated model lost it again, because letting the exposure term compete with type for the same variation undid what the offset was fixing in the first place.</div><div class="lesson-qfb lesson-qfb-no">All three models fit the exact same twenty rows; sample size never changed. What changed is whether <code>log(hours)</code> entered as a fixed-at-1 offset or as a freely estimated coefficient. Fixed, it recovers the rate ratio of 3.29. Free, it competes with type for the same variation, since the two are so strongly related, and the type coefficient collapses back to a false "no difference".</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: write the offset yourself</h2>
+
+<p>The same fix applies far beyond machines. Six villages, three rural and three urban, each report a population and a count of flu cases this month.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Create 6 villages (3 rural, 3 urban) with population and flu case counts
+set.seed(11)
+population_rural &lt;- round(runif(3, 800, 1100))
+population_urban &lt;- round(runif(3, 4000, 5200))
+cases_rural &lt;- rpois(3, lambda = 0.03 * population_rural)
+cases_urban &lt;- rpois(3, lambda = 0.012 * population_urban)
+
+village &lt;- data.frame(
+  region     = rep(c(&quot;rural&quot;, &quot;urban&quot;), each = 3),
+  population = c(population_rural, population_urban),
+  cases      = c(cases_rural, cases_urban)
+)
+village
+#&gt;   region population cases
+#&gt; 1  rural        883    19
+#&gt; 2  rural        800    18
+#&gt; 3  rural        953    35
+#&gt; 4  urban       4017    52
+#&gt; 5  urban       4078    48
+#&gt; 6  urban       5146    53</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The urban villages logged far more raw cases than the rural ones, but they also hold far more people. Fit a Poisson model of <code>cases</code> on <code>region</code>, using <code>log(population)</code> as the offset, the same way <code>log(hours)</code> entered the machine model, so the region coefficient compares flu rates per person rather than raw case counts.</p>
+<section class="exercise" data-exercise-id="Rates-Offsets-and-Unequal-Exposure-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="cases\s*~\s*region\s*\+\s*offset[(]log[(]population[)][)]"><textarea class="lesson-tryit-input" spellcheck="false"># village holds population and flu case counts for 3 rural and 3 urban
+# villages. Fit a Poisson model of cases on region, using
+# log(population) as the offset, so the coefficient compares rates
+# per person, not raw case counts.
+# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: fitting cases on region with log(population) fixed as the offset turns the raw case counts into a comparison of flu rates per person.</span><span class="lesson-tryit-fb lesson-tryit-no">Add offset(log(population)) to the linear predictor, the same way log(hours) entered the machine model, with region as the other term: cases ~ region + offset(log(population)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit the village model: cases explained by region, with population as the offset
+fit_village &lt;- glm(cases ~ region + offset(log(population)), data = village, family = poisson)
+summary(fit_village)
+#&gt;
+#&gt; Call:
+#&gt; glm(formula = cases ~ region + offset(log(population)), family = poisson, 
+#&gt;     data = village)
+#&gt;
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error z value Pr(&gt;|z|)    
+#&gt; (Intercept)  -3.6004     0.1179  -30.55  &lt; 2e-16 ***
+#&gt; regionurban  -0.8603     0.1429   -6.02 1.75e-09 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt;
+#&gt; (Dispersion parameter for poisson family taken to be 1)
+#&gt;
+#&gt;     Null deviance: 38.1051  on 5  degrees of freedom
+#&gt; Residual deviance:  6.0734  on 4  degrees of freedom
+#&gt; AIC: 42.316
+#&gt;
+#&gt; Number of Fisher Scoring iterations: 4
+round(exp(coef(fit_village)[&quot;regionurban&quot;]), 2)
+#&gt; regionurban 
+#&gt;        0.42 </code></pre></details></div>
+</section>
+<p>Exponentiate the <code>regionurban</code> coefficient and you get 0.42: urban villages catch flu at 0.42 times the rural rate per person, well under half. The raw case counts said the opposite story, since urban villages logged more cases in total. The offset is what tells the two apart.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.cambridge.org/core/books/regression-analysis-of-count-data/introduction/B75A323D25241D7B4F9C9AE735666827">Regression Analysis of Count Data, 2nd edition</a> - Cameron, A.C. and Trivedi, P.K. (2013), Cambridge University Press. The standard reference for rate models and offsets in count regression.</li>
+
+<li><a href="https://doi.org/10.1201/9780203753736">Generalized Linear Models, 2nd edition</a> - McCullagh, P. and Nelder, J.A. (1989), Chapman and Hall/CRC. Defines the offset term inside the GLM linear predictor.</li>
+
+<li><a href="https://doi.org/10.1002/0471249688">Categorical Data Analysis, 3rd edition</a> - Agresti, A. (2012), Wiley. Poisson regression for rate data with varying exposure.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html">glm() documentation</a> - R Core Team, base R <code>stats</code> package, including the <code>offset()</code> function used inside a model formula.</li>
+
+<li><a href="https://stats.oarc.ucla.edu/r/dae/poisson-regression/">Poisson Regression, R Data Analysis Examples</a> - UCLA Office of Advanced Research Computing, a worked R example using offsets.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>From naive counts to a rate you can trust</h2>
+
+<p>Three fits, three different answers, all on the same twenty machines. The naive model, fit on raw breakdown counts with no exposure term, found nothing, p = 0.917. The offset model, adding <code>log(hours)</code> with its coefficient fixed at 1, found old machines breaking down 3.29 times as often per hour as new ones, p < 0.001. The floated model, which let that same term estimate its own coefficient, lost the result again, p = 0.954, because type and hours were too tangled up for both to keep their own coefficients at once.</p>
+
+<p>Whenever an outcome arrives as "how many" rather than a rate already computed for you, and the units being compared were not all watched for the same stretch of time, population or traffic, check for exposure before you trust the raw count.</p>
+</section>
+
+{% endraw %}
