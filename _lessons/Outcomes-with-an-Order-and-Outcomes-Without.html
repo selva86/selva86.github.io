@@ -1,0 +1,459 @@
+---
+title: "Generalized Linear Models Lesson 6: Outcomes with an order, and outcomes without"
+description: "An ordinal relief scale and a nominal treatment choice need different models. Fit proportional odds and multinomial logistic regression, and compare their cost."
+keywords: "ordinal logistic regression, proportional odds model, multinomial logistic regression, polr function in r, multinom function in r, ordinal vs nominal outcome, cumulative logit model, likert scale regression, categorical outcome regression, generalized linear models"
+mathjax: true
+webr: true
+curriculum_id: "4.80.6"
+post_type: "LESSON"
+course_id: "res-glm"
+course_title: "Generalized Linear Models"
+course_lesson: "6"
+course_total: "8"
+course_landing: "Generalized-Linear-Models-Course.html"
+course_next: "Too-Many-Zeros-and-the-Two-Ways-to-Model-Them"
+course_prev: "Rates-Offsets-and-Unequal-Exposure"
+lesson_access: "pro"
+catalog_blurb: "Tell an ordered outcome from an unordered one, and fit the model each needs."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Outcomes with an order, and outcomes without</h2>
+
+<p>Today let's understand two kinds of categorical outcome that look alike on the surface but need completely different models underneath.</p>
+
+<p>Four hundred arthritis patients each start with a baseline severity score, from 0, barely any symptoms, to 10, severe. Eight weeks later, two things are recorded for every one of them: how much relief they report, graded none, slight, moderate, good or complete, and which of four treatments the physician picks next, continue the current dose, switch to a different drug class, refer to a specialist, or add physiotherapy.</p>
+
+<p>Here are eight of the 400 patients.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["patient","severity","relief","treatment"],"rows":[[1,0,"none","continue"],[2,6,"slight","switch"],[3,2,"moderate","specialist"],[4,0,"good","continue"],[5,1,"complete","specialist"],[6,6,"none","specialist"],[7,1,"slight","physio"],[8,3,"moderate","continue"]],"formats":{},"title":"Eight of the 400 arthritis patients","note":"All 400 share one predictor, baseline severity, scored 0 to 10."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at the relief and treatment columns in that table. Relief runs from none up to complete, a real low-to-high order. Treatment does not: continue, switch, specialist and physio are four separate options, with no "more than" between any two of them.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Two shapes of a categorical outcome: ordered and unordered</h2>
+
+<p>Statisticians call relief an <strong>ordinal</strong> outcome. Its five categories sit on a real scale from low to high, even though the gaps between them are not measured in any fixed unit. None is worse than slight, slight is worse than moderate, and so on, in one fixed direction.</p>
+
+<p>Treatment is different. Continuing the dose, switching drugs, referring to a specialist and adding physiotherapy are four options with no shared direction. One option is not "more" or "less" than another, it is simply a different choice. Statisticians call this kind of outcome <strong>nominal</strong>.</p>
+
+<p>Whether an outcome's categories carry a true order decides which regression model fits it correctly.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The common error: scoring an ordinal outcome as plain numbers</h2>
+
+<p>Relief has five categories in a fixed order, so it is tempting to just number them 1 to 5 and fit an ordinary linear regression, the same <code>lm()</code> you would use for any numeric outcome.</p>
+
+<p>Let's build the full 400-patient dataset first, since every number in this lesson comes from it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 400-patient dataset: severity, the ordinal relief outcome,
+# and the nominal treatment choice
+set.seed(1)
+severity &lt;- sample(0:10, 400, replace = TRUE)
+
+# Relief (none &lt; slight &lt; moderate &lt; good &lt; complete), simulated from
+# a true proportional-odds model: one slope, four cutpoints
+eta &lt;- -0.3 * severity
+cutpoints &lt;- c(-1.5, 0, 1.5, 3.2)
+p1 &lt;- plogis(cutpoints[1] - eta)
+p2 &lt;- plogis(cutpoints[2] - eta)
+p3 &lt;- plogis(cutpoints[3] - eta)
+p4 &lt;- plogis(cutpoints[4] - eta)
+u &lt;- runif(400)
+relief &lt;- factor(
+  ifelse(u &lt; p1, &quot;none&quot;,
+  ifelse(u &lt; p2, &quot;slight&quot;,
+  ifelse(u &lt; p3, &quot;moderate&quot;,
+  ifelse(u &lt; p4, &quot;good&quot;, &quot;complete&quot;)))),
+  levels = c(&quot;none&quot;, &quot;slight&quot;, &quot;moderate&quot;, &quot;good&quot;, &quot;complete&quot;),
+  ordered = TRUE
+)
+
+# Treatment choice (continue, switch, specialist, physio), simulated
+# from a true multinomial model, reference category &quot;continue&quot;
+lo_switch &lt;- -1.0 + 0.15 * severity
+lo_specialist &lt;- -2.0 + 0.45 * severity
+lo_physio &lt;- -0.5 + 0.05 * severity
+total &lt;- 1 + exp(lo_switch) + exp(lo_specialist) + exp(lo_physio)
+p_continue &lt;- 1 / total
+p_switch &lt;- exp(lo_switch) / total
+p_specialist &lt;- exp(lo_specialist) / total
+p_physio &lt;- exp(lo_physio) / total
+
+treatment &lt;- character(400)
+for (i in 1:400) {
+  treatment[i] &lt;- sample(
+    c(&quot;continue&quot;, &quot;switch&quot;, &quot;specialist&quot;, &quot;physio&quot;),
+    size = 1,
+    prob = c(p_continue[i], p_switch[i], p_specialist[i], p_physio[i])
+  )
+}
+treatment &lt;- factor(treatment, levels = c(&quot;continue&quot;, &quot;switch&quot;, &quot;specialist&quot;, &quot;physio&quot;))
+
+patients &lt;- data.frame(severity = severity, relief = relief, treatment = treatment)
+head(patients)
+#&gt;   severity   relief treatment
+#&gt; 1        8     none    physio
+#&gt; 2        3 moderate  continue
+#&gt; 3        6     none specialist
+#&gt; 4        0 moderate  continue
+#&gt; 5        1   slight    physio
+#&gt; 6        6   slight    switch</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sample()</code> draws the baseline severity for each patient. The <code>ifelse()</code> chain draws relief from four threshold probabilities that shift with severity, and the loop draws treatment from four probabilities that also shift with severity, so both outcomes genuinely depend on how severe a patient's arthritis is.</p>
+
+<p>Now code relief as plain numbers and fit two linear regressions. The first codes the categories 1 to 5 in order. The second keeps 1 to 4 for none through good, but recodes complete as 10 instead of 5, the same order, just a bigger final step.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit ordinary linear regression to relief scored two different ways
+relief_num5 &lt;- as.integer(relief)             # none=1 ... complete=5
+relief_num10 &lt;- relief_num5
+relief_num10[relief_num10 == 5] &lt;- 10          # complete recoded 10, not 5
+
+fit5 &lt;- lm(relief_num5 ~ severity)
+fit10 &lt;- lm(relief_num10 ~ severity)
+
+round(coef(fit5), 3)
+#&gt; (Intercept)    severity 
+#&gt;       2.554      -0.145 
+round(summary(fit5)$r.squared, 3)
+#&gt; [1] 0.209
+
+round(coef(fit10), 3)
+#&gt; (Intercept)    severity 
+#&gt;       2.622      -0.149 
+round(summary(fit10)$r.squared, 3)
+#&gt; [1] 0.138</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nothing about the patients changed between these two fits. The order of the five categories is identical, none is still the worst and complete is still the best. The only thing that changed is the distance <code>lm()</code> assumes sits between good and complete: 1 unit in the first fit, 5 units in the second.</p>
+
+<p>That one choice moved the severity slope from -0.145 to -0.149, a small shift, but it dropped R-squared from 0.209 to 0.138, a big one. <code>lm()</code> cannot tell the difference between an order and a scale. It takes whatever numbers you hand it as real distances, and a different arbitrary spacing gives a different answer, even on the exact same patients in the exact same order.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Recoding a category changes nothing about what happened to the patients. If recoding alone can move your result this much, the numbers you chose were never real distances to begin with.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>From one yes-or-no split to a staircase of them</h2>
+
+<p>If scoring relief as numbers is unsafe, what can you compute directly from the categories themselves, in their own order, without inventing a distance?</p>
+
+<p>Pick one threshold, say none, and ask what share of patients land at or below it. That is one yes-or-no split: did a patient end up at none, or anywhere above it? A five-category outcome gives you four such splits, one for each boundary between neighbouring categories: none against everything above it, slight-or-below against everything above that, moderate-or-below against everything above that, and good-or-below against complete alone.</p>
+
+<p>Patients who started at severity 1 show this clearly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Four cumulative splits of relief, computed directly for patients
+# who started at severity 1
+relief_at_1 &lt;- relief[severity == 1]
+counts &lt;- table(relief_at_1)
+counts
+#&gt; relief_at_1
+#&gt;     none   slight moderate     good complete 
+#&gt;        4       11       10        4        1 
+
+shares &lt;- round(100 * counts / length(relief_at_1), 1)
+shares
+#&gt; relief_at_1
+#&gt;     none   slight moderate     good complete 
+#&gt;     13.3     36.7     33.3     13.3      3.3 
+
+cumsum(shares)
+#&gt;     none   slight moderate     good complete 
+#&gt;     13.3     50.0     83.3     96.6     99.9 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty patients started at severity 1. Reading the running total left to right: 13.3% landed at none, the lowest category. By slight or below, the total reaches 50.0%. By moderate or below, 83.3%, and by good or below, 96.6%, leaving the remaining share at complete alone.</p>
+
+<p>Each of those running totals is a single number read straight off the data, using only the order of the categories, no invented distance involved. A model that predicts every one of those running totals from severity, with just one shared slope instead of four separate counts, is exactly what the proportional-odds model gives you.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>The proportional-odds model: one slope, several cutpoints</h2>
+
+<p>The proportional-odds model fits exactly those four running totals, but as one smooth function of severity instead of four separate counts.</p>
+
+<p>For a threshold k, it models the cumulative probability as $$P(Y \le k) = \text{logit}^{-1}(\text{cutpoint}_k - \text{slope} \times \text{severity})$$ one cutpoint for each threshold, but the same slope used in every one of the four equations. That sharing is the "proportional odds" the model's name refers to: moving severity has the same effect on every cumulative split, just measured from a different cutpoint each time.</p>
+
+<p>Fit it with <code>polr()</code>, from the <code>MASS</code> package.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the proportional-odds model: one slope, four cutpoints
+library(MASS)
+fit_polr &lt;- polr(relief ~ severity, data = patients, Hess = TRUE)
+round(coef(fit_polr), 3)
+#&gt; severity 
+#&gt;    -0.34 
+round(fit_polr$zeta, 3)
+#&gt;     none|slight slight|moderate   moderate|good   good|complete 
+#&gt;          -1.745          -0.250           1.404           3.427 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One slope, -0.34, and four cutpoints, one for each boundary between neighbouring relief categories.</p>
+
+<p>Read off what the model actually predicts at two severity scores, 3 and 8.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Predicted category probabilities at severity 3 and severity 8
+new_patients &lt;- data.frame(severity = c(3, 8))
+round(100 * predict(fit_polr, newdata = new_patients, type = &quot;probs&quot;), 1)
+#&gt;   none slight moderate good complete
+#&gt; 1 32.6   35.7     23.5  7.0      1.2
+#&gt; 2 72.6   19.6      6.2  1.4      0.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At severity 3, the model splits patients fairly evenly across none, slight and moderate, with good and complete rare. At severity 8, 72.6% are predicted to land at none alone, and complete drops to 0.2%. The shared slope is what moves all five numbers together as severity rises: it shifts probability mass from the high end of relief toward the low end, the same amount of shift behind every one of the four thresholds.</p>
+
+<p>The widget below carries the same mechanism on a smaller, 3-category scale, low, medium and high, instead of relief's five.</p>
+<div class="lesson-widget" data-widget-type="ordinal-cumlogit" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Slide the predictor and watch the three stacked bands move. The bands never cross, because one shared slope drives all of them at once, exactly the assumption <code>polr()</code> made for the five relief categories.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Proportional odds is not a free assumption. It says the effect of severity on landing at or below none is the same, on the log-odds scale, as its effect on landing at or below good. Nothing in the data forces that to be true; it has to be checked, not assumed, in real work.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: order, numbers and the shared slope</h2>
+<section class="exercise" data-exercise-id="Outcomes-with-an-Order-and-Outcomes-Without-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because <code>lm()</code> is always the wrong tool for any outcome with more than two categories, ordinal or nominal.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Because <code>lm()</code> treats the numeric codes as real distances between categories. Stretching the gap between good and complete from 1 unit to 5 units changes how much of a move in relief each point of severity is assumed to produce, even though no patient's actual order changed.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Because recoding complete as 10 also reordered the five categories, putting complete above a numeric value it did not reach before.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Because the second fit used fewer patients than the first.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The order of the five categories never moved. Only the made-up distance between good and complete did, and <code>lm()</code> has no way to tell a real distance from an arbitrary one.</div><div class="lesson-qfb lesson-qfb-no">Three of these four blame something that did not happen here: the categories kept their order, every patient stayed in the fit, and no category besides complete changed its number. What changed is the made-up distance <code>lm()</code> assumed between good and complete, from 1 unit to 5. <code>lm()</code> reads that distance as real, so a different distance gives a different slope and a different R-squared, on the exact same patients.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Multinomial logistic regression for an outcome with no order</h2>
+
+<p>Treatment has no order, so there is no staircase of cumulative splits to build here. Instead, multinomial logistic regression picks one category as the reference and writes a separate equation for every other category, each giving the log-odds of that category against the reference.</p>
+
+<p>Continue the dose is the natural reference here, since it is what a physician defaults to when nothing changes. That leaves three equations to fit: switch versus continue, specialist versus continue, and physio versus continue, each with its own intercept and its own slope on severity.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit multinomial logistic regression: three equations, one per
+# non-reference treatment, each against continuing the dose
+library(nnet)
+fit_multinom &lt;- multinom(treatment ~ severity, data = patients, trace = FALSE)
+round(coef(fit_multinom), 3)
+#&gt;            (Intercept) severity
+#&gt; switch          -1.158    0.186
+#&gt; specialist      -2.687    0.581
+#&gt; physio          -0.698    0.130</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three rows, one per non-reference treatment, each with its own intercept and its own slope. Compare that to the single shared slope the proportional-odds model gave relief: nothing here is shared, because there is no order to share it along.</p>
+
+<p>Turn those coefficients into shares a physician can read, at severity 3 and severity 8.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Predicted treatment shares at severity 3 and severity 8
+new_patients &lt;- data.frame(severity = c(3, 8))
+round(100 * predict(fit_multinom, newdata = new_patients, type = &quot;probs&quot;), 1)
+#&gt;   continue switch specialist physio
+#&gt; 1     37.4   20.5       14.5   27.5
+#&gt; 2      9.2   12.7       65.1   13.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At severity 3, continuing the dose is still the most likely choice, 37.4%, with the other three options fairly close behind. At severity 8, that flips hard: specialist referral jumps to 65.1%, and continuing the dose drops to 9.2%.</p>
+
+<p>Each treatment's own slope moves its own share independently of the others. That independence is exactly what assuming nothing about order buys you, and it has a price, measured in parameters.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>What assuming nothing about order costs in parameters</h2>
+
+<p>Count what the two models you just fitted actually estimated for the one predictor, severity.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count the parameters each fitted model estimated
+length(coef(fit_polr)) + length(fit_polr$zeta)      # 1 slope + 4 cutpoints
+#&gt; [1] 5
+length(coef(fit_multinom))                           # 3 slopes + 3 intercepts
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five parameters for the proportional-odds model: one slope shared across all four thresholds, plus the four cutpoints themselves. Six for the multinomial model: an intercept and a slope for each of the three non-reference treatments.</p>
+
+<p>The gap grows with the number of categories. A proportional-odds model always adds exactly one more cutpoint per extra category, no matter how many predictors it carries. A multinomial model adds a whole new intercept and slope, for every predictor, for every extra category.</p>
+
+<p>Relief, with five categories against treatment's four, cost the proportional-odds model exactly one more cutpoint. Had relief instead needed a multinomial fit, that one extra category would have cost an entire new equation, not one extra number.</p>
+
+<p>That is the real price of assuming nothing about order: not a worse fit, but a model that grows far faster as the number of categories grows.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Why two categories need neither model</h2>
+
+<p>Relief has five categories, treatment has four, so both models so far had multiple thresholds or multiple non-reference categories to estimate. What happens when an outcome has only two?</p>
+
+<p>With two categories, a proportional-odds model has exactly one threshold, not four: category 1 or below, versus category 2. One threshold means one cutpoint, and the formula collapses to a single equation, not a staircase of them.</p>
+
+<p>A multinomial model collapses the same way. With two categories there is exactly one non-reference category left, so there is only one equation to fit: one intercept and one slope, the log-odds of category 2 against category 1.</p>
+
+<p>One cutpoint, one equation: both are now the exact same thing as the ordinary logistic regression you would reach for directly on a plain yes-or-no outcome. There is no order left to assume anything about, and no second category left to give its own equation to.</p>
+
+<p>The widget below fits exactly that ordinary logistic regression, on a plain two-category outcome.</p>
+<div class="lesson-widget" data-widget-type="logistic-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the threshold and watch the predicted class flip for each point. That is the whole model two categories ever need, the same <code>glm(family = binomial)</code> you may already know, not a special case of anything new.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">If an outcome ever reduces to two categories, you do not even get a choice between proportional odds and multinomial. R's own <code>polr()</code> refuses the job outright: pass it a two-level outcome and it stops with "response must have 3 or more levels". Reach for ordinary logistic regression instead.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which model for which outcome</h2>
+
+<p>A clinic now records which of five pain-relief creams, A, B, C, D or E, a patient is given next, chosen by whichever is in stock that day, with no ranking among them. Which is the right tool?</p>
+<section class="exercise" data-exercise-id="Outcomes-with-an-Order-and-Outcomes-Without-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>multinom()</code>: reference one cream and fit a separate intercept and slope, against that reference, for each of the other four.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>polr()</code>, since any outcome with more than two categories calls for the proportional-odds model regardless of whether the categories are ordered.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>lm()</code> on the cream recoded 1 to 5, since it fits faster than either categorical model.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Either <code>polr()</code> or <code>multinom()</code> works equally well here, since both handle outcomes with more than two categories.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Five categories with no order between any of them is exactly what multinomial logistic regression is for: one reference, one equation per remaining category.</div><div class="lesson-qfb lesson-qfb-no">Three of these reach for the wrong tool. <code>polr()</code> assumes a shared order across cutpoints, which five creams chosen only by stock levels do not have. Recoding the creams as 1 to 5 repeats the same mistake as scoring relief's categories as 1 to 5: an invented distance that <code>lm()</code> reads as real. And the two categorical models encode different assumptions, so they do not give interchangeable answers. Only <code>multinom()</code> fits an outcome with no order among its categories.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: fit the right model and read its coefficient</h2>
+
+<p>A different team groups the 400 patients' relief into three wider recovery bands instead of five: low (none or slight), medium (moderate), and high (good or complete). That grouping keeps the same order relief already had.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Group relief into three recovery bands, low &lt; medium &lt; high
+recovery_band &lt;- factor(
+  ifelse(relief %in% c(&quot;none&quot;, &quot;slight&quot;), &quot;low&quot;,
+  ifelse(relief == &quot;moderate&quot;, &quot;medium&quot;, &quot;high&quot;)),
+  levels = c(&quot;low&quot;, &quot;medium&quot;, &quot;high&quot;), ordered = TRUE
+)
+table(recovery_band)
+#&gt; recovery_band
+#&gt;    low medium   high 
+#&gt;    303     70     27 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is still an ordinal outcome, so it needs the same kind of model you already fitted for the five-category version. Complete the call that fits it against severity, and check the coefficient it hands back.</p>
+<section class="exercise" data-exercise-id="Outcomes-with-an-Order-and-Outcomes-Without-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="polr[(]\s*recovery_band\s*~\s*severity"><textarea class="lesson-tryit-input" spellcheck="false"># recovery_band is ordinal (low &lt; medium &lt; high). Fit the model that
+# assumes one shared slope across its cutpoints, against severity.
+# One line. Press Check when you have it.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: polr(recovery_band ~ severity, data = patients, Hess = TRUE) fits the shared-slope model, the same tool you used on the five-category relief.</span><span class="lesson-tryit-fb lesson-tryit-no">Reuse the call from the five-category version with the new outcome in place: polr(recovery_band ~ severity, data = patients, Hess = TRUE).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Fit the proportional-odds model on the three-band recovery outcome
+recovery_fit &lt;- polr(recovery_band ~ severity, data = patients, Hess = TRUE)
+round(coef(recovery_fit), 3)
+#&gt; severity 
+#&gt;   -0.301 </code></pre></details></div>
+</section>
+<p>The fitted slope, -0.301, is close to the -0.34 you saw for the five-category version, which makes sense: grouping none with slight, and good with complete, barely changes how severity moves patients up and down this scale. It only changes how many bands that movement is split across.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1002/0471249688">Categorical Data Analysis, 3rd edition</a> - Agresti, A. (2012), Wiley. The standard reference for both the proportional-odds and multinomial logit models.</li>
+
+<li><a href="https://doi.org/10.1201/9780203753736">Generalized Linear Models, 2nd edition</a> - McCullagh, P. and Nelder, J.A. (1989), Chapman and Hall/CRC. The cumulative-link model for ordinal outcomes, inside the GLM framework.</li>
+
+<li><a href="https://doi.org/10.1007/978-0-387-21706-2">Modern Applied Statistics with S, 4th edition</a> - Venables, W.N. and Ripley, B.D. (2002), Springer. The source text for the MASS and nnet packages used to fit both models.</li>
+
+<li>[<code>polr()</code> documentation](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/polr.html) - MASS package, the function used to fit the proportional-odds model.</li>
+
+<li>[<code>multinom()</code> documentation](https://stat.ethz.ch/R-manual/R-devel/library/nnet/html/multinom.html) - nnet package, the function used to fit the multinomial logistic model.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Order, no order, and the model that fits each</h2>
+
+<p>Relief and treatment looked alike at first, two categorical outcomes on the same 400 patients. But relief carries a real order from none to complete, and treatment does not, and that single difference decided everything that followed.</p>
+
+<p>An ordinal outcome gets the proportional-odds model: one slope shared across every cutpoint, five parameters here, and a prediction that moves smoothly as severity rises. A nominal outcome gets multinomial logistic regression: its own intercept and slope for every category against a reference, six parameters here, more expensive, but assuming nothing about an order that is not there. And when an outcome only has two categories, there is no order left to assume anything about, so both collapse to the ordinary logistic regression you already know.</p>
+
+<p>Next time a categorical outcome has more than two levels, ask one question first: does it have a real order or not. That answer alone tells you which model to reach for.</p>
+</section>
+
+{% endraw %}
