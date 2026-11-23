@@ -33,11 +33,11 @@ Built in the order that makes it stick: a probability, then odds, then log odds,
 
 [Start Lesson 1: Logistic regression, from the odds up](Logistic-Regression-from-the-Odds-Up.html)
 
-### Lesson 2: Three link functions and why the choice rarely matters
+### Lesson 2: Three link functions, and why the choice rarely matters
 
 Logit, probit and complementary log-log plotted on the same axes, where logit and probit are nearly indistinguishable over the range where data usually live and cloglog is visibly asymmetric. The same dataset fitted with all three, producing near-identical predicted probabilities and quite different coefficients, which is the lesson: the link changes the scale the coefficients live on, not usually the conclusion. When cloglog is the principled choice rather than a curiosity, which is when the outcome is a time-to-event in disguise.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Three link functions, and why the choice rarely matters](Three-Link-Functions-and-Why-the-Choice-Rarely-Matters.html)
 
 ### Lesson 3: Modeling counts with Poisson regression
 
