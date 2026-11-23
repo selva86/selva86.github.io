@@ -69,7 +69,7 @@ What is left after the random effects. Observations close in time within a subje
 
 The most common practical failure in this material, treated as a diagnosable problem rather than bad luck. Four causes reproduced on purpose: a variance component that is genuinely zero, a random-effects structure too complex for the number of groups, predictors on wildly different scales, and near-perfect separation. Each one's warning message shown and mapped to its cause, then fixed, in the order worth trying them. Why a singular fit is sometimes the correct answer rather than an error, and when simplifying the random structure is honest and when it quietly changes the question.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: What to do when your mixed model will not converge](What-to-Do-When-Your-Mixed-Model-Will-Not-Converge.html)
 
 ## Who this is for
 
