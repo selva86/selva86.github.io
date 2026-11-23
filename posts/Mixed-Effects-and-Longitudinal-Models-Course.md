@@ -33,7 +33,7 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 Thirty clinics, ten patients each, and an ordinary regression whose interval is far too narrow because it counts three hundred independent observations when it has closer to thirty. Simulated so the failure arrives as a coverage count rather than a caution. Then the three analyses a researcher might reach for, which are ignoring the grouping, averaging within group, and adding the group as a fixed factor, each shown to answer a different question and two of them to answer the wrong one. The mixed model previewed as the one that uses both levels of information at once.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Why grouped data breaks ordinary regression](Why-Grouped-Data-Breaks-Ordinary-Regression.html)
 
 ### Lesson 2: Random intercepts and random slopes
 
