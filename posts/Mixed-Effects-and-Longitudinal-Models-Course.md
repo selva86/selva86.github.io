@@ -63,7 +63,7 @@ Two methods that fit the same data and estimate different things, which is why "
 
 What is left after the random effects. Observations close in time within a subject are still more alike than distant ones, and a random intercept alone does not capture that. An autoregressive residual structure added, with the improvement measured and the consequence for the fixed-effect standard error shown. Why this matters most for long series per subject and barely at all for three visits, demonstrated by varying the number of measurements, so you leave with a rule for when to bother rather than one more thing to always do.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Correlated residuals inside a group](Correlated-Residuals-Inside-a-Group.html)
 
 ### Lesson 7: What to do when your mixed model will not converge
 
