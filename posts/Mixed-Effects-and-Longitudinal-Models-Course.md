@@ -57,7 +57,7 @@ The numbers most people skip past, turned into the answer to a question. Between
 
 Two methods that fit the same data and estimate different things, which is why "which is better" has no answer. A mixed model estimates a subject-specific effect; GEE estimates a population-averaged one, and for a nonlinear link those two numbers genuinely differ, shown numerically on the same dataset rather than described. GEE's working correlation structure explained as something that need not be right for the estimate to stay consistent, which is its main attraction, and the mixed model's advantage named: it hands you the variance components lesson 4 just made useful.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: GEE or mixed model, two different questions](GEE-or-Mixed-Model-Two-Different-Questions.html)
 
 ### Lesson 6: Correlated residuals inside a group
 
