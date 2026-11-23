@@ -55,7 +55,7 @@ Overdispersion diagnosed as a number, the ratio of residual deviance to degrees 
 
 The mistake that makes count models wrong in a way nothing diagnoses: comparing counts from windows of different size. Clinics observed for different numbers of months, villages of different populations, machines run for different hours. The offset derived from the log link, so that including `log(exposure)` with its coefficient fixed at one turns a count model into a rate model, shown algebraically and then checked numerically against the same model fitted to rates directly. Why an offset is not a covariate, and what goes wrong if you let its coefficient float.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Rates, offsets and unequal exposure](Rates-Offsets-and-Unequal-Exposure.html)
 
 ### Lesson 6: Outcomes with an order and outcomes without
 
