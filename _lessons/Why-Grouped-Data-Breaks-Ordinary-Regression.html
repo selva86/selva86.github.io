@@ -1,0 +1,323 @@
+---
+title: "Mixed Effects and Longitudinal Models Lesson 1: Why grouped data breaks ordinary regression"
+description: "A pooled regression on 300 clustered patient rows reports a confidence interval far too narrow. Compare three fixes and see why a mixed model works best."
+keywords: "intraclass correlation, design effect, clustered data, grouped data, mixed model, random effects, standard error, pooled regression, clinical trial data, R"
+mathjax: false
+webr: true
+curriculum_id: "4.90.1"
+post_type: "LESSON"
+course_id: "res-mixed"
+course_title: "Mixed Effects and Longitudinal Models"
+course_lesson: "1"
+course_total: "7"
+course_landing: "Mixed-Effects-and-Longitudinal-Models-Course.html"
+course_next: ""
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Why an ordinary regression's confidence interval is too narrow when patients share a clinic."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Why grouped data breaks ordinary regression</h2>
+
+<p>Today let's understand why an ordinary regression's confidence interval can be far too narrow, the moment your rows come from groups instead of individuals.</p>
+
+<p>Picture a clinical trial spread across thirty clinics, ten patients in each, three hundred patients in total. Fifteen clinics try a new care protocol, and fifteen stick with standard care. You want to know whether the new protocol genuinely does better.</p>
+
+<p>If you treated those three hundred patients as three hundred strangers, you would compute one standard error for the treatment effect. But patients at the same clinic share the same staff, the same equipment and the same routines. They behave more like thirty pieces of evidence than three hundred.</p>
+
+<p>Here is a simulation of exactly this design. Drag the dial and watch four different ways of computing the standard error for the same treatment effect pull apart as the clinics' patients start to resemble each other more.</p>
+<div class="lesson-widget" data-widget-type="cluster-icc-sim" data-widget-config='{"k":30,"m":10,"tau":4,"iccMax":0.5,"levels":11,"start":4,"sims":3000,"seed":30}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The naive row above is the one almost everyone reaches for first, and it is already the one furthest from the truth. Everything in this lesson is about why, and what to do instead.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Thirty clinics, ten patients, and one pooled regression</h2>
+
+<p>Thirty clinics take part in a trial of a new care protocol for high blood pressure. Fifteen clinics run the new protocol, and fifteen keep their standard care. Each clinic enrolls ten patients, so the trial has three hundred patients in total. The outcome measured on every patient is the drop in systolic blood pressure after eight weeks of their assigned care.</p>
+
+<p>Build that data in R, with a true treatment effect of 4 points and patients at the same clinic correlated at 0.35. Then fit the most direct regression you could reach for: each patient's blood pressure drop against which arm they were in, treating all three hundred rows as separate pieces of evidence.</p>
+
+<p>Build the data and fit that pooled regression now.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the clinic trial: 30 clinics, 10 patients each, treatment assigned to whole clinics
+set.seed(30)
+n_clinics &lt;- 30
+n_patients &lt;- 10
+clinic &lt;- rep(1:n_clinics, each = n_patients)
+treatment &lt;- rep(rep(c(0, 1), length.out = n_clinics), each = n_patients)
+clinic_effect &lt;- rnorm(n_clinics, mean = 0, sd = 1)
+patient_noise &lt;- rnorm(n_clinics * n_patients, mean = 0, sd = 1)
+y &lt;- 4 * treatment + sqrt(0.35) * clinic_effect[clinic] + sqrt(0.65) * patient_noise
+clin &lt;- data.frame(clinic = clinic, treatment = treatment, y = y)
+
+pooled_fit &lt;- lm(y ~ treatment, data = clin)
+round(summary(pooled_fit)$coefficients, 3)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   -0.255      0.083  -3.065    0.002
+#&gt; treatment      3.950      0.118  33.590    0.000
+round(confint(pooled_fit), 3)
+#&gt;              2.5 % 97.5 %
+#&gt; (Intercept) -0.419 -0.091
+#&gt; treatment    3.719  4.181</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The treatment coefficient is 3.95, close to the real effect of 4 points built into the simulation. Its 95% confidence interval runs from 3.72 to 4.18, barely half a point wide. Call this the pooled analysis, because it pools every one of the three hundred rows into one regression, as if each patient were an independent, standalone observation.</p>
+
+<p>That interval looks precise. It looks like you know the treatment effect almost to the decimal point. The next two steps ask whether you are entitled to feel that confident.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Why patients in the same clinic are not independent</h2>
+
+<p>Patients at the same clinic share the same nurses, the same equipment and the same day to day routine at that clinic. So two patients from the same clinic tend to have more similar outcomes than two patients picked from two different clinics, even before any treatment is applied.</p>
+
+<p>Statisticians give that similarity a number: the intraclass correlation, written rho. It runs from 0 to 1. A rho of 0 means patients at the same clinic are no more alike than patients at different clinics, which is the independence the pooled regression assumed. A rho of 1 means every patient at a clinic has exactly the same outcome, so measuring ten of them tells you nothing more than measuring one.</p>
+
+<p>The consequence for your standard error has a name too: the design effect. For m patients per clinic and an intraclass correlation of rho, it is <code>1 + (m - 1) * rho</code>. It is how many times larger your true variance really is than the variance a regression reports when it assumes every row is independent.</p>
+
+<p>Our clinics have m = 10 patients each, and the simulation used rho = 0.35. So the design effect is 1 + (10 - 1) x 0.35, which is 1 + 3.15, or 4.15. That one number says the three hundred rows carry the statistical weight of about 300 divided by 4.15, roughly seventy two independent patients, not three hundred.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Dragging the intraclass correlation yourself</h2>
+
+<p>You do not have to take that number on faith. Here is the same thirty clinics of ten design, this time with the dial starting at rho equal to 0, where there is nothing to correct for yet.</p>
+<div class="lesson-widget" data-widget-type="cluster-icc-sim" data-widget-config='{"k":30,"m":10,"tau":4,"iccMax":0.6,"levels":13,"start":0,"sims":4000,"seed":30}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Raise the dial and watch the ordinary OLS line barely move, because its formula assumes every row is independent and never adjusts for clustering. The cluster robust and cluster mean lines widen instead, tracking the simulated truth closely, and their coverage holds near 95% the whole way up. Read off the design effect and the naive interval's coverage at two or three settings. Every point past rho equal to 0 is a clinic study whose published interval would have been too narrow to trust.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which standard error would you trust</h2>
+
+<p>Take a new study: twenty patients per clinic this time, and an intraclass correlation of 0.5, even stronger clustering than our trial. One treatment effect, four candidate standard errors. Which one would you actually report?</p>
+<section class="exercise" data-exercise-id="Why-Grouped-Data-Breaks-Ordinary-Regression-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Ordinary OLS, since it uses every one of the individual patient rows.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Robust (HC1) standard errors, since robust already means the clustering is handled.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The cluster-robust or the cluster-mean standard error, since both treat the clinic, not the patient, as the independent unit.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">More patients in each clinic, since that is the fix for a clustering problem.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. HC1 only repairs unequal variance across rows and still assumes those rows are independent, so with clustering it barely moves from the naive number. The cluster-robust and cluster-mean standard errors are the two built around the clinic being the real unit of replication.</div><div class="lesson-qfb lesson-qfb-no">More patients in each clinic does not fix this. The design effect, 1 + (m - 1) x rho, actually grows larger as m grows with rho held fixed, so adding patients to the same clinics does not shrink the gap between the naive standard error and the truth. What fixes clustering is the choice of standard error, cluster-robust or cluster-mean, not the number of patients inside each clinic.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Analysis 1: ignoring the grouping</h2>
+
+<p>Go back to that pooled regression. Call it what it actually is: Analysis 1, ignoring the grouping entirely.</p>
+
+<p>Read its coefficients again, now that you know what to look for.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Analysis 1: the pooled fit, re-read with its assumption named
+round(summary(pooled_fit)$coefficients, 3)
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)
+#&gt; (Intercept)   -0.255      0.083  -3.065    0.002
+#&gt; treatment      3.950      0.118  33.590    0.000
+round(confint(pooled_fit), 3)
+#&gt;              2.5 % 97.5 %
+#&gt; (Intercept) -0.419 -0.091
+#&gt; treatment    3.719  4.181</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The estimate, 3.95 points, is unbiased. The simulation really did build in a 4 point effect, and pooling all three hundred rows lands close to it no matter how the clinics are grouped.</p>
+
+<p>The standard error is the problem. It was computed as though three hundred independent patients could each contribute independent evidence of the treatment effect. But the design effect means these three hundred rows carry the information of only about seventy two independent patients, so the pooled interval, 3.72 to 4.18, is too narrow. It would reject reasonable alternative effects that a wider, honest interval would still allow.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Analysis 2: averaging within each clinic</h2>
+
+<p>Analysis 2 throws away the patient-level detail on purpose. Collapse every clinic's ten patients down to one number, that clinic's average outcome, and compare the two arms on those thirty averages instead of on three hundred rows.</p>
+
+<p>Average within each clinic and run the comparison.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Analysis 2: average within each clinic, then compare the two arms on those 30 means
+clinic_means &lt;- tapply(clin$y, clin$clinic, mean)
+clinic_arm &lt;- tapply(clin$treatment, clin$clinic, unique)
+round(clinic_means, 2)
+#&gt;     1     2     3     4     5     6     7     8     9    10    11    12    13 
+#&gt; -0.64  3.48 -0.44  5.18  1.27  3.12 -0.05  3.49 -0.43  3.87 -0.53  2.24 -1.03 
+#&gt;    14    15    16    17    18    19    20    21    22    23    24    25    26 
+#&gt;  3.59  0.20  4.09 -0.09  3.74 -0.90  3.52 -0.17  3.96 -0.77  4.45  0.72  3.31 
+#&gt;    27    28    29    30 
+#&gt; -0.24  3.31 -0.72  4.08 
+t.test(clinic_means[clinic_arm == 1], clinic_means[clinic_arm == 0])
+#&gt; 
+#&gt; 	Welch Two Sample t-test
+#&gt; 
+#&gt; data:  clinic_means[clinic_arm == 1] and clinic_means[clinic_arm == 0]
+#&gt; t = 16.935, df = 27.895, p-value = 3.286e-16
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  3.472114 4.427853
+#&gt; sample estimates:
+#&gt;  mean of x  mean of y 
+#&gt;  3.6951132 -0.2548706 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fifteen numbers belong to the treated clinics and fifteen to the control clinics now, instead of three hundred patient rows. Compare those thirty clinic means with a two-sample t-test, and the estimate comes back at 3.95, the same gap the pooled regression found, because the design is balanced.</p>
+
+<p>The interval is different though: 3.47 to 4.43, almost twice as wide as the pooled regression's 3.72 to 4.18. This wider interval is the trustworthy one. For a balanced design like this, where every clinic has the same number of patients and the clinics split evenly between arms, comparing clinic means gives you exactly the standard error a mixed model would report, without even fitting one.</p>
+
+<p>The cost is real too. Every one of the individual patient measurements beyond each clinic's single average disappeared into those thirty numbers. You traded patient-level detail for a standard error you can actually trust.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Analysis 3: adding clinic as a fixed factor</h2>
+
+<p>Analysis 3 looks like the careful, rigorous choice at first. Control for which clinic a patient came from, by adding clinic as a regular predictor, then see what is left over for the treatment effect to explain.</p>
+
+<p>Fit that regression and look at the treatment row.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Analysis 3: add clinic as a fixed factor, control for it, then look at treatment
+fixed_fit &lt;- lm(y ~ factor(clinic) + treatment, data = clin)
+coef(fixed_fit)[&quot;treatment&quot;]
+#&gt; treatment 
+#&gt;        NA </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R cannot give the treatment coefficient a value at all. It comes back as NA, not a small number, not a wide interval: nothing.</p>
+
+<p>The reason is collinearity, and it is exact here rather than approximate. <code>factor(clinic)</code> adds one dummy variable for every clinic beyond the first, enough columns to represent each clinic's own average exactly. But treatment never changes within a clinic, so every patient at a treated clinic has treatment equal to 1 and every patient at a control clinic has treatment equal to 0. The entire treatment column is already fully determined by which clinic dummy is switched on, so there is nothing left for treatment to explain.</p>
+
+<p>This is not a stricter version of Analysis 1 or Analysis 2. It is a different question with no answer in this data: holding the clinic fixed, what does treatment do, when treatment never varies while the clinic is held fixed. There is no within-clinic contrast to estimate, because no clinic ever ran both arms.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Previewing the mixed model: borrowing strength across clinics</h2>
+
+<p>Analysis 2 got the standard error right by averaging within clinic. But it also treated every clinic's average as equally trustworthy, when a clinic with two patients and a clinic with forty patients clearly are not.</p>
+
+<p>A mixed model fixes that by borrowing strength across clinics: a clinic with few patients gets pulled toward the overall average more than a clinic with many. Here is that idea on its own small example, eight clinics ranging from 2 to 40 patients, standing in for our thirty clinics of ten so the pulling effect is easy to see.</p>
+<div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the pooling slider toward no pooling, and every clinic is judged purely on its own raw average, so the clinics with only two or three patients swing far from the grand mean on almost no evidence. Drag it toward complete pooling, and every clinic gets assigned the exact same number, throwing away any real difference between clinics.</p>
+
+<p>Somewhere in between is partial pooling: the small, noisy clinics get pulled hardest toward the grand mean, and the large clinics barely move, because they already carry enough evidence on their own. That is what a mixed model with a random intercept per clinic does automatically, fit here with <code>lme4::lmer()</code> in the widget's own R code.</p>
+
+<p>A mixed model is this same idea done properly on our own thirty clinics of ten. It keeps every one of the three hundred patient rows, the way Analysis 1 did, and it gets the standard error right, the way Analysis 2 did, by modelling the clinic structure directly instead of averaging it away.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: which analysis answers the right question</h2>
+
+<p>Treatment was assigned to whole clinics, not to individual patients, in every one of the three analyses above. Which one gives both an unbiased estimate and a standard error you can actually trust?</p>
+<section class="exercise" data-exercise-id="Why-Grouped-Data-Breaks-Ordinary-Regression-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Ignoring the grouping, since it uses every one of the three hundred rows.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Adding clinic as a fixed factor, since that controls for which clinic each patient came from.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Averaging within each clinic, since that is the one whose standard error matched a mixed model exactly.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">All three give you the same standard error, since they are built from the same three hundred patients.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Averaging to thirty clinic means keeps the unbiased estimate and reports the standard error that respects the real number of independent units here, about seventy two, not three hundred.</div><div class="lesson-qfb lesson-qfb-no">They do not agree. Ignoring the grouping understates the standard error because it treats three hundred correlated rows as three hundred independent ones. Adding clinic as a fixed factor cannot estimate a treatment effect at all here, since treatment never varies inside a clinic. Averaging within each clinic is the one that gets the estimate and the standard error both right.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: average within clinic and compare arms</h2>
+
+<p><code>clin</code> still holds all three hundred patients from this lesson, with columns <code>clinic</code>, <code>treatment</code> and <code>y</code>. Average <code>y</code> within each clinic to get thirty clinic means, then compare the treated clinics against the control clinics with a t-test, the same move Analysis 2 made.</p>
+
+<p>Two lines get you there. Press Check when you have them.</p>
+<section class="exercise" data-exercise-id="Why-Grouped-Data-Breaks-Ordinary-Regression-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(tapply|aggregate)[\s\S]*(t\.test[(]|lm[(])"><textarea class="lesson-tryit-input" spellcheck="false"># clin holds all 300 patients, with columns clinic, treatment and y.
+# Average y within each clinic to get 30 clinic means, then compare
+# the treated clinics against the control clinics with a t-test.
+# Two lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: averaging to 30 clinic means and comparing the two arms gives a mean difference close to 4, the same answer the pooled regression gave, now wrapped in an interval that is honest about what thirty clinics can really tell you.</span><span class="lesson-tryit-fb lesson-tryit-no">Two lines: tapply(clin$y, clin$clinic, mean) for the 30 clinic means and tapply(clin$treatment, clin$clinic, unique) for which arm each clinic is in, then t.test() comparing the means between the two arms.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Average within each clinic, then compare the two treatment arms
+clinic_means &lt;- tapply(clin$y, clin$clinic, mean)
+clinic_arm &lt;- tapply(clin$treatment, clin$clinic, unique)
+t.test(clinic_means[clinic_arm == 1], clinic_means[clinic_arm == 0])
+#&gt; 
+#&gt; 	Welch Two Sample t-test
+#&gt; 
+#&gt; data:  clinic_means[clinic_arm == 1] and clinic_means[clinic_arm == 0]
+#&gt; t = 16.935, df = 27.895, p-value = 3.286e-16
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  3.472114 4.427853
+#&gt; sample estimates:
+#&gt;  mean of x  mean of y 
+#&gt;  3.6951132 -0.2548706 </code></pre></details></div>
+</section>
+<p>The estimate lands at 3.95, the same gap the pooled regression found, but this time the interval, 3.47 to 4.43, is wide enough to be honest about what thirty clinics can really tell you.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1017/CBO9780511790942">Data Analysis Using Regression and Multilevel/Hierarchical Models</a> - Gelman, A. and Hill, J. (2007), Cambridge University Press.</li>
+
+<li>Kish, L. (1965). <em>Survey Sampling</em>. Wiley. The book that introduced the design effect.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v067.i01">Fitting Linear Mixed-Effects Models Using lme4</a> - Bates, D., Machler, M., Bolker, B. and Walker, S. (2015), Journal of Statistical Software, 67(1).</li>
+
+<li><a href="https://collegepublishing.sagepub.com/products/234191">Multilevel Analysis: An Introduction to Basic and Advanced Multilevel Modeling</a> - Snijders, T. and Bosker, R. (2012), 2nd edition, Sage.</li>
+
+<li>Donner, A. and Klar, N. (2000). <em>Design and Analysis of Cluster Randomization Trials in Health Research</em>. Arnold.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What grouped data demands of a regression</h2>
+
+<p>Every result in this lesson traces back to one number: the design effect, <code>1 + (m - 1) * rho</code>. With thirty clinics of ten patients and an intraclass correlation of 0.35, that number is 4.15, and it is the reason three hundred patient rows carried the statistical weight of only about seventy two independent ones.</p>
+
+<p>Three analyses tried to deal with that:</p>
+
+<ul>
+
+<li>Ignoring the grouping gave an unbiased estimate with a standard error that was too narrow, because it assumed three hundred independent rows.</li>
+
+<li>Averaging within each clinic gave the same estimate with a standard error you can trust, by making the clinic, not the patient, the unit being compared.</li>
+
+<li>Adding clinic as a fixed factor asked a different question entirely, and could not answer it, because treatment never varied inside a clinic.</li>
+
+</ul>
+
+<p>Averaging within clinic is the one that gets both the estimate and the standard error right, but it costs you every patient-level number along the way. A mixed model is the fix that keeps those patient-level rows and still respects the clinic structure, because it models the clinic to clinic variation directly instead of collapsing it into thirty averages.</p>
+
+<p>The next lesson fits that mixed model directly, with random intercepts for the clinics and, where the treatment effect itself varies by clinic, random slopes too, on this same thirty clinics of ten design.</p>
+</section>
+
+{% endraw %}
