@@ -43,7 +43,7 @@ Logit, probit and complementary log-log plotted on the same axes, where logit an
 
 Poisson regression as the natural model when the outcome is "how many", with the log link motivated by what it does rather than by convention: it makes the model multiplicative, so a coefficient is a rate ratio. Fitted on a real count outcome, with the coefficient exponentiated and read as a percentage change in the rate. The distribution's defining property, that variance equals mean, restated and then computed here, so the next lesson has somewhere to start.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Modeling counts with Poisson regression](Modeling-Counts-with-Poisson-Regression.html)
 
 ### Lesson 4: When your counts are too variable for Poisson
 
