@@ -1,0 +1,365 @@
+---
+title: "Mixed Effects and Longitudinal Models Lesson 6: Correlated residuals inside a group"
+description: "A random intercept misses residuals that are still correlated over time. Fit an AR(1) correction with nlme and see the standard error it actually raises."
+keywords: "autocorrelation, AR(1) residuals, correlated residuals, mixed effects model, corAR1, nlme, lme, longitudinal data, repeated measures, standard error, lme4, random intercept, serial correlation"
+mathjax: true
+webr: true
+curriculum_id: "4.90.6"
+post_type: "LESSON"
+course_id: "res-mixed"
+course_title: "Mixed Effects and Longitudinal Models"
+course_lesson: "6"
+course_total: "7"
+course_landing: "Mixed-Effects-and-Longitudinal-Models-Course.html"
+course_next: "What-to-Do-When-Your-Mixed-Model-Will-Not-Converge"
+course_prev: "GEE-or-Mixed-Model-Two-Different-Questions"
+lesson_access: "pro"
+catalog_blurb: "See why a random intercept misses correlation over time, and how to correct it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Correlated residuals inside a group</h2>
+
+<p>Today let's look at what is actually left over once a mixed model's random intercept has finished its job.</p>
+
+<p>Twenty patients are enrolled in a 12 week blood pressure trial, with a check-in every week. A random intercept gives each patient their own starting level: some patients run high on average, some run low, and the intercept is exactly the number that tells them apart.</p>
+
+<p>Simulate the trial, then print patient 1 and patient 2's own 12 readings.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 20 patients over 12 weekly blood pressure visits
+phi_true &lt;- 0.6
+innovation_sd &lt;- 3
+start_sd &lt;- innovation_sd / sqrt(1 - phi_true^2)
+
+simulate_patients &lt;- function(n_patients, n_weeks) {
+  patient_rows &lt;- list()
+  for (patient_id in 1:n_patients) {
+    random_intercept &lt;- rnorm(1, mean = 0, sd = 5)
+    residual &lt;- numeric(n_weeks)
+    residual[1] &lt;- rnorm(1, mean = 0, sd = start_sd)
+    for (week in 2:n_weeks) {
+      residual[week] &lt;- phi_true * residual[week - 1] + rnorm(1, mean = 0, sd = innovation_sd)
+    }
+    bp &lt;- 140 + random_intercept - 1.2 * (1:n_weeks) + residual
+    patient_rows[[patient_id]] &lt;- data.frame(patient = patient_id, week = 1:n_weeks, bp = bp)
+  }
+  out &lt;- do.call(rbind, patient_rows)
+  out$patient &lt;- factor(out$patient)
+  out
+}
+
+set.seed(42)
+full &lt;- simulate_patients(n_patients = 20, n_weeks = 12)
+
+round(full$bp[full$patient == 1], 1)
+#&gt;  [1] 143.5 144.3 145.0 144.3 141.9 144.8 141.3 145.0 140.5 141.4 144.5 134.8
+round(full$bp[full$patient == 2], 1)
+#&gt;  [1] 136.9 137.8 135.1 125.9 120.5 128.1 127.3 121.9 123.0 127.4 131.6 126.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plot those same two patients to see the shape instead of just the numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the two patients side by side
+library(ggplot2)
+ggplot(full[full$patient %in% c(1, 2), ], aes(week, bp, color = patient)) +
+  geom_point() +
+  geom_line() +
+  labs(x = &quot;Week&quot;, y = &quot;Systolic blood pressure&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both patients drift down over the 12 weeks, which is the treatment working. Patient 2 just happens to run lower overall than patient 1, and a random intercept is built exactly to capture a difference like that: one number per patient that shifts their whole line up or down, fitted straight from the data.</p>
+
+<p>But that one number per patient says nothing about the smaller week to week bounce inside each patient's own 12 readings. Is that bounce independent noise, the way a plain mixed model assumes? Or does a high week still lean on the week right before it, something a random intercept was never built to catch? Measure it properly, rather than guess at it by eye.</p>
+
+<p>Here is patient 1's own run once more, so you can look at that week to week bounce up close.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":143.5},{"x":2,"y":144.3},{"x":3,"y":145},{"x":4,"y":144.3},{"x":5,"y":141.9},{"x":6,"y":144.8},{"x":7,"y":141.3},{"x":8,"y":145},{"x":9,"y":140.5},{"x":10,"y":141.4},{"x":11,"y":144.5},{"x":12,"y":134.8}],"geoms":["point","line"],"x":"Week","y":"Systolic blood pressure","code":{}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switch between the point and line view above. The same twelve readings sit there either way, with whatever link connects one week to the next still hidden inside them.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What a random intercept leaves behind</h2>
+
+<p>Fit the familiar random-intercept model across all 20 patients, 12 readings each, and read off the fixed effects.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the familiar random-intercept model across all 20 patients
+library(lme4)
+m_lmer &lt;- lmer(bp ~ week + (1 | patient), data = full)
+
+round(fixef(m_lmer), 3)
+#&gt; (Intercept)        week 
+#&gt;     141.190      -1.211 
+round(sqrt(diag(vcov(m_lmer))), 3)
+#&gt; (Intercept)        week 
+#&gt;       1.142       0.058 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The week slope comes out at -1.211, with a standard error of 0.058, close to the true weekly drop of -1.2 used to build the data. So the fixed part of the model, the part that is the same for every patient, looks right.</p>
+
+<p>Now check the part that is specific to each patient: the residuals left over once the model's own fitted line is subtracted out. If the random intercept had already caught everything that keeps a patient's readings together over time, each patient's own 12 residuals should look like independent noise, with no real link between one week's residual and the next.</p>
+
+<p>Split the residuals by patient, and for each patient correlate every residual with the very next week's residual, what statisticians call the lag-1 correlation. Average that correlation across all 20 patients.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check whether each patient's own residuals still move together week to week
+full$resid &lt;- residuals(m_lmer)
+lag1_by_patient &lt;- sapply(split(full$resid, full$patient), function(r) cor(r[-length(r)], r[-1]))
+round(mean(lag1_by_patient), 3)
+#&gt; [1] 0.314</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.314 is nowhere close to zero. A random intercept is a single number per patient, fixed for every one of that patient's 12 weeks, so it cannot create or remove any link between neighbouring weeks on its own. Whatever is producing that 0.314 came from somewhere else, something still sitting inside the week-to-week readings themselves.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<h2>Watching a confidence interval fail while the fit looks fine</h2>
+
+<p>The pattern just measured, where a residual depends partly on the residual right before it, has a name: an autoregressive process of order 1, or AR(1) for short. In an AR(1) process, today's residual is written as a fraction of yesterday's residual, plus a fresh nudge that owes nothing to the past:</p>
+
+<p>\(e_{i,t} = \phi \, e_{i,t-1} + \varepsilon_{i,t}\)</p>
+
+<p>Here \(\phi\) (phi) is a single number between -1 and 1 that sets how strongly a residual leans on the one before it, and \(\varepsilon_{i,t}\) is the fresh nudge. When \(\phi\) is 0, every residual is independent of the last, which is exactly what a plain mixed model always assumes. The 0.314 you just measured says that assumption is already shaky.</p>
+
+<p>Drag the severity dial below from none to severe, and read two numbers together: how often a 95% interval still covers the true value (coverage), and how good the fit looks by R-squared.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>This dial is not reading the patient panel above. It runs its own single 60 point time series, rebuilt fresh at every setting, but driven by the exact same AR(1) process just defined, so it is measuring the identical disease on a scale you can turn up by hand. Drag it toward severe, and coverage falls well below the 95% it claims, while R-squared holds steady or even climbs a little. The fit gives no sign that anything is wrong. Only the coverage does.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Reading the dial at this trial's own strength</h2>
+
+<p>Now pin that same dial at roughly this trial's own strength, instead of its most extreme setting.</p>
+<div class="lesson-widget" data-widget-type="assumption-dial" data-widget-config='{"assumption":"autocorrelation","start":6}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>At this setting the dial's own \(\phi\) works out to about 0.92 times six tenths, or roughly 0.55, close to the 0.6 used to simulate the patients and close to the 0.554 that an AR(1) model fits later in this lesson, on these patients' own data. Read the coverage number at this setting, and hold onto it. It is roughly how far a 95% interval's true coverage has already fallen for a trial shaped like this one, before anyone corrects for it.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: fit versus coverage</h2>
+
+<p>On that dial, dragging toward severe left R-squared steady or higher while coverage fell well below 95%. Which statement reads that correctly?</p>
+<section class="exercise" data-exercise-id="Correlated-Residuals-Inside-a-Group-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Because R-squared held steady or even rose as the dial moved, the interval's reported coverage must still be trustworthy too.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A confidence interval's coverage can fall well below 95% even while R-squared holds steady or rises, because autocorrelation damages the standard error, not the fitted line.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Once autocorrelation is present, the fitted slope itself becomes biased, which is why the interval needs fixing.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">R-squared and interval coverage always move together, so if one looks fine the other does too.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A violated independence assumption attacks the standard error quoted around an estimate. It does not have to touch how well the fitted line matches the data, which is what R-squared measures.</div><div class="lesson-qfb lesson-qfb-no">No. On the dial, R-squared held steady or even rose while coverage fell well below 95%. A violated independence assumption breaks the standard error quoted around an estimate. It does not have to touch the fitted line's own fit statistic at all. The two numbers answer different questions, and only coverage tells you whether the interval can be trusted.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Fitting the correction with lme() and corAR1()</h2>
+
+<p>Fit the same mean structure twice on the full trial: once assuming independent residuals, and once letting each patient's own residuals follow an AR(1) process in time.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the same model with and without an AR(1) correlation structure on the residuals
+library(nlme)
+m_lme_indep &lt;- lme(bp ~ week, random = ~1 | patient, data = full)
+m_lme_ar1 &lt;- lme(bp ~ week, random = ~1 | patient, data = full,
+                  correlation = corAR1(form = ~week | patient))
+
+round(c(indep = AIC(m_lme_indep), ar1 = AIC(m_lme_ar1)), 1)
+#&gt;  indep    ar1 
+#&gt; 1302.1 1248.2 
+round(coef(m_lme_ar1$modelStruct$corStruct, unconstrained = FALSE), 3)
+#&gt;   Phi 
+#&gt; 0.554 
+anova(m_lme_indep, m_lme_ar1)
+#&gt;             Model df      AIC      BIC    logLik   Test  L.Ratio p-value
+#&gt; m_lme_indep     1  4 1302.123 1316.012 -647.0615                        
+#&gt; m_lme_ar1       2  5 1248.194 1265.555 -619.0968 1 vs 2 55.92952  &lt;.0001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>correlation = corAR1(form = ~week | patient)</code> argument tells <code>lme()</code> to let each patient's own residuals follow the AR(1) process just defined, ordered by week, with the <code>patient</code> column marking where one patient's own series ends and the next one's begins.</p>
+
+<p>The fitted \(\phi\) comes out at 0.554, close to the 0.6 used to build the data in the first place. AIC rewards a model for fitting better, but it also charges a penalty for every extra parameter a model spends, and here it drops from 1302.1 without the correction to 1248.2 with it, comfortably clearing that penalty. A likelihood-ratio test puts a number on how unlikely a drop that size would be if the simpler, independent-residual model were actually correct: L.Ratio of 55.93 on the one extra parameter corAR1() spends, with a p-value under 0.0001. The correlated-residual model is not a cosmetic add-on. The data clearly prefer it.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>What changes for the treatment effect, and what does not</h2>
+
+<p>Pull the week slope and its standard error from both models, with and without the correction.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the week slope and its standard error, with and without the correction
+round(summary(m_lme_indep)$tTable[&quot;week&quot;, c(&quot;Value&quot;, &quot;Std.Error&quot;)], 3)
+#&gt;     Value Std.Error 
+#&gt;    -1.211     0.058 
+round(summary(m_lme_ar1)$tTable[&quot;week&quot;, c(&quot;Value&quot;, &quot;Std.Error&quot;)], 3)
+#&gt;     Value Std.Error 
+#&gt;    -1.210     0.092 
+se_ratio &lt;- summary(m_lme_ar1)$tTable[&quot;week&quot;, &quot;Std.Error&quot;] /
+            summary(m_lme_indep)$tTable[&quot;week&quot;, &quot;Std.Error&quot;]
+round(se_ratio, 2)
+#&gt; [1] 1.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The slope itself barely moves: -1.211 without the correction, -1.210 with it, the same number to two decimal places. Correcting for autocorrelation did not change the estimated treatment effect at all.</p>
+
+<p>What changed is the standard error: 0.058 without the correction, 0.092 with it, 1.57 times larger. That 1.57 is not a quirk of this one fit. Twelve weekly readings on the same patient are not twelve independent pieces of evidence when neighbouring weeks move together, because each new reading partly repeats what the week before it already said. A model that assumes independent rows, like the plain random-intercept fit, treats all twelve as fully independent and ends up quoting a standard error that is too small for the information it actually has. The AR(1) correction counts the real, smaller amount of independent information honestly, so its standard error comes out larger, and that larger number is the trustworthy one.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>How many visits before this correction is worth it?</h2>
+
+<p>Run the exact same comparison again, on the same 20 patients, but with only 3 visits each instead of 12.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the comparison, but with only 3 visits per patient instead of 12
+set.seed(42)
+short &lt;- simulate_patients(n_patients = 20, n_weeks = 3)
+
+m_lme_indep_s &lt;- lme(bp ~ week, random = ~1 | patient, data = short)
+m_lme_ar1_s &lt;- lme(bp ~ week, random = ~1 | patient, data = short,
+                    correlation = corAR1(form = ~week | patient))
+
+round(c(indep = AIC(m_lme_indep_s), ar1 = AIC(m_lme_ar1_s)), 1)
+#&gt; indep   ar1 
+#&gt; 351.3 350.9 
+anova(m_lme_indep_s, m_lme_ar1_s)
+#&gt;               Model df      AIC     BIC    logLik   Test  L.Ratio p-value
+#&gt; m_lme_indep_s     1  4 351.2663 359.508 -171.6331                        
+#&gt; m_lme_ar1_s       2  5 350.8958 361.198 -170.4479 1 vs 2 2.370499  0.1236
+se_ratio_s &lt;- summary(m_lme_ar1_s)$tTable[&quot;week&quot;, &quot;Std.Error&quot;] /
+              summary(m_lme_indep_s)$tTable[&quot;week&quot;, &quot;Std.Error&quot;]
+round(se_ratio_s, 2)
+#&gt; [1] 1.22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With only 3 visits per patient, AIC barely moves, 351.3 without the correction against 350.9 with it, and the likelihood-ratio test does not clear the usual 0.05 bar: its p-value is 0.124. The standard-error ratio shrinks too, from 1.57 times with 12 visits down to 1.22 times with 3.</p>
+
+<p>The reason is the same effective-information idea from a moment ago, just run in the other direction. With only 3 readings per patient, there are only 2 gaps between neighbouring weeks for the correlation to act on, far too little for an AR(1) correction to earn its extra parameter back. With 12 readings per patient, there are 11 such gaps, plenty for the same correlation to add up to something that matters. The rule that falls out of both comparisons: check for this correction when each subject carries many repeated measurements, and feel safe skipping it when each subject only has a handful.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: putting it together</h2>
+
+<p>A colleague brings two new datasets. The first follows 40 patients through 6 monthly visits each. The second follows 15 patients through 20 weekly visits each. Based on what the 3-visit and 12-visit comparison just showed, which statement applies the rule correctly?</p>
+<section class="exercise" data-exercise-id="Correlated-Residuals-Inside-a-Group-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both datasets are different enough from the 3-visit and 12-visit cases that nothing learned here carries over to them.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Fit the AR(1) correction by default on every mixed model, no matter how many visits each subject has, since it can only help.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The 20-visit study has enough repeated measurements per subject for the correction to likely matter, much as the 12-visit trial did. The 6-visit study sits closer to the 3-visit case, where the correction barely moved anything.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Skip the AR(1) correction on both datasets, since it spends an extra parameter and makes the model harder to explain.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The number of repeated measurements per subject, not the dataset's name or its total size, is what decides whether this correction is worth fitting.</div><div class="lesson-qfb lesson-qfb-no">No. The correction is not free, but it is not optional either. A handful of visits per subject rarely carries enough signal for it to move the answer, the way the 3-visit comparison showed. Many repeated visits per subject, as in the 20-visit study, carries enough signal for the same correlation to matter, the way the 12-visit comparison showed. There is no single default: check for it when subjects carry many repeated measurements, and feel safe skipping it when they only have a few.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: add the correction yourself</h2>
+
+<p><code>full</code> still holds all 20 patients' 12 weekly readings. Add the AR(1) correlation structure to this plain <code>lme()</code> call, the same way it was fitted earlier in this lesson, then compare the week slope's standard error to the 0.058 a plain fit gives.</p>
+<section class="exercise" data-exercise-id="Correlated-Residuals-Inside-a-Group-step10" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="corAR1[(]form *= *~week *[|] *patient[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Add the AR(1) correction to this model, then compare its standard error
+m_lme_corrected &lt;- lme(bp ~ week, random = ~1 | patient, data = full,
+                        ____)
+
+round(summary(m_lme_corrected)$tTable[&quot;week&quot;, c(&quot;Value&quot;, &quot;Std.Error&quot;)], 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. The standard error should land at about 0.092 now, close to 0.058 times 1.57, the exact relationship just computed by hand.</span><span class="lesson-tryit-fb lesson-tryit-no">The correlation argument goes inside the same lme() call, right after data: correlation = corAR1(form = ~week | patient).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Add the AR(1) correction to this model, then compare its standard error
+m_lme_corrected &lt;- lme(bp ~ week, random = ~1 | patient, data = full,
+                        correlation = corAR1(form = ~week | patient))
+
+round(summary(m_lme_corrected)$tTable[&quot;week&quot;, c(&quot;Value&quot;, &quot;Std.Error&quot;)], 3)
+#&gt;     Value Std.Error 
+#&gt;    -1.210     0.092 </code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1007/b98882">Mixed-Effects Models in S and S-PLUS</a> - Pinheiro, J.C. and Bates, D.M. (2000), Springer. The book behind nlme's lme() and its correlation structures, including corAR1(), fitted in this lesson.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v067.i01">Fitting Linear Mixed-Effects Models Using lme4</a> - Bates, D., Machler, M., Bolker, B. and Walker, S. (2015), Journal of Statistical Software, 67(1). The paper behind lmer(), fitted first in this lesson before the correction is added.</li>
+
+<li>Diggle, P.J., Heagerty, P., Liang, K.Y. and Zeger, S.L. (2002). Analysis of Longitudinal Data, 2nd edition. Oxford University Press. Covers serial correlation among repeated measurements on the same subject, the exact pattern this lesson corrects for.</li>
+
+<li><a href="https://doi.org/10.2307/2529876">Random-effects models for longitudinal data</a> - Laird, N.M. and Ware, J.H. (1982), Biometrics, 38(4), 963-974. A founding paper on mixed models for repeated measures, the setting this lesson's correction extends.</li>
+
+<li><a href="https://doi.org/10.1007/b98969">Linear Mixed Models for Longitudinal Data</a> - Verbeke, G. and Molenberghs, G. (2000), Springer. A full treatment of residual covariance structures for mixed models, including the autoregressive structure fitted in this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What the autoregressive correction changed, and what it did not</h2>
+
+<p>This lesson started with twenty patients, twelve weekly readings each, and a random intercept that only ever tells one patient's line apart from another's.</p>
+
+<p>That random intercept left a real signal behind: a mean lag-1 residual correlation of 0.314 across all 20 patients, far from the zero a plain mixed model assumes. Fitting an AR(1) correction with corAR1() put a proper number on it, phi of 0.554, close to the 0.6 used to build the data, and it earned its place: AIC dropped from 1302.1 to 1248.2, backed by a likelihood-ratio test that does not leave much room for doubt.</p>
+
+<p>The week slope itself barely moved, -1.211 to -1.210. What moved was the honesty of its standard error, up from 0.058 to 0.092, 1.57 times larger, because 12 correlated weekly readings never carried 12 independent readings' worth of information in the first place.</p>
+
+<p>None of that showed up with only 3 visits per patient. AIC barely moved, the likelihood-ratio test did not clear its usual bar, and the standard-error ratio shrank to 1.22. So the rule is about how many repeated measurements each subject carries, not about whether a model happens to have a time variable in it: check for this correction with many repeated visits per subject, and feel safe skipping it with only a few.</p>
+
+<p>The next part of this course asks what to do when a mixed model like this one refuses to converge at all.</p>
+</section>
+
+{% endraw %}
