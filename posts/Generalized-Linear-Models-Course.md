@@ -63,11 +63,11 @@ An ordinal outcome, a five-point severity scale, and a nominal one, which of fou
 
 [Start Lesson 6: Outcomes with an order, and outcomes without](Outcomes-with-an-Order-and-Outcomes-Without.html)
 
-### Lesson 7: Too many zeros and the two ways to model them
+### Lesson 7: Too many zeros, and the two ways to model them
 
 Counts with far more zeros than any Poisson or negative binomial can produce, and the two stories that explain them, which are genuinely different and lead to different models. The zero-inflated model says some zeros come from a separate never-at-risk process; the hurdle model says the decision to be non-zero and the size once non-zero are two stages. Both fitted by hand, as a mixture and as a two-part likelihood, on data simulated from each, so each model is seen to recover its own truth and misfit the other. Which story a given dataset supports, and how to tell.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Too many zeros, and the two ways to model them](Too-Many-Zeros-and-the-Two-Ways-to-Model-Them.html)
 
 ### Lesson 8: Checking a GLM with simulated residuals
 
