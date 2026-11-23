@@ -73,7 +73,7 @@ Counts with far more zeros than any Poisson or negative binomial can produce, an
 
 Why a residual plot from a GLM looks alarming even when the model is right: the residuals are not expected to be normal or homoscedastic, so the habits from ordinary regression mislead. Simulated quantile residuals built from first principles, by simulating many datasets from the fitted model and asking where each observed value falls in its own predicted distribution, which makes a correctly specified model's residuals uniform no matter the family. Implemented by hand, then shown catching the three faults from lessons 4, 5 and 7 on data where each was injected.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: Checking a GLM with simulated residuals](Checking-a-GLM-with-Simulated-Residuals.html)
 
 ## Who this is for
 
