@@ -111,6 +111,9 @@
               <label class="cf-field"><span>Message</span>
                 <textarea name="message" required maxlength="5000" rows="6"></textarea></label>
               <input class="cf-hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+              <!-- Turnstile mounts here, and only when a sitekey is configured in
+                   /www/form-guard.js. Empty and invisible until then. -->
+              <div id="cf-turnstile" style="margin:0;"></div>
               <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
                 <button type="submit" class="cf-submit">Send message</button>
                 <span id="cf-status" role="status" aria-live="polite" style="font-size:14px;"></span>
@@ -128,12 +131,29 @@
           (function(){
             var f=document.getElementById('contact-form'); if(!f) return;
             var st=document.getElementById('cf-status'); var btn=f.querySelector('.cf-submit');
+            /* Turnstile, loaded only at submit time so it costs a page view
+               nothing, and a no-op while no sitekey is set. */
+            function guard(){
+              if(window.RSCFormGuard) return Promise.resolve(window.RSCFormGuard);
+              return new Promise(function(res){
+                var s=document.createElement('script');
+                s.src='/www/form-guard.js';
+                s.onload=function(){res(window.RSCFormGuard||null);};
+                s.onerror=function(){res(null);};
+                document.head.appendChild(s);
+              });
+            }
             f.addEventListener('submit',function(e){
               e.preventDefault();
               var data={name:f.name.value.trim(),email:f.email.value.trim(),subject:f.subject.value.trim(),message:f.message.value.trim(),website:f.website.value};
               if(!data.name||!data.email||!data.message){st.style.color='#a3352f';st.textContent='Please add your name, email, and message.';return;}
               st.style.color='#6b7280';st.textContent='Sending...';btn.disabled=true;
-              fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
+              guard().then(function(g){
+                return g?g.token(document.getElementById('cf-turnstile')):'';
+              }).then(function(tok){
+                if(tok) data.cf_turnstile_response=tok;
+                return fetch('/api/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+              })
                 .then(function(r){return r.json().catch(function(){return {};}).then(function(j){return {ok:r.ok,j:j};});})
                 .then(function(res){
                   if(res.ok){f.reset();st.style.color='#1c7a4a';st.textContent='Thank you. Your message is on its way and we will reply by email.';}
