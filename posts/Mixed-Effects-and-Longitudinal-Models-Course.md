@@ -45,7 +45,7 @@ The model written out before it is fitted, so you know which quantities are bein
 
 Repeated measurements on the same subjects, where the grouping factor is the person and the interesting coefficient is a slope over time. A growth-curve model with a random intercept and a random slope for time, so each subject gets their own trajectory, plotted against the population average. Why the within-subject comparison is more precise than the between-subject one, derived from the variance decomposition rather than asserted, and the trap of reading a population slope as though it described every individual.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Modeling change within a person](Modeling-Change-Within-a-Person.html)
 
 ### Lesson 4: Reading variance components and the ICC
 
