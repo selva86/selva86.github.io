@@ -57,11 +57,11 @@ The mistake that makes count models wrong in a way nothing diagnoses: comparing 
 
 [Start Lesson 5: Rates, offsets and unequal exposure](Rates-Offsets-and-Unequal-Exposure.html)
 
-### Lesson 6: Outcomes with an order and outcomes without
+### Lesson 6: Outcomes with an order, and outcomes without
 
 An ordinal outcome, a five-point severity scale, and a nominal one, which of four treatments was chosen, separated by the question each asks. The proportional-odds model built as a set of cumulative splits, with the single shared slope being exactly the assumption the name refers to, plotted so you can see what is being assumed and then check it. Multinomial logistic introduced as the model that assumes nothing about order and pays for it in parameters. The common error of running ordinary regression on a Likert item, with the damage shown.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Outcomes with an order, and outcomes without](Outcomes-with-an-Order-and-Outcomes-Without.html)
 
 ### Lesson 7: Too many zeros and the two ways to model them
 
