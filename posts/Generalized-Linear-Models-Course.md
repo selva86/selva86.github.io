@@ -49,7 +49,7 @@ Poisson regression as the natural model when the outcome is "how many", with the
 
 Overdispersion diagnosed as a number, the ratio of residual deviance to degrees of freedom, and then shown to matter: a Poisson model on overdispersed data gives standard errors that are far too small, with the coverage measured. Three repairs compared on the same data, which are a quasi-Poisson correction, a negative binomial fit, and cluster-robust standard errors, with what each assumes made explicit. The negative binomial's extra parameter explained as a variance that grows faster than the mean.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: When your counts are too variable for Poisson](When-Your-Counts-Are-Too-Variable-for-Poisson.html)
 
 ### Lesson 5: Rates, offsets and unequal exposure
 
