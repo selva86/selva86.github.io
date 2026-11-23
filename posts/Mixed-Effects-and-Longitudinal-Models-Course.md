@@ -51,7 +51,7 @@ Repeated measurements on the same subjects, where the grouping factor is the per
 
 The numbers most people skip past, turned into the answer to a question. Between-group and within-group variance computed by hand from group means, their ratio formed into the intraclass correlation, and that number interpreted two ways: as the correlation between two observations from the same group, and as the fraction of total variation the grouping explains. The design consequence computed directly, which is the effective sample size of a clustered study, and why adding more patients to the same thirty clinics stops helping.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Reading variance components and the ICC](Reading-Variance-Components-and-the-ICC.html)
 
 ### Lesson 5: GEE or mixed model, two different questions
 
