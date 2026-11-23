@@ -39,7 +39,7 @@ Thirty clinics, ten patients each, and an ordinary regression whose interval is 
 
 The model written out before it is fitted, so you know which quantities are being estimated: one intercept per group drawn from a distribution whose variance is the estimated thing, and then optionally one slope per group the same way. Fitted with `lmer()`, with the output's variance components mapped line by line onto the model just written. Random intercepts set against random slopes on data where the effect genuinely varies by group, and the fixed-effect interval widening appropriately once that variation is modelled instead of ignored.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Random intercepts and random slopes](Random-Intercepts-and-Random-Slopes.html)
 
 ### Lesson 3: Modeling change within a person
 
