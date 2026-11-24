@@ -131,8 +131,9 @@
           (function(){
             var f=document.getElementById('contact-form'); if(!f) return;
             var st=document.getElementById('cf-status'); var btn=f.querySelector('.cf-submit');
-            /* Turnstile, loaded only at submit time so it costs a page view
-               nothing, and a no-op while no sitekey is set. */
+            /* Turnstile, loaded on the first touch of the form rather than at
+               page load, so a reader who never writes to us pays nothing for
+               it, and a no-op while no sitekey is set. */
             function guard(){
               if(window.RSCFormGuard) return Promise.resolve(window.RSCFormGuard);
               return new Promise(function(res){
@@ -143,6 +144,17 @@
                 document.head.appendChild(s);
               });
             }
+            /* Start the challenge when they first touch the form, so it runs
+               while they type. If Cloudflare decides to draw a checkbox they
+               then have the whole time they spend writing to notice it,
+               instead of meeting it for the first time after pressing Send. */
+            var warmed=false;
+            function warm(){
+              if(warmed) return; warmed=true;
+              guard().then(function(g){ if(g&&g.prewarm) g.prewarm(document.getElementById('cf-turnstile')); });
+            }
+            f.addEventListener('focusin',warm,{once:true});
+            f.addEventListener('input',warm,{once:true});
             f.addEventListener('submit',function(e){
               e.preventDefault();
               var data={name:f.name.value.trim(),email:f.email.value.trim(),subject:f.subject.value.trim(),message:f.message.value.trim(),website:f.website.value};

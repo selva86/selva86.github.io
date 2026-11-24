@@ -174,8 +174,9 @@ body.sent .formgrid{display:none}body.sent .done{display:block}
   chips.addEventListener('click',function(e){var b=e.target.closest('.chip'); if(!b)return;
     chips.querySelectorAll('.chip').forEach(function(c){c.classList.remove('on');}); b.classList.add('on'); catField.value=b.getAttribute('data-cat');});
   var form=document.getElementById('fb-form'), msg=document.getElementById('fb-msg'), btn=document.getElementById('fb-send');
-  /* Turnstile, fetched at submit time so a page view pays nothing for it, and
-     inert while no sitekey is configured in /www/form-guard.js. */
+  /* Turnstile, fetched on the first touch of the form so a reader who never
+     writes to us pays nothing for it, and inert while no sitekey is
+     configured in /www/form-guard.js. */
   function guard(){
     if(window.RSCFormGuard) return Promise.resolve(window.RSCFormGuard);
     return new Promise(function(res){
@@ -186,6 +187,17 @@ body.sent .formgrid{display:none}body.sent .done{display:block}
       document.head.appendChild(s);
     });
   }
+  /* Start the challenge on first contact with the form so it solves while
+     they write, and any checkbox Cloudflare wants appears early enough to be
+     noticed rather than arriving after they press Send. */
+  var warmed=false;
+  function warm(){
+    if(warmed) return; warmed=true;
+    guard().then(function(g){ if(g&&g.prewarm) g.prewarm(document.getElementById('fb-turnstile')); });
+  }
+  form.addEventListener('focusin',warm,{once:true});
+  form.addEventListener('input',warm,{once:true});
+  chips.addEventListener('click',warm,{once:true});
   form.addEventListener('submit',function(ev){
     ev.preventDefault();
     var message=(document.getElementById('fb-message').value||'').trim();
