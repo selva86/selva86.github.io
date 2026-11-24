@@ -1,0 +1,366 @@
+---
+title: "Bayesian Data Analysis Lesson 5: Checking a Bayesian model before and after"
+description: "A store's 60 days of refund counts show how a prior can quietly imply impossible data, and how a fitted model can be checked against what it should reproduce."
+keywords: "prior predictive check, posterior predictive check, Bayesian workflow, Gamma-Poisson model, conjugate prior, test statistic, p-value, Bayesian model checking, posterior predictive p-value, R"
+mathjax: true
+webr: true
+curriculum_id: "4.110.5"
+post_type: "LESSON"
+course_id: "res-bayes"
+course_title: "Bayesian Data Analysis"
+course_lesson: "5"
+course_total: "8"
+course_landing: "Bayesian-Data-Analysis-Course.html"
+course_next: "Comparing-Models-by-Predictive-Accuracy"
+course_prev: "Partial-Pooling-and-the-Shrinkage-It-Buys"
+lesson_access: "pro"
+catalog_blurb: "Catch a bad prior before it sees data, and a bad model after."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Checking a Bayesian model before and after</h2>
+
+<p>Today let's understand how to check a Bayesian model: once before any data arrive, and once after you have fitted it.</p>
+
+<p>A small online store ships about 45 orders a day. Over its most recent 60 trading days, it logged 61 refund requests in total: 22 days with none, 22 days with one, 9 days with two, and 7 days with three, its busiest day.</p>
+
+<p>Here is that same count plotted, one bar for each number of refund requests a day could bring.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0,"y":22},{"x":1,"y":22},{"x":2,"y":9},{"x":3,"y":7}],"geoms":["bar"],"x":"refund_count","y":"days"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Most days bring zero or one refund request, and the bars thin out fast as the count climbs toward three.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>A Poisson likelihood, a Gamma prior, and two checks at two different times</h2>
+
+<p>Start with the model this lesson uses for the store's daily refund counts.</p>
+
+<p>A day's refund count is modeled as a Poisson random variable with rate lambda: the chance of seeing exactly k refund requests on a day is</p>
+
+<p>\[ P(Y = k \mid \lambda) = \frac{\lambda^k e^{-\lambda}}{k!} \]</p>
+
+<p>Lambda is the Poisson rate, the average number of refund requests the store expects on an ordinary day. It is the one number in this model nobody knows for certain, and it is what both checks in this lesson examine.</p>
+
+<p>Before any data arrive, lambda itself gets a prior distribution, a Gamma distribution with two numbers, a shape and a rate, that sets out where lambda probably sits.</p>
+
+<p>\[ \lambda \sim \text{Gamma}(\text{shape} = a,\ \text{rate} = b), \qquad \text{mean} = \frac{a}{b}, \qquad \text{variance} = \frac{a}{b^2} \]</p>
+
+<p>This lesson runs two checks on that setup, at two different points in time. The prior predictive check runs before any data arrive: it draws a lambda from the prior alone, simulates a day's count from it, and asks whether the result is even plausible. The posterior predictive check runs after the model is fitted: it draws a lambda from the posterior, simulates a full replicate dataset from it, and compares that replicate against the real 60 days.</p>
+
+<p>Both checks share the same move. Simulate data from the model, then compare it to something real or plausible, rather than trusting a formula alone to show the model is fine.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>A prior called vague: Gamma(0.001, 0.001), and what simulating from it shows</h2>
+
+<p>A common instinct when you do not want to bias a Bayesian model is to pick a prior with tiny shape and rate numbers, reasoning that small numbers mean "I hardly know anything." Try shape = 0.001 and rate = 0.001.</p>
+
+<p>Plugging those into the mean and variance formulas from the last step gives \( \text{mean} = 0.001/0.001 = 1 \) and \( \text{variance} = 0.001/0.001^2 = 1000 \). A variance of 1000 means a standard deviation near 31.6, enormous next to a mean of 1. That already sounds wide, but the real test of a prior is not its mean and variance. It is what it implies about the data.</p>
+
+<p>Draw 4000 values of lambda from this prior, and simulate one day's refund count from each one with <code>rpois()</code>. This is the prior predictive check: before any real data arrive, what kind of day does this prior make plausible?</p>
+
+<p>Press Run and look at the three numbers that answer that.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw lambda 4000 times from the vague Gamma(0.001, 0.001) prior, then simulate one day's refund count from each draw
+set.seed(101)
+lambda_vague &lt;- rgamma(4000, 0.001, 0.001)
+counts_vague &lt;- rpois(4000, lambda_vague)
+max(counts_vague)
+sum(counts_vague &gt; 20)
+sum(counts_vague &gt; 100)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; [1] 981
+#&gt; [1] 15
+#&gt; [1] 6</code></pre>
+
+<p>The highest simulated day reaches 981 refund requests. 15 of the 4000 simulated days exceed 20 requests, and 6 of them, 0.15%, exceed 100 requests in a single day, more refund requests than the store's entire daily order volume of about 45.</p>
+
+<p>That is the prior predictive check doing its job. Before a single real observation arrived, this prior already implied days that cannot happen. A prior is not a neutral starting point waiting to be overridden by data; it is itself a claim about what the data could look like, and "I hardly know anything" turned into a claim this extreme.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>A weakly informative prior that stays inside what's possible</h2>
+
+<p>A prior that implies impossible data needs to be replaced, not patched. Try shape = 2 and rate = 1 instead, a prior centred on the idea that the store sees around 2 refund requests on an average day, give or take.</p>
+
+<p>Its mean is \( 2/1 = 2 \) and its variance is \( 2/1^2 = 2 \), so its standard deviation is about 1.41. That is much tighter than before, but the real test is still the same: simulate from it and see what comes out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw lambda 4000 times from the weakly informative Gamma(2, 1) prior, then simulate one day's refund count from each draw
+set.seed(102)
+lambda_sensible &lt;- rgamma(4000, 2, 1)
+counts_sensible &lt;- rpois(4000, lambda_sensible)
+max(counts_sensible)
+sum(counts_sensible &gt; 10)
+quantile(counts_sensible, 0.99)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; [1] 14
+#&gt; [1] 10
+#&gt; 99% 
+#&gt;   9 </code></pre>
+
+<p>The highest simulated day is 14, nowhere near the 981 the vague prior produced. Only 10 of the 4000 simulated days, 0.25%, exceed 10 requests, and 99% of the simulated days land at 9 requests or fewer. Every one of those numbers is a day the store could plausibly have.</p>
+
+<p>That is what a weakly informative prior buys you. It still leaves room for the data to move lambda around, but it never treats hundreds of refund requests in a day as a reasonable possibility before any data have arrived.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a vague prior actually implies</h2>
+
+<p>Before moving on, check what actually went wrong with the first prior.</p>
+<section class="exercise" data-exercise-id="Checking-a-Bayesian-Model-Before-and-After-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A prior run forward through the likelihood already makes a claim about what a day's data will look like, and this prior's claim, routine days with hundreds of refund requests, was already wrong before any data arrived.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The prior failed because the sample size, 60 days, was too small to trust it.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A prior cannot be judged until it has been fitted to data.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The prior failed because Gamma is the wrong family of distribution for a rate parameter.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A prior is never just a quiet starting point. The moment you pair it with the likelihood and simulate, it is making a claim about data, and that claim can be checked before a single real observation shows up.</div><div class="lesson-qfb lesson-qfb-no">The Gamma family is fine for a Poisson rate, and the next prior in this lesson is also a Gamma. Only this prior's particular shape and rate numbers, 0.001 and 0.001, were too diffuse.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Fitting the model: from Gamma prior to Gamma posterior</h2>
+
+<p>Now give the weakly informative prior something to update on: the store's 60 days of refund counts, the same ones summarised in the opening chart.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 60 days of refund counts, then total them up
+set.seed(5)
+y &lt;- rpois(60, 1.0)
+sum(y)
+table(y)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; [1] 61
+#&gt; y
+#&gt;  0  1  2  3 
+#&gt; 22 22  9  7 </code></pre>
+
+<p>61 total requests over 60 days, split 22, 22, 9 and 7, the same four numbers from the opening chart.</p>
+
+<p>For a Poisson likelihood and a Gamma(shape = a, rate = b) prior, Bayes' rule simplifies to a clean update rule: the posterior is again a Gamma distribution, with its shape raised by the sum of the data and its rate raised by the number of days observed.</p>
+
+<p>\[ \text{posterior} = \text{Gamma}\left(a + \textstyle\sum y,\ \ b + n\right) \]</p>
+
+<p>With the prior Gamma(2, 1) and 60 days summing to 61, the posterior shape is \( 2 + 61 = 63 \) and the posterior rate is \( 1 + 60 = 61 \).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the posterior's shape and rate, then its mean and sd beside the prior's own
+n &lt;- length(y)
+a_post &lt;- 2 + sum(y)
+b_post &lt;- 1 + n
+c(a_post = a_post, b_post = b_post)
+round(c(posterior_mean = a_post / b_post, posterior_sd = sqrt(a_post) / b_post), 4)
+round(c(prior_mean = 2, prior_sd = sqrt(2)), 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; a_post b_post 
+#&gt;     63     61 
+#&gt; posterior_mean   posterior_sd 
+#&gt;         1.0328         0.1301 
+#&gt;     prior_mean       prior_sd 
+#&gt;         2.0000       1.4142 </code></pre>
+
+<p>The posterior mean, 1.0328, sits close to the data's own rate, 61 requests over 60 days, and far from the prior's mean of 2. The posterior standard deviation, 0.1301, is about a tenth the width of the prior's 1.4142. Sixty days of data carry far more information about lambda than the prior did, so the posterior narrows sharply and lands near what the data actually showed.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<h2>Watching the same prior-to-posterior pull with the widget's own numbers</h2>
+
+<p>The widget below runs a different update from the one you just computed by hand: a Normal belief updated by a batch of Normal-shaped data, not a Gamma prior updated by Poisson counts. But it is the same pull, mechanically. A prior and a batch of data combine into a posterior that sits somewhere between the two, closer to whichever one carries more weight.</p>
+
+<p>Drag "prior confidence" up to its highest setting, and drag "data points n" up toward 60.</p>
+
+<p>Once the data points slider reaches 60, the line beneath the chart changes to: "With this much data, the evidence dominates and the prior barely matters." That is the same thing you just watched happen by hand: a prior mean of 2 pulled by 60 days of data, whose own rate was 1.02, to a posterior mean of 1.03, far closer to the data than to the prior.</p>
+<div class="lesson-widget" data-widget-type="bayes-update" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>The posterior predictive check: simulate after fitting, and compare to the real data</h2>
+
+<p>Now run the second check this lesson uses, the one that happens after fitting.</p>
+
+<p>A posterior predictive check picks a test statistic, something computable from any dataset, then asks whether the real data's value for that statistic looks ordinary among replicate datasets simulated from the fitted model. Use the number of zero-request days in 60 as the test statistic. The real data had 22 of them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Draw lambda from the posterior, simulate a replicate 60-day dataset from each draw, and count each replicate's zero-request days
+set.seed(202)
+lambda_post &lt;- rgamma(3000, a_post, b_post)
+zero_days &lt;- sapply(lambda_post, function(l) sum(rpois(60, l) == 0))
+round(mean(zero_days), 2)
+range(zero_days)
+round(mean(zero_days &gt;= 22), 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; [1] 21.66
+#&gt; [1]  6 37
+#&gt; [1] 0.502</code></pre>
+
+<p>Over 3000 replicate 60-day datasets, the number of zero-request days averages 21.66, ranging from 6 to 37. The real data's own count, 22, sits almost exactly at that average: 0.502 of the replicates have 22 or more zero-request days.</p>
+
+<p>A posterior predictive p-value this far from either extreme says the fitted model reproduces this feature of the real data without strain. 22 zero-request days out of 60 is an ordinary outcome under this model, not a surprising one.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Repeating the check on a model you know is wrong, and watching it fail</h2>
+
+<p>A posterior predictive p-value near the middle feels reassuring, but on its own it only shows the check did not flag anything. To know whether the check can flag anything at all, run the identical check on a model already known to be wrong.</p>
+
+<p>Fit a Normal distribution to the same 60 days instead of a Poisson, at the data's own mean and standard deviation, round each simulated value to the nearest whole number since the real counts are whole numbers, and run the exact same zero-day check.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a Normal instead of a Poisson at the data's own mean and sd, then run the identical check
+set.seed(303)
+normal_stats &lt;- replicate(3000, {
+  day_counts &lt;- round(rnorm(60, mean(y), sd(y)))
+  c(zero_days = sum(day_counts == 0), negative_days = sum(day_counts &lt; 0))
+})
+zero_days_normal &lt;- normal_stats[&quot;zero_days&quot;, ]
+round(mean(zero_days_normal), 2)
+range(zero_days_normal)
+round(mean(zero_days_normal &gt;= 22), 3)
+round(mean(normal_stats[&quot;negative_days&quot;, ]), 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; [1] 14.24
+#&gt; [1]  4 27
+#&gt; [1] 0.016
+#&gt; [1] 3.86</code></pre>
+
+<p>The Normal-based replicates average only 14.24 zero-request days, ranging from 4 to 27. The real value, 22, now sits near the top of that range, so only 0.016 of the replicates reach 22 or more.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The replicates also average 3.86 days with a negative refund count each. A count can never be negative, so the Normal model is simulating something that cannot happen even before the zero-day check runs.</div></div>
+
+<p>The identical check that passed comfortably on the Poisson model, p = 0.502, fails clearly on the Normal model, p = 0.016. That contrast is the reason the earlier result is worth trusting. A check that always comes back reassuring regardless of the model would tell you nothing; this one just caught a model that does not belong here.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="widget">
+<h2>Seeing the same catch happen in the widget's own data</h2>
+
+<p>The widget below runs the identical kind of posterior predictive check, but on its own 60-observation dataset, with its own observed zero-count of 15, not the refund data above.</p>
+
+<p>Switch the toggle from "Normal fit (wrong)" to "Poisson fit (right)" and watch the red observed line move.</p>
+
+<p>Under the Normal fit, the widget reads: "The Normal replicates almost never reach 15 zeros (they average ~8), so the observed 15 lands far out in the tail." Switch to the Poisson fit, and it reads: "The Poisson replicates cluster around 11-12 zeros, and the observed 15 sits comfortably inside the crowd." That is the exact shift you just computed by hand with the refund data, the p-value moving from 0.016 under the wrong model to 0.502 under the right one.</p>
+<div class="lesson-widget" data-widget-type="ppc-overlay" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Closing check: what a posterior predictive check does and doesn't prove</h2>
+
+<p>A posterior predictive check on the refund data returned p = 0.502. Which reading of that number is right?</p>
+<section class="exercise" data-exercise-id="Checking-a-Bayesian-Model-Before-and-After-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A posterior predictive p-value of 0.502 proves the fitted model is correct.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That p-value, on its own, means only that the number of zero-days, the one statistic checked, is unremarkable under the fitted model. It says nothing about any statistic that was not checked, and the same kind of check, run earlier in this lesson on a Normal model, returned p = 0.016, which shows this method can also expose a real misfit when a model deserves it.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A posterior predictive check can never detect a wrong model, since the replicates are drawn from the posterior of that same model.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The check only means something if you compare against a model you know is wrong every single time you run it.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A posterior predictive check only ever speaks to the statistic it was handed. Watching the identical check fail on a model known to be wrong is what earns the mid-range result here its credibility.</div><div class="lesson-qfb lesson-qfb-no">That comparison was only needed here to demonstrate the check has power at all. Once you trust that a check of this kind can fail, you do not need to manufacture a wrong model every time you check a new one.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: check the model against the busiest day, not the zero days</h2>
+
+<p>The posterior draws from earlier in this lesson are still in scope: <code>a_post</code> is 63 and <code>b_post</code> is 61. Run the same kind of posterior predictive check, but with a different test statistic: the highest single-day count in 60 days. The real data's busiest day had 3 refund requests.</p>
+
+<p>Draw lambda from the posterior 3000 times, simulate a replicate 60-day dataset from each draw, and record the maximum of each replicate. That part is filled in below. Finish it by computing the share of the 3000 replicates whose maximum is 3 or less.</p>
+<section class="exercise" data-exercise-id="Checking-a-Bayesian-Model-Before-and-After-step12" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mean[(]busiest_day\s*&lt;=\s*3[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Draw lambda from the posterior again, simulate a replicate dataset from each draw, and record each replicate's busiest day
+set.seed(404)
+lambda_post2 &lt;- rgamma(3000, a_post, b_post)
+busiest_day &lt;- sapply(lambda_post2, function(l) max(rpois(60, l)))
+table(busiest_day)
+mean(busiest_day)
+
+# Your code: what share of the 3000 replicates have a busiest day of 3 or less?</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: about 0.292. Close to 3 in 10 of the 3000 replicate datasets have a busiest day of 3 or less, so the busiest day in the real data, also 3, is an ordinary outcome under this model too.</span><span class="lesson-tryit-fb lesson-tryit-no">Count the same way the zero-day check earlier in this lesson did, just with busiest_day and the opposite direction: mean(busiest_day <= 3).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Compute the share of the 3000 replicates with a busiest day of 3 or less
+mean(busiest_day &lt;= 3)</code></pre></details></div>
+</section>
+<pre><code>#&gt; [1] 0.292</code></pre>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.jstor.org/stable/2982063">Sampling and Bayes' Inference in Scientific Modelling and Robustness</a> - Box, G.E.P. (1980), Journal of the Royal Statistical Society, Series A, 143(4), 383 to 430. The paper that introduced checking a model against data it has not yet seen.</li>
+
+<li>Gelman, A., Meng, X.L., Stern, H. (1996). Posterior Predictive Assessment of Model Fitness via Realized Discrepancies. Statistica Sinica, 6(4), 733 to 760. The paper behind the posterior predictive check this lesson runs by hand.</li>
+
+<li><a href="http://www.stat.columbia.edu/~gelman/book/">Bayesian Data Analysis, 3rd edition</a> - Gelman, A., Carlin, J.B., Stern, H.S., Dunson, D.B., Vehtari, A., Rubin, D.B. (2013), CRC Press, Chapter 6. The standard reference for both checks in this lesson.</li>
+
+<li><a href="https://doi.org/10.1111/rssa.12378">Visualization in Bayesian Workflow</a> - Gabry, J., Simpson, D., Vehtari, A., Betancourt, M., Gelman, A. (2019), Journal of the Royal Statistical Society, Series A, 182(2), 389 to 402.</li>
+
+<li><a href="https://link.springer.com/book/10.1007/0-387-71599-1">The Bayesian Choice, 2nd edition</a> - Robert, C.P. (2007), Springer. Background on the Gamma-Poisson conjugate update used in this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Checking a Bayesian model before and after</h2>
+
+<p>A prior predictive check simulates from the prior alone, before any data arrive, and catches a prior that quietly implies impossible data. The vague Gamma(0.001, 0.001) prior failed that check by implying days with hundreds of refund requests; the weakly informative Gamma(2, 1) prior passed it by staying under 14.</p>
+
+<p>A posterior predictive check simulates from the fitted posterior, after the model has seen the real data, and catches a model that does not reproduce a real feature of that data. The Poisson model passed it on the number of zero-request days, p = 0.502; the Normal model, run through the identical check, failed it, p = 0.016.</p>
+
+<p>Both checks share one habit: simulate data from the model, then compare it to something real or plausible, rather than trusting a formula alone to show the model is fine. And a passing check only means something once you have also watched the identical check fail on a model known to be wrong, the way the Normal model failed it here.</p>
+</section>
+
+{% endraw %}
