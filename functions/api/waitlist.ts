@@ -3,7 +3,7 @@
 // Pro founding-member waitlist capture (pre-Lemon-Squeezy). Anonymous-friendly:
 // no auth required, but links to the signed-in user when a session exists.
 // Stores email + plan interest in D1 (waitlist table), sends a confirmation
-// email to the subscriber and an admin notice — both best-effort, never block
+// email to the subscriber and an admin notice, both best-effort, never block
 // the response. Idempotent on email (re-submitting returns {already:true}).
 //
 // CSRF: this is a state-changing POST with no Authorization header for anon
@@ -12,6 +12,10 @@
 import type { Env, RequestData } from "../_middleware";
 import { json, jsonError } from "../_lib/errors";
 import { sendMail, emailShell, type SendMailResult } from "../_lib/email";
+/* Shared with /api/contact and /api/feedback. This file's own copy of the
+   helper was correct, but three copies of one rule is how the contact form
+   ended up with a version that accepted a missing Origin header. */
+import { originAllowed } from "../_lib/form-guard";
 
 const ADMIN_EMAIL = "selva86@gmail.com";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
@@ -22,17 +26,6 @@ const RATE_WINDOW = 3600;    // seconds
 function esc(s: string): string {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-// Accept submissions only from our own origins (prod apex/www + CF previews).
-function originAllowed(origin: string | null, env: Env): boolean {
-  if (!origin) return false;
-  let host: string;
-  try { host = new URL(origin).host.toLowerCase(); } catch { return false; }
-  if (host === "r-statistics.co" || host === "www.r-statistics.co") return true;
-  if (host.endsWith(".r-statistics-co.pages.dev")) return true;       // branch/preview deploys
-  try { if (env.SITE_ORIGIN && host === new URL(env.SITE_ORIGIN).host.toLowerCase()) return true; } catch { /* ignore */ }
-  return false;
 }
 
 export const onRequestPost: PagesFunction<Env, string, RequestData> = async (context) => {
@@ -49,7 +42,7 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
     const n = parseInt((await env.KV.get(rlKey)) || "0", 10);
     if (n >= RATE_MAX) return jsonError(429, "rate_limited", "Too many requests. Try again later.");
     await env.KV.put(rlKey, String(n + 1), { expirationTtl: RATE_WINDOW });
-  } catch { /* KV hiccup — don't block a genuine signup */ }
+  } catch { /* KV hiccup, so do not block a genuine signup */ }
 
   let body: { email?: string; plan?: string; source?: string };
   try { body = await request.json(); } catch { return jsonError(400, "bad_json", "Invalid request body."); }

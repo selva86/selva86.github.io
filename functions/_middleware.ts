@@ -262,6 +262,11 @@ export interface Env {
   SENTRY_DSN: string;
   ENVIRONMENT: string;
   SITE_ORIGIN: string;
+  /* Cloudflare Turnstile secret for the public forms (functions/_lib/form-guard.ts).
+     Optional on purpose: while it is unset nothing is challenged, so the forms
+     keep working before the keys exist. Set it with
+     `wrangler pages secret put TURNSTILE_SECRET` to turn verification on. */
+  TURNSTILE_SECRET?: string;
 }
 
 export interface RequestData {

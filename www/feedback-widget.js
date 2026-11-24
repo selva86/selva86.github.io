@@ -211,6 +211,13 @@
           (signedIn ? '' :
             '<div class="rsfb-field"><label for="rsfb-em">Email, if you would like a reply</label>' +
             '<input id="rsfb-em" type="email" data-email placeholder="you@email.com" autocomplete="email"></div>') +
+          /* Honeypot. Invisible to a person, filled by a naive bot, and the
+             server accepts that submission silently so the bot learns nothing. */
+          '<input data-hp type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" ' +
+          'style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">' +
+          /* Turnstile mounts here, and only when a sitekey is configured in
+             /www/form-guard.js. Empty and invisible until then. */
+          '<div id="rsfb-ts" data-ts style="margin-top:10px"></div>' +
           '<button type="button" class="rsfb-send" data-send disabled>Send</button>' +
           (signedIn ? '<p class="rsfb-note">Sent from your account, so I can write back.</p>' : '') +
           '<p class="rsfb-err" data-err hidden></p>' +
@@ -244,6 +251,21 @@
         '</div>';
     }
 
+    /* Turnstile, fetched the first time someone actually sends something. A
+       sitewide widget must not add a request to every page view, and while no
+       sitekey is configured in /www/form-guard.js this resolves to no token
+       and nothing changes. */
+    function guard() {
+      if (window.RSCFormGuard) return Promise.resolve(window.RSCFormGuard);
+      return new Promise(function (res) {
+        var s = document.createElement('script');
+        s.src = '/www/form-guard.js';
+        s.onload = function () { res(window.RSCFormGuard || null); };
+        s.onerror = function () { res(null); };
+        document.head.appendChild(s);
+      });
+    }
+
     function send() {
       var ta = panel.querySelector('[data-msg]');
       var em = panel.querySelector('[data-email]');
@@ -260,14 +282,25 @@
       if (go) { go.disabled = true; go.textContent = 'Sending'; }
       var h = { 'Content-Type': 'application/json' };
       var tok = readToken(); if (tok) h.Authorization = 'Bearer ' + tok;
-      fetch('/api/feedback', {
-        method: 'POST', headers: h,
-        body: JSON.stringify({ message: msg, email: addr || undefined, category: route, page: location.pathname }),
+      var hp = panel.querySelector('[data-hp]');
+      var payload = {
+        message: msg, email: addr || undefined, category: route, page: location.pathname,
+        website: hp ? hp.value : '',
+      };
+      guard().then(function (g) {
+        return g ? g.token(panel.querySelector('[data-ts]')) : '';
+      }).then(function (t) {
+        if (t) payload.cf_turnstile_response = t;
+        return fetch('/api/feedback', { method: 'POST', headers: h, body: JSON.stringify(payload) });
       }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (x) {
           if (!x.ok) {
             if (go) { go.disabled = false; go.textContent = 'Send'; }
-            if (err) { err.hidden = false; err.textContent = (x.j && x.j.message) || 'That did not go through. Try again in a moment.'; }
+            /* jsonError() wraps the text as {error:{code,message}}, so reading
+               x.j.message alone always missed it and every refusal, including
+               the rate limit, showed the generic line instead of its reason. */
+            var why = (x.j && (x.j.message || (x.j.error && x.j.error.message))) || '';
+            if (err) { err.hidden = false; err.textContent = why || 'That did not go through. Try again in a moment.'; }
             return;
           }
           try { if (typeof gtag === 'function') gtag('event', 'feedback_sent', { category: route }); } catch (e) {}

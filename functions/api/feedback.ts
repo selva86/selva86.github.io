@@ -4,10 +4,22 @@
 // signed-in user when a session exists. Stores the note in D1 (audit_log,
 // action 'feedback') and sends a best-effort admin notice that never blocks the
 // response. CSRF: state-changing POST, so we verify Origin against our own hosts.
+//
+// HARDENED 2026-11-23, after nine bot submissions in four bursts. The origin
+// check here was already correct and was still defeated, which is the useful
+// finding: a forged `Origin: https://r-statistics.co` passed it (verified
+// against production, 400 bad_message on a deliberately short body), because
+// an Origin header is one curl flag. Three things were added, in order of how
+// much they actually cost an attacker: a honeypot field, recording of the IP
+// and user agent so a repeat offender can be named at all, and a Turnstile
+// token, which is the only one a script cannot simply assert. The shared
+// origin helper now lives in _lib/form-guard.ts; this file held one of three
+// copies that had drifted apart.
 
 import type { Env, RequestData } from "../_middleware";
 import { json, jsonError } from "../_lib/errors";
 import { sendMail, emailShell, type SendMailResult } from "../_lib/email";
+import { guardHeaders, guardChallenge, clientMeta } from "../_lib/form-guard";
 
 const ADMIN_EMAIL = "selva86@gmail.com";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
@@ -23,34 +35,30 @@ function esc(s: string): string {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function originAllowed(origin: string | null, env: Env): boolean {
-  if (!origin) return false;
-  let host: string;
-  try { host = new URL(origin).host.toLowerCase(); } catch { return false; }
-  if (host === "r-statistics.co" || host === "www.r-statistics.co") return true;
-  if (host.endsWith(".r-statistics-co.pages.dev")) return true;       // branch/preview deploys
-  try { if (env.SITE_ORIGIN && host === new URL(env.SITE_ORIGIN).host.toLowerCase()) return true; } catch { /* ignore */ }
-  return false;
-}
-
 export const onRequestPost: PagesFunction<Env, string, RequestData> = async (context) => {
   const { request, env } = context;
 
-  if (!originAllowed(request.headers.get("Origin"), env)) {
-    return jsonError(403, "bad_origin", "Cross-origin requests are not allowed.");
-  }
+  const denied = guardHeaders(request, env);
+  if (denied) return denied;
 
   // Light per-IP rate limit.
-  const ip = request.headers.get("CF-Connecting-IP") || "0.0.0.0";
-  const rlKey = `fb-rl:${ip}:${Math.floor(Date.now() / 1000 / RATE_WINDOW)}`;
+  const meta = clientMeta(request);
+  const rlKey = `fb-rl:${meta.ip}:${Math.floor(Date.now() / 1000 / RATE_WINDOW)}`;
   try {
     const n = parseInt((await env.KV.get(rlKey)) || "0", 10);
     if (n >= RATE_MAX) return jsonError(429, "rate_limited", "Too many submissions. Try again later.");
     await env.KV.put(rlKey, String(n + 1), { expirationTtl: RATE_WINDOW });
   } catch { /* KV hiccup, so do not block genuine feedback */ }
 
-  let body: { message?: string; email?: string; category?: string; page?: string };
+  let body: { message?: string; email?: string; category?: string; page?: string; website?: string; cf_turnstile_response?: string };
   try { body = await request.json(); } catch { return jsonError(400, "bad_json", "Invalid request body."); }
+
+  /* Honeypot, which /api/contact has had all along and this endpoint did not.
+     Accepted silently so a bot learns nothing from the response. */
+  if (typeof body.website === "string" && body.website.trim() !== "") {
+    console.log(`[feedback] honeypot filled, dropped: ${meta.ip} ${meta.country || "?"}`);
+    return json({ ok: true });
+  }
 
   const message = String(body.message || "").trim().slice(0, 4000);
   if (message.length < 3) return jsonError(400, "bad_message", "Please add a little more detail.");
@@ -59,9 +67,14 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
   if (email && !EMAIL_RE.test(email)) return jsonError(400, "bad_email", "That email does not look right.");
   const category = body.category && CATEGORIES.has(String(body.category)) ? String(body.category) : "general";
   const page = String(body.page || "").slice(0, 300);
-  const country = request.headers.get("CF-IPCountry") || null;
+  const country = meta.country;
   const userId = context.data.user ? context.data.user.id : null;
   const now = Math.floor(Date.now() / 1000);
+
+  /* Turnstile after validation, so a malformed payload never costs a
+     siteverify subrequest. Inert until TURNSTILE_SECRET is set. */
+  const guard = await guardChallenge(request, env, String(body.cf_turnstile_response || ""));
+  if (guard.deny) return guard.deny;
 
   try {
     await env.DB
@@ -70,7 +83,14 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
         userId,
         userId ? "user" : "system",
         email || category,
-        JSON.stringify({ message, email: email || null, category, page, country }).slice(0, 3800),
+        /* ip/ua/ray/asn added 2026-11-23. Without them a burst of probes is
+           indistinguishable from a burst of people, and there is nothing to
+           hand Cloudflare for a block rule. */
+        JSON.stringify({
+          message, email: email || null, category, page, country,
+          ip: meta.ip, ua: meta.ua, ray: meta.ray, asn: meta.asn,
+          turnstile: guard.turnstile,
+        }).slice(0, 3800),
         now,
       )
       .run();

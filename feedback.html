@@ -130,6 +130,12 @@ body.sent .formgrid{display:none}body.sent .done{display:block}
           <label for="fb-email">Email <span class="opt">(optional, only if you would like a reply)</span></label>
           <input type="email" id="fb-email" name="email" autocomplete="email" placeholder="you@example.com">
         </div>
+        <!-- Honeypot: a real visitor never sees this, so anything in it is a bot.
+             Hidden with position, not display:none, which some bots skip. -->
+        <input id="fb-hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
+               style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
+        <!-- Turnstile mounts here, and only once a sitekey is set in /www/form-guard.js. -->
+        <div id="fb-turnstile" style="margin:0 0 10px;"></div>
         <div class="sendrow">
           <button type="submit" class="send" id="fb-send">Send feedback</button>
           <span class="fine">No account needed. We will not share your email.</span>
@@ -168,6 +174,18 @@ body.sent .formgrid{display:none}body.sent .done{display:block}
   chips.addEventListener('click',function(e){var b=e.target.closest('.chip'); if(!b)return;
     chips.querySelectorAll('.chip').forEach(function(c){c.classList.remove('on');}); b.classList.add('on'); catField.value=b.getAttribute('data-cat');});
   var form=document.getElementById('fb-form'), msg=document.getElementById('fb-msg'), btn=document.getElementById('fb-send');
+  /* Turnstile, fetched at submit time so a page view pays nothing for it, and
+     inert while no sitekey is configured in /www/form-guard.js. */
+  function guard(){
+    if(window.RSCFormGuard) return Promise.resolve(window.RSCFormGuard);
+    return new Promise(function(res){
+      var s=document.createElement('script');
+      s.src='/www/form-guard.js';
+      s.onload=function(){res(window.RSCFormGuard||null);};
+      s.onerror=function(){res(null);};
+      document.head.appendChild(s);
+    });
+  }
   form.addEventListener('submit',function(ev){
     ev.preventDefault();
     var message=(document.getElementById('fb-message').value||'').trim();
@@ -175,12 +193,23 @@ body.sent .formgrid{display:none}body.sent .done{display:block}
     if(message.length<3){msg.className='msg err';msg.textContent='Please add a little more detail.';return;}
     if(email && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)){msg.className='msg err';msg.textContent='That email does not look right. Leave it blank if you prefer.';return;}
     btn.disabled=true;btn.textContent='Sending...';msg.textContent='';
-    fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:message,email:email,category:catField.value,page:document.referrer||location.href})})
+    var hp=document.getElementById('fb-hp');
+    var payload={message:message,email:email,category:catField.value,page:document.referrer||location.href,
+                 website:hp?hp.value:''};
+    guard().then(function(g){
+      return g?g.token(document.getElementById('fb-turnstile')):'';
+    }).then(function(tok){
+      if(tok) payload.cf_turnstile_response=tok;
+      return fetch('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)});
+    })
       .then(function(r){return r.json().catch(function(){return null;}).then(function(d){return {ok:r.ok,d:d};});})
       .then(function(res){
         if(res.ok && res.d && res.d.ok){document.body.classList.add('sent');}
-        else{btn.disabled=false;btn.textContent='Send feedback';msg.className='msg err';msg.textContent=(res.d&&res.d.message)||'Something went wrong. Please try again.';}
+        else{btn.disabled=false;btn.textContent='Send feedback';msg.className='msg err';
+             /* jsonError() returns {error:{code,message}}, so res.d.message was
+                always undefined and every refusal read as "Something went wrong". */
+             msg.textContent=(res.d&&(res.d.message||(res.d.error&&res.d.error.message)))||'Something went wrong. Please try again.';}
       })
       .catch(function(){btn.disabled=false;btn.textContent='Send feedback';msg.className='msg err';msg.textContent='Network error. Please try again.';});
   });
