@@ -57,7 +57,7 @@ A histogram's two arbitrary choices, bin width and bin origin, shown changing th
 
 Quantile regression as a different question rather than a robust alternative: not how the mean of the outcome moves, but how the tenth, fiftieth and ninetieth percentiles each move. Fitted with `quantreg` on data whose spread grows with the predictor, so the three fitted lines fan out and you can see what a single mean regression could never have told you. The objective function, an asymmetric absolute loss, written out and minimized by hand at the median to show that it does return the median. When this is the answer a subject-matter question actually wanted.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Modeling the median and the tails](Modeling-the-Median-and-the-Tails.html)
 
 ### Lesson 6: Regression that ignores the outlier
 
