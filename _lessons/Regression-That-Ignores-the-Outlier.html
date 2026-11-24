@@ -1,0 +1,379 @@
+---
+title: "Additive and Nonparametric Models Lesson 6: Regression that ignores the outlier"
+description: "One bad data point can pull a regression's slope far from the truth. See why squared-error loss does that, then fix it with Huber and bisquare loss in R."
+keywords: "robust regression, Huber loss, bisquare loss, Tukey biweight, iteratively reweighted least squares, IRLS, MASS::rlm, outliers, leverage, Cook's distance, R"
+mathjax: true
+webr: true
+curriculum_id: "4.100.6"
+post_type: "LESSON"
+course_id: "res-additive"
+course_title: "Additive and Nonparametric Models"
+course_lesson: "6"
+course_total: "6"
+course_landing: "Additive-and-Nonparametric-Models-Course.html"
+course_next: ""
+course_prev: "Modeling-the-Median-and-the-Tails"
+lesson_access: "pro"
+catalog_blurb: "How Huber and bisquare loss stop one bad point from tilting a regression line."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Regression that ignores the outlier</h2>
+
+<p>Today let's see why one bad data point can pull an ordinary regression line's slope away from the true relationship, and how to stop it, using one coffee chain's own weekly numbers.</p>
+
+<p>This chain has fifteen coffee shops. Each one reported its customer visits for one week, in hundreds, and that week's revenue, in thousands of dollars. Visits ranged from 1.0 hundred to 8.0 hundred across the fifteen shops.</p>
+
+<p>Here is all fifteen shops, plotted as visits against revenue.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":2.82},{"x":1.54,"y":3.98},{"x":2.08,"y":5.06},{"x":2.62,"y":4.97},{"x":3.15,"y":6.53},{"x":3.69,"y":7.19},{"x":4.23,"y":7.97},{"x":4.77,"y":9.35},{"x":5.31,"y":8.7},{"x":5.85,"y":10.95},{"x":6.38,"y":10.49},{"x":6.92,"y":11.01},{"x":7.46,"y":12.02},{"x":8,"y":13.35},{"x":7.2,"y":2}],"geoms":["point"],"x":"visits_hundreds","y":"revenue_thousands","code":{"point":"ggplot(df, aes(visits_hundreds, revenue_thousands)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Fourteen of these points sit close to one rising line. But look at the point sitting apart from it: its visit count is unremarkable, right in the middle of the range, yet its revenue sits far below where that line says it should be.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Least squares and the pull of one point</h2>
+
+<p>Let's generate these same fifteen numbers in R, then fit a regression line through all of them, and again through just the fourteen shops that behaved normally.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Generate the fifteen coffee shops once, then fit OLS with and without shop 9's bad week
+set.seed(3)
+visits &lt;- seq(1, 8, length.out = 14)
+revenue &lt;- 2 + 1.4 * visits + rnorm(14, 0, 0.6)
+visits &lt;- c(visits, 7.2)              # shop 9's visit count: 7.2 hundred
+revenue &lt;- c(revenue, 2.0)            # shop 9's revenue: only 2 thousand dollars
+
+fit_all &lt;- lm(revenue ~ visits)
+fit_clean &lt;- lm(revenue[-15] ~ visits[-15])
+
+c(all_15_slope = round(unname(coef(fit_all)[2]), 2),
+  clean_14_slope = round(unname(coef(fit_clean)[2]), 2),
+  true_slope = 1.4)
+#&gt;   all_15_slope clean_14_slope     true_slope 
+#&gt;           1.06           1.41           1.40 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lm()</code> fits what is called ordinary least squares, or OLS: of all the straight lines you could draw, it picks the one that makes the sum of each point's squared vertical distance from the line, its residual, as small as possible.</p>
+
+<p>With all fifteen shops, including shop 9, that slope comes out at 1.06, well under the true slope of 1.4 used to generate the data. Drop just that one shop, and the slope on the remaining fourteen comes back to 1.41, almost exactly the true slope.</p>
+
+<p>One shop out of fifteen pulled the slope down by about a quarter of its true value. The next question is why squared error lets one point do that much damage.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The cost of a residual under squared error</h2>
+
+<p>Let's see exactly how much shop 9's point costs the fit, compared to a typical shop's.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare shop 9's residual to a typical shop's, before and after squaring
+resid_all &lt;- residuals(fit_all)
+typical_resid &lt;- mean(abs(resid_all[-15]))
+
+c(shop9_resid = round(unname(resid_all[15]), 2),
+  typical_resid = round(typical_resid, 2),
+  resid_ratio = round(abs(unname(resid_all[15])) / typical_resid, 1))
+#&gt;   shop9_resid typical_resid   resid_ratio 
+#&gt;         -8.44          0.90          9.40 
+
+c(shop9_sq = round(unname(resid_all[15])^2, 1),
+  typical_sq = round(typical_resid^2, 2),
+  sq_ratio = round(unname(resid_all[15])^2 / typical_resid^2, 1))
+#&gt;   shop9_sq typical_sq   sq_ratio 
+#&gt;       71.3        0.8       88.9 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>residuals(fit_all)</code> gives each shop's actual revenue minus what the line predicts for it. Shop 9's residual is -8.44: its real revenue sat 8.44 thousand dollars below the line's prediction, about 9.4 times the size of a typical shop's residual of 0.90.</p>
+
+<p>Here is why that matters so much. <code>lm()</code> does not minimize the sum of residuals, it minimizes the sum of their squares. Square a residual 9.4 times the usual size and its cost in that sum is about 9.4 squared, roughly 89 times a typical shop's cost, not 9.4 times. The second block above shows exactly that: 71.3 against 0.80, a ratio of 88.9.</p>
+
+<p>Squared error has no ceiling on that growth. A residual twice the usual size costs four times as much. One ten times the usual size costs about a hundred times as much.</p>
+
+<p>Shop 9's residual is by far the single biggest term in that squared-error sum, so the least-squares fit moves toward reducing it, at the cost of fitting every other shop a little worse.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Two loss functions that stop growing</h2>
+
+<p>Let's write that squared-error cost as a function of the residual size, a loss function, and look at two others built so that growth does not run away.</p>
+
+<p>Squared error costs a residual \(r\) exactly its square, with no limit on how large that can get.</p>
+
+<p>\[ \rho_{\text{sq}}(r) = r^2 \]</p>
+
+<p>Huber's loss behaves exactly like squared error up to a cutoff, \(k = 1.345\), then switches to growing only in a straight line.</p>
+
+<p>\[ \rho_{\text{Huber}}(r) = \begin{cases} r^2 & |r| \le k \\ 2k|r| - k^2 & |r| > k \end{cases} \]</p>
+
+<p>Tukey's bisquare loss also behaves like squared error near zero, but past its own cutoff, \(c = 4.685\), it stops growing altogether and settles at a constant.</p>
+
+<p>\[ \rho_{\text{bisquare}}(r) = \begin{cases} \dfrac{c^2}{6}\left[1 - \left(1 - \left(\dfrac{r}{c}\right)^2\right)^3\right] & |r| \le c \\[4pt] \dfrac{c^2}{6} & |r| > c \end{cases} \]</p>
+
+<p>A plot of all three against a range of residual sizes makes the difference easy to see.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot squared-error, Huber and bisquare loss across a range of residual sizes
+resid_grid &lt;- seq(-6, 6, length.out = 200)
+k_huber &lt;- 1.345
+c_tukey &lt;- 4.685
+sq_loss &lt;- resid_grid^2
+huber_loss &lt;- ifelse(abs(resid_grid) &lt;= k_huber, resid_grid^2, 2 * k_huber * abs(resid_grid) - k_huber^2)
+bisquare_loss &lt;- ifelse(abs(resid_grid) &lt;= c_tukey,
+                         (c_tukey^2 / 6) * (1 - (1 - (resid_grid / c_tukey)^2)^3),
+                         c_tukey^2 / 6)
+
+plot(resid_grid, sq_loss, type = &quot;l&quot;, lwd = 2, col = &quot;black&quot;,
+     xlab = &quot;residual (r)&quot;, ylab = &quot;loss&quot;, ylim = c(0, 40),
+     main = &quot;Three ways to cost a residual&quot;)
+lines(resid_grid, huber_loss, lwd = 2, col = &quot;steelblue&quot;)
+lines(resid_grid, bisquare_loss, lwd = 2, col = &quot;firebrick&quot;)
+legend(&quot;top&quot;, legend = c(&quot;squared error&quot;, &quot;Huber (k = 1.345)&quot;, &quot;bisquare (c = 4.685)&quot;),
+       col = c(&quot;black&quot;, &quot;steelblue&quot;, &quot;firebrick&quot;), lwd = 2, bty = &quot;n&quot;)
+
+# Cost shop 9's own residual (about 8.44) under each of the three loss functions
+shop9_r &lt;- abs(unname(resid_all[15]))
+round(c(sq = shop9_r^2,
+        huber = ifelse(shop9_r &lt;= k_huber, shop9_r^2, 2 * k_huber * shop9_r - k_huber^2),
+        bisquare = ifelse(shop9_r &lt;= c_tukey, (c_tukey^2 / 6) * (1 - (1 - (shop9_r / c_tukey)^2)^3), c_tukey^2 / 6)), 1)
+#&gt;       sq    huber bisquare 
+#&gt;     71.3     20.9      3.7 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Shop 9's own residual, about 8.44, lands past both cutoffs. Squared error costs it about 71, Huber's loss costs it about 21 because it only grows in a straight line past \(k\), and bisquare's loss costs it only about 3.7, the flat plateau value \(c^2/6\), as if a residual of 8.44 cost the same as one of 5 or 50.</p>
+
+<p>That plateau is the whole idea. Past a certain size, bisquare loss stays flat no matter how much worse a residual gets, while Huber's loss at least keeps growing more slowly.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Watching a robust fit snap back to the true slope</h2>
+
+<p>This widget carries the exact same fourteen honest shops and the same shop 9 you have been using, drawn from the same formula with the same seed. Toggle between OLS, Huber and Tukey and watch shop 9's weight fall and the fitted slope move back toward the true 1.4.</p>
+<div class="lesson-widget" data-widget-type="robust-weights" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switch to OLS and the slope sits at 1.06, with every shop, including shop 9, carrying a weight of 1. Switch to Huber and the slope moves to about 1.37, while shop 9's weight falls to about 0.08. Switch to Tukey's bisquare and the slope lands at about 1.40, almost exactly the true value, with shop 9's weight falling all the way to 0.</p>
+
+<p>So the two robust methods do not just fit a better-looking line. Based on the size of shop 9's residual, each one cuts its weight down from the full 1 that OLS gives it, Huber partway, bisquare all the way to zero.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: how the three losses treat a big residual</h2>
+<section class="exercise" data-exercise-id="Regression-That-Ignores-the-Outlier-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Squared error keeps climbing without any limit, Huber's loss flattens to linear growth past its cutoff, and bisquare's loss flattens to a constant past its own cutoff, which is why bisquare alone can give a residual a weight of exactly zero.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Huber's loss gives any residual past its cutoff \(k\) a weight of exactly zero, the same as bisquare.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Bisquare's loss can only ever shrink a residual's weight partway, never all the way to zero.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Ordinary least squares already down-weights an unusually large residual somewhat, before Huber or bisquare are even applied.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Squared error never stops punishing a bigger residual, Huber slows that punishment to a straight line, and bisquare caps it outright, which is the only one of the three that can zero out a residual's influence completely.</div><div class="lesson-qfb lesson-qfb-no">None of that is quite right: squared error gives every residual full weight no matter its size, Huber's loss slows the growth to a straight line past its cutoff but never reaches zero weight, and only bisquare's loss flattens all the way to a constant, which is what lets it assign a weight of exactly zero. Ordinary least squares has no built-in down-weighting at all.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Iteratively reweighted least squares, worked by hand</h2>
+
+<p>Let's see exactly how a robust fit arrives at those weights, by doing it ourselves one round at a time.</p>
+
+<p>IRLS stands for iteratively reweighted least squares. It starts every shop at a weight of 1, fits an ordinary least squares line with those weights, looks at the residuals that fit leaves behind, turns each residual into a new weight, and refits. Repeat that a few times and the weights settle down.</p>
+
+<p>To turn a residual into a weight, IRLS first needs a sense of scale: how big is a typical residual on this round's fit? A common choice is the median absolute residual, multiplied by 1.4826, a constant that makes this measure line up with the usual standard deviation when the data behave well. Call this the robust scale. Divide each residual by the robust scale, and if the result sits within the Huber cutoff \(k = 1.345\), that shop keeps a weight of 1; past the cutoff, its weight drops to \(k\) divided by the size of that standardized residual.</p>
+
+<p>Let's run four rounds of this on the fifteen coffee shops, and watch shop 9's weight fall while shop 7, an ordinary shop, keeps its weight near 1.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Four rounds of fit, weigh, refit: watch shop 9's weight fall while a typical shop's stays near 1
+w &lt;- rep(1, 15)
+k_huber &lt;- 1.345
+shop9_weights &lt;- numeric(4)
+typical_weights &lt;- numeric(4)
+
+for (iter in 1:4) {
+  X &lt;- cbind(1, visits)
+  fit_beta &lt;- solve(t(X) %*% diag(w) %*% X, t(X) %*% diag(w) %*% revenue)
+  resid &lt;- revenue - as.vector(X %*% fit_beta)
+  robust_scale &lt;- median(abs(resid)) * 1.4826
+  u &lt;- resid / robust_scale
+  w &lt;- ifelse(abs(u) &lt;= k_huber, 1, k_huber / abs(u))
+  shop9_weights[iter] &lt;- w[15]
+  typical_weights[iter] &lt;- w[7]
+}
+
+rbind(shop9 = round(shop9_weights, 3), typical_shop7 = round(typical_weights, 3))
+#&gt;                [,1]  [,2]  [,3]  [,4]
+#&gt; shop9         0.205 0.066 0.076 0.081
+#&gt; typical_shop7 1.000 1.000 1.000 1.000
+
+round(setNames(as.vector(fit_beta), c(&quot;intercept&quot;, &quot;slope&quot;)), 3)
+#&gt; intercept     slope 
+#&gt;     1.906     1.373 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Shop 9's weight falls hard after the very first round, from 1 down to about 0.21, dips to 0.07, then settles near 0.08. Shop 7 keeps its full weight of 1 throughout every round, since its residual never came close to the cutoff. After four rounds the fit's slope sits at 1.373, close to the true 1.4, with an intercept of 1.906.</p>
+
+<p>That slope, 1.373, is exactly what <code>MASS::rlm()</code> finds too when it uses Huber's weight function. That is no coincidence: <code>rlm()</code> runs this same loop, just with more care about when to stop.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Robust and ordinary fits, with and without the bad week</h2>
+
+<p>Let's compare <code>lm()</code> and <code>MASS::rlm()</code> side by side, both on the data with shop 9 and on the fourteen clean shops alone, to see the entire trade a robust fit makes.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare lm() and rlm() on the data with shop 9, and again on the fourteen clean shops
+library(MASS)
+rlm_all &lt;- rlm(revenue ~ visits, psi = psi.bisquare)
+rlm_clean &lt;- rlm(revenue[-15] ~ visits[-15], psi = psi.bisquare)
+
+comparison &lt;- rbind(
+  lm_with_shop9  = coef(fit_all),
+  rlm_with_shop9 = coef(rlm_all),
+  lm_clean_14    = coef(fit_clean),
+  rlm_clean_14   = coef(rlm_clean)
+)
+colnames(comparison) &lt;- c(&quot;intercept&quot;, &quot;slope&quot;)
+round(comparison, 3)
+#&gt;                intercept slope
+#&gt; lm_with_shop9      2.778 1.065
+#&gt; rlm_with_shop9     1.831 1.404
+#&gt; lm_clean_14        1.826 1.410
+#&gt; rlm_clean_14       1.832 1.404</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the four rows as two separate comparisons. With shop 9 in the data, <code>lm()</code> lands at a slope of 1.065, while <code>rlm()</code> with Tukey's bisquare weight lands at 1.404, almost exactly the true 1.4: the robust fit simply does not let shop 9 drag it down.</p>
+
+<p>Now look at the fourteen clean shops alone, where there is no bad point to protect against. <code>lm()</code> gives 1.410 and <code>rlm()</code> gives 1.404: the two agree to two decimal places.</p>
+
+<p>That is the whole trade a robust fit makes. When a genuine outlier is in the data, it saves you from a slope that is off by about a quarter. When there is no outlier, it costs you a difference of about 0.006 in the slope, which is nothing. That asymmetry, a large gain against almost no cost, is why a robust loss is worth using even when you are not sure an outlier is lurking.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Leverage: a danger robust weighting does not fix</h2>
+
+<p>This next widget uses its own small dataset: seven points following a clean rising trend, plus one more point you can drag, sitting far out on the x-axis. Think of that draggable point as standing in for a shop with an unusually high weekly visit count, rather than shop 9's problem of a wrong revenue reading.</p>
+
+<p>Drag its value up and down and watch the fitted line swing.</p>
+<div class="lesson-widget" data-widget-type="leverage-point" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>A point like this has high leverage: it sits far from the other points on the x-axis, here the visit count, so any straight line fit to the data has to pass close to it just to keep the squared error small near that point. Wherever you drag it, including a value that looks perfectly consistent with some other line, the fit swings toward it, because its leverage comes from where it sits on x, not from how wrong its y value is.</p>
+
+<p>Shop 9 had an ordinary visit count, 7.2 hundred, right in the typical range. Its problem was a revenue value that disagreed with the trend, which is exactly what Huber's and Tukey's weighting corrects. This widget's point has the opposite shape of problem: an extreme x value, which weighting by residual size does nothing about, because a y value consistent with the line it pulled toward can still carry a small residual and a weight near 1.</p>
+
+<p>The widget's own code, below the chart, fits the line with and without that point and prints Cook's distance for each row, a standard number that measures how much removing one point would change the fitted coefficients. A large Cook's distance flags exactly this kind of danger.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>What a robust fit protects you from, and what it does not</h2>
+
+<p>Let's put the two questions side by side, since every point in a regression deserves both of them.</p>
+
+<p>The first question is about the outcome: does this point's y value disagree with what the rest of the data says the trend should be? Shop 9 failed that question. Its revenue, 2 thousand dollars, sat 8.44 thousand dollars below what its ordinary visit count predicted, and Huber's and Tukey's weighting both answer that question directly, by shrinking the influence of a residual once it gets unusually large.</p>
+
+<p>The second question is about the predictor: does this point sit unusually far out on x, compared to the rest of the data? The widget's draggable point failed that question, sitting at x = 13 while the rest of its points sat between 1 and 7. Down-weighting by residual size does not answer this question, because a point with high leverage can still end up with a small residual, simply by pulling the fitted line toward itself.</p>
+
+<p>So a point can fail one question, the other, both, or neither, and the two failures call for different responses. A residual problem calls for a robust loss. A leverage problem calls for looking at the point directly, checking where its x value came from, before deciding what to do with it. Neither failure is a reason to delete a point without first checking why it looks the way it does.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Quick check: a point that's far out, not just off the line</h2>
+
+<p>Shop 20 reports 14.5 hundred visits in one week, nearly double the highest visit count among the other fifteen shops, and a revenue of 22.3 thousand dollars, a value that sits almost exactly where the true relationship, revenue = 2 + 1.4 times visits, says it should. Which of these is true of shop 20?</p>
+<section class="exercise" data-exercise-id="Regression-That-Ignores-the-Outlier-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Shop 20's revenue disagrees with the trend, so Huber's or Tukey's weighting would shrink its influence, the same as shop 9.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Shop 20's visit count is far outside the range the other shops sit in, which gives it high leverage. Because its residual is small, Huber's and Tukey's weighting both leave its weight near 1, so neither one would catch the danger it poses.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Shop 20 is a residual problem and a leverage problem at once, so it needs both a robust loss and a leverage check.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Shop 20 needs no special handling, since Huber's and Tukey's weighting both give it a weight near 1.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. This is exactly the leverage problem from the widget: an extreme x value, paired with a y value that happens to look consistent, slips past any weighting scheme built on residual size alone.</div><div class="lesson-qfb lesson-qfb-no">A weight near 1 only means weighting did not flag it, not that it is safe. Shop 20's visit count is still extreme enough to let it swing the fitted line hard if its revenue were ever slightly off, which is exactly the leverage danger the widget showed.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: refit with Huber's weight function</h2>
+
+<p>The code below fits a robust regression with Tukey's bisquare weight function and prints shop 9's weight and the fitted slope. Change <code>psi.bisquare</code> to <code>psi.huber</code>, then compare what you get.</p>
+<section class="exercise" data-exercise-id="Regression-That-Ignores-the-Outlier-step12" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="psi[.]huber"><textarea class="lesson-tryit-input" spellcheck="false"># Fit a robust regression with Tukey's bisquare weight, then read off shop 9's weight
+library(MASS)
+rlm_fit &lt;- rlm(revenue ~ visits, psi = psi.bisquare)
+round(rlm_fit$w[15], 3)                       # shop 9's weight under this psi function
+#&gt; [1] 0
+round(coef(rlm_fit)[[&quot;visits&quot;]], 3)           # the fitted slope under this psi function
+#&gt; [1] 1.404</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: under psi.huber, shop 9's weight is about 0.083, not 0, and the slope moves to about 1.373. Huber still lets shop 9 pull a little, where bisquare rejected it outright.</span><span class="lesson-tryit-fb lesson-tryit-no">Change psi.bisquare to psi.huber in the rlm() call above, then press Check.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Refit with Huber's weight function instead, and compare shop 9's weight and the slope
+library(MASS)
+rlm_fit &lt;- rlm(revenue ~ visits, psi = psi.huber)
+round(rlm_fit$w[15], 3)                       # shop 9's weight under Huber
+#&gt; [1] 0.083
+round(coef(rlm_fit)[[&quot;visits&quot;]], 3)           # the fitted slope under Huber
+#&gt; [1] 1.373</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1214/aoms/1177703732">Robust Estimation of a Location Parameter</a> - Huber (1964), Annals of Mathematical Statistics 35(1), 73-101. The paper behind Huber's loss and its weight function.</li>
+
+<li><a href="https://doi.org/10.2307/1267936">The Fitting of Power Series, Meaning Polynomials, Illustrated on Band-Spectroscopic Data</a> - Beaton and Tukey (1974), Technometrics 16(2), 147-185. Introduces the biweight, or bisquare, weight function.</li>
+
+<li><a href="https://cran.r-project.org/package=MASS">The MASS package</a> - Venables and Ripley, Modern Applied Statistics with S, 4th ed. (Springer, 2002). The source of <code>rlm()</code> and its <code>psi</code> functions.</li>
+
+<li><a href="https://www.john-fox.ca/Companion/">An R Companion to Applied Regression, 3rd ed.</a> - Fox and Weisberg (Sage, 2019). Chapter on robust regression.</li>
+
+<li><a href="https://en.wikipedia.org/wiki/Robust_Regression_and_Outlier_Detection">Robust Regression and Outlier Detection</a> - Rousseeuw and Leroy (Wiley, 1987).</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="complete">
+<h2>Robust loss, and the leverage problem it does not solve</h2>
+
+<p>Ordinary least squares minimizes the sum of squared residuals, and that one choice is exactly what let shop 9 drag the fitted slope down to 1.06 from a true value of 1.4. A residual ten times the usual size costs about a hundred times as much under squared error, with no limit on how large that cost can grow.</p>
+
+<p>Huber's loss and Tukey's bisquare loss both cap that growth, one flattening to a straight line past a cutoff, the other flattening to a constant. Run either one through iteratively reweighted least squares, and a genuine outlier like shop 9 gets its influence shrunk automatically, at almost no cost on data that has no outlier at all.</p>
+
+<p>But a robust loss only answers one question: does this point's outcome disagree with the trend? A point with an extreme predictor value can still slip through with a small residual and a weight near 1, which is the leverage problem the second widget showed. So treat a bad residual and a bad leverage point as two separate dangers, each needing its own check, and never delete a point just because it caught your eye.</p>
+</section>
+
+{% endraw %}
