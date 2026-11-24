@@ -40,8 +40,9 @@
      itself is unreachable. */
   var TIMEOUT = 8000;
 
-  var ready = null;   // Promise, resolved once the Turnstile script has loaded
-  var widgets = {};   // host element -> widget id, so one host renders once
+  var ready = null;    // Promise, resolved once the Turnstile script has loaded
+  var widgets = {};    // host id -> widget id, so one host renders once
+  var consumed = {};   // host id -> true once its token has been handed out
 
   function loadApi() {
     if (ready) return ready;
@@ -59,9 +60,55 @@
     return ready;
   }
 
-  /* Resolve with a fresh token for `host`, or '' if Turnstile is off,
-   * unreachable, or the visitor fails the challenge. Never rejects: the caller
-   * submits either way and the server decides.
+  /* Render once per host and remember the widget id. Rendering starts the
+     challenge straight away, so by the time anyone asks for a token it is
+     usually already parked on the widget. */
+  function ensure(host) {
+    var id = widgets[host.id];
+    if (id !== undefined) return id;
+    id = window.turnstile.render(host, {
+      sitekey: SITEKEY,
+      appearance: 'interaction-only',
+      /* A token is good for about five minutes. Anyone writing a considered
+         bug report will outlast one, and a stale token is worse than no token
+         at all: the server refuses a present-but-invalid one in BOTH modes,
+         while a missing one is tolerated until strict mode. So replace it
+         quietly here rather than hand one over to be rejected. */
+      'expired-callback': function () {
+        try { window.turnstile.reset(id); } catch (e) { /* nothing to undo */ }
+        consumed[host.id] = false;
+      },
+      'error-callback': function () { return true; },
+    });
+    if (host.id) { widgets[host.id] = id; consumed[host.id] = false; }
+    return id;
+  }
+
+  /* Start the challenge early, without waiting for it.
+   *
+   * WHY: measured against production on 2026-11-24, a warm solve takes about
+   * four seconds, and a cold one does not finish inside the 8s budget at all
+   * when Cloudflare decides to draw a checkbox, because a checkbox needs a
+   * person to click it and no timeout is long enough for that. Asking only at
+   * submit time put every bit of that on the critical path. Asking when the
+   * visitor first touches the form moves it into the time they spend typing:
+   * the script downloads, the challenge runs, and if a checkbox does appear
+   * they have the whole of their message to notice it.
+   *
+   * This is a hint, not a step. It returns nothing, waits for nothing and
+   * swallows every failure, so a page that calls it is never worse off than
+   * one that does not.
+   */
+  function prewarm(host) {
+    if (!SITEKEY || !host || !host.id || widgets[host.id] !== undefined) return;
+    loadApi().then(function () {
+      try { ensure(host); } catch (e) { /* a warm-up can only ever help */ }
+    }).catch(function () { /* blocked script, slow network: ask again at send */ });
+  }
+
+  /* Resolve with a usable token for `host`, or '' if Turnstile is off,
+   * unreachable, or the visitor never completed the challenge. Never rejects:
+   * the caller submits either way and the server decides.
    *
    * `appearance: interaction-only` keeps the widget invisible for the ordinary
    * visitor and only draws a checkbox when Cloudflare actually wants one, so
@@ -72,30 +119,33 @@
     return loadApi().then(function () {
       return new Promise(function (resolve) {
         var done = false;
-        function finish(t) { if (!done) { done = true; resolve(t || ''); } }
+        function finish(t) {
+          if (done) return;
+          done = true;
+          /* Spent the moment it is handed out. A Turnstile token is single
+             use, so the next send has to ask for a new one rather than replay
+             this one into a certain refusal. */
+          if (t && host.id) consumed[host.id] = true;
+          resolve(t || '');
+        }
         setTimeout(function () { finish(''); }, TIMEOUT);
-        var id = widgets[host.id];
         try {
-          if (id === undefined) {
-            id = window.turnstile.render(host, {
-              sitekey: SITEKEY,
-              appearance: 'interaction-only',
-              'error-callback': function () { finish(''); return true; },
-              'timeout-callback': function () { finish(''); },
-              callback: function (t) { finish(t); },
-            });
-            if (host.id) widgets[host.id] = id;
-          } else {
-            /* A second send in the same visit needs a new token: a Turnstile
-               token is single-use and the server will refuse a replay. */
+          var id = ensure(host);
+          var parked = window.turnstile.getResponse(id);
+          var expired = false;
+          try { expired = !!window.turnstile.isExpired(id); } catch (e) { expired = false; }
+          /* The whole payoff from prewarm: a solved, unspent, unexpired token
+             goes straight back with no round trip at all. */
+          if (parked && !consumed[host.id] && !expired) { finish(parked); return; }
+          if (parked || consumed[host.id] || expired) {
             window.turnstile.reset(id);
+            consumed[host.id] = false;
           }
-          var existing = window.turnstile.getResponse(id);
-          if (existing) { finish(existing); return; }
           window.turnstile.execute(id, {
             appearance: 'interaction-only',
             callback: function (t) { finish(t); },
             'error-callback': function () { finish(''); return true; },
+            'timeout-callback': function () { finish(''); },
           });
         } catch (e) {
           finish('');
@@ -106,6 +156,7 @@
 
   window.RSCFormGuard = {
     enabled: function () { return !!SITEKEY; },
+    prewarm: prewarm,
     token: token,
   };
 }());

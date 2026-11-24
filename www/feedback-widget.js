@@ -224,6 +224,13 @@
         '</div>';
       var ta = panel.querySelector('[data-msg]');
       if (ta) { ta.focus(); gauge(); }
+      /* The form is open and the cursor is already in the box, so this person
+         is about to spend a while typing. Start the challenge now: it is
+         solved by the time they press Send, and if Cloudflare wants a checkbox
+         it appears while the panel is still open rather than after. */
+      guard().then(function (g) {
+        if (g && g.prewarm) g.prewarm(panel.querySelector('[data-ts]'));
+      });
     }
 
     /* Send stays disabled until there is enough to act on, and the count says
