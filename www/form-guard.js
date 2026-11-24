@@ -31,7 +31,7 @@
   'use strict';
 
   /* PASTE THE TURNSTILE SITE KEY HERE. Empty = everything below is inert. */
-  var SITEKEY = '';
+  var SITEKEY = '0x4AAAAAAGQF7ec14U3mCv27';
 
   var API = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__rscTurnstileReady';
   /* A Turnstile outage must never hold a real person's bug report hostage, so
