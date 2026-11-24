@@ -39,7 +39,7 @@ A scatter plot with a real curve in it, and four smoothers laid over it: a movin
 
 A GAM presented as what it is, a linear model with some columns replaced by smooth functions, which keeps it inside everything you already know. Fitted with `mgcv`, with each smooth term plotted on its own partial-effect axis, and the effective degrees of freedom read as how much wiggliness the fit actually bought: a term returning nearly one degree of freedom is telling you it is linear. A GAM and a spline-augmented `lm()` fitted to the same data to show they are close relatives, and the thing the GAM adds, which is choosing the smoothness for you.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Generalized additive models, one smooth at a time](Generalized-Additive-Models-One-Smooth-at-a-Time.html)
 
 ### Lesson 3: Choosing how wiggly is too wiggly
 
