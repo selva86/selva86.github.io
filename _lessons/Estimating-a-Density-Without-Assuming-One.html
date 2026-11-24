@@ -1,0 +1,371 @@
+---
+title: "Additive and Nonparametric Models Lesson 4: Estimating a density without assuming one"
+description: "Build a kernel density estimate by hand from a histogram's two arbitrary choices, sweep its one real choice, the bandwidth, and see where it leaks past zero."
+keywords: "kernel density estimation, histogram bin width, bin origin, bandwidth selection, Gaussian kernel, Epanechnikov kernel, boundary bias, density(), bw.nrd0, R"
+mathjax: true
+webr: true
+curriculum_id: "4.100.4"
+post_type: "LESSON"
+course_id: "res-additive"
+course_title: "Additive and Nonparametric Models"
+course_lesson: "4"
+course_total: "6"
+course_landing: "Additive-and-Nonparametric-Models-Course.html"
+course_next: "Modeling-the-Median-and-the-Tails"
+course_prev: "Choosing-How-Wiggly-Is-Too-Wiggly"
+lesson_access: "pro"
+catalog_blurb: "How a kernel density estimate replaces a histogram's arbitrary bin choices."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Estimating a density without assuming one</h2>
+
+<p>Today let's understand how to describe the shape of a set of numbers honestly, without carving them into bins first.</p>
+
+<p>A support line logged how long each of 150 callers waited on hold before an agent answered, in minutes. Most of them got through in just a few minutes. A few waited much longer. And none of them waited a negative number of minutes, because that's impossible.</p>
+
+<p>Here are all 150 hold times, drawn as a histogram with 1-minute bins.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2.2},{"x":9.5},{"x":1.3},{"x":6.2},{"x":3.8},{"x":2.9},{"x":9.8},{"x":0.8},{"x":4.1},{"x":7},{"x":1},{"x":2.9},{"x":4.6},{"x":2.8},{"x":3.1},{"x":5},{"x":1.4},{"x":2.1},{"x":3.3},{"x":1.9},{"x":3.4},{"x":1.1},{"x":1.1},{"x":4},{"x":3.8},{"x":6.2},{"x":3.5},{"x":1.8},{"x":1},{"x":3.1},{"x":5.1},{"x":0.6},{"x":4.4},{"x":2.2},{"x":3.2},{"x":1.2},{"x":2},{"x":8.2},{"x":3.4},{"x":7.8},{"x":2.4},{"x":7.9},{"x":0.1},{"x":2.4},{"x":2},{"x":2},{"x":1.7},{"x":3.3},{"x":10.1},{"x":6.8},{"x":7.4},{"x":4.4},{"x":3},{"x":6.9},{"x":14.1},{"x":1.1},{"x":0.8},{"x":4.2},{"x":4.6},{"x":4.3},{"x":10.3},{"x":1.7},{"x":1.7},{"x":2.6},{"x":4.8},{"x":1.9},{"x":2.2},{"x":4.6},{"x":3.2},{"x":3.1},{"x":4.5},{"x":0.8},{"x":6},{"x":5},{"x":11.5},{"x":0.7},{"x":5.4},{"x":1.1},{"x":2.7},{"x":5.6},{"x":3},{"x":0.7},{"x":1.6},{"x":2.7},{"x":2.5},{"x":3.1},{"x":2.8},{"x":3.7},{"x":5.9},{"x":2.2},{"x":5.2},{"x":0.4},{"x":3.4},{"x":2.5},{"x":7.5},{"x":1.1},{"x":0.9},{"x":8.9},{"x":6.1},{"x":1.1},{"x":7.2},{"x":2.5},{"x":7.7},{"x":1.3},{"x":2.4},{"x":5.1},{"x":4.7},{"x":0.3},{"x":3.9},{"x":7.5},{"x":7.8},{"x":3.9},{"x":2},{"x":2.1},{"x":3.9},{"x":1.5},{"x":0.2},{"x":1},{"x":5.9},{"x":3.4},{"x":0.8},{"x":7.4},{"x":4.3},{"x":5.1},{"x":3.9},{"x":5.8},{"x":2},{"x":2.9},{"x":2.1},{"x":7.1},{"x":2.1},{"x":5.3},{"x":5.2},{"x":5},{"x":0.9},{"x":1.2},{"x":5.4},{"x":1.8},{"x":3.4},{"x":3},{"x":1.7},{"x":0.9},{"x":0.4},{"x":8.2},{"x":3.7},{"x":4.4},{"x":3.8},{"x":3},{"x":1.1},{"x":0.6}],"geoms":["histogram"],"x":"hold_time_minutes","y":"count","code":{"histogram":"ggplot(df, aes(hold_time_minutes)) +\n  geom_histogram(binwidth = 1)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Press Run, then change that 1 to a 2 or a 4 inside the code, and watch the same 150 numbers take on a different shape each time.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>A histogram's shape depends on choices, not just the data</h2>
+
+<p>Let's build these hold times for real, then look at them through three different bin widths at once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 150 hold times, then compare histograms at three bin widths, plus one shifted origin
+set.seed(104)
+hold_times &lt;- round(rgamma(150, shape = 2, rate = 0.5), 1)
+
+par(mfrow = c(2, 2))
+hist(hold_times, breaks = seq(0, 16, by = 1), main = &quot;1-minute bins&quot;, xlab = &quot;minutes&quot;)
+hist(hold_times, breaks = seq(0, 16, by = 2), main = &quot;2-minute bins&quot;, xlab = &quot;minutes&quot;)
+hist(hold_times, breaks = seq(0, 16, by = 4), main = &quot;4-minute bins&quot;, xlab = &quot;minutes&quot;)
+hist(hold_times, breaks = seq(-1, 16, by = 2), main = &quot;2-minute bins, shifted by 1&quot;, xlab = &quot;minutes&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rgamma(150, shape = 2, rate = 0.5)</code> draws from a gamma distribution, one shape commonly used to generate waiting times that pile up near small values and thin out slowly toward large ones. You don't need to know anything about the gamma family to follow this lesson. It's only here to produce 150 realistic hold times, and every method from here on works on the 150 numbers themselves, never on the formula that made them.</p>
+
+<p>Look at the top two panels first, 1-minute bins against 2-minute bins. The 1-minute view has a dip around 6 to 7 minutes, then rises again near 8 minutes, a small second bump in the bars. Widen the bins to 2 minutes and that bump disappears, smoothed into one steady decline from the tallest bar down to almost nothing. Nothing about the 150 hold times changed between those two panels. Only the width of the box each bar represents did.</p>
+
+<p>Widen the bins again, to 4 minutes, in the panel on the bottom left, and that decline flattens further still, down to little more than two tall bars and a thin tail. Same 150 numbers, a third shape.</p>
+
+<p>Now compare the two panels on the right, top and bottom. Both use 2-minute bins, so every bar is the same width in each. But the top one starts its grid at 0, so its tallest bar covers 2 to 4 minutes. The bottom one starts its grid at -1, shifting every bin by 1 minute, and now the tallest bar covers 1 to 3 minutes instead. The width never changed. Only where the grid started did.</p>
+
+<p>A histogram needs you to pick both of these before it can be drawn: how wide each bin is, and where the first one starts. Neither choice comes from the data. Change either one and the same 150 hold times can look like a different distribution.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>A density estimate: a curve instead of a bar chart</h2>
+
+<p>A histogram answers the bin-width problem by picking one width and living with it. A density estimate sidesteps the problem instead, by never using bins at all.</p>
+
+<p>A density is a curve. At every possible value of x, it gives a height, and that height says how relatively likely values near x are. The curve never dips below zero, and the total area underneath it always adds up to 1, the same rule a histogram's bars would follow if you scaled their heights to match.</p>
+
+<p>The standard way to build that curve directly from data, without binning it first, is called a kernel density estimate, or KDE. It needs no bin width and no bin origin. What it needs instead, and how it's actually built, is the next two steps.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>One bump for one data point: the kernel</h2>
+
+<p>A kernel density estimate is built out of one simple piece, repeated once per data point. That piece is called a kernel, and it's just a small, smooth bump of weight centered on a single observation.</p>
+
+<p>Take the very first hold time in the vector, 2.2 minutes. Center a bump on it using R's normal density function, <code>dnorm()</code>, which is one common choice of kernel shape.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Center one Gaussian bump on a single real hold time
+x0 &lt;- hold_times[1]
+grid &lt;- seq(x0 - 4, x0 + 4, by = 0.05)
+bump &lt;- dnorm(grid, mean = x0, sd = 1)
+
+library(ggplot2)
+ggplot(data.frame(grid, bump), aes(grid, bump)) +
+  geom_line(color = &quot;firebrick&quot;, linewidth = 1) +
+  geom_vline(xintercept = x0, linetype = &quot;dashed&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line marks <code>x0</code>, 2.2 minutes, the one hold time the bump is centered on. The curve peaks right there and falls away smoothly on both sides, taller the closer x sits to 2.2 and shorter the further away it gets.</p>
+
+<p>This bump is a density in its own right. Check its two defining properties directly: its peak height, and the area underneath it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Check the bump's peak height and its total area
+round(dnorm(0, mean = 0, sd = 1), 4)
+#&gt; [1] 0.3989
+round(sum(bump) * 0.05, 4)
+#&gt; [1] 0.9999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The peak height, 0.3989, is <code>dnorm()</code> at its own center, the tallest the bump ever gets. Summing the bump's height across the grid and multiplying by the grid's spacing, 0.05 minutes, adds up its area in small rectangles: 0.9999, close enough to 1 that the small gap is just those rectangles not quite matching the curve's tails.</p>
+
+<p>One bump, one observation, area 1. The next step does that 150 times, once per hold time, and averages the result.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>The kernel density estimate: adding up one bump per observation</h2>
+
+<p>A kernel density estimate places one bump like that on every single hold time, then averages all 150 of them into one curve. Written as a formula, with K standing for the kernel and h for a width setting called the bandwidth:</p>
+
+<p>\[ \hat{f}(x) = \frac{1}{nh} \sum_{i=1}^{n} K\left(\frac{x - x_i}{h}\right) \]</p>
+
+<p>n is the sample size, 150 here. Each term K((x - x_i) / h) is one bump, shifted so it's centered on one observation x_i and scaled by h instead of staying fixed at a width of 1 the way the last step's bump was. Dividing the whole sum by n averages over the 150 bumps, and dividing by h on top of that keeps the total area under the curve at 1 no matter how wide or narrow h is.</p>
+
+<p>R itself has to pick a value for h when you call <code>density()</code> without setting one. See what it picks for these hold times.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the default bandwidth R itself would pick for these hold times
+h &lt;- bw.nrd0(hold_times)
+round(h, 2)
+#&gt; [1] 0.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 0.81 minutes. Now build the formula by hand on the hold times, using that same h, and compare it to R's own <code>density()</code> function, which computes the identical thing.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the KDE by hand: average one kernel bump per observation, then compare to density()
+x_grid &lt;- seq(-3, 15, by = 0.1)
+
+kde_by_hand &lt;- function(x) mean(dnorm((x - hold_times) / h) / h)
+f_hand &lt;- sapply(x_grid, kde_by_hand)
+f_density &lt;- density(hold_times, bw = h, n = length(x_grid), from = min(x_grid), to = max(x_grid))$y
+
+keep &lt;- x_grid %in% c(0, 2, 4, 6, 8)
+data.frame(x = x_grid[keep], hand = round(f_hand[keep], 3), density_fn = round(f_density[keep], 3))
+#&gt;   x  hand density_fn
+#&gt; 1 0 0.062      0.062
+#&gt; 2 2 0.170      0.170
+#&gt; 3 4 0.135      0.135
+#&gt; 4 6 0.067      0.067
+#&gt; 5 8 0.041      0.041</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hand-built from the formula, or returned by R's own <code>density()</code> function, the two match at every x checked. There's no hidden step inside <code>density()</code>: it's doing exactly the sum this formula describes, just faster.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<h2>Sweeping the bandwidth: the choice that decides the shape</h2>
+
+<p>The formula has three moving parts: the kernel K, the bandwidth h, and the sample size n. Only one of them actually controls how smooth or how spiky the fitted curve turns out. Feel that one out first on a generic example, then confirm it on the hold times themselves.</p>
+
+<p>The widget below fits a different curve than the hold times, its own built-in 60-point example, using a slider labelled basis size k instead of a bandwidth. A larger k here plays the same role as a smaller bandwidth: both let the fit bend more freely around each point. So sliding the widget's k up toward 30 is the same move, in spirit, as sweeping a bandwidth down toward 0. It's shown here only to feel the underfit-to-overfit range that move covers, not to draw a density.</p>
+<div class="lesson-widget" data-widget-type="spline-smoother" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the slider down toward 2, a small k, the same spirit as a large bandwidth. The curve goes nearly straight, missing the real bend in the points entirely. Drag it up toward 30, a large k, the same spirit as a small bandwidth, and the curve chases every point individually, bending in places the real curve never does.</p>
+
+<p>A kernel density estimate's bandwidth drives that exact same trade-off directly, on a real density curve instead of this generic example. Sweep it on the hold times themselves.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Sweep the bandwidth directly on the real hold times: three settings, same data
+library(ggplot2)
+h_default &lt;- round(bw.nrd0(hold_times), 2)
+
+d_small &lt;- density(hold_times, bw = 0.3)
+d_mid   &lt;- density(hold_times, bw = bw.nrd0(hold_times))
+d_big   &lt;- density(hold_times, bw = 4)
+
+ggplot() +
+  geom_line(aes(d_small$x, d_small$y, color = &quot;h = 0.3&quot;)) +
+  geom_line(aes(d_mid$x, d_mid$y, color = paste0(&quot;h = &quot;, h_default))) +
+  geom_line(aes(d_big$x, d_big$y, color = &quot;h = 4&quot;)) +
+  labs(x = &quot;minutes&quot;, y = &quot;density&quot;, color = &quot;bandwidth&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At h = 0.3, the curve is a mess of individual spikes, roughly one for every lone hold time: undersmoothed, tracking noise instead of shape. At h = 4, it's a single smooth hump with no trace of the real shape left in it: oversmoothed, erasing structure that was really there. At the default bandwidth, about 0.81 minutes, it threads a path between those two extremes.</p>
+
+<p>Now hold the bandwidth fixed and swap only the kernel's own shape.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare two kernel shapes at the SAME bandwidth
+d_gauss &lt;- density(hold_times, bw = bw.nrd0(hold_times), kernel = &quot;gaussian&quot;)
+d_epan  &lt;- density(hold_times, bw = bw.nrd0(hold_times), kernel = &quot;epanechnikov&quot;)
+
+round(max(abs(d_gauss$y - d_epan$y)), 4)
+#&gt; [1] 0.0068</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Swapping the kernel's shape, gaussian's smooth bell for epanechnikov's bounded dome, at that same bandwidth, moves the fitted curve by at most 0.0068 in density anywhere on the grid. That's barely a dent. Of the formula's three moving parts, only the bandwidth, not the kernel, decides whether the fitted curve tracks noise or erases the real shape.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what the bandwidth controls</h2>
+
+<p>You just swept the bandwidth across a wide range and watched the curve go from spiky to flat, then swapped the kernel at one fixed bandwidth and watched almost nothing move. Which part of a kernel density estimate's formula is actually setting how smooth or how spiky the fitted curve turns out?</p>
+<section class="exercise" data-exercise-id="Estimating-a-Density-Without-Assuming-One-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The kernel K, since swapping its shape is what changed the fitted curve the most.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The bandwidth h, since a small h tracks every bump in the data and a large h washes the real shape away, while swapping the kernel at a fixed h barely moved the curve.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The sample size n, since more hold times would make any kernel density estimate smoother on its own.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">All three matter equally, since the formula divides by n times h and multiplies by K.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The sweep moved the curve from spiky to flat using nothing but h. Swapping the kernel at a fixed h barely moved it at all, by at most 0.0068 in density, so h is the choice doing the real work.</div><div class="lesson-qfb lesson-qfb-no">Appearing in a formula is not the same as controlling its shape. The sweep changed only h and the curve went from spiky to flat. Swapping K at a fixed h barely moved it. n stayed fixed at 150 throughout and was never the lever being pulled.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>The boundary problem: when the estimate leaks below zero</h2>
+
+<p>Every hold time in this lesson is 0 minutes or more. Nobody waits a negative amount of time on hold. Check what a kernel density estimate does with that fact, using its default bandwidth on the real 150 hold times.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2.2},{"x":9.5},{"x":1.3},{"x":6.2},{"x":3.8},{"x":2.9},{"x":9.8},{"x":0.8},{"x":4.1},{"x":7},{"x":1},{"x":2.9},{"x":4.6},{"x":2.8},{"x":3.1},{"x":5},{"x":1.4},{"x":2.1},{"x":3.3},{"x":1.9},{"x":3.4},{"x":1.1},{"x":1.1},{"x":4},{"x":3.8},{"x":6.2},{"x":3.5},{"x":1.8},{"x":1},{"x":3.1},{"x":5.1},{"x":0.6},{"x":4.4},{"x":2.2},{"x":3.2},{"x":1.2},{"x":2},{"x":8.2},{"x":3.4},{"x":7.8},{"x":2.4},{"x":7.9},{"x":0.1},{"x":2.4},{"x":2},{"x":2},{"x":1.7},{"x":3.3},{"x":10.1},{"x":6.8},{"x":7.4},{"x":4.4},{"x":3},{"x":6.9},{"x":14.1},{"x":1.1},{"x":0.8},{"x":4.2},{"x":4.6},{"x":4.3},{"x":10.3},{"x":1.7},{"x":1.7},{"x":2.6},{"x":4.8},{"x":1.9},{"x":2.2},{"x":4.6},{"x":3.2},{"x":3.1},{"x":4.5},{"x":0.8},{"x":6},{"x":5},{"x":11.5},{"x":0.7},{"x":5.4},{"x":1.1},{"x":2.7},{"x":5.6},{"x":3},{"x":0.7},{"x":1.6},{"x":2.7},{"x":2.5},{"x":3.1},{"x":2.8},{"x":3.7},{"x":5.9},{"x":2.2},{"x":5.2},{"x":0.4},{"x":3.4},{"x":2.5},{"x":7.5},{"x":1.1},{"x":0.9},{"x":8.9},{"x":6.1},{"x":1.1},{"x":7.2},{"x":2.5},{"x":7.7},{"x":1.3},{"x":2.4},{"x":5.1},{"x":4.7},{"x":0.3},{"x":3.9},{"x":7.5},{"x":7.8},{"x":3.9},{"x":2},{"x":2.1},{"x":3.9},{"x":1.5},{"x":0.2},{"x":1},{"x":5.9},{"x":3.4},{"x":0.8},{"x":7.4},{"x":4.3},{"x":5.1},{"x":3.9},{"x":5.8},{"x":2},{"x":2.9},{"x":2.1},{"x":7.1},{"x":2.1},{"x":5.3},{"x":5.2},{"x":5},{"x":0.9},{"x":1.2},{"x":5.4},{"x":1.8},{"x":3.4},{"x":3},{"x":1.7},{"x":0.9},{"x":0.4},{"x":8.2},{"x":3.7},{"x":4.4},{"x":3.8},{"x":3},{"x":1.1},{"x":0.6}],"geoms":["histogram"],"x":"hold_time_minutes","y":"count","code":{"histogram":"ggplot(df, aes(hold_time_minutes)) +\n  geom_histogram(aes(y = after_stat(density)), binwidth = 1) +\n  geom_density(color = \"firebrick\", linewidth = 1) +\n  geom_vline(xintercept = 0, linetype = \"dashed\")"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The dashed line marks zero minutes. To its left is impossible: no caller waited a negative number of minutes. But the red curve, R's default kernel density estimate on these hold times, is clearly positive out there anyway.</p>
+
+<p>Here's why. Every single bump in the sum is a full, two-sided Gaussian curve, even the bumps centered on hold times sitting right near zero. Each one of those spreads some of its weight to the left of its own center, into negative territory, because a Gaussian bump has no idea the real quantity it's approximating cannot go below zero. Add up 150 of them, and some of that leaked weight survives into the final curve.</p>
+
+<p>This is called the boundary problem. It shows up whenever the true quantity has a hard edge, a count that cannot go below 0, a proportion that cannot exceed 1, a wait that cannot be negative, but the kernel placed at each point does not know that edge exists.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: histograms, kernels and the choices behind them</h2>
+
+<p>Picture two histograms of these same 150 hold times. Both use 2-minute bins, so every bar in each one is exactly 2 minutes wide. But in the first, the tallest bar covers 2 to 4 minutes. In the second, the tallest bar covers 1 to 3 minutes instead. Which single choice explains that difference?</p>
+<section class="exercise" data-exercise-id="Estimating-a-Density-Without-Assuming-One-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Bin origin, the point a histogram's grid of bins starts counting from.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Bandwidth h, the width setting inside a kernel density estimate's formula.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Kernel K, the shape of bump a kernel density estimate places on each observation.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Sample size n, the number of hold times the histogram was built from.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Both histograms used the same 2-minute width. Only where the grid started moved, from 0 to a point 1 minute earlier, and that alone pulled the tallest bar from the 2-to-4 window into the 1-to-3 window.</div><div class="lesson-qfb lesson-qfb-no">Bandwidth and kernel belong to a kernel density estimate, not a histogram, and neither one was even in play here. The sample size never changed either. What moved was the histogram's own bin origin, the point its grid starts counting bins from, which is exactly what shifted the tallest bar from one window to another.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: how much of the estimate falls below zero</h2>
+
+<p>The boundary leak from two steps back can be measured directly: what share of a kernel density estimate's total area sits on the impossible side of zero? Try it at a narrow bandwidth first.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The share of the estimate's area that falls below zero, at a narrow bandwidth
+h &lt;- 0.5
+d &lt;- density(hold_times, bw = h, n = 1024)
+dx &lt;- diff(d$x)[1]
+area_below_zero &lt;- sum(d$y[d$x &lt; 0]) * dx
+total_area &lt;- sum(d$y) * dx
+round(area_below_zero / total_area, 4)
+#&gt; [1] 0.0161</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At h = 0.5, about 1.6% of the curve's area sits below zero. Narrow bumps centered near zero barely reach across the boundary.</p>
+
+<p>Now widen the bandwidth and run the same computation. Replace the blank below with 3, then press Run.</p>
+<section class="exercise" data-exercise-id="Estimating-a-Density-Without-Assuming-One-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="h\s*&lt;-\s*[2-5]\b"><textarea class="lesson-tryit-input" spellcheck="false"># See what happens to that same share at a much wider bandwidth
+h &lt;- ____
+d &lt;- density(hold_times, bw = h, n = 1024)
+dx &lt;- diff(d$x)[1]
+area_below_zero &lt;- sum(d$y[d$x &lt; 0]) * dx
+total_area &lt;- sum(d$y) * dx
+round(area_below_zero / total_area, 4)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: at h = 3 about 17% of the area sits below zero, more than ten times the share at h = 0.5. A wider bandwidth spreads every bump further, so more of its weight crosses the boundary.</span><span class="lesson-tryit-fb lesson-tryit-no">Replace the blank with 3: h <- 3. A bigger bandwidth spreads each bump wider, pushing more of its weight across zero.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Compute the same share at h = 3
+h &lt;- 3
+d &lt;- density(hold_times, bw = h, n = 1024)
+dx &lt;- diff(d$x)[1]
+area_below_zero &lt;- sum(d$y[d$x &lt; 0]) * dx
+total_area &lt;- sum(d$y) * dx
+round(area_below_zero / total_area, 4)
+#&gt; [1] 0.1721</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.routledge.com/Density-Estimation-for-Statistics-and-Data-Analysis-1st-Edition/Silverman-Cox-Reid-Isham-Tibshirani-Louis-Tong-Keiding/p/book/9780412246203">Density Estimation for Statistics and Data Analysis</a> - Silverman, B.W. (1986), Chapman and Hall. The standard reference for kernel density estimation and how to choose a bandwidth.</li>
+
+<li><a href="https://www.routledge.com/Kernel-Smoothing/Wand-Jones/p/book/9780412552700">Kernel Smoothing</a> - Wand, M.P. and Jones, M.C. (1995), Chapman and Hall. A fuller treatment of kernel choice, bandwidth selection, and the boundary bias shown in this lesson.</li>
+
+<li>Scott, D.W. (2015). Multivariate Density Estimation: Theory, Practice, and Visualization (2nd ed.). Wiley. Histogram bin choice and smoothing, covered more broadly than this one lesson's example.</li>
+
+<li><a href="https://doi.org/10.1007/BF00147776">Simple boundary correction for kernel density estimation</a> - Jones, M.C. (1993), Statistics and Computing, 3(3), 135-146. A correction for exactly the boundary leak shown in this lesson.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/density.html">density: Kernel Density Estimation</a> - R Core Team, the documentation for density(), including the kernel and bandwidth arguments used throughout this lesson, and the default bw.nrd0 rule it falls back on.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What a density estimate replaces, and what choice remains</h2>
+
+<p>A histogram asked you to pick two things before it could be drawn: how wide each bin is, and where its grid starts. Neither one came from the 150 hold times themselves, and changing either one changed the apparent shape.</p>
+
+<p>A kernel density estimate replaces both choices with one formula: average one kernel bump per observation, scaled by a bandwidth h. There is no bin width left to pick, and no bin origin either.</p>
+
+<p>One choice survives, though. The bandwidth still has to be set, and it still decides everything about how the fitted curve looks: a small h tracks every bump in the data, a large h erases the real shape, and swapping the kernel's shape at a fixed h barely moves the curve at all. That is why this lesson gave the bandwidth, and not the kernel, the careful look.</p>
+
+<p>And the hold times carried one more lesson of their own. Bounded at zero, they showed that even the right bandwidth cannot stop a kernel density estimate from leaking a little probability past a boundary the data itself can never cross.</p>
+
+<p>The next lesson in this course turns from the shape of one variable to how its tenth, fiftieth and ninetieth percentiles each move with a predictor, estimated directly instead of assumed.</p>
+</section>
+
+{% endraw %}
