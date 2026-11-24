@@ -1,0 +1,251 @@
+---
+title: "Bayesian Data Analysis Lesson 1: Updating a belief with one dataset"
+description: "See a university tutoring program's real pass counts turn a prior belief into a posterior one, and why a confident but wrong prior barely moves at all."
+keywords: "Bayesian inference, prior, likelihood, posterior, beta distribution, conjugate prior, Bayes rule, credible interval, pseudo-observations, beta-binomial, R"
+mathjax: true
+webr: true
+curriculum_id: "4.110.1"
+post_type: "LESSON"
+course_id: "res-bayes"
+course_title: "Bayesian Data Analysis"
+course_lesson: "1"
+course_total: "8"
+course_landing: "Bayesian-Data-Analysis-Course.html"
+course_next: "Why-Sampling-Works-When-Algebra-Does-Not"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "How a tutoring program's real results turn a prior belief into a posterior one."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Updating a belief with one dataset</h2>
+
+<p>Today let's understand how to turn a belief you already hold into a new one, once a real dataset has had its say.</p>
+
+<p>Here's the running example. A university is trialling a new tutoring program ahead of a qualifying exam. Historically, 55% of students pass this exam without any extra help. This year, 36 students used the new tutoring program, and 25 of them passed, a rate of about 69.4%.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"Historical rate","y":0.55},{"x":"This cohort","y":0.6944}],"geoms":["bar"],"x":"group","y":"pass rate"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That gap between the two bars, about 14 percentage points, raises the real question: is the tutoring program really better, or did this one batch of 36 students just get lucky?</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Bayes' rule: turning a prior belief into a posterior one</h2>
+
+<p>Before seeing this year's 36 students, you already held a belief about the true pass rate: the historical rate, 0.55. Statisticians have a name for a belief held before seeing new data, a <strong>prior</strong>.</p>
+
+<p>Then this year's results came in. The probability of seeing exactly 25 passes out of 36 students, worked out separately for each candidate true rate, is called the <strong>likelihood</strong>. It is not the probability that a candidate rate is correct. It is the probability the data would come out looking the way it did, if that rate were the true one.</p>
+
+<p>Combine the prior with the likelihood and you get an updated belief, the <strong>posterior</strong>: what you believe about the true rate after seeing this cohort.</p>
+
+<p>Bayes' rule is the formula for combining them:</p>
+
+<p>\[P(\theta \mid \text{data}) \propto P(\text{data} \mid \theta) \times P(\theta)\]</p>
+
+<p>In words, the posterior is proportional to the likelihood times the prior. Here theta, \(\theta\), stands for the one unknown number this whole lesson is trying to pin down: the true pass rate under the tutoring program.</p>
+
+<p><code>dbinom(y, n, theta)</code> in R gives the probability of seeing y successes out of n trials, if the true success rate is theta. Try it at a few candidate rates and see which one the 25-of-36 result favors most.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score how likely 25-of-36 passes is at a few candidate true pass rates
+theta &lt;- c(0.3, 0.55, 0.694, 0.9)
+likelihood &lt;- dbinom(25, 36, theta)
+data.frame(theta, likelihood = round(likelihood, 6))
+#&gt;   theta likelihood
+#&gt; 1 0.300   0.000001
+#&gt; 2 0.550   0.029726
+#&gt; 3 0.694   0.143105
+#&gt; 4 0.900   0.000431</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the likelihood column as how probable this exact result, 25 of 36, would be under each candidate rate. At theta = 0.694, this cohort's own rate, the likelihood is highest, 0.143105. At theta = 0.3 or theta = 0.9, the likelihood collapses to almost nothing: 25 passes out of 36 would be very hard to explain if the true rate sat that far off.</p>
+
+<p>So the likelihood scores every candidate rate by how well it explains the data you actually saw. The prior brings in what you believed before that data arrived.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The beta distribution: a shape for a belief about a proportion</h2>
+
+<p>A prior needs a shape, not a single number, because a belief about a proportion is never "the rate is exactly 0.55". It is a whole range of plausible rates, some more likely than others.</p>
+
+<p>The <strong>beta distribution</strong> is the standard shape for a belief about a proportion, because it lives on exactly the range a proportion can take, 0 to 1. It has two parameters, written Beta(a, b), and both are read as counts of imagined past data: a pseudo-successes and b pseudo-failures, believed before any real data arrives.</p>
+
+<p>Beta(1, 1) is completely flat, equally plausible everywhere from 0 to 1. It says "no opinion": one imagined success and one imagined failure, so weak together that they carry no real pull. Call this the <strong>flat prior</strong>.</p>
+
+<p>Beta(11, 9) is centred on 0.55, since 11 divided by (11 + 9) is 0.55, which matches the historical rate. Its two parameters add up to 20, so this prior is worth 20 pseudo-observations, about as much weight as a small pilot study. Call this the <strong>mild prior</strong>.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.0,"y":1,"fill":"Beta(1,1): flat"},{"x":0.02,"y":1,"fill":"Beta(1,1): flat"},{"x":0.04,"y":1,"fill":"Beta(1,1): flat"},{"x":0.06,"y":1,"fill":"Beta(1,1): flat"},{"x":0.08,"y":1,"fill":"Beta(1,1): flat"},{"x":0.1,"y":1,"fill":"Beta(1,1): flat"},{"x":0.12,"y":1,"fill":"Beta(1,1): flat"},{"x":0.14,"y":1,"fill":"Beta(1,1): flat"},{"x":0.16,"y":1,"fill":"Beta(1,1): flat"},{"x":0.18,"y":1,"fill":"Beta(1,1): flat"},{"x":0.2,"y":1,"fill":"Beta(1,1): flat"},{"x":0.22,"y":1,"fill":"Beta(1,1): flat"},{"x":0.24,"y":1,"fill":"Beta(1,1): flat"},{"x":0.26,"y":1,"fill":"Beta(1,1): flat"},{"x":0.28,"y":1,"fill":"Beta(1,1): flat"},{"x":0.3,"y":1,"fill":"Beta(1,1): flat"},{"x":0.32,"y":1,"fill":"Beta(1,1): flat"},{"x":0.34,"y":1,"fill":"Beta(1,1): flat"},{"x":0.36,"y":1,"fill":"Beta(1,1): flat"},{"x":0.38,"y":1,"fill":"Beta(1,1): flat"},{"x":0.4,"y":1,"fill":"Beta(1,1): flat"},{"x":0.42,"y":1,"fill":"Beta(1,1): flat"},{"x":0.44,"y":1,"fill":"Beta(1,1): flat"},{"x":0.46,"y":1,"fill":"Beta(1,1): flat"},{"x":0.48,"y":1,"fill":"Beta(1,1): flat"},{"x":0.5,"y":1,"fill":"Beta(1,1): flat"},{"x":0.52,"y":1,"fill":"Beta(1,1): flat"},{"x":0.54,"y":1,"fill":"Beta(1,1): flat"},{"x":0.56,"y":1,"fill":"Beta(1,1): flat"},{"x":0.58,"y":1,"fill":"Beta(1,1): flat"},{"x":0.6,"y":1,"fill":"Beta(1,1): flat"},{"x":0.62,"y":1,"fill":"Beta(1,1): flat"},{"x":0.64,"y":1,"fill":"Beta(1,1): flat"},{"x":0.66,"y":1,"fill":"Beta(1,1): flat"},{"x":0.68,"y":1,"fill":"Beta(1,1): flat"},{"x":0.7,"y":1,"fill":"Beta(1,1): flat"},{"x":0.72,"y":1,"fill":"Beta(1,1): flat"},{"x":0.74,"y":1,"fill":"Beta(1,1): flat"},{"x":0.76,"y":1,"fill":"Beta(1,1): flat"},{"x":0.78,"y":1,"fill":"Beta(1,1): flat"},{"x":0.8,"y":1,"fill":"Beta(1,1): flat"},{"x":0.82,"y":1,"fill":"Beta(1,1): flat"},{"x":0.84,"y":1,"fill":"Beta(1,1): flat"},{"x":0.86,"y":1,"fill":"Beta(1,1): flat"},{"x":0.88,"y":1,"fill":"Beta(1,1): flat"},{"x":0.9,"y":1,"fill":"Beta(1,1): flat"},{"x":0.92,"y":1,"fill":"Beta(1,1): flat"},{"x":0.94,"y":1,"fill":"Beta(1,1): flat"},{"x":0.96,"y":1,"fill":"Beta(1,1): flat"},{"x":0.98,"y":1,"fill":"Beta(1,1): flat"},{"x":1.0,"y":1,"fill":"Beta(1,1): flat"},{"x":0.0,"y":0.0,"fill":"Beta(11,9): mild"},{"x":0.02,"y":0.0,"fill":"Beta(11,9): mild"},{"x":0.04,"y":0.0,"fill":"Beta(11,9): mild"},{"x":0.06,"y":0.0,"fill":"Beta(11,9): mild"},{"x":0.08,"y":0.0,"fill":"Beta(11,9): mild"},{"x":0.1,"y":0.0,"fill":"Beta(11,9): mild"},{"x":0.12,"y":0.0002,"fill":"Beta(11,9): mild"},{"x":0.14,"y":0.0007,"fill":"Beta(11,9): mild"},{"x":0.16,"y":0.0023,"fill":"Beta(11,9): mild"},{"x":0.18,"y":0.0061,"fill":"Beta(11,9): mild"},{"x":0.2,"y":0.0143,"fill":"Beta(11,9): mild"},{"x":0.22,"y":0.0303,"fill":"Beta(11,9): mild"},{"x":0.24,"y":0.0587,"fill":"Beta(11,9): mild"},{"x":0.26,"y":0.1055,"fill":"Beta(11,9): mild"},{"x":0.28,"y":0.1778,"fill":"Beta(11,9): mild"},{"x":0.3,"y":0.283,"fill":"Beta(11,9): mild"},{"x":0.32,"y":0.4279,"fill":"Beta(11,9): mild"},{"x":0.34,"y":0.6179,"fill":"Beta(11,9): mild"},{"x":0.36,"y":0.8556,"fill":"Beta(11,9): mild"},{"x":0.38,"y":1.1397,"fill":"Beta(11,9): mild"},{"x":0.4,"y":1.4643,"fill":"Beta(11,9): mild"},{"x":0.42,"y":1.8186,"fill":"Beta(11,9): mild"},{"x":0.44,"y":2.187,"fill":"Beta(11,9): mild"},{"x":0.46,"y":2.55,"fill":"Beta(11,9): mild"},{"x":0.48,"y":2.8857,"fill":"Beta(11,9): mild"},{"x":0.5,"y":3.1715,"fill":"Beta(11,9): mild"},{"x":0.52,"y":3.3867,"fill":"Beta(11,9): mild"},{"x":0.54,"y":3.5141,"fill":"Beta(11,9): mild"},{"x":0.56,"y":3.5425,"fill":"Beta(11,9): mild"},{"x":0.58,"y":3.468,"fill":"Beta(11,9): mild"},{"x":0.6,"y":3.2946,"fill":"Beta(11,9): mild"},{"x":0.62,"y":3.0339,"fill":"Beta(11,9): mild"},{"x":0.64,"y":2.7042,"fill":"Beta(11,9): mild"},{"x":0.66,"y":2.3285,"fill":"Beta(11,9): mild"},{"x":0.68,"y":1.9324,"fill":"Beta(11,9): mild"},{"x":0.7,"y":1.5409,"fill":"Beta(11,9): mild"},{"x":0.72,"y":1.176,"fill":"Beta(11,9): mild"},{"x":0.74,"y":0.8549,"fill":"Beta(11,9): mild"},{"x":0.76,"y":0.5884,"fill":"Beta(11,9): mild"},{"x":0.78,"y":0.3803,"fill":"Beta(11,9): mild"},{"x":0.8,"y":0.2285,"fill":"Beta(11,9): mild"},{"x":0.82,"y":0.1259,"fill":"Beta(11,9): mild"},{"x":0.84,"y":0.0625,"fill":"Beta(11,9): mild"},{"x":0.86,"y":0.0272,"fill":"Beta(11,9): mild"},{"x":0.88,"y":0.01,"fill":"Beta(11,9): mild"},{"x":0.9,"y":0.0029,"fill":"Beta(11,9): mild"},{"x":0.92,"y":0.0006,"fill":"Beta(11,9): mild"},{"x":0.94,"y":0.0001,"fill":"Beta(11,9): mild"},{"x":0.96,"y":0.0,"fill":"Beta(11,9): mild"},{"x":0.98,"y":0.0,"fill":"Beta(11,9): mild"},{"x":1.0,"y":0.0,"fill":"Beta(11,9): mild"}],"geoms":["line"],"x":"theta","y":"density"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The flat curve sits level at a density of 1 everywhere from 0 to 1, no preference anywhere. The mild curve is a hump centred close to 0.55, peaking around theta = 0.56 at a density near 3.54, falling away on both sides. That hump is what "a mild opinion worth 20 pseudo-observations" looks like drawn out.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>The conjugate update: add successes and failures to the prior</h2>
+
+<p>Here is the one rule that makes a beta prior so convenient. When the data are successes and failures, like passes and fails on an exam, updating a Beta(a, b) prior with y successes and (n - y) failures gives a posterior that is just another beta distribution, Beta(a + y, b + (n - y)). No integration needed, just addition.</p>
+
+<p>Apply that to the mild prior, Beta(11, 9), using this cohort's 25 passes and 11 fails out of 36.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Update the mild prior by adding this cohort's successes and failures
+a &lt;- 11; b &lt;- 9
+y &lt;- 25; n &lt;- 36
+posterior_a &lt;- a + y
+posterior_b &lt;- b + (n - y)
+c(posterior_a, posterior_b)
+#&gt; [1] 36 20
+mean_posterior &lt;- posterior_a / (posterior_a + posterior_b)
+round(mean_posterior, 4)
+#&gt; [1] 0.6429</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So the mild prior's posterior is Beta(36, 20), mean about 0.643. Look at where 36 and 20 came from: 11 pseudo-successes plus 25 real successes gives 36, and 9 pseudo-failures plus 11 real failures gives 20. The data simply got added onto the prior's own counts.</p>
+
+<p>There is a second curve worth drawing on the same axis: the likelihood itself, rescaled into a proper density over theta. For binomial data like this, that rescaled likelihood takes exactly the shape of Beta(y + 1, (n - y) + 1), which here is Beta(26, 12). It is nobody's prior. It is just the data's own shape, placed on the same axis so you can compare prior, likelihood and posterior directly.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.0,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.02,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.04,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.06,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.08,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.1,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.12,"y":0.0002,"fill":"Prior: Beta(11,9)"},{"x":0.14,"y":0.0007,"fill":"Prior: Beta(11,9)"},{"x":0.16,"y":0.0023,"fill":"Prior: Beta(11,9)"},{"x":0.18,"y":0.0061,"fill":"Prior: Beta(11,9)"},{"x":0.2,"y":0.0143,"fill":"Prior: Beta(11,9)"},{"x":0.22,"y":0.0303,"fill":"Prior: Beta(11,9)"},{"x":0.24,"y":0.0587,"fill":"Prior: Beta(11,9)"},{"x":0.26,"y":0.1055,"fill":"Prior: Beta(11,9)"},{"x":0.28,"y":0.1778,"fill":"Prior: Beta(11,9)"},{"x":0.3,"y":0.283,"fill":"Prior: Beta(11,9)"},{"x":0.32,"y":0.4279,"fill":"Prior: Beta(11,9)"},{"x":0.34,"y":0.6179,"fill":"Prior: Beta(11,9)"},{"x":0.36,"y":0.8556,"fill":"Prior: Beta(11,9)"},{"x":0.38,"y":1.1397,"fill":"Prior: Beta(11,9)"},{"x":0.4,"y":1.4643,"fill":"Prior: Beta(11,9)"},{"x":0.42,"y":1.8186,"fill":"Prior: Beta(11,9)"},{"x":0.44,"y":2.187,"fill":"Prior: Beta(11,9)"},{"x":0.46,"y":2.55,"fill":"Prior: Beta(11,9)"},{"x":0.48,"y":2.8857,"fill":"Prior: Beta(11,9)"},{"x":0.5,"y":3.1715,"fill":"Prior: Beta(11,9)"},{"x":0.52,"y":3.3867,"fill":"Prior: Beta(11,9)"},{"x":0.54,"y":3.5141,"fill":"Prior: Beta(11,9)"},{"x":0.56,"y":3.5425,"fill":"Prior: Beta(11,9)"},{"x":0.58,"y":3.468,"fill":"Prior: Beta(11,9)"},{"x":0.6,"y":3.2946,"fill":"Prior: Beta(11,9)"},{"x":0.62,"y":3.0339,"fill":"Prior: Beta(11,9)"},{"x":0.64,"y":2.7042,"fill":"Prior: Beta(11,9)"},{"x":0.66,"y":2.3285,"fill":"Prior: Beta(11,9)"},{"x":0.68,"y":1.9324,"fill":"Prior: Beta(11,9)"},{"x":0.7,"y":1.5409,"fill":"Prior: Beta(11,9)"},{"x":0.72,"y":1.176,"fill":"Prior: Beta(11,9)"},{"x":0.74,"y":0.8549,"fill":"Prior: Beta(11,9)"},{"x":0.76,"y":0.5884,"fill":"Prior: Beta(11,9)"},{"x":0.78,"y":0.3803,"fill":"Prior: Beta(11,9)"},{"x":0.8,"y":0.2285,"fill":"Prior: Beta(11,9)"},{"x":0.82,"y":0.1259,"fill":"Prior: Beta(11,9)"},{"x":0.84,"y":0.0625,"fill":"Prior: Beta(11,9)"},{"x":0.86,"y":0.0272,"fill":"Prior: Beta(11,9)"},{"x":0.88,"y":0.01,"fill":"Prior: Beta(11,9)"},{"x":0.9,"y":0.0029,"fill":"Prior: Beta(11,9)"},{"x":0.92,"y":0.0006,"fill":"Prior: Beta(11,9)"},{"x":0.94,"y":0.0001,"fill":"Prior: Beta(11,9)"},{"x":0.96,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.98,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":1.0,"y":0.0,"fill":"Prior: Beta(11,9)"},{"x":0.0,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.02,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.04,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.06,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.08,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.1,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.12,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.14,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.16,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.18,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.2,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.22,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.24,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.26,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.28,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.3,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.32,"y":0.0001,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.34,"y":0.0004,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.36,"y":0.0013,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.38,"y":0.0036,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.4,"y":0.0091,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.42,"y":0.0212,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.44,"y":0.0461,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.46,"y":0.0938,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.48,"y":0.1795,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.5,"y":0.3235,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.52,"y":0.5504,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.54,"y":0.8854,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.56,"y":1.3478,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.58,"y":1.9426,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.6,"y":2.6508,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.62,"y":3.4225,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.64,"y":4.176,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.66,"y":4.8062,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.68,"y":5.2036,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.7,"y":5.281,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.72,"y":5.0002,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.74,"y":4.3897,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.76,"y":3.5449,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.78,"y":2.6059,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.8,"y":1.7199,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.82,"y":1.0006,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.84,"y":0.5003,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.86,"y":0.2074,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.88,"y":0.0676,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.9,"y":0.016,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.92,"y":0.0024,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.94,"y":0.0002,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.96,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.98,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":1.0,"y":0.0,"fill":"Likelihood (rescaled): Beta(26,12)"},{"x":0.0,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.02,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.04,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.06,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.08,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.1,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.12,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.14,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.16,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.18,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.2,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.22,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.24,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.26,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.28,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.3,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.32,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.34,"y":0.0002,"fill":"Posterior: Beta(36,20)"},{"x":0.36,"y":0.0006,"fill":"Posterior: Beta(36,20)"},{"x":0.38,"y":0.0023,"fill":"Posterior: Beta(36,20)"},{"x":0.4,"y":0.0073,"fill":"Posterior: Beta(36,20)"},{"x":0.42,"y":0.021,"fill":"Posterior: Beta(36,20)"},{"x":0.44,"y":0.0551,"fill":"Posterior: Beta(36,20)"},{"x":0.46,"y":0.1307,"fill":"Posterior: Beta(36,20)"},{"x":0.48,"y":0.283,"fill":"Posterior: Beta(36,20)"},{"x":0.5,"y":0.5607,"fill":"Posterior: Beta(36,20)"},{"x":0.52,"y":1.0187,"fill":"Posterior: Beta(36,20)"},{"x":0.54,"y":1.7003,"fill":"Posterior: Beta(36,20)"},{"x":0.56,"y":2.6094,"fill":"Posterior: Beta(36,20)"},{"x":0.58,"y":3.6819,"fill":"Posterior: Beta(36,20)"},{"x":0.6,"y":4.773,"fill":"Posterior: Beta(36,20)"},{"x":0.62,"y":5.6748,"fill":"Posterior: Beta(36,20)"},{"x":0.64,"y":6.1716,"fill":"Posterior: Beta(36,20)"},{"x":0.66,"y":6.1163,"fill":"Posterior: Beta(36,20)"},{"x":0.68,"y":5.4956,"fill":"Posterior: Beta(36,20)"},{"x":0.7,"y":4.4472,"fill":"Posterior: Beta(36,20)"},{"x":0.72,"y":3.2136,"fill":"Posterior: Beta(36,20)"},{"x":0.74,"y":2.051,"fill":"Posterior: Beta(36,20)"},{"x":0.76,"y":1.1398,"fill":"Posterior: Beta(36,20)"},{"x":0.78,"y":0.5416,"fill":"Posterior: Beta(36,20)"},{"x":0.8,"y":0.2148,"fill":"Posterior: Beta(36,20)"},{"x":0.82,"y":0.0689,"fill":"Posterior: Beta(36,20)"},{"x":0.84,"y":0.0171,"fill":"Posterior: Beta(36,20)"},{"x":0.86,"y":0.0031,"fill":"Posterior: Beta(36,20)"},{"x":0.88,"y":0.0004,"fill":"Posterior: Beta(36,20)"},{"x":0.9,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.92,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.94,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.96,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":0.98,"y":0.0,"fill":"Posterior: Beta(36,20)"},{"x":1.0,"y":0.0,"fill":"Posterior: Beta(36,20)"}],"geoms":["line"],"x":"theta","y":"density"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Look at where each curve sits. The posterior, Beta(36, 20), sits between the prior and the rescaled likelihood, pulled toward the likelihood but not all the way to it, because the mild prior still carries its own 20 pseudo-observations of pull on the result.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading the conjugate update</h2>
+
+<p>A prior Beta(2, 2) meets a dataset of 8 successes in 10 trials. By the add-counts rule from the last step, what is the posterior?</p>
+<section class="exercise" data-exercise-id="Updating-a-Belief-with-One-Dataset-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Beta(10, 4)</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Beta(8, 2)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Beta(2, 2)</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Beta(4, 10)</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. Add the 8 successes to the prior's own 2, giving 10, and add the 2 failures to the prior's other 2, giving 4.</div><div class="lesson-qfb lesson-qfb-no">This swaps successes and failures. Out of 10 trials, 8 were successes and 2 were failures, not the other way around, so the first parameter should be the larger one, not the second.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<h2>Three priors meet the same 36 students</h2>
+
+<p>Push the add-counts rule further and see what it reveals about priors in general. Take three very different priors, update each one with the same 25 passes and 11 fails from this year's cohort, and watch how far each posterior moves.</p>
+
+<p>The flat prior, Beta(1, 1), carries only 2 pseudo-observations, so it has almost no opinion to defend. Updated with 25 successes and 11 failures, its posterior is Beta(26, 12), mean about 0.684, close to this cohort's own rate of 0.694.</p>
+
+<p>The mild prior, Beta(11, 9), carries 20 pseudo-observations centred on 0.55. Updated the same way, its posterior is Beta(36, 20), mean about 0.643, which sits about 64% of the way from the historical 0.55 toward the cohort's 0.694.</p>
+
+<p>The confident-but-wrong prior, Beta(220, 180), is also centred on 0.55, but carries 400 pseudo-observations, twenty times the mild prior's conviction. Updated with the same 25 passes and 11 fails, its posterior is Beta(245, 191), mean about 0.562, only about 8% of the way from 0.55 to 0.694.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.0,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.02,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.04,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.06,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.08,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.1,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.12,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.14,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.16,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.18,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.2,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.22,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.24,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.26,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.28,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.3,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.32,"y":0.0001,"fill":"From flat prior: Beta(26,12)"},{"x":0.34,"y":0.0004,"fill":"From flat prior: Beta(26,12)"},{"x":0.36,"y":0.0013,"fill":"From flat prior: Beta(26,12)"},{"x":0.38,"y":0.0036,"fill":"From flat prior: Beta(26,12)"},{"x":0.4,"y":0.0091,"fill":"From flat prior: Beta(26,12)"},{"x":0.42,"y":0.0212,"fill":"From flat prior: Beta(26,12)"},{"x":0.44,"y":0.0461,"fill":"From flat prior: Beta(26,12)"},{"x":0.46,"y":0.0938,"fill":"From flat prior: Beta(26,12)"},{"x":0.48,"y":0.1795,"fill":"From flat prior: Beta(26,12)"},{"x":0.5,"y":0.3235,"fill":"From flat prior: Beta(26,12)"},{"x":0.52,"y":0.5504,"fill":"From flat prior: Beta(26,12)"},{"x":0.54,"y":0.8854,"fill":"From flat prior: Beta(26,12)"},{"x":0.56,"y":1.3478,"fill":"From flat prior: Beta(26,12)"},{"x":0.58,"y":1.9426,"fill":"From flat prior: Beta(26,12)"},{"x":0.6,"y":2.6508,"fill":"From flat prior: Beta(26,12)"},{"x":0.62,"y":3.4225,"fill":"From flat prior: Beta(26,12)"},{"x":0.64,"y":4.176,"fill":"From flat prior: Beta(26,12)"},{"x":0.66,"y":4.8062,"fill":"From flat prior: Beta(26,12)"},{"x":0.68,"y":5.2036,"fill":"From flat prior: Beta(26,12)"},{"x":0.7,"y":5.281,"fill":"From flat prior: Beta(26,12)"},{"x":0.72,"y":5.0002,"fill":"From flat prior: Beta(26,12)"},{"x":0.74,"y":4.3897,"fill":"From flat prior: Beta(26,12)"},{"x":0.76,"y":3.5449,"fill":"From flat prior: Beta(26,12)"},{"x":0.78,"y":2.6059,"fill":"From flat prior: Beta(26,12)"},{"x":0.8,"y":1.7199,"fill":"From flat prior: Beta(26,12)"},{"x":0.82,"y":1.0006,"fill":"From flat prior: Beta(26,12)"},{"x":0.84,"y":0.5003,"fill":"From flat prior: Beta(26,12)"},{"x":0.86,"y":0.2074,"fill":"From flat prior: Beta(26,12)"},{"x":0.88,"y":0.0676,"fill":"From flat prior: Beta(26,12)"},{"x":0.9,"y":0.016,"fill":"From flat prior: Beta(26,12)"},{"x":0.92,"y":0.0024,"fill":"From flat prior: Beta(26,12)"},{"x":0.94,"y":0.0002,"fill":"From flat prior: Beta(26,12)"},{"x":0.96,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.98,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":1.0,"y":0.0,"fill":"From flat prior: Beta(26,12)"},{"x":0.0,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.02,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.04,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.06,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.08,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.1,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.12,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.14,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.16,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.18,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.2,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.22,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.24,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.26,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.28,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.3,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.32,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.34,"y":0.0002,"fill":"From mild prior: Beta(36,20)"},{"x":0.36,"y":0.0006,"fill":"From mild prior: Beta(36,20)"},{"x":0.38,"y":0.0023,"fill":"From mild prior: Beta(36,20)"},{"x":0.4,"y":0.0073,"fill":"From mild prior: Beta(36,20)"},{"x":0.42,"y":0.021,"fill":"From mild prior: Beta(36,20)"},{"x":0.44,"y":0.0551,"fill":"From mild prior: Beta(36,20)"},{"x":0.46,"y":0.1307,"fill":"From mild prior: Beta(36,20)"},{"x":0.48,"y":0.283,"fill":"From mild prior: Beta(36,20)"},{"x":0.5,"y":0.5607,"fill":"From mild prior: Beta(36,20)"},{"x":0.52,"y":1.0187,"fill":"From mild prior: Beta(36,20)"},{"x":0.54,"y":1.7003,"fill":"From mild prior: Beta(36,20)"},{"x":0.56,"y":2.6094,"fill":"From mild prior: Beta(36,20)"},{"x":0.58,"y":3.6819,"fill":"From mild prior: Beta(36,20)"},{"x":0.6,"y":4.773,"fill":"From mild prior: Beta(36,20)"},{"x":0.62,"y":5.6748,"fill":"From mild prior: Beta(36,20)"},{"x":0.64,"y":6.1716,"fill":"From mild prior: Beta(36,20)"},{"x":0.66,"y":6.1163,"fill":"From mild prior: Beta(36,20)"},{"x":0.68,"y":5.4956,"fill":"From mild prior: Beta(36,20)"},{"x":0.7,"y":4.4472,"fill":"From mild prior: Beta(36,20)"},{"x":0.72,"y":3.2136,"fill":"From mild prior: Beta(36,20)"},{"x":0.74,"y":2.051,"fill":"From mild prior: Beta(36,20)"},{"x":0.76,"y":1.1398,"fill":"From mild prior: Beta(36,20)"},{"x":0.78,"y":0.5416,"fill":"From mild prior: Beta(36,20)"},{"x":0.8,"y":0.2148,"fill":"From mild prior: Beta(36,20)"},{"x":0.82,"y":0.0689,"fill":"From mild prior: Beta(36,20)"},{"x":0.84,"y":0.0171,"fill":"From mild prior: Beta(36,20)"},{"x":0.86,"y":0.0031,"fill":"From mild prior: Beta(36,20)"},{"x":0.88,"y":0.0004,"fill":"From mild prior: Beta(36,20)"},{"x":0.9,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.92,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.94,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.96,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.98,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":1.0,"y":0.0,"fill":"From mild prior: Beta(36,20)"},{"x":0.0,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.02,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.04,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.06,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.08,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.1,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.12,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.14,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.16,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.18,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.2,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.22,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.24,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.26,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.28,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.3,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.32,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.34,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.36,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.38,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.4,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.42,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.44,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.46,"y":0.0019,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.48,"y":0.047,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.5,"y":0.5781,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.52,"y":3.5458,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.54,"y":10.8924,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.56,"y":16.7088,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.58,"y":12.6722,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.6,"y":4.6705,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.62,"y":0.8157,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.64,"y":0.0652,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.66,"y":0.0023,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.68,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.7,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.72,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.74,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.76,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.78,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.8,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.82,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.84,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.86,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.88,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.9,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.92,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.94,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.96,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":0.98,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"},{"x":1.0,"y":0.0,"fill":"From confident-wrong prior: Beta(245,191)"}],"geoms":["line"],"x":"theta","y":"density"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Notice how narrow and tall the confident-but-wrong prior's posterior is next to the other two. All three posteriors saw the exact same 36 students. The only thing that differed between them was how many pseudo-observations each prior brought to the table.</p>
+
+<p>A prior with few pseudo-observations gets swept along by real data. A prior with hundreds of pseudo-observations barely moves, even when the real data disagrees with it. That is the honest warning about priors: being confident is really a claim about how much evidence it should take to move you, and if that confidence is wrong, a prior that strong barely moves even when the data say otherwise.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>What a 95% credible interval actually says</h2>
+
+<p>A posterior mean is one number. But the posterior is a whole distribution, so it also supports a range: a <strong>credible interval</strong>.</p>
+
+<p>Take the flat prior's posterior from a moment ago, Beta(26, 12). Its 95% credible interval is the range holding the middle 95% of that distribution, found with <code>qbeta()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Find the 95% credible interval from the flat prior's posterior, Beta(26, 12)
+interval &lt;- qbeta(c(0.025, 0.975), 26, 12)
+sprintf(&quot;%.3f&quot;, interval)
+#&gt; [1] &quot;0.530&quot; &quot;0.820&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So the 95% credible interval runs from 0.530 to 0.820.</p>
+
+<p>Here is the part that is easy to get wrong about an interval like this. Because the posterior IS a probability distribution over the true pass rate theta, you get to say directly:</p>
+
+<p>\[P(0.530 \le \theta \le 0.820 \mid \text{data}) = 0.95\]</p>
+
+<p>There is a 95% probability that the true pass rate lies between 0.530 and 0.820.</p>
+
+<p>A confidence interval of that same width cannot support that sentence. A confidence interval comes from a procedure that, run over and over on new samples, would cover the true rate 95% of the time. It says nothing about where the true rate is likely to sit for this one dataset you actually have. A credible interval makes exactly the statement people wrongly reach for when they talk about a confidence interval, because it comes from an actual probability distribution over the parameter, which a confidence interval never has.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<h2>Closing check: what the credible interval says</h2>
+
+<p>Recall the flat prior's posterior, Beta(26, 12), the weakest-pulled of the three priors you just compared. Its 95% credible interval runs from 0.530 to 0.820. Which sentence reads that interval correctly?</p>
+<section class="exercise" data-exercise-id="Updating-a-Belief-with-One-Dataset-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 95% probability that the true pass rate lies between 0.530 and 0.820.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">95% of intervals built this same way, from repeated samples, would contain the true rate.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The confident-but-wrong prior's interval would come out about this same width.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">There is a 95% chance this cohort's own observed rate, 0.694, falls inside this range.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. The posterior is a probability distribution over the true pass rate, so the credible interval supports exactly this sentence.</div><div class="lesson-qfb lesson-qfb-no">This mixes up the parameter with one observed statistic. The interval is a probability statement about the unknown true pass rate, theta, not about this cohort's own already-known rate of 0.694, which is simply a fixed number that happens to fall inside it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<h2>Your turn: change the prior, read the posterior</h2>
+
+<p>The code below computes the posterior mean for a Beta(a, b) prior updated with this cohort's 25 passes and 11 fails out of 36 students. It currently uses the mild prior, Beta(11, 9).</p>
+<section class="exercise" data-exercise-id="Updating-a-Belief-with-One-Dataset-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*220)(?=[\s\S]*180)"><textarea class="lesson-tryit-input" spellcheck="false"># Compute the posterior mean from a prior's alpha and beta, plus the 36 students' results
+y &lt;- 25; n &lt;- 36
+a &lt;- 11
+b &lt;- 9
+posterior_mean &lt;- (a + y) / (a + y + b + (n - y))
+round(posterior_mean, 3)
+#&gt; [1] 0.643</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: with a = 220 and b = 180, the posterior mean drops to about 0.562, barely past the prior's own 0.55. Compare that to the mild prior's 0.643 a moment ago. The same 36 students, read against a far more confident prior, move it only a fraction of the distance.</span><span class="lesson-tryit-fb lesson-tryit-no">Set a <- 220 and b <- 180 in the code above, the confident-but-wrong prior's pseudo-counts, then press Check.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Recompute the posterior mean using the confident-but-wrong prior's alpha and beta
+y &lt;- 25; n &lt;- 36
+a &lt;- 220
+b &lt;- 180
+posterior_mean &lt;- (a + y) / (a + y + b + (n - y))
+round(posterior_mean, 3)
+#&gt; [1] 0.562</code></pre></details></div>
+</section>
+<p>Change <code>a</code> and <code>b</code> to the confident-but-wrong prior's values, 220 and 180, and run it again. See how far the posterior mean moves this time.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="http://www.stat.columbia.edu/~gelman/book/">Bayesian Data Analysis, 3rd edition</a> - Gelman, A., Carlin, J.B., Stern, H.S., Dunson, D.B., Vehtari, A. and Rubin, D.B. (2013), CRC Press. The reference text behind the conjugate update and credible intervals used in this lesson.</li>
+
+<li><a href="https://sites.google.com/site/doingbayesiandataanalysis/">Doing Bayesian Data Analysis, 2nd edition</a> - Kruschke, J.K. (2014), Academic Press. A gentler, example-driven path through the same beta-binomial update.</li>
+
+<li><a href="https://xcelab.net/rm/statistical-rethinking/">Statistical Rethinking, 2nd edition</a> - McElreath, R. (2020), CRC Press. Builds the same prior-likelihood-posterior picture from first principles, with worked R code throughout.</li>
+
+<li>Casella, G. and Berger, R.L. (2002). Statistical Inference, 2nd edition. Duxbury. The standard reference for the confidence interval definition this lesson's credible interval is contrasted against.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>What one dataset can and cannot do to a belief</h2>
+
+<p>Here's everything in one place. This year's tutoring cohort gave you 25 passes out of 36 students, against a historical pass rate of 0.55. Bayes' rule combined that result with a prior belief by adding real successes and failures onto the prior's own pseudo-successes and pseudo-failures, turning Beta(a, b) into Beta(a + y, b + (n - y)).</p>
+
+<p>How far that update moved depended entirely on how many pseudo-observations the prior carried. The flat prior, worth almost nothing, landed close to the cohort's own 0.694. The mild prior, worth 20 pseudo-observations, moved about 64% of the way there. The confident-but-wrong prior, worth 400, moved only about 8%, because its own conviction outweighed one cohort's worth of real evidence.</p>
+
+<p>And the flat prior's posterior supported a genuine probability statement: a 95% credible interval running from 0.530 to 0.820, inside which the true pass rate sits with 95% probability, a sentence a same-width confidence interval cannot make.</p>
+
+<p>The next lesson in this course covers what to do when a closed-form update like this one does not exist, which is most of the time, by exploring the posterior through sampling instead.</p>
+</section>
+
+{% endraw %}
