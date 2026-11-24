@@ -45,7 +45,7 @@ A GAM presented as what it is, a linear model with some columns replaced by smoo
 
 Smoothness selection treated as an estimation problem with a criterion rather than a matter of taste. The penalized objective written out, the penalty's effect shown by sweeping it, and generalized cross-validation and REML both computed and plotted against the penalty so you see the minimum being found. Then the two checks that matter: a smooth fitted to pure noise, where a correct procedure returns something nearly flat, and a smooth whose basis dimension is set too low, which cannot reach the truth no matter what the penalty does. The two failure directions, told apart.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Choosing how wiggly is too wiggly](Choosing-How-Wiggly-Is-Too-Wiggly.html)
 
 ### Lesson 4: Estimating a density without assuming one
 
