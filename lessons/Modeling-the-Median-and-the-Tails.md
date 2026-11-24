@@ -1,0 +1,238 @@
+---
+title: "Additive and Nonparametric Models Lesson 5: Modeling the median and the tails"
+catalog_blurb: "How quantile regression models the 10th, median and 90th percentiles separately."
+description: "Fit three regression lines for the 10th, median and 90th percentiles of a delivery time, and see why the mean alone understates how much it actually varies."
+keywords: "quantile regression, conditional quantiles, check function, pinball loss, heteroskedasticity, quantreg, rq(), percentile regression, service level agreement, R"
+post_type: "LESSON"
+curriculum_id: "4.100.5"
+webr: true
+mathjax: false
+lesson_access: "pro"
+course_id: "res-additive"
+course_title: "Additive and Nonparametric Models"
+course_lesson: "5"
+course_total: "6"
+course_landing: "Additive-and-Nonparametric-Models-Course.html"
+course_next: "Regression-That-Ignores-the-Outlier"
+course_prev: "Estimating-a-Density-Without-Assuming-One"
+---
+
+=== step === cover
+## Modeling the median and the tails
+
+Today let's understand quantile regression, using a courier company's own delivery log.
+
+A courier company logged 120 deliveries. For each one it recorded the distance, in kilometers, and how long the delivery actually took, in minutes. Distances range from 1.4 km to 24.5 km, and delivery times range from 3 minutes to 95 minutes.
+
+Here is every one of those 120 deliveries, plotted as distance against delivery time.
+
+::widget chart-plotter {"data":[{"x":24.5,"y":25.2},{"x":3.9,"y":21.4},{"x":13.5,"y":57.1},{"x":18.9,"y":35.3},{"x":16.8,"y":36.7},{"x":10.3,"y":27.3},{"x":2,"y":14.2},{"x":21.8,"y":76.6},{"x":21.9,"y":36.4},{"x":24.5,"y":60},{"x":5.1,"y":18.8},{"x":5.7,"y":23.5},{"x":9.7,"y":21.6},{"x":5.2,"y":25.7},{"x":13,"y":34.3},{"x":6.7,"y":30.6},{"x":12.7,"y":7.1},{"x":4.9,"y":16.5},{"x":12.6,"y":53},{"x":6.3,"y":18.3},{"x":12.1,"y":47},{"x":24.3,"y":82.1},{"x":20.2,"y":32.2},{"x":14.3,"y":54.4},{"x":4.6,"y":20.5},{"x":2.7,"y":13.7},{"x":23.4,"y":59.9},{"x":7.6,"y":23.2},{"x":21.9,"y":83.9},{"x":5,"y":16.9},{"x":3.6,"y":17.2},{"x":17.9,"y":73},{"x":22.4,"y":65.4},{"x":17.9,"y":43.8},{"x":13.7,"y":35.7},{"x":9.1,"y":23.9},{"x":22.7,"y":82.9},{"x":24.5,"y":24.7},{"x":20.4,"y":16.7},{"x":16.4,"y":54.8},{"x":5,"y":4.3},{"x":2.2,"y":14.6},{"x":10.8,"y":18.7},{"x":19.8,"y":56.1},{"x":16.6,"y":56.6},{"x":24.1,"y":82.6},{"x":15.6,"y":38.7},{"x":4.9,"y":19.3},{"x":16.9,"y":31.2},{"x":21.1,"y":48.9},{"x":8.2,"y":25.9},{"x":5.2,"y":27.1},{"x":22,"y":79.6},{"x":19.1,"y":95},{"x":18.6,"y":39.8},{"x":6.7,"y":26.9},{"x":22.7,"y":52.3},{"x":4.9,"y":17.5},{"x":18.9,"y":65.4},{"x":7.2,"y":35.1},{"x":9.7,"y":31.5},{"x":16.6,"y":54.1},{"x":8.1,"y":19.3},{"x":18.5,"y":41.3},{"x":14.2,"y":32.3},{"x":2.1,"y":15.9},{"x":22.2,"y":32.4},{"x":18.8,"y":46.4},{"x":11.8,"y":17.1},{"x":1.4,"y":13.7},{"x":6.1,"y":21},{"x":19,"y":69.7},{"x":21.3,"y":61.9},{"x":1.7,"y":13.4},{"x":5.4,"y":15.5},{"x":4.1,"y":20.5},{"x":7.7,"y":7},{"x":2,"y":3.2},{"x":18.7,"y":49.6},{"x":15.2,"y":51.1},{"x":5,"y":19},{"x":18.6,"y":63.6},{"x":5.5,"y":23.5},{"x":19.4,"y":70.5},{"x":8.4,"y":32.3},{"x":9.9,"y":24.6},{"x":4,"y":14.1},{"x":8.3,"y":36.4},{"x":9.2,"y":46.8},{"x":13.9,"y":19.9},{"x":3.8,"y":18.1},{"x":16.3,"y":25},{"x":8.8,"y":34.2},{"x":12.3,"y":3},{"x":16,"y":69.7},{"x":5.6,"y":20.7},{"x":3.4,"y":8},{"x":16.7,"y":50.8},{"x":11.7,"y":19.6},{"x":11.8,"y":26.8},{"x":16.6,"y":65.4},{"x":19.5,"y":32.5},{"x":14.6,"y":59},{"x":11.2,"y":39.1},{"x":7.9,"y":15.7},{"x":5.1,"y":20.6},{"x":21.4,"y":48.9},{"x":9.8,"y":18.2},{"x":12.4,"y":46.2},{"x":18.8,"y":56.8},{"x":11.4,"y":31.5},{"x":5.5,"y":28.4},{"x":1.7,"y":7.1},{"x":13.4,"y":33.5},{"x":5.8,"y":31.6},{"x":24.3,"y":52.5},{"x":11.3,"y":38.6},{"x":7.9,"y":4.7},{"x":4.1,"y":15.3},{"x":16.6,"y":22.2}],"geoms":["point"],"x":"distance_km","y":"delivery_time_min","code":{"point":"ggplot(df, aes(distance_km, delivery_time_min)) +\n  geom_point()"}}
+
+Notice how tight the points sit together on the left, and how far they spread out on the right.
+
+=== step === concept
+## A single mean line, and one sigma, meet a growing spread
+
+Let's fit the most familiar regression line through these same 120 deliveries, and see how well a single line and a single spread actually describe them.
+
+```r
+# Build the courier's delivery log, then fit one mean regression line through it
+set.seed(205)
+n <- 120
+distance_km <- round(runif(n, 1, 25), 1)
+delivery_time_min <- round(8 + 2.2 * distance_km + rnorm(n, 0, 2 + 0.9 * distance_km), 1)
+delivery_time_min <- pmax(delivery_time_min, 3)
+df <- data.frame(distance_km, delivery_time_min)
+
+ols <- lm(delivery_time_min ~ distance_km, data = df)
+coef(ols)
+#> (Intercept) distance_km 
+#>    7.524881    2.255437 
+summary(ols)$sigma
+#> [1] 14.17284
+```
+
+`lm()` fits one straight line through all 120 deliveries: start around 7.52 minutes, and add about 2.26 minutes for every extra kilometer. The residual standard error, 14.17 minutes, is the one number this model uses to describe how far an actual delivery time strays from that line, and it uses the same 14.17 at every distance alike.
+
+But does a short delivery really scatter around its prediction by the same 14.17 minutes as a long one? Split the residuals at the midpoint distance and compare the two halves directly.
+
+```r
+# Split the residuals at the median distance and compare their spread
+med_dist <- median(df$distance_km)
+short_trips <- residuals(ols)[df$distance_km <= med_dist]
+long_trips  <- residuals(ols)[df$distance_km >  med_dist]
+sd(short_trips)
+#> [1] 7.651223
+sd(long_trips)
+#> [1] 18.49676
+```
+
+The shorter half of deliveries scatters by only about 7.65 minutes around the line. The longer half scatters by about 18.50 minutes instead, almost two and a half times as much. One sigma, 14.17, was never the right number for either half. It was a single average covering two very different stories. Statisticians call a spread that changes like this heteroskedastic, and one that stays the same at every distance homoskedastic.
+
+=== step === widget
+## Recall what least squares actually minimizes
+
+Before going further, let's get precise about what that mean line is actually choosing, using a small set of points so the squares are easy to see.
+
+::widget ols-fit {}
+
+Move the two sliders and watch the red squares above each point change size: their areas are the squared residual at that point. Press "Snap to least squares" and the sliders jump to the slope and intercept that make the total area of all nine squares as small as it can be.
+
+That is the entire definition of least squares: the slope and intercept that minimize the summed squared residual, over every point, all at once. The courier line from the last step, slope 2.26, was found by solving exactly that same minimization, just scaled up to 120 points and a wider range.
+
+=== step === quiz
+## Quick check: what least squares targets
+
+Snap the widget above to least squares and look at what it minimized. What single quantity of the outcome does least squares actually target?
+
+::quiz {"correct": 3, "gate": true, "difficulty": "beginner"}
+- The conditional median of the outcome, given the predictor. ::no
+- The single most frequent value of the outcome. ::no
+- The conditional mean of the outcome, given the predictor. ::ok Right. Squaring a residual penalizes distance from a center point symmetrically, and the point that minimizes the summed squared distance to a set of numbers is always their mean, never their median or their mode.
+- Whichever point in the data sits closest to zero. ::no Least squares has nothing to do with distance from zero. It minimizes the summed squared residual around the fitted line, and the value that minimizes that sum, at any given x, is the conditional mean of the outcome, not the median, not the mode, and not whichever point happens to be closest to zero.
+
+=== step === concept
+## The question changes: a percentile instead of a mean
+::prose-only the new idea here is what a percentile of a conditional distribution means; the courier numbers from the cover carry it without a new plot
+
+Ask a different question of the same 120 deliveries. Instead of the average delivery time at a given distance, what is the delivery time that 10% of deliveries fall under, or that 50% fall under, or that 90% fall under?
+
+For a chosen fraction tau between 0 and 1, the tau-quantile of delivery time at a given distance is the value at or below which that fraction tau of deliveries, at that distance, actually falls. At tau = 0.5 that value is the median: half of deliveries at that distance finish faster, half finish slower. At tau = 0.1, only 10% finish faster, so the value sits near the fast end. At tau = 0.9, 90% finish faster, so only the slowest 10% of deliveries exceed it.
+
+This is not a fix for outliers, and it is not a sturdier version of the mean. No delivery gets removed or down-weighted to compute any of these numbers. It asks about a different part of the distribution entirely, not just its center: the fast deliveries and the slow ones, each read off on their own terms. A loss that stops caring about one unusually extreme point is a separate question again, about insensitivity to a single bad observation, not about which percentile to model.
+
+=== step === concept
+## The check function: an asymmetric absolute loss
+
+Quantile regression does not minimize the ordinary squared error that `lm()` uses. It minimizes a function called the check function, which scores a residual differently depending on which side of zero it falls on. For a residual u, the actual value minus the fitted value, and a chosen tau, the check function scores u as tau times u when u is zero or more, and as (tau minus 1) times u when u is negative.
+
+At tau = 0.5, both of those cases work out to exactly half of the ordinary absolute value of u. So at tau = 0.5, the check function is just half the ordinary absolute loss, and minimizing half of something lands at the same point as minimizing the whole thing.
+
+Check that by hand on five delivery-like numbers, 4, 9, 15, 7 and 11 minutes, and see which single center value minimizes the summed check loss at tau = 0.1, 0.5 and 0.9.
+
+```r
+# Score every candidate center m against the check function, then find where it's smallest
+check_loss <- function(u, tau) ifelse(u >= 0, tau * u, (tau - 1) * u)
+y <- c(4, 9, 15, 7, 11)
+m_grid <- 0:20
+
+minimizer <- function(tau) m_grid[which.min(sapply(m_grid, function(m) sum(check_loss(y - m, tau))))]
+sapply(c(0.1, 0.5, 0.9), minimizer)
+#> [1]  4  9 15
+
+median(y)
+#> [1] 9
+
+sum(abs(y - 9))              # the ordinary absolute loss at the median
+#> [1] 15
+sum(check_loss(y - 9, 0.5))  # the check function's loss at tau = 0.5, same point
+#> [1] 7.5
+```
+
+At tau = 0.1, the summed check loss is smallest at m = 4, the lowest of the five numbers. At tau = 0.9, it is smallest at m = 15, the highest. And at tau = 0.5, it is smallest at m = 9, which is exactly `median(y)`, the sorted middle value of 4, 7, 9, 11 and 15.
+
+That last result is the one to hold onto. Minimizing the check function at tau = 0.5 returns the median, not some new invented quantity. The two loss values confirm why: the ordinary absolute loss at m = 9 adds up to 15, while the check function's loss at tau = 0.5, at that same m = 9, adds up to 7.5, exactly half. The check function at tau = 0.5 is the absolute loss cut in half, so wherever one is smallest, so is the other.
+
+=== step === concept
+## Fitting all three percentiles on the courier data
+
+`quantreg`'s `rq()` function fits a line that minimizes the check function, the same way `lm()` minimizes squared error, except you also tell it which tau, or taus, you want. Fit all three at once on the 120 deliveries, at tau = 0.1, 0.5 and 0.9.
+
+```r
+# Fit three regression lines at once: the 10th, 50th and 90th percentile of delivery time
+library(quantreg)
+
+rq_fit <- rq(delivery_time_min ~ distance_km, data = df, tau = c(0.1, 0.5, 0.9))
+coef(rq_fit)
+#>             tau= 0.1 tau= 0.5 tau= 0.9
+#> (Intercept) 5.377181 9.055556 9.629825
+#> distance_km 1.013423 2.079365 3.359649
+
+predict(rq_fit, newdata = data.frame(distance_km = c(5, 20)))
+#>   tau= 0.1 tau= 0.5 tau= 0.9
+#> 1 10.44430 19.45238 26.42807
+#> 2 25.64564 50.64286 76.82281
+```
+
+Each column of `coef(rq_fit)` is a separate fitted line. The 10th-percentile line has slope 1.01: for every extra kilometer, the fast end of deliveries grows by only about a minute. The 90th-percentile line has slope 3.36, more than three times as steep, and the median line's slope, 2.08, sits between the two, close to but not identical to the OLS slope of 2.26 from the second step.
+
+Those three slopes being different is the whole story. A single OLS line has exactly one slope, so it could never have produced three different rates of growth. The predicted rows confirm what that difference does to the spread. At 5 km, the gap between the 90th and 10th percentile prediction is 26.43 minus 10.44, about 16 minutes. At 20 km, the same gap is 76.82 minus 25.65, about 51 minutes. The spread between fast and slow deliveries more than triples over that distance, because the three lines fan apart rather than staying parallel.
+
+=== step === widget
+## Watch the fan on a second heteroskedastic example
+
+The same fan shape shows up whenever an outcome's spread grows with a predictor, not only for these deliveries. Here is a second pair, income against years of experience, built into this widget on its own.
+
+::widget quantile-lines {}
+
+This widget's data is not the courier log. It carries its own built-in example of income against years of experience, included because the same spread-widens-with-x pattern, over a completely different pair of variables, makes the point that this is not an artifact of one dataset. Its runnable code below calls this the pinball loss, the literature's other name for the same check function from two steps back.
+
+Toggle between the 10th percentile, median and 90th percentile lines. The median line, slope 2.2, sits close to where an OLS line would fall, the same way the courier data's median line sat close to OLS's 2.26. But switch to the 90th percentile and the slope jumps to 3.4, while the 10th percentile's slope is only 1.0: the same fan, on a different axis, income and years of experience instead of distance and delivery time.
+
+=== step === concept
+## When this is the answer a subject-matter question actually wanted
+::prose-only this step reasons about numbers already computed and shown two steps back; no new visual is needed
+
+Here is where this stops being an abstract fitting exercise and becomes a decision a courier company would actually have to make.
+
+Suppose the company wants to promise a delivery time for a 20 km trip, one it can actually keep for roughly 9 out of every 10 deliveries. That kind of promise is what businesses call a service level agreement, or SLA. The OLS mean prediction from the second step, 52.63 minutes, is the wrong number for that promise. A mean regression line is fit so its residuals average to zero at every distance, and because the noise built into these deliveries is symmetric, that also puts the mean at the middle of the spread. So about half of 20 km deliveries finish after 52.63 minutes and about half finish before it, which is exactly what you would expect from an average, not from a service-level number.
+
+The tau = 0.9 fit gives 76.82 minutes at 20 km instead. By definition, that is the value at or below which 90% of deliveries at that distance fall. Promise 76.82 minutes and, by that same definition, roughly 9 out of 10 deliveries keep it. That is the number an honest service-level promise needs, and it was never going to come out of a mean.
+
+=== step === quiz
+## Quick check: reading the fan correctly
+
+Which one correctly describes what quantile regression, fit with `rq()`, is actually doing?
+
+::quiz {"correct": 2, "gate": true, "difficulty": "intermediate"}
+- A version of OLS that is less sensitive to outliers in the data. ::no
+- A way of modeling a chosen percentile of the outcome's conditional distribution, by minimizing the check function instead of squared error. ::ok Exactly right. Nothing about outliers or robustness is involved here. rq() targets a specific percentile, tau, of the outcome's distribution at each value of the predictor, by minimizing the asymmetric check function instead of the squared error lm() minimizes.
+- A confidence interval built around the OLS mean prediction. ::no
+- The same as fitting three separate OLS models, one on the fastest third of deliveries, one on the middle third, and one on the slowest third. ::no None of these describe what rq() minimizes. It is not a robustness fix, not a confidence interval, and not three OLS fits on split data, since splitting the data by the outcome's own value would bias every one of the three fits. rq() fits a line to a chosen percentile, tau, of the outcome's full conditional distribution, over the complete data at once, by minimizing the check function.
+
+=== step === tryit
+## Your turn: pick the number the SLA actually needs
+
+`rq_fit`, from two steps back, already holds the three fitted percentile lines. Use it to predict delivery time for a new 15 km delivery, then pull out the 90th-percentile prediction specifically.
+
+```r
+# Predict delivery time for a new 15 km delivery, across all three already-fitted percentiles
+preds_15 <- predict(rq_fit, newdata = data.frame(distance_km = 15))
+preds_15
+
+# Pull out just the 90th-percentile prediction, using the fitted object's own column name
+preds_15[, "tau= ____"]
+```
+::check {"regex":"predict[(][\\s\\S]*tau","gate":true,"difficulty":"intermediate","ok":"Right: preds_15[, \"tau= 0.9\"] reads 60.02 minutes, well above the 40.25 minutes the tau = 0.5 column already showed. A higher tau reaches further into the slow end of the delivery-time distribution, and at 15 km that end is wide, so the 90th-percentile prediction sits well clear of the median.","no":"Fill the blank with 0.9 to match the column predict() already printed above: preds_15[, \"tau= 0.9\"]."}
+::solution
+```r
+# Predict delivery time for a new 15 km delivery, then isolate the 90th-percentile value
+preds_15 <- predict(rq_fit, newdata = data.frame(distance_km = 15))
+preds_15
+#>   tau= 0.1 tau= 0.5 tau= 0.9
+#> 1 20.57852 40.24603 60.02456
+
+preds_15[, "tau= 0.9"]
+#> [1] 60.02456
+```
+
+=== step === concept
+## References
+
+- Koenker, R. and Bassett, G. (1978). Regression Quantiles. Econometrica, 46(1), 33-50. The original paper defining the check function and quantile regression.
+- Koenker, R. (2005). Quantile Regression. Cambridge University Press. The standard full-length reference for the method.
+- [quantreg: Quantile Regression](https://cran.r-project.org/package=quantreg) - Koenker, R., R package documentation, CRAN. The documentation for rq(), including the tau and newdata arguments used throughout this lesson.
+- [lm: Fitting Linear Models](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html) - R Core Team, the documentation for lm(), the mean regression this lesson contrasts against.
+- [median: Median Value](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/median.html) - R Core Team, the documentation for median(), the base R function the check function's minimizer matches at tau = 0.5.
+- Hao, L. and Naiman, D. Q. (2007). Quantile Regression. Sage Publications. A shorter, applied introduction to the same method.
+
+=== step === complete
+## What quantile regression answers, and what it does not
+
+A mean regression line and its one sigma assume the spread never changes, no matter the predictor. These 120 deliveries showed that assumption breaking in the open: a residual standard error of 14.17 minutes was really an average of a 7.65-minute spread for short trips and an 18.50-minute spread for long ones.
+
+Quantile regression replaces that single mean and single spread with a direct model of whichever percentile you choose, fit by minimizing the check function instead of squared error. On these deliveries, the three fitted slopes, 1.01 at the 10th percentile, 2.08 at the median, and 3.36 at the 90th, show the spread's own growth directly: delivery time does not just rise with distance, it rises faster for the slow deliveries than for the fast ones.
+
+And that is exactly why an honest service-level promise, 76.82 minutes for a 20 km delivery rather than the mean's 52.63, had to come from the tau = 0.9 fit, and nothing else could have supplied it.
+
+Quantile regression is not a fix for outliers. The next lesson picks that question up directly: a mean regression line that is not thrown off by one extreme point, a different problem from the one you just solved.
