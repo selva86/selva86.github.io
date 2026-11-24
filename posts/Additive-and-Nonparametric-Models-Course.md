@@ -63,7 +63,7 @@ Quantile regression as a different question rather than a robust alternative: no
 
 Least squares' sensitivity to one bad point quantified rather than deplored, then repaired by changing the loss. Huber and bisquare objectives plotted beside squared error so you can see where they stop growing, then the iteratively reweighted fit implemented by hand, printing the weights so the down-weighted observation is identifiable. Robust and ordinary fits compared on contaminated and on clean data, which shows the small price paid when there is no outlier and the large gain when there is. Why none of this is a licence to stop looking at influential points.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Regression that ignores the outlier](Regression-That-Ignores-the-Outlier.html)
 
 ## Who this is for
 
