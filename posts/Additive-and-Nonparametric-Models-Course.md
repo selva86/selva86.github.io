@@ -51,7 +51,7 @@ Smoothness selection treated as an estimation problem with a criterion rather th
 
 A histogram's two arbitrary choices, bin width and bin origin, shown changing the apparent shape of the same data, which is the motivation for everything after it. The kernel density estimate built by hand as a sum of little bumps, one per observation, so the kernel and the bandwidth are both visible objects rather than arguments. The bandwidth swept to show that it, and not the choice of kernel, is what matters. Then the boundary problem demonstrated on data bounded at zero, where the estimate quietly leaks probability into impossible values.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Estimating a density without assuming one](Estimating-a-Density-Without-Assuming-One.html)
 
 ### Lesson 5: Modeling the median and the tails
 
