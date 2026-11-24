@@ -1,0 +1,374 @@
+---
+title: "Bayesian Data Analysis Lesson 4: Partial pooling and the shrinkage it buys"
+description: "Eight branches report wildly different averages. Blend each one with the overall mean, weighted by how much you can trust it, and beat trusting either alone."
+keywords: "partial pooling, shrinkage estimator, mixed-effects model, random effects, hierarchical model, lme4, REML, grand mean, standard error, precision-weighted average, R"
+mathjax: true
+webr: true
+curriculum_id: "4.110.4"
+post_type: "LESSON"
+course_id: "res-bayes"
+course_title: "Bayesian Data Analysis"
+course_lesson: "4"
+course_total: "8"
+course_landing: "Bayesian-Data-Analysis-Course.html"
+course_next: "Checking-a-Bayesian-Model-Before-and-After"
+course_prev: "Your-First-Bayesian-Regression"
+lesson_access: "pro"
+catalog_blurb: "Why blending a small group's mean with the overall mean beats trusting either alone."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Partial pooling and the shrinkage it buys</h2>
+
+<p>Today let's understand partial pooling: a way to estimate several related groups from one shared dataset, so that every group borrows a little strength from all the others.</p>
+
+<p>A retail chain piloted a new onboarding course for its newly hired sales associates in 8 of its branches. In each branch, it tracked how much an associate's monthly sales rose after taking the course, in dollars. The branches range from 3 associates in the smallest to 70 in the largest, 181 associates in total, and the raw average lift per branch ranges from \$13.3 to \$47.3.</p>
+
+<p>Here is every branch's raw average lift plotted against how many associates it has.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":3,"y":47.3},{"x":5,"y":18.9},{"x":8,"y":13.3},{"x":12,"y":24.6},{"x":18,"y":21.1},{"x":25,"y":20.8},{"x":40,"y":32.4},{"x":70,"y":17.2}],"geoms":["point"],"x":"headcount","y":"lift"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Notice the branches with the fewest associates sit furthest from the pack, one of them the highest point on the whole chart, another near the lowest. The branches with the most associates sit much closer together. That pattern, small branches swinging wide and large branches settling down, is exactly what this lesson explains, and what to do about it.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Two easy answers and what each one costs you</h2>
+
+<p>Before getting to partial pooling, it helps to see the two simpler answers that sit on either side of it, and what each one costs you.</p>
+
+<p>The first is called no pooling. It trusts each branch's own average completely, no matter how few associates it rests on. The branch with only 3 associates reported an average lift of \$47.3, and no pooling takes that \$47.3 as the branch's true effect, exactly as reported.</p>
+
+<p>The second is called complete pooling. It throws away the branch labels altogether and pools every one of the 181 associates into one number: a single headcount-weighted average lift, applied to every branch alike. That discards any real difference between branches, treating the smallest branch and the largest branch as if they were identical.</p>
+
+<p>Compute both.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set up the 8 branches' data, then compare two easy ways to estimate each branch's lift.
+set.seed(42)
+n_i &lt;- c(3, 5, 8, 12, 18, 25, 40, 70)
+true_i &lt;- round(rnorm(8, 20, 8), 1)
+lift &lt;- round(rep(true_i, n_i) + rnorm(sum(n_i), 0, 15), 1)
+branch &lt;- factor(rep(1:8, n_i))
+branches &lt;- data.frame(branch = branch, lift = lift)
+
+means &lt;- tapply(branches$lift, branches$branch, mean)
+grand_mean &lt;- weighted.mean(means, n_i)
+round(means, 1)
+round(grand_mean, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt;    1    2    3    4    5    6    7    8 
+#&gt; 47.3 18.9 13.3 24.6 21.1 20.8 32.4 17.2 
+#&gt; [1] 22.32</code></pre>
+
+<p><code>tapply()</code> splits <code>branches$lift</code> by <code>branch</code> and applies <code>mean()</code> inside each group, so <code>means</code> holds each branch's own raw average. <code>weighted.mean()</code> then folds all 8 branch means back into one number, weighted by each branch's headcount <code>n_i</code>, the same number you would get by averaging all 181 associates directly: \$22.32.</p>
+
+<p>So there are the two easy answers, side by side. No pooling says branch 1's true effect is \$47.3. Complete pooling says every branch's true effect, including branch 1's, is \$22.32.</p>
+
+<p>Branch 1 only has 3 associates behind its number, so which of those two answers would you actually bet on? Neither one, fully, and closing that gap is exactly what partial pooling is for.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>A prior whose width is estimated from the data</h2>
+
+<p>Partial pooling adds exactly one assumption on top of what you just saw. Instead of letting each branch's true effect be its own free-floating number, it treats every branch's true effect as one draw from a shared normal distribution, centred at the grand mean, with some spread you estimate from this exact data.</p>
+
+<p>\[ \text{true effect}_i \sim \mathcal{N}(\text{grand mean}, \ \tau^2) \]</p>
+
+<p>Think about what that spread, written \(\tau\) and read "tau", actually controls. If \(\tau\) were 0, every branch's true effect would be forced to equal the grand mean exactly. If \(\tau\) were enormous, each branch's true effect could sit almost anywhere, and the assumption would barely constrain anything. The real answer sits somewhere in between, and it can be estimated directly from the 8 branch means you already computed.</p>
+
+<p>Before estimating \(\tau\), you need to pull apart two different kinds of noise. The first is ordinary sampling noise: even if two branches genuinely had the same true effect, their raw means would still differ a little, just because different associates happened to be sampled into each one. The second is real between-branch variation: some branches genuinely deliver more lift than others. \(\tau\) is meant to measure only the second kind, so the first kind has to be subtracted back out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pool the within-branch noise, get each branch's standard error, and estimate tau^2.
+sigma_pooled &lt;- sqrt(sum((branches$lift - rep(means, n_i))^2) / (sum(n_i) - 8))
+se_i &lt;- sigma_pooled / sqrt(n_i)
+var_of_means &lt;- var(means)
+avg_sampling_var &lt;- mean(se_i^2)
+tau_hat2 &lt;- var_of_means - avg_sampling_var
+
+round(sigma_pooled, 2)
+round(se_i, 2)
+round(tau_hat2, 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; [1] 14.63
+#&gt; [1] 8.45 6.54 5.17 4.22 3.45 2.93 2.31 1.75
+#&gt; [1] 93.34</code></pre>
+
+<p><code>sigma_pooled</code>, 14.63, is the within-branch noise, pooled across all 8 branches into one shared number: how much a single associate's lift tends to vary around their own branch's true effect. Dividing it by the square root of each branch's headcount gives <code>se_i</code>, each branch's own standard error.</p>
+
+<p>Branch 1, with only 3 associates, has a standard error of 8.45. Branch 8, with 70 associates, has a standard error of only 1.75. Fewer associates means a noisier raw mean, and the standard error is exactly how noisy.</p>
+
+<p><code>var_of_means</code> is the variance of the 8 raw branch means, and it mixes together the real between-branch variation you want with the ordinary sampling noise you do not. Subtracting the average squared standard error, <code>avg_sampling_var</code>, strips that sampling noise back out, leaving <code>tau_hat2</code>, 93.34, as the estimate of \(\tau^2\): how much the branches genuinely differ, once sampling noise has been accounted for. That is the one new ingredient partial pooling needed, and it came straight out of the data, not out of a guess.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>The partial pooling formula: one weighted average</h2>
+
+<p>This is the heart of the whole lesson, so let's go slowly.</p>
+
+<p>Partial pooling estimates each branch's effect as a weighted average of two things: that branch's own mean, and the grand mean. The weight is what makes it work: it is set by how much you can trust that one branch's own mean, compared to how much branches genuinely differ from each other.</p>
+
+<p>\[ w_i = \frac{\hat\tau^2}{\hat\tau^2 + \text{se}_i^2} \]</p>
+
+<p>Read it slowly. \(\hat\tau^2\), 93.34, is the same number for every branch: how much branches truly differ. \(\text{se}_i^2\) is that one branch's own squared standard error: how noisy its own mean is.</p>
+
+<p>When a branch's standard error is small, because it has a lot of associates, \(\text{se}_i^2\) barely dents the denominator, so the weight sits close to 1. When a branch's standard error is large, because it has few associates, \(\text{se}_i^2\) can swamp \(\hat\tau^2\) in the denominator, pulling the weight down toward 0.</p>
+
+<p>Once you have the weight, the partial-pooled estimate is just one more weighted average:</p>
+
+<p>\[ \hat\theta_i = w_i \times \bar{y}_i + (1 - w_i) \times \bar{y} \]</p>
+
+<p>where \(\bar{y}_i\) is that branch's own mean and \(\bar{y}\) is the grand mean. A weight near 1 leaves the estimate close to the branch's own mean. A weight near 0 pulls the estimate almost all the way to the grand mean.</p>
+
+<p>Compute it for all 8 branches.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Blend each branch's own mean with the grand mean, weighted by tau_hat2 vs its own squared standard error.
+weights &lt;- tau_hat2 / (tau_hat2 + se_i^2)
+partial &lt;- weights * means + (1 - weights) * grand_mean
+
+round(weights, 3)
+estimates &lt;- data.frame(no_pooling = round(means, 1),
+                         complete_pooling = round(grand_mean, 1),
+                         partial_pooling = round(partial, 1))
+estimates</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; [1] 0.567 0.686 0.777 0.840 0.887 0.916 0.946 0.968
+#&gt;   no_pooling complete_pooling partial_pooling
+#&gt; 1       47.3             22.3            36.5
+#&gt; 2       18.9             22.3            19.9
+#&gt; 3       13.3             22.3            15.3
+#&gt; 4       24.6             22.3            24.3
+#&gt; 5       21.1             22.3            21.3
+#&gt; 6       20.8             22.3            21.0
+#&gt; 7       32.4             22.3            31.8
+#&gt; 8       17.2             22.3            17.4</code></pre>
+
+<p>Now look at the two extremes. Branch 1 has only 3 associates, so its weight is just 0.567, and its estimate moves from its raw \$47.3 nearly halfway to the grand mean, landing at \$36.5. Branch 8 has 70 associates, so its weight is 0.968, and its estimate barely moves, from \$17.2 to only \$17.4.</p>
+
+<p>The branch with the least evidence moves the most. The branch with the most evidence barely moves at all.</p>
+
+<p>That difference in movement is the shrinkage this lesson is named for. Every branch's estimate shrinks toward the grand mean, by exactly as much as its own evidence is weak, and not one bit more.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Watching the same pull happen on a different dataset</h2>
+
+<p>The branch numbers above came from one particular hand calculation. To see that the same mechanism is general enough to trust, here is a second dataset entirely, built into a widget you can drag yourself.</p>
+
+<p>This widget's built-in data is 8 clinics instead of 8 branches, with sizes from 2 patients to 40 and a grand mean of 50. A slider moves between no pooling and complete pooling, with partial pooling in between. Drag it and watch each clinic's dot move.</p>
+<div class="lesson-widget" data-widget-type="shrinkage-pool" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>At its default setting, clinic E, which has only 2 patients, gets pulled 12.8 toward the grand mean. Clinic D, which has 40 patients, barely moves at all, only 0.2. Drag the slider all the way to one end and every clinic sits exactly on its own raw mean, no pooling. Drag it all the way to the other end and every clinic collapses onto the one grand mean, complete pooling.</p>
+
+<p>Partial pooling, in the middle, is what you have been computing by hand all along, with clinic standing in for branch, patient count standing in for headcount, and the exact same weight formula running underneath.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<h2>Quick check: why size changes the pull</h2>
+<section class="exercise" data-exercise-id="Partial-Pooling-and-the-Shrinkage-It-Buys-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Partial pooling treats smaller branches as less important than larger ones.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A smaller headcount gives a larger standard error, and that larger squared standard error in the weight's denominator pulls the weight down, leaning the branch's estimate toward the grand mean.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Partial pooling only applies below some fixed headcount cutoff.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The grand mean itself shrinks as a branch's headcount gets smaller.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The weight is tau_hat2 over tau_hat2 plus that branch's own squared standard error, so a branch with a large standard error drags its own weight down and gets pulled further toward the grand mean.</div><div class="lesson-qfb lesson-qfb-no">The weight is about precision, not importance: a small branch is not demoted, its own mean is simply noisier, and that squared standard error in the denominator is what pulls its weight down. There is no headcount cutoff, the weight shifts smoothly for every branch, and the grand mean itself, \$22.32, stayed fixed the whole time; only each branch's own estimate moved.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Checked against lme4, the familiar mixed model</h2>
+
+<p>Everything so far was computed by hand, one step at a time. It is worth checking that hand calculation against a tool built for exactly this job: <code>lme4</code>'s <code>lmer()</code>, which fits what statisticians call a mixed-effects model, sometimes also called a hierarchical model, with one random effect per branch.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the same shrinkage with lme4's mixed model and compare to the hand calculation.
+library(lme4)
+fit &lt;- lmer(lift ~ 1 + (1 | branch), data = branches)
+
+round(fixef(fit), 1)
+VarCorr(fit)
+round(coef(fit)$branch[, 1], 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; (Intercept) 
+#&gt;        23.4 
+#&gt;  Groups   Name        Std.Dev.
+#&gt;  branch   (Intercept)  7.0711 
+#&gt;  Residual             14.6998 
+#&gt; [1] 33.2 21.0 16.9 24.3 21.6 21.2 31.5 17.6</code></pre>
+
+<p><code>lmer(lift ~ 1 + (1 | branch), data = branches)</code> fits one shared intercept for every associate, plus a random intercept allowed to vary by <code>branch</code>. <code>fixef()</code> returns that shared intercept, \$23.4, close to the \$22.32 grand mean you found by hand. <code>VarCorr()</code> reports the between-branch standard deviation, 7.07, found by a different method, called REML, restricted maximum likelihood, rather than your hand calculation, yet it lands in the same neighbourhood as \(\hat\tau\). And <code>coef(fit)$branch</code> gives each branch's own shrunk estimate: 33.2, 21.0, 16.9, 24.3, 21.6, 21.2, 31.5, 17.6, close to your hand-computed 36.5, 19.9, 15.3, 24.3, 21.3, 21.0, 31.8, 17.4.</p>
+
+<p>Two completely different routes, your weighted average by hand and <code>lmer()</code>'s REML, land close to the same answer. Partial pooling is not a one-off trick someone invented for this lesson. It is what a standard mixed-effects model does automatically, every time you add a random effect for a grouping variable.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>The same weighted average, written for any belief</h2>
+
+<p>The weight formula from a moment ago is not special to branches or clinics. It is one case of a more general rule, sometimes called a precision-weighted average: whenever a prior belief is combined with new data, the two get blended in proportion to how precisely each one is known. This widget shows that rule directly.</p>
+<div class="lesson-widget" data-widget-type="bayes-update" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Its "prior mean" and "prior confidence" sliders set a starting belief, drawn as a normal distribution. Its "data average" and "data points n" sliders set what the new evidence says, and how much of it there is. The posterior, the blend of the two, is the third curve.</p>
+
+<p>The "data points n" slider plays the same role a branch's headcount played. Drag it from low toward high and the posterior slides away from the prior and settles close to the data, tightening as it goes: the identical low-n-pulled-hard, high-n-barely-moves pattern you already saw with clinic E and clinic D, and computed by hand for branch 1 and branch 8.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>Measured against a truth only a simulation can supply</h2>
+
+<p>Here is something you were not told until now. This dataset was not collected from a real retail chain. It was simulated, with each branch's true effect fixed in advance before any noise was added. That means, uniquely for this example, the right answer is actually known, so every one of the three estimates above can be scored against it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Score each method against the true branch effects only a simulation can reveal.
+sse_no_pooling &lt;- sum((means - true_i)^2)
+sse_complete_pooling &lt;- sum((grand_mean - true_i)^2)
+sse_partial_pooling &lt;- sum((partial - true_i)^2)
+
+round(c(no_pooling = sse_no_pooling, complete_pooling = sse_complete_pooling, partial_pooling = sse_partial_pooling), 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt;       no_pooling complete_pooling  partial_pooling 
+#&gt;            380.9            245.7            118.2 </code></pre>
+
+<p>The scoring rule is the summed squared error: take each method's 8 estimates, subtract the 8 true effects, square each difference, and add the 8 squares up. No pooling scores 380.9. Complete pooling scores 245.7, better, because averaging away the noise helps more than it hurts here. Partial pooling scores 118.2, the lowest of the three, by a wide margin.</p>
+
+<p>Partial pooling wins because it is the only one of the three that uses the right amount of each branch's own evidence. It borrows heavily from the grand mean exactly where a branch's own evidence is weak, and barely borrows at all where a branch's own evidence is strong.</p>
+
+<p>No pooling trusts weak evidence completely. Complete pooling throws away strong evidence completely. Partial pooling is the only one of the three that reads how strong the evidence actually is before deciding how far to lean on it.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Closing check: reading all three estimates together</h2>
+
+<p>A ninth branch reports a mean far from every other branch, and it rests on a very small headcount. Which is the right way to read its three possible estimates?</p>
+<section class="exercise" data-exercise-id="Partial-Pooling-and-the-Shrinkage-It-Buys-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Trust the raw mean, since it is the branch's own real data and nothing else.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Trust the grand mean instead, and set the branch's own number aside entirely.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Expect its partial-pooled estimate to sit closer to the grand mean than its own raw mean does. That is also the method with the lowest total error against the known truth in the last step.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A small headcount means the branch should be dropped from the analysis altogether.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. A small headcount means a large standard error, which means a small weight, which pulls the partial-pooled estimate hard toward the grand mean, and that is also the method that scored lowest on summed squared error.</div><div class="lesson-qfb lesson-qfb-no">None of these three survive what you just computed. The raw mean scored worst of the three methods, 380.9 against the known truth, so trusting it blindly is backwards. Setting the branch's own number aside entirely is complete pooling, which also lost to partial pooling, 245.7 against 118.2. And nothing in this lesson supports throwing a branch out for having a small headcount: a small headcount only means its own mean deserves less weight, not zero weight, and not exclusion.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: shrink a ninth branch</h2>
+
+<p>A ninth branch joins the pilot, with 50 associates and its own raw mean lift.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A ninth branch: 50 associates, raw mean lift of $18.0.
+own_mean9 &lt;- 18.0
+n9 &lt;- 50
+c(own_mean9 = own_mean9, n9 = n9)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<pre><code>#&gt; own_mean9        n9 
+#&gt;        18        50 </code></pre>
+
+<p><code>tau_hat2</code>, <code>grand_mean</code>, and <code>sigma_pooled</code> are still sitting in your session from the earlier steps. Compute this branch's standard error, its weight, and its partial-pooled estimate, the same way you did for the first 8 branches.</p>
+<section class="exercise" data-exercise-id="Partial-Pooling-and-the-Shrinkage-It-Buys-step11" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="se9\s*&lt;-\s*sigma_pooled\s*/\s*sqrt[(]\s*n9\s*[)][\s\S]*weight9\s*&lt;-\s*tau_hat2\s*/\s*[(]\s*tau_hat2\s*\+\s*se9\^2\s*[)][\s\S]*estimate9\s*&lt;-\s*weight9\s*\*\s*own_mean9\s*\+\s*[(]\s*1\s*-\s*weight9\s*[)]\s*\*\s*grand_mean"><textarea class="lesson-tryit-input" spellcheck="false"># own_mean9 and n9 hold the ninth branch's raw mean and headcount, just computed above.
+# tau_hat2, grand_mean, and sigma_pooled are already in scope from earlier steps.
+# Compute se9 as sigma_pooled over the square root of n9.
+# Compute weight9 as tau_hat2 over (tau_hat2 plus se9 squared).
+# Compute estimate9 as weight9 times own_mean9 plus (1 - weight9) times grand_mean.
+# Three lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: a standard error of 2.07, a weight of 0.956, and a partial-pooled estimate of $18.2, barely moved from its own $18.0, because 50 associates is a lot of evidence to trust.</span><span class="lesson-tryit-fb lesson-tryit-no">Build it the same three steps as every branch before it: se9 <- sigma_pooled / sqrt(n9), then weight9 <- tau_hat2 / (tau_hat2 + se9^2), then estimate9 <- weight9 <em> own_mean9 + (1 - weight9) </em> grand_mean.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Shrink the ninth branch the same way as all the others.
+se9 &lt;- sigma_pooled / sqrt(n9)
+weight9 &lt;- tau_hat2 / (tau_hat2 + se9^2)
+estimate9 &lt;- weight9 * own_mean9 + (1 - weight9) * grand_mean
+
+round(se9, 2)
+round(weight9, 3)
+round(estimate9, 1)</code></pre></details></div>
+</section>
+<pre><code>#&gt; [1] 2.07
+#&gt; [1] 0.956
+#&gt; [1] 18.2</code></pre>
+
+<p>A standard error of 2.07 is small, because 50 associates is a sizeable headcount. That gives this branch a weight of 0.956, close to 1, so its partial-pooled estimate barely moves, from its own \$18.0 to \$18.2. The pattern holds exactly as it did for branch 8 a few steps back: plenty of evidence means the branch is left close to where it already was.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="http://www.stat.columbia.edu/~gelman/arm/">Data Analysis Using Regression and Multilevel/Hierarchical Models</a> - Gelman, A., Hill, J. (2006), Cambridge University Press. The standard text behind the shared-distribution assumption this lesson builds by hand.</li>
+
+<li><a href="https://doi.org/10.1080/01621459.1975.10479864">Data Analysis Using Stein's Estimator and Its Generalizations</a> - Efron, B., Morris, C. (1975), Journal of the American Statistical Association, 70(350), 311-319. The classical result showing a shrunk estimate can beat every group's own raw mean at once.</li>
+
+<li><a href="https://doi.org/10.3102/10769986006004377">Estimation in Parallel Randomized Experiments</a> - Rubin, D.B. (1981), Journal of Educational Statistics, 6(4), 377-401. One of the first applications of this exact shrinkage idea to a set of parallel experiments.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v067.i01">Fitting Linear Mixed-Effects Models Using lme4</a> - Bates, D., Machler, M., Bolker, B., Walker, S. (2015), Journal of Statistical Software, 67(1). The paper behind the <code>lmer()</code> call this lesson checks its hand calculation against.</li>
+
+<li><a href="http://www.stat.columbia.edu/~gelman/book/">Bayesian Data Analysis, 3rd edition</a> - Gelman, A., Carlin, J.B., Stern, H.S., Dunson, D.B., Vehtari, A., Rubin, D.B. (2013), CRC Press. The general treatment of a random effect as a parameter with an estimated prior.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>A free lunch paid for by a modelling assumption</h2>
+
+<p>No pooling over-trusts small, noisy branches, taking a raw mean built from 3 associates as the final word. Complete pooling denies that branches differ at all, handing branch 1 and branch 8 the exact same number regardless of what either one actually did. Partial pooling blends the two, with a weight learned from the data itself rather than chosen by hand.</p>
+
+<p>That blend is sometimes called a free lunch, since it costs nothing extra to compute and it beat both simpler answers on this lesson's own scoreboard, 118.2 against 245.7 and 380.9. But a free lunch is never really free. It is paid for by one modelling assumption: that every branch's true effect is a draw from one shared distribution, centred at a common grand mean.</p>
+
+<p>Whenever that assumption roughly holds, as it did here, partial pooling wins. The moment branches belong to genuinely different worlds, with no shared story connecting them, that assumption breaks, and the borrowing it buys stops making sense.</p>
+</section>
+
+{% endraw %}
