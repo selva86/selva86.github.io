@@ -1,0 +1,330 @@
+---
+title: "Survival and Event History Analysis Lesson 3: The Cox model and what a hazard ratio means"
+description: "A 30-patient drug trial's Cox model returns a hazard ratio of 0.192, built by hand from risk sets, then checked against two tempting but wrong readings."
+keywords: "Cox proportional hazards, hazard ratio, partial likelihood, risk set, coxph, survival analysis, R"
+mathjax: true
+webr: true
+curriculum_id: "4.140.3"
+post_type: "LESSON"
+course_id: "res-survival"
+course_title: "Survival and Event History Analysis"
+course_lesson: "3"
+course_total: "7"
+course_landing: "Survival-and-Event-History-Analysis-Course.html"
+course_next: "Checking-Proportional-Hazards-and-What-to-Do-Instead"
+course_prev: "Kaplan-Meier-Curves-and-the-Log-Rank-Test"
+lesson_access: "pro"
+catalog_blurb: "What a Cox hazard ratio actually compares, and two ways people misread it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>The Cox model and what a hazard ratio means</h2>
+
+<p>Today let's understand the Cox model, the method researchers reach for most often when comparing how fast an event happens between two groups, and the one number it hands back at the end, the hazard ratio.</p>
+
+<p>Here is the trial we will use throughout this lesson. A hospital runs a 24-month trial on 30 patients with a chronic condition. Fifteen patients get standard care, and fifteen get a new drug. Every patient is followed for up to 24 months, and for each one the hospital records whether the condition came back and, if so, when, or else notes that the patient was still being followed with no return yet when the trial ended.</p>
+
+<p>The chart below plots, for each arm, the share of patients who have not yet had the condition return, at every month of follow up.</p>
+<div class="lesson-widget" data-widget-type="km-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Both curves start at 1, since nobody has had the condition return yet at month zero, and both fall as more patients do. By month 24 the two curves have drifted noticeably apart, the new drug's curve sitting above standard care for almost the whole 24 months.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why the Cox model needs no assumption about survival time</h2>
+
+<p>Before writing the model down, one definition comes first. The hazard at a moment t is the instantaneous risk that the event happens right at t, given that it has not happened before t. A higher hazard means higher risk right then, not over the patient's whole follow-up.</p>
+
+<p>The Cox model writes the hazard for patient i, at time t, as this.</p>
+
+<p>\[ h_i(t) = h_0(t)\, e^{\beta x_i} \]</p>
+
+<ul>
+
+<li>\(h_i(t)\) is the hazard for patient i at time t.</li>
+
+<li>\(h_0(t)\) is the baseline hazard, a function of time only, the same for every patient in the trial.</li>
+
+<li>\(\beta\) is a single coefficient the model estimates.</li>
+
+<li>\(x_i\) is 0 for a patient on standard care and 1 for a patient on the new drug.</li>
+
+</ul>
+
+<p>Notice what \(h_0(t)\) is doing. It is left completely unspecified. The model never says whether it rises, falls, or wiggles over the 24 months. It only has to be the same function for every patient, whichever arm they are in.</p>
+
+<p>That is why the ratio of two patients' hazards comes out so clean. Take a new-drug patient and a standard-care patient, both still being followed at the same moment t.</p>
+
+<p>\[ \frac{h_{\text{new}}(t)}{h_{\text{standard}}(t)} = \frac{h_0(t)\, e^{\beta \times 1}}{h_0(t)\, e^{\beta \times 0}} = e^{\beta} \]</p>
+
+<p>The unspecified \(h_0(t)\) sits in both the top and the bottom, and cancels exactly. Whatever shape it has, the ratio comes out to \(e^{\beta}\) at every single moment of the trial. That constant, \(e^{\beta}\), is the hazard ratio, written HR.</p>
+
+<p>This is why the Cox model is called semiparametric. It estimates \(\beta\), one real number, without ever assuming the trial's survival times follow a particular distribution such as exponential or Weibull. A model that had to assume a shape for \(h_0(t)\) would need that assumption to be right before any of its numbers could be trusted. The Cox model sidesteps the question entirely.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Risk sets: who is still being observed at each event</h2>
+
+<p>A risk set at a given moment is every patient who has not yet had the condition return and is still being followed right before that moment. A patient who already had the event, or who was censored earlier, has left the risk set and no longer counts.</p>
+
+<p>The table below lists the trial's first seven event times, the earliest deaths and censorings across the whole 30-patient trial, and how many patients from each arm were still in the risk set right before each one.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["time","arm","status","n_at_risk_standard","n_at_risk_new"],"rows":[[1.5,"standard care","returned",15,15],[2.2,"standard care","returned",14,15],[3.0,"new drug","censored",13,15],[3.1,"standard care","returned",13,14],[4.0,"standard care","returned",12,14],[4.6,"standard care","censored",11,14],[5.1,"new drug","returned",10,14]],"formats":{"time":"1dp"},"title":"Risk sets at the first seven event times in the trial","note":"The risk set is everyone still being followed, event free, right before that moment. Watch n_at_risk_standard and n_at_risk_new shrink as deaths and censorings remove patients."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Read the first row. At 1.5 months the whole trial is still intact, 15 standard-care and 15 new-drug patients, and the patient whose condition returns at 1.5 months is on standard care. Read the row for 3.0 months next, where nobody's condition actually returns.</p>
+
+<p>A new-drug patient is simply censored there, meaning they leave the risk set with no event, which is why n_at_risk_new drops from 15 to 14 without any return being recorded. By the time the fifth death happens, at 5.1 months on the new drug, the risk set has shrunk to 10 standard-care and 14 new-drug patients.</p>
+
+<p>That table has everything the Cox model needs for what comes next. Not the full shape of either curve, and not how long anyone eventually survived. Just the risk set at each moment, split by arm, and which arm the death at that moment fell in.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Building the partial likelihood by hand</h2>
+
+<p>At each death, ask a narrow question. Given everyone in the risk set at that exact moment, what is the probability that the patient who died is the one who actually did, rather than any of the others sharing that same risk set?</p>
+
+<p>If the patient who died was on standard care, that probability is 1 divided by the risk set's weighted size, where every standard-care patient counts as 1 and every new-drug patient counts as HR. If the patient who died was on the new drug, the denominator is the same weighted size, but the numerator becomes HR instead of 1, since that is the new drug's share of the weighted total.</p>
+
+<p>Written out, a standard-care death at a risk set of n0 standard and n1 new-drug patients contributes 1 / (n0 + n1 <em> HR). A new-drug death at the same kind of risk set contributes HR / (n0 + n1 </em> HR).</p>
+
+<p>The partial likelihood multiplies one such term per death. Using the first five deaths from the table above, at 1.5, 2.2, 3.1, 4.0 and 5.1 months, with risk sets of 15/15, 14/15, 13/14, 12/14 and 10/14, here is that product written as a function of HR alone.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Multiply the five death terms to get the partial likelihood as a function of HR
+partial_likelihood &lt;- function(HR) {
+  term1 &lt;- 1 / (15 + 15 * HR)   # standard death, risk set 15 standard / 15 new
+  term2 &lt;- 1 / (14 + 15 * HR)   # standard death, risk set 14 standard / 15 new
+  term3 &lt;- 1 / (13 + 14 * HR)   # standard death, risk set 13 standard / 14 new
+  term4 &lt;- 1 / (12 + 14 * HR)   # standard death, risk set 12 standard / 14 new
+  term5 &lt;- HR / (10 + 14 * HR)  # new death, risk set 10 standard / 14 new
+  term1 * term2 * term3 * term4 * term5
+}
+
+partial_likelihood(0.1)
+#&gt; [1] 1.777511e-07
+partial_likelihood(0.192)
+#&gt; [1] 2.175895e-07
+partial_likelihood(0.22)
+#&gt; [1] 2.190939e-07
+partial_likelihood(0.5)
+#&gt; [1] 1.599987e-07
+partial_likelihood(1)
+#&gt; [1] 6.822325e-08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at those five numbers. The product is highest somewhere around HR = 0.192 to 0.22, and falls away on both sides, lower at HR = 0.1, lower again at HR = 0.5, and much lower at HR = 1. <code>optimize()</code> finds exactly where that peak sits.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Find the HR that maximizes the partial likelihood
+best_HR &lt;- optimize(partial_likelihood, interval = c(0.01, 5), maximum = TRUE)
+best_HR$maximum
+#&gt; [1] 0.2193573</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>0.219, close to 0.22. Notice everything that went into this number: five risk sets, five arm labels, and nothing else.</p>
+
+<p>No survival times beyond the five deaths themselves enter the picture, and no assumption about what standard care's hazard looks like at month 20. Only the order the deaths happened in, and who shared the risk set when they did.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what the partial likelihood actually needs</h2>
+
+<p>To build the five-term product above, which of these did the calculation actually need to know?</p>
+<section class="exercise" data-exercise-id="The-Cox-Model-and-What-a-Hazard-Ratio-Means-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The exact shape of the baseline hazard for standard care, since the product needs a starting curve to build from.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Only which patients were still being followed, event free, right before each death, and the order the deaths happened in.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The total length of the trial's 24-month follow-up window.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The calendar date each death actually happened on.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly right. Each term in the product only looks at who shared the risk set at that moment and which arm the death fell in. Nothing about how long anyone would have survived if left alone ever enters the calculation.</div><div class="lesson-qfb lesson-qfb-no">None of these enter the partial likelihood. Every term only needs the risk set at that moment, split by arm, and whether the death there was on standard care or the new drug. The calendar dates, the follow-up length, and the shape of the baseline hazard never appear in the product.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Fitting the full model and reading its hazard ratio</h2>
+
+<p>The five-death calculation above is the idea in miniature. The full trial has 20 deaths across both arms, not five, and fitting the real Cox model means building that same kind of product over all 20 and maximizing it properly. R's <code>coxph()</code> does exactly that.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the 30-patient trial and fit the Cox model to read off the hazard ratio
+library(survival)
+
+std_time   &lt;- c(1.5, 2.2, 3.1, 4.0, 4.6, 5.2, 6.0, 6.1, 7.4, 8.0, 9.2, 11.0, 13.5, 15.0, 18.0)
+std_status &lt;- c(1,   1,   1,   1,   0,   1,   1,   1,   1,   0,   1,   1,    1,    0,    1)
+new_time   &lt;- c(3.0, 5.1, 7.2, 9.0, 10.4, 12.0, 13.6, 15.1, 16.0, 18.5, 20.0, 21.2, 22.0, 23.5, 24.0)
+new_status &lt;- c(0,   1,   1,   0,   1,    0,    1,    1,    0,    1,    0,    1,    0,    1,    0)
+
+trial &lt;- data.frame(
+  time   = c(std_time, new_time),
+  status = c(std_status, new_status),
+  arm    = factor(rep(c(&quot;standard&quot;, &quot;new&quot;), each = 15), levels = c(&quot;standard&quot;, &quot;new&quot;))
+)
+
+fit &lt;- coxph(Surv(time, status) ~ arm, data = trial)
+round(coef(fit), 3)
+#&gt; armnew 
+#&gt;  -1.65 
+round(exp(coef(fit)), 3)
+#&gt; armnew 
+#&gt;  0.192 
+round(exp(confint(fit)), 3)
+#&gt;        2.5 % 97.5 %
+#&gt; armnew 0.065   0.57
+round(summary(fit)$coefficients[, &quot;Pr(&gt;|z|)&quot;], 4)
+#&gt; [1] 0.0029</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>status</code> is 1 when the condition returned and 0 when the patient was censored, and <code>arm</code> is set up so standard care is the reference level, which means the fitted coefficient describes the new drug against standard care.</p>
+
+<p><code>coef(fit)</code> is -1.65, the \(\beta\) coefficient from the hazard equation. <code>exp(coef(fit))</code> undoes that to give the hazard ratio directly, 0.192. The 95% confidence interval runs from 0.065 to 0.57, and the p-value is 0.0029, so this is not a result that could plausibly be noise.</p>
+
+<p>Read the direction before the number. A hazard ratio under 1 means lower risk on the new drug, so 0.192 says this: at any moment during follow-up where a patient from each arm is still being watched, a new-drug patient's instantaneous risk of the condition returning is about a fifth of a standard-care patient's risk at that same moment. That is the only thing a hazard ratio is allowed to say about risk at a single moment. It says nothing about the overall chance the condition ever comes back, and nothing about how long anyone survives.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Two things a hazard ratio is not</h2>
+
+<p>The first tempting reading is a risk ratio, the share of each arm that ever had the event, divided across arms. Here is that crude comparison on the full trial, together with a comparison of median survival time.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the hazard ratio against a crude risk ratio and a median-survival-time ratio
+n_events &lt;- tapply(trial$status, trial$arm, sum)
+n_patients &lt;- table(trial$arm)
+crude_risk_standard &lt;- n_events[&quot;standard&quot;] / n_patients[&quot;standard&quot;]
+crude_risk_new &lt;- n_events[&quot;new&quot;] / n_patients[&quot;new&quot;]
+as.numeric(crude_risk_standard)
+#&gt; [1] 0.8
+as.numeric(crude_risk_new)
+#&gt; [1] 0.5333333
+crude_risk_ratio &lt;- as.numeric(crude_risk_new / crude_risk_standard)
+round(crude_risk_ratio, 3)
+#&gt; [1] 0.667
+
+km_table &lt;- summary(survfit(Surv(time, status) ~ arm, data = trial))$table
+km_table[, c(&quot;records&quot;, &quot;events&quot;, &quot;median&quot;)]
+#&gt;              records events median
+#&gt; arm=standard      15     12    7.4
+#&gt; arm=new           15      8   21.2
+
+median_standard &lt;- as.numeric(km_table[&quot;arm=standard&quot;, &quot;median&quot;])
+median_new &lt;- as.numeric(km_table[&quot;arm=new&quot;, &quot;median&quot;])
+median_ratio &lt;- round(median_new / median_standard, 2)
+median_ratio
+#&gt; [1] 2.86
+round(1 / median_ratio, 2)
+#&gt; [1] 0.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By the end of the trial, 12 of the 15 standard-care patients had the condition return, against 8 of the 15 on the new drug, a crude risk ratio of 0.667. Compare that to the fitted hazard ratio, 0.192, and the two numbers are nowhere near each other.</p>
+
+<p>They are not measuring the same thing. The crude risk ratio only counts whether the event ever happened by month 24, while the hazard ratio describes risk at each moment along the way, which is a sharper and different question.</p>
+
+<p>The second tempting reading is a fixed conversion to survival time. The median time to the condition returning was 7.4 months on standard care and 21.2 months on the new drug, a ratio of 2.86. Even its reciprocal, 0.35, does not match 0.192. A hazard ratio is not a scale factor you can multiply or divide a survival time by.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>Why doubling a hazard does not usually halve survival time</h2>
+
+<p>Here is a question worth asking before moving on. If the new drug's hazard ratio were exactly 2 instead of 0.192, would that mean the condition returns in exactly half the time? The widget below answers it directly, using its own simple baseline hazard rather than this trial's.</p>
+<div class="lesson-widget" data-widget-type="hazard-ratio" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The widget's baseline hazard is constant over time, the same instantaneous risk at month 1 as at month 20. Push the toggle to HR = 2 and the median survival falls from exactly 20 to exactly 10, a clean halving. That clean relationship holds here because a constant hazard makes the whole survival curve exponential, and for an exponential curve, doubling the hazard really does halve every percentile of survival time, median included.</p>
+
+<p>That is a special case, not a general rule. This trial's own hazard is not constant, since the underlying risk of the condition returning almost certainly changes over the 24 months. That is exactly why the median ratio, 2.86, and its reciprocal, 0.35, never landed anywhere near the hazard ratio, 0.192. A hazard ratio converts cleanly into a survival-time ratio only in the constant-hazard case this widget is built to show, and real trials are rarely that tidy.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading this trial's hazard ratio honestly</h2>
+
+<p>A colleague looks at the fitted hazard ratio, 0.192, and says it means two things: the new drug cuts the chance the condition ever comes back to about a fifth, and stretches the time until it returns by about five times. Is the colleague right?</p>
+<section class="exercise" data-exercise-id="The-Cox-Model-and-What-a-Hazard-Ratio-Means-step9" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, both halves are right: a fifth the chance the condition ever comes back, and about five times the survival time.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Only the first half is right. A fifth the chance the condition ever comes back, but it says nothing about survival time.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No. The hazard ratio of 0.192 only says that at any shared moment during follow-up, a patient on the new drug has about a fifth the instantaneous risk of a patient on standard care at that same moment. It says nothing fixed about the chance the condition ever returns, and nothing fixed about how long anyone survives.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Partly right. The two survival curves stay the same distance apart for the whole 24 months, which is what the hazard ratio is really describing.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. This trial's own numbers already rule out both halves of that reading: the crude risk ratio came out at 0.667, not 0.192, and the median ratio came out at 2.86, with its reciprocal at 0.35, neither matching 0.192. A hazard ratio is honest only about instantaneous risk at a shared moment.</div><div class="lesson-qfb lesson-qfb-no">A hazard ratio of 0.192 describes instantaneous risk at a shared moment, nothing else. It is not the chance the condition ever returns, not a fixed ratio of survival times, and not a promise that the gap between the two curves stays constant. This trial's own numbers, 0.667 and 2.86, already ruled out the first two readings.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<h2>Your turn: the hazard ratio the other way round</h2>
+
+<p>The hazard ratio fitted so far describes the new drug against standard care, 0.192. Flip which arm is the reference, and the number should flip to its reciprocal, the hazard of standard care against the new drug. <code>relevel()</code> changes which level of a factor R treats as the baseline.</p>
+<section class="exercise" data-exercise-id="The-Cox-Model-and-What-a-Hazard-Ratio-Means-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*relevel[(])(?=[\s\S]*exp[(]coef[(])[\s\S]*"><textarea class="lesson-tryit-input" spellcheck="false"># Relevel so the new drug becomes the reference arm, then refit and
+# read the hazard the other way round.
+# Three lines: relevel(trial$arm, ref = &quot;new&quot;), coxph() on that
+# releveled arm, and exp(coef(...)) on the refitted model.
+# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. Releveling just swaps which arm is the baseline, so the number flips to its reciprocal.</span><span class="lesson-tryit-fb lesson-tryit-no">You need relevel() on the arm column of trial, with the new drug level set as the reference, then coxph() on that releveled arm, and exp(coef(...)) on the refitted model, to read the hazard the other way round.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Relevel so the new drug becomes the reference arm, then refit and read the hazard the other way round
+arm_new_ref &lt;- relevel(trial$arm, ref = &quot;new&quot;)
+fit_reversed &lt;- coxph(Surv(time, status) ~ arm_new_ref, data = trial)
+round(unname(exp(coef(fit_reversed))), 2)
+#&gt; [1] 5.21</code></pre></details></div>
+</section>
+<p>5.21, close to 1 divided by 0.192, which is also 5.21. Releveling does not change anything about the data or the fit itself. It only changes which arm the output is written relative to, so the same underlying result can be read as "new drug against standard care" or "standard care against the new drug," and the two readings are reciprocals of each other.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<h2>References</h2>
+
+<p>These are the sources behind the model and the numbers used in this lesson.</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1111/j.2517-6161.1972.tb00899.x">Regression Models and Life-Tables</a> - Cox (1972), Journal of the Royal Statistical Society, Series B, 34(2), 187 to 220. The original paper defining the Cox model and its partial likelihood.</li>
+
+<li><a href="https://doi.org/10.1007/978-1-4757-3294-8">Modeling Survival Data: Extending the Cox Model</a> - Therneau and Grambsch (2000), Springer. The standard reference for how <code>coxph()</code> actually computes a fit.</li>
+
+<li><a href="https://doi.org/10.1007/978-1-4419-6646-9">Survival Analysis: A Self-Learning Text</a> - Kleinbaum and Klein (2012), 3rd edition, Springer. An accessible, fully worked treatment of partial likelihood and hazard ratios.</li>
+
+<li><a href="https://cran.r-project.org/package=survival">The survival package</a> - Therneau, Comprehensive R Archive Network (CRAN). The documentation for <code>coxph()</code>, <code>Surv()</code>, and <code>relevel()</code> as used in this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What this gives you, and what comes next</h2>
+
+<p>Here is the whole lesson in one sentence. The new drug's hazard ratio against standard care is 0.192, with a 95% confidence interval from 0.065 to 0.57, built from a partial likelihood that only needed the order the deaths happened in and who shared each risk set.</p>
+
+<p>That 0.192 is not a risk ratio. By month 24, 12 of 15 standard-care patients and 8 of 15 new-drug patients had the condition return, a crude risk ratio of 0.667, nowhere near 0.192.</p>
+
+<p>It is not a survival-time ratio either. The median time to the condition returning was 7.4 months on standard care and 21.2 on the new drug, a ratio of 2.86, and neither that number nor its reciprocal, 0.35, matches 0.192. What 0.192 says, and all it says, is that at any shared moment during follow-up, a new-drug patient's instantaneous risk is about a fifth of a standard-care patient's.</p>
+
+<p>One number describing the whole 24 months only works if that instantaneous risk stays in the same proportion the whole way through. The next lesson checks exactly that, whether this one hazard ratio holds steady over the full follow-up or drifts as time passes.</p>
+</section>
+
+{% endraw %}
