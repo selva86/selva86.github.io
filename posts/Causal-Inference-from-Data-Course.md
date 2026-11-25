@@ -63,7 +63,7 @@ Two groups and two time periods, with the estimator built by hand as a differenc
 
 An instrument defined by the three conditions it has to satisfy, with each one marked as testable or untestable so it is clear where the risk actually sits. Two-stage least squares is computed by hand with both stages printed, which turns it into a sequence of two regressions you already know rather than a black box. The weak-instrument problem is then produced deliberately by weakening the first stage until the second-stage estimate becomes wildly unstable, together with the first-stage diagnostic that catches it before publication.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Instrumental variables when you cannot randomize](Instrumental-Variables-When-You-Cannot-Randomize.html)
 
 ### Lesson 7: Regression discontinuity and synthetic control
 
