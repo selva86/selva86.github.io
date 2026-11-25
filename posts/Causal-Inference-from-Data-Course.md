@@ -71,11 +71,11 @@ Two designs that manufacture a comparison out of structure. Regression discontin
 
 [Start Lesson 7: Regression discontinuity and synthetic control](Regression-Discontinuity-and-Synthetic-Control.html)
 
-### Lesson 8: Mediation and how wrong you can afford to be
+### Lesson 8: Mediation, and how wrong you can afford to be
 
 Mediation decomposed into direct and indirect paths, estimated, and then immediately stress-tested, because it rests on a stronger assumption than most users realise: no unmeasured confounding between the mediator and the outcome. A sensitivity analysis introduces a confounder of known strength and reports how strong it would have to be to explain the finding away, which is the number that belongs in the paper. The same logic is then turned back on the observational estimates from lessons 3 to 7, which is how this course ends honestly.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: Mediation, and how wrong you can afford to be](Mediation-and-How-Wrong-You-Can-Afford-to-Be.html)
 
 ## Who this is for
 
