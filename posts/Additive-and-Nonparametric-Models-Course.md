@@ -39,31 +39,31 @@ A scatter plot with a real curve in it, and four smoothers laid over it: a movin
 
 A GAM presented as what it is, a linear model with some columns replaced by smooth functions, which keeps it inside everything you already know. Fitted with `mgcv`, with each smooth term plotted on its own partial-effect axis, and the effective degrees of freedom read as how much wiggliness the fit actually bought: a term returning nearly one degree of freedom is telling you it is linear. A GAM and a spline-augmented `lm()` fitted to the same data to show they are close relatives, and the thing the GAM adds, which is choosing the smoothness for you.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Generalized additive models, one smooth at a time](Generalized-Additive-Models-One-Smooth-at-a-Time.html)
 
 ### Lesson 3: Choosing how wiggly is too wiggly
 
 Smoothness selection treated as an estimation problem with a criterion rather than a matter of taste. The penalized objective written out, the penalty's effect shown by sweeping it, and generalized cross-validation and REML both computed and plotted against the penalty so you see the minimum being found. Then the two checks that matter: a smooth fitted to pure noise, where a correct procedure returns something nearly flat, and a smooth whose basis dimension is set too low, which cannot reach the truth no matter what the penalty does. The two failure directions, told apart.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Choosing how wiggly is too wiggly](Choosing-How-Wiggly-Is-Too-Wiggly.html)
 
 ### Lesson 4: Estimating a density without assuming one
 
 A histogram's two arbitrary choices, bin width and bin origin, shown changing the apparent shape of the same data, which is the motivation for everything after it. The kernel density estimate built by hand as a sum of little bumps, one per observation, so the kernel and the bandwidth are both visible objects rather than arguments. The bandwidth swept to show that it, and not the choice of kernel, is what matters. Then the boundary problem demonstrated on data bounded at zero, where the estimate quietly leaks probability into impossible values.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Estimating a density without assuming one](Estimating-a-Density-Without-Assuming-One.html)
 
 ### Lesson 5: Modeling the median and the tails
 
 Quantile regression as a different question rather than a robust alternative: not how the mean of the outcome moves, but how the tenth, fiftieth and ninetieth percentiles each move. Fitted with `quantreg` on data whose spread grows with the predictor, so the three fitted lines fan out and you can see what a single mean regression could never have told you. The objective function, an asymmetric absolute loss, written out and minimized by hand at the median to show that it does return the median. When this is the answer a subject-matter question actually wanted.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Modeling the median and the tails](Modeling-the-Median-and-the-Tails.html)
 
 ### Lesson 6: Regression that ignores the outlier
 
 Least squares' sensitivity to one bad point quantified rather than deplored, then repaired by changing the loss. Huber and bisquare objectives plotted beside squared error so you can see where they stop growing, then the iteratively reweighted fit implemented by hand, printing the weights so the down-weighted observation is identifiable. Robust and ordinary fits compared on contaminated and on clean data, which shows the small price paid when there is no outlier and the large gain when there is. Why none of this is a licence to stop looking at influential points.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Regression that ignores the outlier](Regression-That-Ignores-the-Outlier.html)
 
 ## Who this is for
 

@@ -1,0 +1,412 @@
+---
+title: "Experimental Design and A/B Testing Lesson 3: Factorial designs and the split-plot trap"
+description: "A bakery's 16-tray factorial test shows why crossing two factors beats testing them apart, and why a hard-to-change factor needs its own, bigger error term."
+keywords: "factorial design, split-plot design, whole-plot error, subplot error, interaction effect, ANOVA, Error term in R, experimental design"
+mathjax: false
+webr: true
+curriculum_id: "4.120.3"
+post_type: "LESSON"
+course_id: "res-design"
+course_title: "Experimental Design and A/B Testing"
+course_lesson: "3"
+course_total: "8"
+course_landing: "Experimental-Design-and-A-B-Testing-Course.html"
+course_next: "Power-Analysis-by-Simulation-Not-Formula"
+course_prev: "Randomize-What-You-Can-Block-What-You-Cannot"
+lesson_access: "pro"
+catalog_blurb: "Why one factorial experiment beats two separate tests, and the error it can hide."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Factorial designs and the split-plot trap</h2>
+
+<p>Today let's look at what happens when a study tests two things at once instead of one at a time, and why doing that well turns out to need more care than it looks.</p>
+
+<p>Here is the example we will use throughout. A bakery wants to know what makes its cookies spread more on the tray: the oven temperature, Standard at 325F or High at 375F, and the recipe, the Original one or a New one with extra butter.</p>
+
+<p>Temperature is awkward to test. Switching the oven from Standard to High and letting it settle again takes about 20 minutes, so a bakery cannot flip it before every single tray. Recipe is nothing like that. A baker can hand the New dough to one tray and the Original dough to the next tray in the very same oven run, with no waiting at all.</p>
+
+<p>That gap, one factor cheap to change tray by tray and the other expensive to change at all, is already a hint that this design is going to need more care than a simple one.</p>
+
+<p>Here is the design the bakery is going to run, before baking a single cookie.</p>
+
+<p><img src="screenshots/Factorial-Designs-and-the-Split-Plot-Trap-cover-design.png" alt="Eight oven runs, four at Standard and four at High, with one tray of each recipe baked inside every run." class="img-responsive img-zoomable" loading="lazy" width="900" height="620" /></p>
+
+<p><em>Eight oven runs, four at Standard and four at High, with one tray of each recipe baked inside every run.</em></p>
+
+<p>Build that same design in R now, and reproduce this picture yourself.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Lay out the design: 8 oven runs, 4 at each temperature, two trays per run
+library(ggplot2)
+trays &lt;- data.frame(
+  Run = factor(rep(1:8, each = 2)),
+  Temp = factor(rep(rep(c(&quot;Standard&quot;, &quot;High&quot;), each = 4), each = 2), levels = c(&quot;Standard&quot;, &quot;High&quot;)),
+  Recipe = factor(rep(c(&quot;Original&quot;, &quot;New&quot;), times = 8), levels = c(&quot;Original&quot;, &quot;New&quot;))
+)
+
+ggplot(trays, aes(x = Run, y = Recipe, color = Recipe)) +
+  geom_point(size = 5) +
+  facet_wrap(~ Temp, scales = &quot;free_x&quot;) +
+  labs(x = &quot;Oven run&quot;, y = &quot;Recipe baked in that run&quot;, title = &quot;Eight oven runs, two trays each&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every tray in this design already carries one level of each factor, before a single cookie has even gone into the oven. That pairing, both factors crossed on the very same trays, is what makes testing them together worth more than testing them apart.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why one factorial experiment beats two separate ones</h2>
+
+<p>Before looking at a single measured cookie, it's worth asking why the bakery would bother testing both factors at once instead of running two separate, simpler experiments.</p>
+
+<p>Suppose the bakery settles on 4 replicate trays for every combination it tests. For the factorial design, that means 4 trays times the 2x2 = 4 combinations of temperature and recipe, 16 trays total.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count trays a factorial design needs against testing one factor at a time
+reps_per_cell &lt;- 4
+cells_factorial &lt;- 2 * 2
+trays_factorial &lt;- reps_per_cell * cells_factorial
+
+reps_per_level_needed &lt;- reps_per_cell * 2
+levels_per_factor &lt;- 2
+trays_one_factor_alone &lt;- reps_per_level_needed * levels_per_factor
+trays_two_separate_tests &lt;- 2 * trays_one_factor_alone
+
+print(c(factorial = trays_factorial, two_separate_tests = trays_two_separate_tests))
+#&gt;          factorial two_separate_tests 
+#&gt;                 16                  32 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Those same 16 trays still compare 8 High trays against 8 Standard trays for temperature's main effect, because every tray serves both factors at once: each of the 4 Standard-run trays carries Original or New, and so does each of the 4 High-run trays, for 8 trays on each side.</p>
+
+<p>Now suppose the bakery tests the factors one at a time instead. Matching that same 8-versus-8 precision on temperature alone needs 16 trays. Matching it again on recipe alone, holding temperature fixed, needs another 16. Testing them apart costs 32 trays for the exact same precision on each factor that the factorial design got from 16.</p>
+
+<p>That extra efficiency has a name, hidden replication. Every tray in the factorial design works for the temperature comparison and the recipe comparison at the same time, which is why 16 trays buy as much precision on each factor as 32 would buying them one at a time.</p>
+
+<p>There is a second reason the one-factor-at-a-time test can never catch up, no matter how many trays it gets. It never bakes the New recipe at High temperature, so it can never tell whether temperature changes how much the New recipe spreads. That question needs both factors crossed in the same design. It is called an interaction.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Reading an interaction from cell means</h2>
+
+<p>Here is what the bakery actually measured: every tray's cookie spread, in centimeters, once all 16 trays came out of the oven.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Measure the spread each of the 16 trays actually produced
+set.seed(412)
+base_spread &lt;- 6.0
+temp_effect &lt;- 0.5
+recipe_effect &lt;- 0.6
+interaction_effect &lt;- 0.7
+
+spread &lt;- numeric(16)
+k &lt;- 0
+for (run in 1:8) {
+  whole_plot_noise &lt;- rnorm(1, mean = 0, sd = 0.5)    # one draw per oven run
+  subplot_noise &lt;- rnorm(2, mean = 0, sd = 0.25)      # one draw per tray in that run
+  for (tray in 1:2) {
+    k &lt;- k + 1
+    te &lt;- if (trays$Temp[k] == &quot;High&quot;) temp_effect else 0
+    re &lt;- if (trays$Recipe[k] == &quot;New&quot;) recipe_effect else 0
+    ie &lt;- if (trays$Temp[k] == &quot;High&quot; &amp;&amp; trays$Recipe[k] == &quot;New&quot;) interaction_effect else 0
+    spread[k] &lt;- round(base_spread + te + re + ie + whole_plot_noise + subplot_noise[tray], 2)
+  }
+}
+trays$spread &lt;- spread
+
+cell_means &lt;- aggregate(spread ~ Temp + Recipe, data = trays, FUN = mean)
+cell_means$spread &lt;- round(cell_means$spread, 2)
+cell_means[order(cell_means$Temp, cell_means$Recipe), ]
+#&gt;       Temp   Recipe spread
+#&gt; 1 Standard Original   5.73
+#&gt; 2 Standard      New   6.25
+#&gt; 3     High Original   5.99
+#&gt; 4     High      New   7.35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Standard/Original trays spread to 5.73 cm on average, and Standard/New trays spread to 6.25 cm. That's a 0.52 cm bump from switching to the New recipe, if the oven stays at Standard temperature.</p>
+
+<p>At High temperature, Original trays spread to 5.99 cm and New trays spread to 7.35 cm, a 1.36 cm bump from that same recipe switch.</p>
+
+<p>The New recipe always adds spread, but it adds far more of it at High temperature than at Standard. That is what statisticians call an interaction: the effect of one factor, recipe, depends on the level of the other factor, temperature. If the two did not interact, New would have added roughly the same bump at both temperatures.</p>
+
+<p>Here are all 16 trays plotted together, and then split one chart per temperature so the two recipe gaps sit side by side.</p>
+<div class="lesson-widget" data-widget-type="facet-grid" data-widget-config='{"data":[{"x":0.012,"y":5.88,"facet":"Standard"},{"x":0.946,"y":6.18,"facet":"Standard"},{"x":0.026,"y":5.6,"facet":"Standard"},{"x":1.069,"y":6.04,"facet":"Standard"},{"x":0.005,"y":5.02,"facet":"Standard"},{"x":1.065,"y":5.8,"facet":"Standard"},{"x":0.024,"y":6.43,"facet":"Standard"},{"x":0.971,"y":6.99,"facet":"Standard"},{"x":-0.02,"y":6.83,"facet":"High"},{"x":0.955,"y":8.14,"facet":"High"},{"x":0.007,"y":5.75,"facet":"High"},{"x":1.001,"y":7.21,"facet":"High"},{"x":-0.043,"y":6.17,"facet":"High"},{"x":1.019,"y":6.89,"facet":"High"},{"x":0.026,"y":5.22,"facet":"High"},{"x":1.02,"y":7.15,"facet":"High"}],"geom":"point","x":"recipe code","y":"spread in cm","facetVar":"Temp"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>In the combined chart, the New recipe's points already sit a little higher than Original's. Split by temperature, the High panel shows a clearly bigger gap between the two recipes than the Standard panel does, the same interaction the cell means already showed in numbers.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading an interaction from cell means</h2>
+
+<p>The bakery's four cell means: Standard/Original 5.73 cm, Standard/New 6.25 cm, High/Original 5.99 cm, High/New 7.35 cm. The New recipe added 0.52 cm of spread at Standard but 1.36 cm at High. What does that difference in gaps show?</p>
+<section class="exercise" data-exercise-id="Factorial-Designs-and-the-Split-Plot-Trap-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">New recipe always spreads more regardless of temperature, so the exact size of the gap at each temperature does not matter.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Recipe's effect on spread depends on temperature: a small bump at Standard and a much bigger one at High. That dependence is what statisticians call an interaction.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Temperature has no effect on spread, since Original's spread barely moves between temperatures.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. If recipe and temperature did not interact, New would have added roughly the same bump at both temperatures. Here it adds 0.52 cm at Standard and 1.36 cm at High, so recipe's own effect changes size depending on which temperature the oven was running at.</div><div class="lesson-qfb lesson-qfb-no">Temperature does have its own effect, visible in the Original trays alone, 5.73 cm at Standard against 5.99 cm at High. The real story here is an interaction: recipe's own bump in spread is not one fixed number, it depends on which temperature the oven was running at.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>What makes a factor hard to change, and why that forces a split-plot</h2>
+
+<p>Temperature and recipe got onto these 16 trays in very different ways, and that difference has a name.</p>
+
+<p>Temperature is set once per oven run. The bakery ran the oven 8 times total, 4 runs at Standard and 4 at High, and every tray baked in that run shares whatever temperature the oven happened to be at. An oven run is what statisticians call the whole plot, the bigger experimental unit that one level of the hard-to-change factor gets assigned to.</p>
+
+<p>Recipe is set once per tray. Inside a single oven run, one tray gets the Original dough and the other gets the New dough. A tray is the subplot, the smaller unit nested inside the whole plot, where the easy-to-change factor gets assigned.</p>
+
+<p>Here are all 16 trays, grouped by the oven run that produced them.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Look at the 16 trays grouped by the oven run that produced them
+trays[order(trays$Run), ]
+#&gt;    Run     Temp   Recipe spread
+#&gt; 1    1 Standard Original   5.88
+#&gt; 2    1 Standard      New   6.18
+#&gt; 3    2 Standard Original   5.60
+#&gt; 4    2 Standard      New   6.04
+#&gt; 5    3 Standard Original   5.02
+#&gt; 6    3 Standard      New   5.80
+#&gt; 7    4 Standard Original   6.43
+#&gt; 8    4 Standard      New   6.99
+#&gt; 9    5     High Original   6.83
+#&gt; 10   5     High      New   8.14
+#&gt; 11   6     High Original   5.75
+#&gt; 12   6     High      New   7.21
+#&gt; 13   7     High Original   6.17
+#&gt; 14   7     High      New   6.89
+#&gt; 15   8     High Original   5.22
+#&gt; 16   8     High      New   7.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every pair of rows sharing a Run number also shares a Temp value. That's whole-plot structure sitting right in the data: temperature only ever changes between runs, never within one.</p>
+
+<p>This split matters because it creates two separate sources of random noise. Run-to-run noise, called whole-plot error, comes from everything that varies from one oven run to the next: a slightly different oven calibration, a slightly different ambient humidity, the exact way the oven behaved during its 20 minutes of restabilizing. Tray-to-tray noise within the same run, called subplot error, comes from smaller things, like exact dough placement or a slightly uneven spot on the same rack.</p>
+
+<p>In this bakery's data, whole-plot error has a standard deviation of 0.5 cm and subplot error has a standard deviation of 0.25 cm, half as much. That's typical. A whole oven run picks up more ways to go wrong than two trays baked side by side in the same run ever will.</p>
+
+<p>So this design produces two different error terms, and a correct analysis has to test each factor against the right one. That is the split-plot structure.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>The trap: the same data, two analyses, two different answers for temperature</h2>
+
+<p>Fit the obvious analysis first, the one that ignores all of that whole-plot and subplot structure and throws temperature, recipe and their interaction into one plain factorial ANOVA. Then fit the correct one, which tells <code>aov()</code> to split the error into the whole-plot term with <code>Error(Run)</code> and the subplot term left over.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the same 16 trays two ways: a plain factorial, then the correct split-plot
+naive_fit &lt;- aov(spread ~ Temp * Recipe, data = trays)
+summary(naive_fit)
+#&gt;             Df Sum Sq Mean Sq F value  Pr(&gt;F)   
+#&gt; Temp         1  1.836   1.836   5.352 0.03922 * 
+#&gt; Recipe       1  3.516   3.516  10.249 0.00761 **
+#&gt; Temp:Recipe  1  0.697   0.697   2.033 0.17945   
+#&gt; Residuals   12  4.116   0.343                   
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+correct_fit &lt;- aov(spread ~ Temp * Recipe + Error(Run), data = trays)
+summary(correct_fit)
+#&gt; 
+#&gt; Error: Run
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Temp       1  1.836  1.8360   2.993  0.134
+#&gt; Residuals  6  3.681  0.6135               
+#&gt; 
+#&gt; Error: Within
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; Recipe       1  3.516   3.516  48.441 0.000437 ***
+#&gt; Temp:Recipe  1  0.697   0.697   9.607 0.021130 *  
+#&gt; Residuals    6  0.435   0.073                     
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the naive analysis first. Temp comes back with F = 5.35 and p = 0.039, comfortably under the usual 0.05 cutoff. By this analysis, temperature's effect on spread looks statistically significant.</p>
+
+<p>Now look inside the <code>Error: Run</code> block of the correct analysis. Temp gets F = 2.99 and p = 0.134. The exact same data, analysed correctly, says temperature is not significant.</p>
+
+<p>What changed is only the denominator. The naive analysis divides temperature's effect by one pooled error term built from all 12 leftover degrees of freedom, mean square 0.343. The correct analysis divides it by the whole-plot error alone, mean square 0.6135 on 6 degrees of freedom, nearly twice as large. Temperature was only ever tested on 8 oven runs, 4 per level, not on 16 trays, and the correct error term reflects that smaller effective sample size.</p>
+
+<p>The mistake runs the other way for recipe and its interaction with temperature. Both belong to the subplot error, mean square 0.073 on 6 degrees of freedom, far smaller than the naive analysis's pooled 0.343. The naive analysis gives the interaction F = 2.03, p = 0.179, not significant, while the correct analysis gives it F = 9.61, p = 0.021, significant. One pooled error term was too small for temperature and too big for the interaction, both at the same time.</p>
+
+<p>That is one dataset. To check it isn't just an unlucky draw, simulate the same 16-tray design 1000 times with temperature, recipe and the interaction all set to exactly zero, so any analysis that rejects the null hypothesis here is simply wrong.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate the same design 1000 times under a true null, and compare the two analyses
+set.seed(2026)
+n_reps &lt;- 1000
+naive_reject &lt;- logical(n_reps)
+correct_reject &lt;- logical(n_reps)
+
+for (trial in 1:n_reps) {
+  sim_spread &lt;- numeric(16)
+  k2 &lt;- 0
+  for (run in 1:8) {
+    whole_plot_noise &lt;- rnorm(1, mean = 0, sd = 0.5)
+    subplot_noise &lt;- rnorm(2, mean = 0, sd = 0.25)
+    for (tray in 1:2) {
+      k2 &lt;- k2 + 1
+      sim_spread[k2] &lt;- base_spread + whole_plot_noise + subplot_noise[tray]   # no true effect at all
+    }
+  }
+  sim_trays &lt;- trays
+  sim_trays$spread &lt;- sim_spread
+
+  naive_p &lt;- summary(aov(spread ~ Temp * Recipe, data = sim_trays))[[1]][[&quot;Pr(&gt;F)&quot;]][1]
+  correct_p &lt;- summary(aov(spread ~ Temp * Recipe + Error(Run), data = sim_trays))[[&quot;Error: Run&quot;]][[1]][[&quot;Pr(&gt;F)&quot;]][1]
+
+  naive_reject[trial] &lt;- naive_p &lt; 0.05
+  correct_reject[trial] &lt;- correct_p &lt; 0.05
+}
+
+round(100 * c(naive = mean(naive_reject), correct = mean(correct_reject)), 1)
+#&gt;   naive correct 
+#&gt;    13.4     5.5 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Out of 1000 simulated experiments where nothing was really going on, the naive analysis called temperature significant 13.4% of the time. It should have done that about 5% of the time, the usual false-positive rate for a 0.05 cutoff. The correct split-plot analysis called it significant only 5.5% of the time, right where it should be.</p>
+
+<p>A naive factorial ANOVA on a split-plot design does not just get one p-value wrong by chance. It is wrong in a predictable direction, every time, because it tests the hard-to-change factor against the wrong error term.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<h2>The intraclass correlation sets how much the two error terms disagree</h2>
+
+<p>The size of the gap between the naive and the correct analysis is not random. It is set by one number: how much of the total noise sits between oven runs rather than between trays within the same run. Statisticians call that the intraclass correlation.</p>
+
+<p>For this bakery, whole-plot variance is 0.5 squared, 0.25, and subplot variance is 0.25 squared, 0.0625. The intraclass correlation is the whole-plot share of the total: 0.25 divided by (0.25 + 0.0625), which is 0.8. Eighty percent of the total noise in a tray's spread comes from which oven run it was baked in, not from the tray itself.</p>
+
+<p>The widget below runs the same comparison this lesson has been building, but lets you drag that intraclass correlation up from 0 and watch four different standard errors for the same effect pull apart. Its "cluster" is this lesson's oven run and its "observation" is a tray, the same whole-plot and subplot pairing the bakery's design already uses.</p>
+<div class="lesson-widget" data-widget-type="cluster-icc-sim" data-widget-config='{"k":8,"m":2,"tau":0.9,"iccMax":0.8,"levels":11,"start":0,"sims":3000,"seed":412}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>At an intraclass correlation of 0 there is nothing to correct for, so every standard error agrees. Drag the dial up toward 0.8, this bakery's own value, and the ordinary and robust standard errors stay flat and wrong while the cluster-aware ones climb to match the truth. The further the dial moves, the more a naive analysis understates how uncertain the hard-to-change factor's effect really is.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<h2>Quiz: which error term is right</h2>
+
+<p>Suppose a different bakery runs the exact same oven-run and tray design, 8 runs of 2 trays each, and gets a naive p-value for temperature that looks promising. Which analysis actually gives temperature's effect the right standard error?</p>
+<section class="exercise" data-exercise-id="Factorial-Designs-and-the-Split-Plot-Trap-step8" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A plain aov(spread ~ Temp * Recipe, data = trays), since it fits every row of the data and nothing is left out.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">aov(spread ~ Temp * Recipe + Error(Run), data = trays), so temperature's effect is tested against the whole-plot error instead of one error term pooled across every row.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It does not matter which call you use, since both give the same p-value for temperature here.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Temperature only ever changed between oven runs, so its effect has to be judged against how much oven runs vary from each other, not against how much individual trays vary within the same run.</div><div class="lesson-qfb lesson-qfb-no">They do not agree, and they are not supposed to. This lesson's own 16 trays gave the pooled analysis p = 0.039 for temperature and the split-plot analysis p = 0.134, because the pooled analysis tests temperature against an error term built mostly out of tray-to-tray noise instead of the bigger run-to-run noise it actually varied with.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<h2>Your turn: write the split-plot formula</h2>
+
+<p>The 16-row <code>trays</code> data frame, spread column and all, is still sitting in memory. Fill in the blank so this call analyses it as the split-plot design it actually is, rather than as a plain factorial.</p>
+<section class="exercise" data-exercise-id="Factorial-Designs-and-the-Split-Plot-Trap-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="Error\s*[(]\s*Run\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false"># Analyse the 16 trays with the correct split-plot structure
+summary(aov(spread ~ Temp * Recipe + ____, data = trays))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. Error(Run) tells aov() that Run is the whole-plot unit, so Temp gets tested against run-to-run variation while Recipe and the interaction get tested against the smaller tray-to-tray variation within a run.</span><span class="lesson-tryit-fb lesson-tryit-no">Add Error(Run) after Temp * Recipe. Run is the whole-plot unit temperature was actually assigned to, so it needs its own error term separate from the trays.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Analyse the 16 trays with the correct split-plot structure
+summary(aov(spread ~ Temp * Recipe + Error(Run), data = trays))
+#&gt; 
+#&gt; Error: Run
+#&gt;           Df Sum Sq Mean Sq F value Pr(&gt;F)
+#&gt; Temp       1  1.836  1.8360   2.993  0.134
+#&gt; Residuals  6  3.681  0.6135               
+#&gt; 
+#&gt; Error: Within
+#&gt;             Df Sum Sq Mean Sq F value   Pr(&gt;F)    
+#&gt; Recipe       1  3.516   3.516  48.441 0.000437 ***
+#&gt; Temp:Recipe  1  0.697   0.697   9.607 0.021130 *  
+#&gt; Residuals    6  0.435   0.073                     
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre></details></div>
+</section>
+<p>Press Check when you have it.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.jmp.com/content/dam/jmp/documents/en/white-papers/split-plot-designs-what-why-and-how.pdf">Split-Plot Designs: What, Why, and How</a> - Jones, B. and Nachtsheim, C.J. (2009), Journal of Quality Technology 41(4). The practical warning against analysing a split-plot as a full factorial.</li>
+
+<li><a href="https://www.wiley.com/en-us/Design+and+Analysis+of+Experiments%2C+10th+Edition-p-9781119722106">Design and Analysis of Experiments, 10th edition</a> - Montgomery, D.C. (2019), Wiley. The standard text covering both factorial and split-plot designs.</li>
+
+<li><a href="https://www.wiley-vch.de/de/fachgebiete/mathematik-und-statistik/statistics-for-experimenters-978-0-471-71813-0">Statistics for Experimenters: Design, Innovation, and Discovery, 2nd edition</a> - Box, G.E.P., Hunter, W.G. and Hunter, J.S. (2005), Wiley. The hidden-replication argument for factorial design.</li>
+
+<li><a href="https://repository.rothamsted.ac.uk/id/eprint/31748">The Design and Analysis of Factorial Experiments</a> - Yates, F. (1937), Imperial Bureau of Soil Science, Technical Communication No. 35. The original agricultural split-plot structure.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html">aov: Fit an Analysis of Variance Model</a> - R Core Team, the documentation for aov() and the Error() term used throughout this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>What a split-plot buys you, and what it costs</h2>
+
+<p>Two results carry this whole lesson, and they are worth holding onto past this one bakery.</p>
+
+<p>One factorial experiment answers two questions, and sees how they interact, for close to the price of testing one question twice. Sixteen trays here did the work that would have taken 32 trays run one factor at a time, and the one-at-a-time version could never have shown that the New recipe's extra spread depends on temperature at all.</p>
+
+<p>A split-plot design, which shows up any time one factor is harder to change than another, hands over two different error terms whether you ask for them or not. Analyse it as a plain factorial and you borrow the wrong error term for at least one factor, usually the hard-to-change one, and that factor's p-value cannot be trusted no matter how carefully the rest of the analysis was done.</p>
+
+<p>Next time an ANOVA table crosses your desk, it's worth asking one question before trusting any of its p-values: was every factor actually easy to change on every single row, or did one of them come from a bigger, harder-to-change unit?</p>
+
+<p>Next: turning this same approach, simulating a study many times and counting what happens, toward a different question: how many runs a study actually needs before you ever collect a single row.</p>
+</section>
+
+{% endraw %}

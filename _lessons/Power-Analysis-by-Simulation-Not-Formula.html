@@ -1,0 +1,362 @@
+---
+title: "Experimental Design and A/B Testing Lesson 4: Power analysis by simulation, not formula"
+description: "A sleep app tests a bedtime reminder by simulating its planned study thousands of times, then extends the same recipe to a design no formula can solve."
+keywords: "statistical power, power analysis, simulation-based power, power.t.test, sample size, effect size, baseline covariate adjustment, Type II error, null distribution, A/B test"
+mathjax: false
+webr: true
+curriculum_id: "4.120.4"
+post_type: "LESSON"
+course_id: "res-design"
+course_title: "Experimental Design and A/B Testing"
+course_lesson: "4"
+course_total: "8"
+course_landing: "Experimental-Design-and-A-B-Testing-Course.html"
+course_next: "How-Big-a-Sample-Do-You-Actually-Need"
+course_prev: "Factorial-Designs-and-the-Split-Plot-Trap"
+lesson_access: "pro"
+catalog_blurb: "Why simulating a planned study thousands of times beats guessing at a power formula."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Power analysis by simulation, not formula</h2>
+
+<p>Today let's understand how to find out, before you ever collect a single row of data, whether a planned study has a fair shot at catching the effect you are looking for.</p>
+
+<p>Here is the example we will use throughout. NightWell is a sleep-tracking app. It wants to test a new bedtime reminder against no reminder at all. From its existing app logs, NightWell believes the reminder adds about 15 minutes of nightly sleep on average, with a standard deviation of 50 minutes across its users. The plan is to run the test on 120 users, 60 getting the reminder and 60 not, and compare the two groups with a two-sample t-test at the usual 0.05 significance level.</p>
+
+<p>Before NightWell runs this study for real, it wants an honest answer to one question. If that 15-minute effect really is there, how often would a study built exactly this way actually catch it?</p>
+
+<p>That question has a name. It is called statistical power, and there is a textbook formula for some of the simplest cases. But formulas run out quickly once a study design gets even slightly more realistic. So instead of reaching for a formula first, you build power the way it actually works underneath any formula: by simulating the planned study thousands of times and counting how often it succeeds.</p>
+
+<p>There are only four moves in that recipe.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Assume","sub":"pick a true effect you want to be able to detect"},{"title":"Simulate","sub":"generate one hypothetical repeat of the planned study under that effect"},{"title":"Test","sub":"run the exact analysis the real study will use"},{"title":"Count","sub":"repeat thousands of times and count how often it rejects"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Everything from here is that same loop, done once by hand first and then thousands of times at once.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What statistical power actually asks</h2>
+
+<p>Let's put a number on NightWell's question. Statistical power is the fraction of repeated studies, each built exactly like the one that is planned, that would correctly reject the null hypothesis when the assumed effect is genuinely there.</p>
+
+<p>Read that definition again slowly, because every part of it matters. "Repeated studies" means you are not asking about the one study NightWell is about to run. You are asking about a long run of studies just like it. "Correctly reject the null hypothesis" means the test comes back significant, p below 0.05, and says there is a real difference between the two groups. And "when the assumed effect is genuinely there" means you first have to decide, as an assumption, how big a real effect you want the study to be able to catch. Here, that assumption is NightWell's own belief: a true gain of 15 minutes of nightly sleep.</p>
+
+<p>So power is not a property of data you already have. It is a property of a design, asked before any data exists, under an effect you are willing to assume.</p>
+
+<p>To see what one of those repeated studies looks like, simulate it. Draw 60 made-up control users and 60 made-up treatment users, where the treatment users really do sleep 15 minutes more on average, and run the exact t-test NightWell plans to run on the real data.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate one repeat of the planned NightWell study and run the planned test
+set.seed(1)
+control &lt;- rnorm(60, mean = 420, sd = 50)
+treatment &lt;- rnorm(60, mean = 435, sd = 50)
+result &lt;- t.test(treatment, control)
+print(result)
+#&gt; 	Welch Two Sample t-test
+#&gt; 
+#&gt; data:  treatment and control
+#&gt; t = 1.8821, df = 117.48, p-value = 0.06229
+#&gt; alternative hypothesis: true difference in means is not equal to 0
+#&gt; 95 percent confidence interval:
+#&gt;  -0.7938433 31.2127455
+#&gt; sample estimates:
+#&gt; mean of x mean of y 
+#&gt;  440.5903  425.3808 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rnorm(60, mean = 420, sd = 50)</code> draws 60 numbers from a normal distribution: 420 minutes of average nightly sleep for the control group, with the 50-minute spread NightWell sees across its users. The treatment group is drawn the same way, except its mean is set to 435, exactly 15 minutes above the control's 420. That 15-minute gap is baked into the simulation on purpose. It is the real effect NightWell is assuming.</p>
+
+<p><code>t.test()</code> then runs the same two-sample test NightWell's real study will run. It does not know the 15 minutes was baked in. It only sees the 60 plus 60 numbers and does its job.</p>
+
+<p>Now look at the p-value. It came out at 0.06229, above the usual 0.05 cutoff. So this one simulated repeat fails to reject the null hypothesis, even though a real 15-minute effect is sitting inside the data by construction. One simulated repeat was simply unlucky. That does not mean the effect is not there. It means this one draw of 60 plus 60 users happened not to make the case strongly enough.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Hold on to the t-statistic from this trial, 1.8821. It comes back in a moment. One trial, by itself, only tells you whether that one trial got lucky. The question that actually matters is how often this exact setup would succeed if you ran it over and over.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<h2>Reading one trial against the null distribution</h2>
+
+<p>Every t-test works by comparing its own t-statistic against a reference curve: the distribution of t-statistics you would see across many repeats if the two groups truly had no difference between them at all. That reference curve is called the null distribution, because it describes what the data would look like under the null hypothesis, the hypothesis of no effect.</p>
+
+<p>The widget below draws that curve. The slider is the trial's t-statistic, and the two orange tails mark how far out, on either side of zero, a result has to sit before it counts as significant at the usual two-sided 0.05 level.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":4,"start":1.88,"label":"observed t"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag the slider to 1.88, the t-statistic that trial actually produced. The shaded area, the p-value, lands close to 0.062, the same number <code>t.test()</code> printed. That shaded area is the chance of seeing a t-statistic this far from zero, or farther, purely by chance, if the two groups had no real difference. Push the slider further out toward 4 and the tails shrink to almost nothing, because a t-statistic that extreme would almost never happen under the null. Pull it back toward zero and the tails swell, because small t-statistics are exactly what you would expect when there is no real difference at all.</p>
+
+<p>This is the rule the simulation applies thousands of times next: did the trial's t-statistic land far enough into the tail to clear the 0.05 bar, or did it not?</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>From one trial to the empirical power</h2>
+
+<p>One simulated trial only tells you about one trial. To learn what NightWell's planned study can actually do, repeat the exact same simulation thousands of times and watch how often it succeeds.</p>
+
+<p><code>replicate()</code> runs the code inside its braces over and over and collects every result into one vector. Run that same draw-and-test move, 4000 times, keeping only the p-value from each repeat.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the simulated study 4000 times and count how often it rejects the null
+set.seed(1)
+pvals &lt;- replicate(4000, {
+  control &lt;- rnorm(60, mean = 420, sd = 50)
+  treatment &lt;- rnorm(60, mean = 435, sd = 50)
+  t.test(treatment, control)$p.value
+})
+
+empirical_power &lt;- mean(pvals &lt; 0.05)
+empirical_power
+#&gt; [1] 0.3725</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>pvals</code> now holds 4000 p-values, one from each simulated repeat of NightWell's exact study design, all built under the same assumption: a true 15-minute effect, 60 users per arm. <code>pvals &lt; 0.05</code> turns that vector into 4000 TRUE or FALSE values, TRUE wherever that repeat's test rejected the null. <code>mean()</code> on a vector of TRUE and FALSE values treats TRUE as 1 and FALSE as 0, so the result works out to the share of repeats that came back significant.</p>
+
+<p>That share, 0.3725, is the empirical power of NightWell's planned study. In plain words, if the 15-minute effect really is there, about 37 of every 100 exact repeats of this study would catch it, p below 0.05. The other 63 would come back non-significant, even though the effect is genuinely real in every single one of those 4000 repeats. That one unlucky trial from earlier was simply one draw from that 63.</p>
+
+<p>That is the whole idea of power, stated as a number instead of a definition: the long-run frequency with which a specific design, under a specific assumed effect, gives you a significant result.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what a 37% power number actually means</h2>
+<section class="exercise" data-exercise-id="Power-Analysis-by-Simulation-Not-Formula-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">About 37 of every 100 exact repeats of this study would detect the real 15-minute effect, and the other 63 would fail to reject the null even though the effect is genuinely there.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The real NightWell study, when it runs, will come back with a p-value of exactly 0.37.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A non-significant result from the real study would prove the reminder has no effect.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. That is exactly what an empirical power of 0.3725 counts: the share of 4000 simulated repeats, each built with the true 15-minute effect baked in, whose t-test rejected the null.</div><div class="lesson-qfb lesson-qfb-no">Power describes the long-run frequency of rejections across many repeats of a design under an assumed true effect. It is not a forecast of the one p-value a single future study will produce, and a non-significant result from that study would not prove the effect is absent either, since 63 of every 100 repeats under a real effect still come back non-significant at this sample size.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<h2>Where the formula agrees: power.t.test</h2>
+
+<p>For a plain two-sample t-test like NightWell's, there happens to be a closed-form formula for power, no simulation required. Base R provides it as <code>power.t.test()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the closed-form power for NightWell's planned design
+power.t.test(n = 60, delta = 15, sd = 50, sig.level = 0.05)
+#&gt; 
+#&gt;      Two-sample t test power calculation 
+#&gt; 
+#&gt;               n = 60
+#&gt;           delta = 15
+#&gt;              sd = 50
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.3706368
+#&gt;     alternative = two.sided
+#&gt; 
+#&gt; NOTE: n is number in *each* group
+#&gt; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>delta</code> is the true effect you are assuming, 15 minutes. <code>sd</code> is the standard deviation within each group, 50 minutes. Feed in the same n, the same effect and the same significance level the simulation used, and the formula returns power of about 0.3706368. That earlier 4000-repeat simulation landed on 0.3725. Those two numbers agree, to within the noise you would expect from running only 4000 repeats rather than infinitely many.</p>
+
+<p>That agreement is the whole reason the formula gets trusted for a design this simple. It is solving, with algebra, the exact same question the simulation answers by brute force: how often would this test reject the null if the assumed effect is real?</p>
+
+<p>The same function also runs in reverse. Instead of asking for the power at a fixed n, ask for the n needed to reach a target power.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Find the sample size NightWell needs for 80% power
+power.t.test(delta = 15, sd = 50, sig.level = 0.05, power = 0.80)
+#&gt; 
+#&gt;      Two-sample t test power calculation 
+#&gt; 
+#&gt;               n = 175.3851
+#&gt;           delta = 15
+#&gt;              sd = 50
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt; 
+#&gt; NOTE: n is number in *each* group
+#&gt; </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R hands back 175.3851, which rounds up to 176 users per arm. At its current plan of 60 per arm, NightWell is running at about 37% power. To reach the conventional 80% target, it would need to recruit roughly three times as many users per arm.</p>
+
+<p>The widget below shows the same relationship for a general case, using Cohen's d, a standardized effect size measured in standard deviations rather than minutes. A small effect is d = 0.2, a medium one is d = 0.5, and a large one is d = 0.8. On NightWell's own scale, where one standard deviation is 50 minutes, those three map to 10, 25 and 40 minutes of nightly sleep gained.</p>
+<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Toggle between small, medium and large, and watch two things move together: the curve itself shifts left as the effect grows, meaning fewer users are needed, and the n marked for 80% power drops along with it. NightWell's own 15-minute effect sits between the small and medium bands shown here, which is exactly why its honest power at 60 per arm comes out closer to small-effect territory than to a comfortable number.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Where the formula runs out: a planned covariate adjustment</h2>
+
+<p><code>power.t.test()</code> only knows about one design: two independent groups compared with a plain t-test. NightWell's app, though, logs more than just the outcome. It also has each user's own pre-period average nightly sleep, recorded before the reminder was ever introduced.</p>
+
+<p>A smarter analysis plan uses that extra information. Instead of a plain t-test, NightWell plans to fit <code>lm(post ~ group + pre)</code>, a linear model that adjusts the comparison between groups for each user's own starting point. This is called a covariate adjustment, and the covariate here is <code>pre</code>, the pre-period sleep average.</p>
+
+<p>There is no closed-form power formula in base R for a covariate-adjusted comparison like this one. But the simulate, test and count recipe used so far does not care. It only needs to know what model to fit and which p-value to read off it, so the exact same loop answers the question unchanged.</p>
+
+<p>Suppose each user's pre-period sleep is correlated with their post-period sleep at 0.6, a realistic number since people who sleep more before a study tend to keep sleeping more after it, reminder or not. Simulate both the pre-period and post-period values together, keeping that correlation and the same 15-minute true effect, then fit both the plain t-test and the covariate-adjusted model inside the same 4000-repeat loop.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare power with and without adjusting for each user's own baseline sleep
+set.seed(2)
+n_per_arm &lt;- 60
+rho &lt;- 0.6
+p_unadj &lt;- numeric(4000)
+p_adj &lt;- numeric(4000)
+
+for (i in seq_len(4000)) {
+  group &lt;- rep(c(&quot;control&quot;, &quot;treatment&quot;), each = n_per_arm)
+  pre &lt;- rnorm(2 * n_per_arm, mean = 420, sd = 50)
+  noise &lt;- rnorm(2 * n_per_arm, mean = 0, sd = 50 * sqrt(1 - rho^2))
+  true_gain &lt;- ifelse(group == &quot;treatment&quot;, 15, 0)
+  post &lt;- 420 + rho * (pre - 420) + noise + true_gain
+
+  p_unadj[i] &lt;- t.test(post ~ group)$p.value
+  p_adj[i] &lt;- summary(lm(post ~ group + pre))$coefficients[&quot;grouptreatment&quot;, &quot;Pr(&gt;|t|)&quot;]
+}
+
+round(c(unadjusted = mean(p_unadj &lt; 0.05), adjusted = mean(p_adj &lt; 0.05)), 3)
+#&gt; unadjusted   adjusted 
+#&gt;      0.378      0.534 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what that loop builds for each of the 4000 repeats. <code>pre</code> is each user's baseline sleep, drawn the same way as before. <code>post</code> is built from <code>pre</code> itself, scaled by the correlation <code>rho</code>, plus fresh random noise, plus the 15-minute true gain for whoever is in the treatment group. The correlation is what ties <code>post</code> to <code>pre</code>: when <code>rho</code> is 0.6, a user who started high on <code>pre</code> tends to land high on <code>post</code> too, on top of whatever the reminder itself does.</p>
+
+<p><code>p_unadj</code> is the plain t-test's p-value, the same comparison run earlier. <code>p_adj</code> is the p-value on the <code>group</code> term from <code>lm(post ~ group + pre)</code>, which asks the narrower question: once you account for where each user started, does the group they were in still make a difference?</p>
+
+<p>The unadjusted power came out at 0.378, close to what the plain design gave earlier. The adjusted power came out at 0.534. Adding the baseline covariate to the analysis plan, with no change to the sample size and no change to the true effect, raised the chance of detecting it from about 38% to about 53%.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A covariate adjustment does not change what is true about the users. It changes how much of the noise in <code>post</code> the analysis can explain away before it even looks at <code>group</code>. The more that noise shrinks, the easier the real 15-minute gap is to see, which is why the adjusted model needs no more users to get noticeably more power.</div></div>
+
+<p>The same simulate, test and count recipe would work exactly the same way if the real design added a cluster of users per household, or an outcome that was skewed rather than normal, or any other wrinkle a real study plan picks up. Only the model inside the loop changes.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<h2>Quick check: what moves power up or down</h2>
+<section class="exercise" data-exercise-id="Power-Analysis-by-Simulation-Not-Formula-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A bigger assumed effect, more users per arm, a less variable outcome, or a tighter covariate adjustment all raise power, because each one makes the real effect easier to tell apart from sampling noise.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Lowering the significance threshold, alpha, from 0.05 to 0.01 would raise power.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Power is a property of the data already collected, so it can be computed after a study ends by checking whether its test was significant.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Every one of those either makes the true effect bigger relative to the noise, or shrinks the noise itself, which is exactly what raised NightWell's power from about 38% to about 53% when the baseline covariate entered the analysis.</div><div class="lesson-qfb lesson-qfb-no">Lowering alpha makes the test stricter, which lowers power rather than raising it, since a smaller p-value is now required before the test will reject the null. And power is a property of the design, fixed before any data exists under an assumed effect, not a number you read off a study after checking whether it came back significant.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<h2>Your turn: does the covariate still help with a weaker baseline link?</h2>
+
+<p>The advantage from adjusting for <code>pre</code>, seen earlier, depended on <code>rho</code>, the correlation between each user's pre-period and post-period sleep, being 0.6. Change <code>rho</code> to 0.2, a much weaker link between the two, and rerun the same comparison.</p>
+<section class="exercise" data-exercise-id="Power-Analysis-by-Simulation-Not-Formula-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="rho\s*&lt;-\s*0\.2"><textarea class="lesson-tryit-input" spellcheck="false"># Edit rho below, then press Run to compare power with and without the covariate
+set.seed(2)
+n_per_arm &lt;- 60
+rho &lt;- 0.6
+p_unadj &lt;- numeric(4000)
+p_adj &lt;- numeric(4000)
+
+for (i in seq_len(4000)) {
+  group &lt;- rep(c(&quot;control&quot;, &quot;treatment&quot;), each = n_per_arm)
+  pre &lt;- rnorm(2 * n_per_arm, mean = 420, sd = 50)
+  noise &lt;- rnorm(2 * n_per_arm, mean = 0, sd = 50 * sqrt(1 - rho^2))
+  true_gain &lt;- ifelse(group == &quot;treatment&quot;, 15, 0)
+  post &lt;- 420 + rho * (pre - 420) + noise + true_gain
+
+  p_unadj[i] &lt;- t.test(post ~ group)$p.value
+  p_adj[i] &lt;- summary(lm(post ~ group + pre))$coefficients[&quot;grouptreatment&quot;, &quot;Pr(&gt;|t|)&quot;]
+}
+
+round(c(unadjusted = mean(p_unadj &lt; 0.05), adjusted = mean(p_adj &lt; 0.05)), 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: with rho at 0.2, the unadjusted and adjusted powers come out at about 0.375 and 0.380, almost the same. The covariate only buys power in proportion to how strongly it actually predicts the outcome.</span><span class="lesson-tryit-fb lesson-tryit-no">Change the line rho <- 0.6 to rho <- 0.2, then press Run again.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Rerun the comparison with a weaker baseline link (rho = 0.2)
+set.seed(2)
+n_per_arm &lt;- 60
+rho &lt;- 0.2
+p_unadj &lt;- numeric(4000)
+p_adj &lt;- numeric(4000)
+
+for (i in seq_len(4000)) {
+  group &lt;- rep(c(&quot;control&quot;, &quot;treatment&quot;), each = n_per_arm)
+  pre &lt;- rnorm(2 * n_per_arm, mean = 420, sd = 50)
+  noise &lt;- rnorm(2 * n_per_arm, mean = 0, sd = 50 * sqrt(1 - rho^2))
+  true_gain &lt;- ifelse(group == &quot;treatment&quot;, 15, 0)
+  post &lt;- 420 + rho * (pre - 420) + noise + true_gain
+
+  p_unadj[i] &lt;- t.test(post ~ group)$p.value
+  p_adj[i] &lt;- summary(lm(post ~ group + pre))$coefficients[&quot;grouptreatment&quot;, &quot;Pr(&gt;|t|)&quot;]
+}
+
+round(c(unadjusted = mean(p_unadj &lt; 0.05), adjusted = mean(p_adj &lt; 0.05)), 3)
+#&gt; unadjusted   adjusted 
+#&gt;      0.375      0.380 </code></pre></details></div>
+</section>
+<p>With a weak baseline link, the unadjusted and adjusted powers sit almost on top of each other. Compare that to the earlier run, where a correlation of 0.6 pulled them 15 percentage points apart. The covariate only helps in proportion to how much it actually predicts the outcome. A covariate that barely correlates with <code>post</code> buys almost nothing, no matter how clever the model fitting it looks.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://bmcmedresmethodol.biomedcentral.com/articles/10.1186/1471-2288-11-94">Simulation methods to estimate design power: an overview for applied research</a> - Arnold, Hogan, Colford and Hubbard (2011), BMC Medical Research Methodology 11:94. The case for simulating power directly instead of reaching for a formula.</li>
+
+<li><a href="https://doi.org/10.1111/2041-210X.12504">SIMR: an R package for power analysis of generalized linear mixed models by simulation</a> - Green and MacLeod (2016), Methods in Ecology and Evolution 7(4). Simulation-based power for designs with no closed-form formula.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.t.test.html">power.t.test: Power calculations for two sample and one sample t tests</a> - R Core Team, the documentation for the closed-form formula used as the trust check in this lesson.</li>
+
+<li><a href="https://doi.org/10.1002/sim.2682">Change from baseline and analysis of covariance revisited</a> - Senn (2006), Statistics in Medicine 25(24). The case for adjusting for a baseline covariate, and the precision it buys.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>What this buys you</h2>
+
+<p>You now know how to answer the question NightWell started with, and a good deal more besides. Here is what to carry forward.</p>
+
+<ul>
+
+<li>Power is a property of a design, not of data you already have. You compute it by assuming a true effect and simulating how often a study built this way would catch it, before any user is ever recruited.</li>
+
+<li>The closed-form formula, <code>power.t.test()</code>, is a fast, trustworthy shortcut exactly where it applies: a simple two-group comparison like NightWell's plain plan. It agreed with the simulation to within simulation noise, which is exactly why the formula gets relied on for designs this simple.</li>
+
+<li>The identical simulate, test and count recipe keeps working once the real plan gets more realistic, a baseline covariate, a clustered design, a skewed outcome, by swapping in whichever model the real analysis will actually run. Nothing else about the recipe changes.</li>
+
+</ul>
+
+<p>The next natural question is the mirror image of this one: instead of fixing the sample size and asking what power it buys, fix the power you want and solve for the sample size that gets you there.</p>
+</section>
+
+{% endraw %}

@@ -56,7 +56,13 @@ const hardKill = setTimeout(() => {
 }, OVERALL_MS);
 hardKill.unref();
 
-const pkgs = [...new Set([...body.matchAll(/(?:library|require)\s*\(\s*["']?([A-Za-z0-9.]+)/g)].map(x => x[1]))]
+// Scan `blocks`, NOT `body`. A ```r-static block is illustrative and never
+// executed (see the block regex above), so a package named only there must not
+// be installed: Stan-backed packages (brms, rstanarm, rstan) compile C++ per
+// model, which a WASM sandbox cannot do, and the install hangs until INIT_MS.
+// That spuriously failed a correct lesson on 2026-11-24. Package scope must
+// match execution scope.
+const pkgs = [...new Set(blocks.flatMap(b => [...b.matchAll(/(?:library|require)\s*\(\s*["']?([A-Za-z0-9.]+)/g)]).map(x => x[1]))]
   .filter(p => !['base', 'stats', 'graphics', 'grDevices', 'utils', 'datasets', 'methods'].includes(p));
 
 // WebR refuses to init with an invalid base URL (about:blank / data: fail), so load a

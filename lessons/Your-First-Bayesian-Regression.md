@@ -1,0 +1,283 @@
+---
+title: "Bayesian Data Analysis Lesson 3: Your first Bayesian regression"
+catalog_blurb: "Refit a least-squares regression as Bayesian and read what its posterior adds."
+description: "Refit a least-squares regression as Bayesian under a weak prior. Coefficients barely move, but the posterior adds a probability no confidence interval gives."
+keywords: "Bayesian regression, Gibbs sampler, posterior distribution, credible interval, weak prior, posterior probability, brms, rstanarm, conjugate prior, Markov chain Monte Carlo, R"
+post_type: "LESSON"
+curriculum_id: "4.110.3"
+webr: true
+mathjax: false
+lesson_access: "pro"
+course_id: "res-bayes"
+course_title: "Bayesian Data Analysis"
+course_lesson: "3"
+course_total: "8"
+course_landing: "Bayesian-Data-Analysis-Course.html"
+course_next: "Partial-Pooling-and-the-Shrinkage-It-Buys"
+course_prev: "Why-Sampling-Works-When-Algebra-Does-Not"
+---
+
+=== step === cover
+## Your first Bayesian regression
+
+Today let's take a regression you already know how to fit the usual way, and fit it again the Bayesian way, so you can see exactly what stays the same and what is genuinely different.
+
+Twenty-four small retail stores each spent some money on online ads last month, and each tracked how much it sold online that same month, both numbers in thousands of dollars. The chart below plots all twenty-four stores: one point per store, ad spend on the x-axis against sales on the y-axis.
+
+::widget chart-plotter {"data":[{"x":11.1,"y":82},{"x":11.4,"y":90.8},{"x":4.9,"y":69.7},{"x":10.3,"y":93.5},{"x":8.4,"y":80.6},{"x":7.2,"y":59.9},{"x":9.4,"y":68.9},{"x":3.3,"y":74.5},{"x":8.6,"y":81.1},{"x":9.1,"y":72.5},{"x":6.6,"y":75.2},{"x":9.2,"y":93.8},{"x":11.3,"y":105.7},{"x":4.6,"y":66.6},{"x":6.6,"y":74.6},{"x":11.4,"y":80.4},{"x":11.8,"y":97.3},{"x":3.2,"y":60.4},{"x":6.7,"y":80},{"x":7.6,"y":84.8},{"x":11,"y":98.6},{"x":3.4,"y":61.3},{"x":11.9,"y":98},{"x":11.5,"y":81.1}],"geoms":["point"],"x":"spend","y":"sales"}
+
+That rising scatter, with real noise scattered around the trend, is the one example this whole lesson runs on.
+
+=== step === concept
+## The same linear model, a different account of uncertainty
+
+The chart you just saw has a clear trend: more spend lines up with more sales. The usual way to put a number on that trend is ordinary least squares, the regression that fits a straight line through the points, choosing the line that makes the squared vertical gaps between the points and the line as small as possible.
+
+The equation behind that line is simple. Sales equals an intercept, plus a slope times spend, plus noise for everything the line does not explain:
+
+sales = b0 + b1 * spend + noise
+
+b0 is what sales would be at zero spend, and b1 is how many extra thousand dollars of sales one extra thousand dollars of spend buys, on average.
+
+Fit that line with `lm()` and read off its three numbers.
+
+```r
+# Fit the regression with ordinary least squares
+set.seed(42)
+spend <- round(runif(24, 2, 12), 1)
+sales <- round(54 + 3.4 * spend + rnorm(24, 0, 7), 1)
+stores <- data.frame(spend, sales)
+
+fit <- lm(sales ~ spend, data = stores)
+round(coef(summary(fit))[, 1:2], 2)
+round(summary(fit)$sigma, 2)
+```
+```
+#>             Estimate Std. Error
+#> (Intercept)    52.43       5.42
+#> spend           3.36       0.61
+#> [1] 8.59
+```
+
+Read the three numbers in dollars. A store spending nothing would be expected to sell about $52,430 (the intercept, 52.43 thousand). Each extra $1,000 of monthly spend lines up with about $3,360 more in monthly sales (the slope, 3.36 thousand). And a typical store's actual sales miss this line by about $8,590 (the residual standard error, 8.59 thousand).
+
+That is what least squares hands you: one number for b0, one number for b1, and one standard error attached to each. A Bayesian fit keeps the exact same equation, the same sales, the same spend, the same noise term. What it replaces is the single number and its standard error for b0 and for b1, swapping each one out for a full range of plausible values, built by combining a prior belief with this same data. That is the only difference between the two.
+
+Same model, same data, a different account of the uncertainty around the two numbers that describe it.
+
+=== step === widget
+## What a weak prior actually costs you
+
+Before fitting the regression the Bayesian way, it helps to see the one calculation running underneath it, on something simpler than a whole regression: a single mean.
+
+A prior is a distribution over the plausible values of something, stated before you look at any data. A posterior is that same distribution after the data has been folded in. When a prior is weak, spread wide and flat over a huge range of values, it barely argues with the data, and the posterior ends up close to what the data alone would say. When a prior is strong, narrow and confident about one value, it pulls the posterior toward itself, and it takes a lot of data to drag the posterior away again.
+
+The widget below runs that exact calculation on a prior mean and a stream of data. Drag the prior's confidence from narrow to wide, and drag the number of data points from a handful up toward two hundred, and watch where the posterior ends up.
+
+::widget bayes-update {}
+
+With a narrow, confident prior and only a little data, the posterior barely moves from the prior's own mean. Widen the prior, or pile on more data points, and the posterior slides away from the prior and lands close to the data's own average instead. That slide, the prior pulling one way and the data pulling the other, is exactly the arithmetic a Bayesian regression runs for its intercept and its slope. Statisticians call how tightly a distribution is bunched around its own centre its precision, and whichever side carries more of it, a narrow prior or a big enough pile of data, wins the slide. A regression just runs that same pull twice, once for each coefficient, cycling between them.
+
+=== step === concept
+## A Gibbs sampler for a regression: three familiar updates, cycled
+
+The regression has three unknown quantities: the intercept b0, the slope b1, and the noise variance, how spread out the leftover noise around the line is. Finding their joint posterior directly has no neat formula once all three are tangled together. A Gibbs sampler sidesteps that problem by updating one quantity at a time, holding the other two fixed at their current value, and cycling through all three over and over.
+
+The first two updates inside that cycle are exactly the same precision-weighted blend the widget above just showed you, run once for each coefficient:
+
+1. Draw b0, treating b1 and the noise variance as if they were known and fixed.
+2. Draw b1, treating b0 and the noise variance as if they were known and fixed.
+3. Draw the noise variance, treating b0 and b1 as if they were known and fixed. This third draw works differently: it blends the prior's own guess about the spread with how far the data's residuals actually spread, and it comes from a distribution called the inverse gamma, the standard choice for a variance because it only ever produces positive numbers, which a variance must be.
+
+Repeat that three-step cycle thousands of times, and even though each single step only ever updates one quantity, the three numbers together end up with the right joint posterior.
+
+The priors going in are weak on purpose, the same kind of wide prior the widget above let you drag out: b0 and b1 each start from a normal distribution centred at zero with a standard deviation of 100, and the noise variance starts from a nearly flat inverse gamma. Run the cycle 6,000 times, throw away the first 1,000 as burn-in, since those early draws are still wandering away from a starting guess of zero and have not settled into the posterior yet, and keep the remaining 5,000.
+
+```r
+# Draw from the posterior with a hand-written Gibbs sampler
+set.seed(42)
+x <- stores$spend
+y <- stores$sales
+n <- length(y)
+
+n_iter <- 6000
+burn_in <- 1000
+tau2 <- 100^2          # prior variance for the intercept and the slope
+a0 <- 0.01; r0 <- 0.01 # prior shape and rate for the noise variance
+
+b0 <- 0; b1 <- 0; sigma2 <- 1
+b0_draws <- numeric(n_iter)
+b1_draws <- numeric(n_iter)
+sigma2_draws <- numeric(n_iter)
+
+for (i in 1:n_iter) {
+  resid0 <- y - b1 * x
+  prec0 <- n / sigma2 + 1 / tau2
+  b0 <- rnorm(1, sum(resid0) / sigma2 / prec0, sqrt(1 / prec0))
+
+  resid1 <- y - b0
+  prec1 <- sum(x^2) / sigma2 + 1 / tau2
+  b1 <- rnorm(1, sum(x * resid1) / sigma2 / prec1, sqrt(1 / prec1))
+
+  e <- y - b0 - b1 * x
+  sigma2 <- 1 / rgamma(1, shape = a0 + n / 2, rate = r0 + sum(e^2) / 2)
+
+  b0_draws[i] <- b0
+  b1_draws[i] <- b1
+  sigma2_draws[i] <- sigma2
+}
+
+b0_draws <- b0_draws[(burn_in + 1):n_iter]
+b1_draws <- b1_draws[(burn_in + 1):n_iter]
+sigma2_draws <- sigma2_draws[(burn_in + 1):n_iter]
+
+data.frame(
+  parameter = c("intercept", "slope"),
+  gibbs_mean = round(c(mean(b0_draws), mean(b1_draws)), 2),
+  gibbs_sd   = round(c(sd(b0_draws), sd(b1_draws)), 2),
+  least_squares = round(as.numeric(coef(fit)), 2),
+  ls_se = round(as.numeric(coef(summary(fit))[, 2]), 2),
+  row.names = NULL
+)
+```
+```
+#>   parameter gibbs_mean gibbs_sd least_squares ls_se
+#> 1 intercept      52.45     5.70         52.43  5.42
+#> 2     slope       3.36     0.64          3.36  0.61
+```
+
+Look at the match. The Gibbs sampler's own slope, computed with no formula for the joint posterior at all, lands at 3.36, the same number ordinary least squares reported two steps back. Its standard deviation, 0.64, sits close to least squares' own standard error of 0.61. The weak prior from the widget, spread with a standard deviation of 100 around a coefficient that turns out to be near 3.36, barely argued with the data at all, so the data got almost the entire say.
+
+That is the teaching point of this whole lesson. A Bayesian regression under a weak prior is not a different model. It is the same model, reporting its uncertainty a different way.
+
+=== step === widget
+## What the full posterior shows that a point estimate throws away
+
+The table above gave you two numbers for the slope: a mean of 3.36 and a standard deviation of 0.64. But the Gibbs sampler actually produced 5,000 separate draws of the slope, one per kept cycle, and those two numbers are only a summary of all 5,000. Plot a sample of them, and you see the whole shape those two numbers were compressing.
+
+::widget chart-plotter {"data":[{"x":3.12},{"x":3.24},{"x":2.98},{"x":3.32},{"x":3.99},{"x":3.49},{"x":3.02},{"x":3.16},{"x":3.05},{"x":3.29},{"x":3.1},{"x":3.02},{"x":3.01},{"x":3.02},{"x":3.7},{"x":2.29},{"x":3.97},{"x":3.7},{"x":3.48},{"x":3.4},{"x":3.37},{"x":3.11},{"x":2.96},{"x":3.76},{"x":2.74},{"x":2.58},{"x":3.26},{"x":2.84},{"x":4.46},{"x":3.66},{"x":2.71},{"x":4.26},{"x":4.68},{"x":3.66},{"x":3.58},{"x":4.39},{"x":4.21},{"x":3.69},{"x":2.48},{"x":3.79},{"x":2.63},{"x":3.67},{"x":4.15},{"x":3.48},{"x":4.31},{"x":4.15},{"x":2.55},{"x":2.16},{"x":3.98},{"x":4.05},{"x":3.51},{"x":3.71},{"x":3.12},{"x":3.18},{"x":3.75},{"x":3.2},{"x":3},{"x":3.66},{"x":3.31},{"x":3.86},{"x":2.48},{"x":4.2},{"x":3.8},{"x":3.38},{"x":3.05},{"x":3.09},{"x":4.15},{"x":3.29},{"x":4.4},{"x":2.53},{"x":1.81},{"x":2.53},{"x":3.37},{"x":2.71},{"x":2.56},{"x":2.85},{"x":2.54},{"x":4},{"x":4.15},{"x":3.15},{"x":2.05},{"x":2.98},{"x":3.64},{"x":2.58},{"x":4.26},{"x":2.76},{"x":3.63},{"x":3.22},{"x":2.5},{"x":3.93},{"x":4.11},{"x":3.12},{"x":2.97},{"x":3.03},{"x":3.46},{"x":3.46},{"x":3.4},{"x":2.63},{"x":2.58},{"x":4.07},{"x":2.94},{"x":3.44},{"x":4.06},{"x":4.78},{"x":3.02},{"x":4.75},{"x":3.32},{"x":3.64},{"x":2.83},{"x":3.93},{"x":3.02},{"x":3.06},{"x":2.7},{"x":3.56},{"x":2.81},{"x":3.87},{"x":3.75},{"x":4.47},{"x":3.47},{"x":3.59},{"x":3.52},{"x":3.03},{"x":3.76},{"x":4.06},{"x":3.61},{"x":3.35},{"x":2.8},{"x":5.65},{"x":3.7},{"x":2.94},{"x":2.95},{"x":3.96},{"x":3.95},{"x":3.99},{"x":3.2},{"x":2.45},{"x":2.73},{"x":3.4},{"x":3.54},{"x":2.5},{"x":2.48},{"x":3.28},{"x":3.85},{"x":3.61},{"x":4.35},{"x":3.79},{"x":3.07},{"x":3.13},{"x":2.53},{"x":3.89},{"x":3.42},{"x":4.46},{"x":2.71},{"x":3.72},{"x":3.63},{"x":3.1},{"x":3.46},{"x":2.72},{"x":3.78},{"x":3.08},{"x":3.27},{"x":2.61},{"x":4},{"x":3},{"x":4.15},{"x":2.83},{"x":3.55},{"x":2.68},{"x":3.62},{"x":3.95},{"x":3.13},{"x":2.29},{"x":3.91},{"x":3.09},{"x":3.58},{"x":3.6},{"x":3.33},{"x":2.54},{"x":3.34},{"x":3.88},{"x":3.31},{"x":2.49},{"x":3.24},{"x":2.93},{"x":4.15},{"x":1.76},{"x":3.88},{"x":4.73},{"x":3.59},{"x":3.67},{"x":2},{"x":3.04},{"x":3.67},{"x":2.85},{"x":4.3},{"x":2.81},{"x":3.2},{"x":3.19},{"x":3.66},{"x":4.07},{"x":3.12},{"x":3.78},{"x":3.94},{"x":2.45},{"x":1.39},{"x":3.28},{"x":2.84},{"x":1.47},{"x":4.25},{"x":2.72},{"x":2.58},{"x":3.06},{"x":4.12},{"x":2.92},{"x":2.37},{"x":2.97},{"x":4.46},{"x":3.92},{"x":3.54},{"x":2.56},{"x":3.14},{"x":2.95},{"x":4.3},{"x":3.03},{"x":3.03},{"x":2.88},{"x":2.92},{"x":3.95},{"x":3.56},{"x":3.6},{"x":3.41},{"x":3.09},{"x":3.29},{"x":3.62},{"x":3.64},{"x":3.1},{"x":3.45},{"x":2.62},{"x":3.07},{"x":3.32},{"x":2.51},{"x":2.49},{"x":2.38},{"x":4.14},{"x":3.9},{"x":2.23},{"x":4.21},{"x":2.96},{"x":3.21},{"x":4.43},{"x":4.03},{"x":2.92},{"x":3.5},{"x":3.71},{"x":3.13},{"x":2.41},{"x":4.28},{"x":3.75},{"x":3.21},{"x":3.85},{"x":3.84},{"x":3.31},{"x":4.28},{"x":3.84},{"x":2.98},{"x":3.75},{"x":3.6},{"x":2.52},{"x":2.07},{"x":3.52},{"x":5.25},{"x":4.68},{"x":3.89},{"x":4.27},{"x":3.1},{"x":2.73},{"x":3.63},{"x":3.72},{"x":3.04},{"x":3.3},{"x":3.15},{"x":3.24},{"x":3.78},{"x":2.99},{"x":4.11},{"x":2.17},{"x":3.04},{"x":3.06},{"x":2.84},{"x":2.24},{"x":2.28},{"x":3.19},{"x":4.07},{"x":3.98},{"x":3.33},{"x":3.96},{"x":3.96},{"x":1.9},{"x":3.05},{"x":3.36}],"geoms":["histogram"],"x":"slope"}
+
+The shape is one hump, roughly symmetric, centred close to 3.36. Most draws fall between about 2.5 and 4.5, with a few straying out past 5 on one side and down near 2 on the other.
+
+A mean and a standard deviation only describe a bell curve's centre and its width, and they assume the shape genuinely is that clean. A real posterior can be lopsided, or carry a long tail, and a point estimate alone would never tell you. Having all 5,000 draws in hand means you never have to assume the shape.
+
+You can just look at it.
+
+=== step === concept
+## Three ways to summarize one posterior: mean, median, interval
+
+That histogram can be boiled back down to numbers, and there are three standard ways practitioners do it. Compute all three directly from the 5,000 slope draws.
+
+```r
+# Summarize the slope's posterior three ways
+round(mean(b1_draws), 2)
+round(median(b1_draws), 2)
+round(quantile(b1_draws, c(0.05, 0.95)), 2)
+```
+```
+#> [1] 3.36
+#> [1] 3.34
+#>   5%  95% 
+#> 2.33 4.42 
+```
+
+The mean, 3.36, is the posterior's average value across all 5,000 draws, and it is the number closest to what least squares reported. The median, 3.34, is the value sitting exactly in the middle of the 5,000 draws when sorted, and it is almost identical to the mean here because the histogram you just saw is close to symmetric. If the posterior had a long tail on one side, mean and median would pull apart, with the mean dragged toward the tail.
+
+The third number is a range rather than a single value: 2.33 to 4.42. That range is called a 90% credible interval, and here is exactly how it was built: sort all 5,000 draws, trim away the bottom 5% and the top 5%, and what remains in the middle, 2.33 to 4.42, is the interval.
+
+=== step === quiz
+## Quick check: what a credible interval actually means
+
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- Given this data and this prior, there is a 90% probability that the slope's true value lies between 2.33 and 4.42. ::ok Exactly. A credible interval is a direct probability statement about the parameter itself, given the prior and the data you actually have. That is the one thing a confidence interval can never promise, because a confidence interval's 90% describes the procedure across imaginary repeats of the study, not this one interval.
+- If you repeated this exact study many times and built an interval the same way each time, 90% of those intervals would contain the true slope. ::no That is the confidence-interval reading, built on repeated sampling, not what this credible interval claims.
+- 90% of the 24 stores have a spend-to-sales ratio that falls between 2.33 and 4.42. ::no That sentence names the 24 stores' data, not the slope parameter the interval is actually about.
+- There is at least a 90% chance that the slope is a positive number. ::no A credible interval is a probability statement about where the parameter itself lies, not a one-sided claim about its sign and not a description of the 24 stores in front of you. It is also not the repeated-sampling promise a confidence interval makes. Read it as written: given this data and this prior, there is a 90% chance the true slope sits between 2.33 and 4.42.
+
+=== step === concept
+## Computing a posterior probability from the draws
+
+You now have three summaries of the posterior: its mean, its median, its credible interval. But the full set of 5,000 draws can answer a sharper question than any of those three alone, not just where the slope probably sits, but how likely one specific claim about it really is.
+
+Suppose someone asks: can we be confident that every extra $1,000 of monthly ad spend buys back more than $2,000 in monthly sales? Least squares alone has no way to answer that directly, since it only hands you a point estimate and a standard error. A confidence interval cannot answer it either, since its coverage promise is about the procedure, not about this specific claim. With 5,000 posterior draws sitting in memory, you can just count.
+
+Count what share of the 5,000 draws exceed 2, directly.
+
+```r
+# Compute the posterior probability that the slope exceeds 2
+round(mean(b1_draws > 2), 3)
+```
+```
+#> [1] 0.982
+```
+
+`b1_draws > 2` turns each of the 5,000 draws into TRUE or FALSE, one for every draw above 2 and the other for every draw at or below it. `mean()` on a vector of TRUE and FALSE values gives the share that are TRUE, so 0.982 means 98.2% of the 5,000 draws sat above 2.
+
+That is a direct posterior probability: given this data and this prior, there is a 98% chance each extra $1,000 of monthly ad spend buys back more than $2,000 in monthly sales. No single least-squares number, and no confidence interval, supports a sentence shaped like that one. A confidence interval can hand you a range. It cannot hand you a probability for one specific claim about the parameter the way a full posterior can.
+
+=== step === concept
+## Why brms and rstanarm exist
+
+Writing your own Gibbs sampler is a good way to see exactly what a Bayesian regression is doing: cycling through precision-weighted updates until the draws settle into the right joint posterior. It is not how anyone fits one in practice.
+
+Two R packages do this for a living. `brms` and `rstanarm` both take a familiar model formula, let you write a prior in one line, and fit the model with Hamiltonian Monte Carlo, a sampling method built for large, complicated models where a simple Gibbs cycle like the one above would be too slow. Here is what the identical regression looks like fit with each. This is reference code only, meant to run locally, not on this page.
+
+```r-static
+# Run this locally: the same regression fit with Hamiltonian Monte Carlo
+library(brms)
+brm(sales ~ spend, data = stores,
+    prior = prior(normal(0, 100), class = "b"))
+
+library(rstanarm)
+stan_glm(sales ~ spend, data = stores,
+         prior = normal(0, 100))
+```
+
+Both calls fit the exact same model this lesson built by hand: the same equation, the same weak priors, and both would return coefficients close to the 52.45 and 3.36 this lesson's own sampler found. They are shown as reference only, not run on this page, because they need more computing power than a browser tab wants to spend on a single lesson.
+
+=== step === quiz
+## Quick check: reading the Gibbs result against least squares
+
+::quiz {"correct": 1, "gate": true, "difficulty": "intermediate"}
+- With a prior this weak and this much data, the data dominates the update, so the Bayesian point estimate lands close to the least-squares one. That is not guaranteed for every prior and every sample size. ::ok Exactly. A weak prior, spread with a standard deviation of 100 around a coefficient near 3.36, barely competes with 24 stores' worth of data, so the posterior lands almost where least squares already was. Make the prior narrow and confident instead, or shrink the data down to a handful of stores, and the two would pull apart.
+- The prior was ignored entirely in the calculation. ::no The prior still took part in every one of the three cycling updates; it was simply too weak to pull the posterior away from the data.
+- The two methods are proven to always agree, for any prior and any dataset. ::no Nothing here proves general agreement, only that this weak prior and this much data happened to agree closely.
+- The match proves the posterior probability of a positive slope is 100%. ::no The prior was not ignored, it is still part of every one of the three cycling updates; it was simply too weak, relative to 24 stores of data, to pull the posterior away from what the data alone would say. Nothing here proves the two methods always agree for any prior or dataset, either. And the posterior probability of a positive slope is not 100%: this lesson's own calculation already found a 98% probability that the slope exceeds 2, which tells you it is comfortably positive, but "comfortably positive" and "100% certain" are not the same claim.
+
+=== step === tryit
+## Your turn: compute a different posterior probability
+
+```r
+# b1_draws still holds the Gibbs sampler's 5,000 slope draws.
+# Compute the posterior probability that the slope exceeds 3:
+# the share of those 5,000 draws above 3.
+# One line. Press Check when you have it.
+```
+::check {"regex": "mean\\s*[(]\\s*b1_draws\\s*>\\s*3\\s*[)]", "gate": true, "difficulty": "beginner", "ok": "Right: about 0.72, a 72% chance each extra $1,000 of monthly spend buys back more than $3,000 in sales. That is a less certain statement than the one two steps back, because 3 sits further out in the histogram than 2 does.", "no": "Reuse the counting move from two steps back and move the bar from 2 to 3: mean(b1_draws > 3)."}
+::solution
+```r
+# Compute the posterior probability that the slope exceeds 3
+mean(b1_draws > 3)
+#> [1] 0.717
+```
+
+=== step === concept
+## References
+
+- [Regression and Other Stories](https://avehtari.github.io/ROS-Examples/) - Gelman, Hill and Vehtari (2020), Cambridge University Press. The regression chapters this lesson's Bayesian fit follows most closely.
+- Gelman, A., Carlin, J.B., Stern, H.S., et al. (2013). *Bayesian Data Analysis*, 3rd ed. CRC Press. The standard reference for the priors and the Gibbs sampler built here.
+- [Explaining the Gibbs Sampler](https://doi.org/10.1080/00031305.1992.10475878) - Casella and George (1992), The American Statistician 46(3), 167-174. A clear derivation of the cycling update this lesson built by hand.
+- [brms: An R Package for Bayesian Multilevel Models Using Stan](https://doi.org/10.18637/jss.v080.i01) - Burkner (2017), Journal of Statistical Software 80(1). The package behind the first reference call in this lesson's last code block.
+- [rstanarm package documentation](https://mc-stan.org/rstanarm/) - Goodrich, Gabry, Ali and Brilleman. The second reference call's package.
+
+=== step === complete
+## A Bayesian workflow you can now run yourself
+
+Let's put together everything this lesson built, starting from a least-squares fit you already knew how to run.
+
+- A full posterior for each coefficient, not just one number and one standard error. The slope's posterior was a whole histogram of 5,000 plausible values, not a single point.
+- A credible interval that supports a sentence a confidence interval cannot: a 90% probability, given the data and the prior, that the true slope sits in that range.
+- A posterior probability that answers one specific question directly: a 98% chance that each extra $1,000 of monthly spend buys back more than $2,000 in monthly sales.
+- A one-line path to the same result at scale, through `brms` or `rstanarm`, for when a hand-written Gibbs sampler would be too slow or too limited to use.
+
+None of this changed what the regression says about spend and sales. The coefficients landed almost exactly where least squares put them, because the prior was weak and the data did the talking. What changed is how much you now know about the uncertainty around those numbers, and what you can honestly say about them.
