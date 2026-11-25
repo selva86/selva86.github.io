@@ -1,0 +1,356 @@
+---
+title: "Causal Inference from Data Lesson 6: Instrumental variables when you cannot randomize"
+description: "A store's naive regression says higher prices sell more, the wrong sign. A wholesale cost shock, untouched by demand, recovers the real, negative effect."
+keywords: "instrumental variables, two-stage least squares, 2SLS, Wald estimator, weak instrument, first-stage F statistic, exclusion restriction, exogeneity, endogeneity, R"
+mathjax: false
+webr: true
+curriculum_id: "4.130.6"
+post_type: "LESSON"
+course_id: "res-causal"
+course_title: "Causal Inference from Data"
+course_lesson: "6"
+course_total: "8"
+course_landing: "Causal-Inference-from-Data-Course.html"
+course_next: "Regression-Discontinuity-and-Synthetic-Control"
+course_prev: "Difference-in-Differences-and-Its-One-Assumption"
+lesson_access: "pro"
+catalog_blurb: "How a wholesale cost shock recovers price's real effect when demand confounds it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Instrumental variables when you cannot randomize</h2>
+
+<p>Today let's look at what to do when you cannot randomize the thing whose effect you want to measure, and the usual regression hands you an answer that is clearly wrong.</p>
+
+<p>Riverside Mart is a convenience chain. Across 300 separate store-weeks, it recorded the shelf price of its signature snack bar and how many units sold that week.</p>
+
+<p>Here is that scatter, price against units sold, across all 300 store-weeks.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":5.01,"y":110.9},{"x":2.67,"y":88.7},{"x":5.94,"y":97.0},{"x":2.6,"y":83.0},{"x":5.83,"y":103.6},{"x":4.72,"y":90.3},{"x":4.49,"y":94.9},{"x":5.75,"y":93.7},{"x":6.56,"y":116.6},{"x":4.34,"y":98.1},{"x":2.83,"y":97.8},{"x":3.61,"y":93.1},{"x":5.84,"y":91.6},{"x":3.87,"y":111.7},{"x":7.11,"y":103.1},{"x":7.41,"y":103.2},{"x":6.58,"y":92.2},{"x":7.1,"y":112.2},{"x":4.55,"y":97.9},{"x":6.47,"y":110.6},{"x":7.3,"y":99.6},{"x":6.49,"y":114.3},{"x":4.38,"y":106.3},{"x":5.94,"y":104.0},{"x":1.66,"y":80.4},{"x":1.7,"y":102.3},{"x":5.8,"y":102.4},{"x":4.69,"y":109.5},{"x":3.44,"y":83.7},{"x":6.81,"y":91.5}],"geoms":["point"],"x":"price","y":"units"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Price and units rise together, which is backwards. Raise a price and ordinary demand says sales should fall, not climb with it. Something else is driving both of them at once.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why raising the price seems to raise sales (it does not)</h2>
+
+<p>Fit the obvious regression first: units sold against price, across all 300 store-weeks.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build 300 store-weeks of price and units sold, then fit the naive regression
+set.seed(21)
+n &lt;- 300
+demand &lt;- rnorm(n)
+cost_shock &lt;- rnorm(n)
+price &lt;- 5 + 1.5 * demand + 1.0 * cost_shock + rnorm(n, 0, 0.3)
+units &lt;- 120 - 4 * price + 14 * demand + rnorm(n, 0, 5)
+store_weeks &lt;- data.frame(demand, cost_shock, price, units)
+
+naive_fit &lt;- lm(units ~ price, data = store_weeks)
+coef(naive_fit)
+#&gt; (Intercept)       price 
+#&gt;   86.878588    2.407932 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coefficient on price is 2.41. Read literally, that says every extra dollar on the snack bar's shelf price brings in about 2.4 more units sold a week. That is not just a weak effect, it is the wrong direction entirely.</p>
+
+<p>store_weeks was built by simulation, so the real effect of price on units is known and fixed in advance: minus 4 units per dollar. Raising the price should cost the store sales, not gain them, yet the regression says the opposite.</p>
+
+<p>The reason is a variable the regression never sees: demand, the store manager's own weekly read of how strong local appetite for the snack bar is running. In a strong-demand week, the manager raises the price because customers will pay it, and that same strong demand also pushes units sold up on its own. Price and units move together for a reason that has nothing to do with price's real effect, which is why the naive regression reads the relationship backwards.</p>
+
+<p>demand's own true effect on units is fixed at plus 14 units per unit of demand strength, built into the simulation the same way price's effect was. It is that effect the naive regression is mistaking for price's.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>What a variable needs to do to break the confound</h2>
+
+<p>To see price's real effect, you need a variable that moves price without moving with demand. Call it cost_shock: a weekly change in what the supplier charges for the snack bar, driven by the supplier's own logistics costs, not by how much any one store's customers want to buy that week.</p>
+
+<p>Compare how cost_shock relates to price against how it relates to demand.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare cost_shock's correlation with price against its correlation with demand
+cor(cost_shock, price)
+#&gt; [1] 0.4975494
+cor(cost_shock, demand)
+#&gt; [1] -0.1075294</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>cost_shock correlates with price at about 0.50, clearly nonzero. It correlates with demand at about minus 0.11, close enough to zero that the two are, for practical purposes, unrelated. So cost_shock moves price for reasons that have nothing to do with demand.</p>
+
+<p>That matters because of what it lets you do. Whatever movement in price traces back to cost_shock cannot also trace back to demand, so looking only at the slice of price that cost_shock explains lets you read off price's effect on units without demand getting mixed into the answer. That is the whole idea behind an instrumental variable, and cost_shock is a candidate for one.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>The three conditions an instrument must satisfy</h2>
+
+<p>A variable does not get to call itself an instrument just because it looks useful. It has to satisfy three conditions.</p>
+
+<ol>
+
+<li>Relevance. The instrument has to actually move the treatment. For cost_shock, this means cost_shock must move price, and you can confirm it directly: fit price on cost_shock and check that the slope is clearly nonzero.</li>
+
+<li>Exogeneity. The instrument has to be unrelated to the confounder. For cost_shock, this means it must be unrelated to demand. You cannot confirm this from the data; you can only argue for it, and the argument here is that cost_shock arises from the supplier's own logistics costs, not from how any one store's customers are feeling that week.</li>
+
+<li>The exclusion restriction. The instrument has to reach the outcome only by moving the treatment, through no other channel. For cost_shock, this means it can change units only by first changing price. If a cost shock also triggered something like a supplier dispute that changed how the snack bar gets marketed, cost_shock would be touching units through a second channel, and the exclusion restriction would fail.</li>
+
+</ol>
+
+<p>Of the three, exclusion carries the most risk. Relevance you can check in the data. Exogeneity and exclusion you can only argue, and a violation of either one leaves no trace in the data for you to catch. That is what makes an instrument a case you build, not a number you compute.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Fitting the first stage by hand</h2>
+
+<p>The first of the three conditions, relevance, is the one you can actually fit by hand.</p>
+
+<p>Drag the line below until it minimizes the squared gaps between it and these 10 (cost_shock, price) pairs from Riverside Mart's own 300 store-weeks.</p>
+<div class="lesson-widget" data-widget-type="ols-fit" data-widget-config='{"points":[{"x":-3.475,"y":0.221},{"x":-2.94,"y":5.532},{"x":-1.229,"y":4.801},{"x":-0.69,"y":7.142},{"x":-0.248,"y":8.969},{"x":-0.226,"y":4.726},{"x":0.042,"y":5.382},{"x":0.248,"y":4.592},{"x":0.374,"y":4.834},{"x":0.797,"y":7.359}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The slope you land on should come out close to 1, the true slope between cost_shock and price built into the simulation. The fitted value at each point, the height of your line above that point's cost_shock, is the part of that week's price that cost_shock explains: the exogenous slice stage two of the estimate needs.</p>
+
+<p>This same regression is also the full answer to relevance. A slope that is clearly nonzero is the direct confirmation that cost_shock moves price. But fitting it tells you nothing about the other two conditions, since exogeneity and the exclusion restriction are claims about demand and about units, not about this regression at all.</p>
+
+<p>::quiz {"correct": 3, "gate": true, "difficulty": "intermediate"}</p>
+
+<ul>
+
+<li>Yes, a large enough sample would confirm both. ::no</li>
+
+<li>Yes, once the residuals look patternless. ::no</li>
+
+<li>No. Those are claims about where cost_shock comes from and how it reaches units, not something this regression, or any regression run on this data, can test. ::ok Exactly right. Relevance is a claim about this regression, and the regression settles it. Exogeneity and the exclusion restriction are claims about the world cost_shock came from, and no regression run on this data can settle those.</li>
+
+<li>Yes, once R-squared is high enough. ::no A high R-squared, patternless residuals, or a bigger sample all say more about how precisely this one regression's own slope is estimated. None of them is evidence about where cost_shock comes from or whether it reaches units through some route other than price, which is what exogeneity and the exclusion restriction actually claim.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Two-stage least squares, computed by hand</h2>
+
+<p>Fit the first stage properly now, the same regression you fit by hand with the slider, but on all 300 store-weeks, and use its fitted values to fit a second regression.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Two-stage least squares: fit price on cost_shock, then units on that fitted price
+stage1 &lt;- lm(price ~ cost_shock, data = store_weeks)
+summary(stage1)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = price ~ cost_shock, data = store_weeks)
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -4.3119 -0.9501  0.0647  0.9525  4.1170 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)  5.05869    0.08749  57.822   &lt;2e-16 ***
+#&gt; cost_shock   0.83207    0.08403   9.902   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 1.505 on 298 degrees of freedom
+#&gt; Multiple R-squared:  0.2476,	Adjusted R-squared:  0.245 
+#&gt; F-statistic: 98.04 on 1 and 298 DF,  p-value: &lt; 2.2e-16
+
+price_hat &lt;- fitted(stage1)
+stage2 &lt;- lm(units ~ price_hat)
+summary(stage2)
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = units ~ price_hat)
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -24.055  -5.699  -0.036   6.846  24.653 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) 126.7119     3.3624  37.685  &lt; 2e-16 ***
+#&gt; price_hat    -5.3105     0.6427  -8.263 4.71e-15 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 9.575 on 298 degrees of freedom
+#&gt; Multiple R-squared:  0.1864,	Adjusted R-squared:  0.1837 
+#&gt; F-statistic: 68.28 on 1 and 298 DF,  p-value: 4.706e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>stage1 is the first stage: price regressed on cost_shock, giving a slope of 0.83 on all 300 store-weeks. That sits in the same neighborhood as the slope you fit by hand with the slider, and both sit close to the first stage's true value of 1. price_hat, its fitted values, is the cost_shock-driven part of each week's price, with the demand-driven part stripped away.</p>
+
+<p>stage2 regresses units on price_hat alone, and its coefficient is minus 5.31. That is firmly negative, and it lands far closer to the true effect of minus 4 than the naive regression's plus 2.41 ever did. No estimate from 300 store-weeks lands exactly on the true number, the same way no regression coefficient ever lands exactly on the truth from a finite sample, but this one is on the right side of zero and in the right neighborhood, which the naive regression from two steps back was not.</p>
+
+<p>Two ordinary regressions, run in sequence, is the entirety of two-stage least squares. Nothing about stage2 knows demand exists, because price_hat only carries the part of price that cost_shock moved, and cost_shock was argued to be unrelated to demand.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>The Wald ratio and the first-stage F</h2>
+
+<p>There is a second way to reach the exact same number stage2 just gave you, one that skips fitting any regression at all.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># The Wald ratio: the same IV estimate as a single division
+cov(cost_shock, units) / cov(cost_shock, price)
+#&gt; [1] -5.310484
+
+# The first-stage F: the diagnostic for that ratio's denominator
+summary(lm(price ~ cost_shock, data = store_weeks))$fstatistic
+#&gt;     value     numdf     dendf 
+#&gt;  98.04246   1.00000 298.00000 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>cov(cost_shock, units) divided by cov(cost_shock, price) comes out to minus 5.310484, matching stage2's coefficient to six decimal places. This is called the Wald ratio, and it is not an approximation of the two-stage estimate. It is the same number, reached by a single division instead of two regressions.</p>
+
+<p>Look at what sits in that ratio's denominator: cov(cost_shock, price), the same covariance the first stage's slope is built from. If cost_shock barely moved price, that covariance would be tiny, and dividing by something tiny lets ordinary sampling noise in the numerator swing the whole ratio wildly. The first-stage F statistic, printed above, is the diagnostic for exactly that denominator. Here it reads 98.04, comfortably above the common rule of thumb that an instrument needs an F greater than 10 before its estimate can be trusted.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>Watching a weak instrument break</h2>
+
+<p>The widget below runs its own simulation, not Riverside Mart's, so you can toggle between a strong and a weak instrument yourself.</p>
+
+<p>Read its instrument as standing in for cost_shock, its treatment for price, and its outcome for units.</p>
+<div class="lesson-widget" data-widget-type="iv-2stage" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Press Run on the code beneath the plot and it returns naive_ols at 3.16 against a true effect of 2.00, pulled upward by the same confounding bias that threw off Riverside Mart's own naive regression, and iv_2sls at 1.85, much closer to that true 2.00.</p>
+
+<p>Now use the toggle above the plot. Under strong instrument, the IV line settles close to the true effect and the first-stage F reads in the hundreds. Switch to weak instrument and the IV line swings away from the true effect, while the first-stage F drops below 10, the same threshold you just read about.</p>
+
+<p>A weaker instrument does not fail quietly. It keeps handing back a number, just one you can no longer trust.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>What to do when the first-stage F comes up small</h2>
+
+<p>A first-stage F below 10 is not a problem to explain away. It is the data telling you the instrument you have is too weak to carry the analysis.</p>
+
+<p>When that happens, you have three honest options.</p>
+
+<ol>
+
+<li>Report the estimate as unreliable, rather than publishing it as if the first-stage weakness were not there.</li>
+
+<li>Look for a stronger instrument, one with a clearly larger first-stage F.</li>
+
+<li>Fall back to an ordinary confounder analysis, accepting its own assumptions in place of an instrument that cannot do the job.</li>
+
+</ol>
+
+<p>A large first-stage F does not rescue the other two conditions either. It only raises your confidence in relevance. Exogeneity and the exclusion restriction still rest on how convincingly you argued where the instrument came from, no matter how strong the first stage reads.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Closing check: reading a weak instrument</h2>
+
+<p>A second candidate instrument, tried on a different dataset, produces a first-stage F of about 2 when its treatment is regressed on it. What does that number say about the resulting IV estimate?</p>
+<section class="exercise" data-exercise-id="Instrumental-Variables-When-You-Cannot-Randomize-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It needs a bigger sample before the estimate can be trusted.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The instrument barely moves the treatment, so the estimate's denominator is tiny and the number is unreliable even if it looks plausible.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The estimate carrying a small p-value on its own makes it trustworthy regardless.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">It signals a problem with the exclusion restriction instead.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. An F near 2 is far below the rule-of-thumb threshold of 10. This instrument barely shifts the treatment, so the Wald ratio divides by almost nothing, and the resulting estimate can swing wildly even though it still prints a number.</div><div class="lesson-qfb lesson-qfb-no">An F near 2 is a relevance problem: this instrument barely moves the treatment. It says nothing about exogeneity or the exclusion restriction, which no F statistic ever tests, and nothing about needing more rows either, since a weak instrument stays weak no matter how large the sample grows.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: run the two-stage estimate yourself</h2>
+
+<p>Riverside Mart ran the same kind of week again at a later date, a second batch of 300 store-weeks from the same chain.</p>
+
+<p>Fill in the two-stage estimate yourself, then check the first-stage F before trusting it.</p>
+<section class="exercise" data-exercise-id="Instrumental-Variables-When-You-Cannot-Randomize-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="lm[(]\s*price\s*~\s*cost_shock[\s\S]*fitted[(][\s\S]*lm[(]\s*units\s*~[\s\S]*fstatistic"><textarea class="lesson-tryit-input" spellcheck="false"># A second batch of 300 store-weeks from the same chain, same variables.
+# demand, cost_shock, price and units are ready below.
+set.seed(22)
+demand &lt;- rnorm(n)
+cost_shock &lt;- rnorm(n)
+price &lt;- 5 + 1.5 * demand + 1.0 * cost_shock + rnorm(n, 0, 0.3)
+units &lt;- 120 - 4 * price + 14 * demand + rnorm(n, 0, 5)
+
+# Stage one: regress price on cost_shock and call it stage1.
+# Stage two: take fitted(stage1) as price_hat, then regress units on
+# price_hat and call it stage2. Print coef(stage2).
+# Then print summary(lm(price ~ cost_shock))$fstatistic and check it
+# against the F greater than 10 rule.
+# Five lines. Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: an estimate near -3.25, firmly negative and much closer to the true -4 than a naive regression would give, backed by a first-stage F of about 136, comfortably clear of the rule-of-thumb 10.</span><span class="lesson-tryit-fb lesson-tryit-no">Regress price on cost_shock first and call the result stage1, then fitted(stage1) as price_hat, then regress units on price_hat and call it stage2. Finish with summary(lm(price ~ cost_shock))$fstatistic.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Stage one: regress price on cost_shock, then keep the fitted values
+stage1 &lt;- lm(price ~ cost_shock)
+price_hat &lt;- fitted(stage1)
+
+# Stage two: regress units on the stage-one fitted values
+stage2 &lt;- lm(units ~ price_hat)
+coef(stage2)
+#&gt; (Intercept)   price_hat 
+#&gt;  115.273253   -3.249489 
+
+# The first-stage F: comfortably above the rule-of-thumb threshold of 10
+summary(lm(price ~ cost_shock))$fstatistic
+#&gt;   value   numdf   dendf 
+#&gt; 136.349   1.000 298.000 </code></pre></details></div>
+</section>
+<p>The two-stage estimate here is minus 3.25, even closer to the true minus 4 than the first batch's minus 5.31, and the first-stage F of 136 says this instrument is comfortably strong enough in this batch to trust that number.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://press.princeton.edu/books/paperback/9780691120355/mostly-harmless-econometrics">Mostly Harmless Econometrics: An Empiricist's Companion</a> - Angrist, J.D. and Pischke, J-S. (2009), Princeton University Press. The standard applied reference for instrumental variables and two-stage least squares.</li>
+
+<li><a href="https://doi.org/10.3386/t0136">Identification of Causal Effects Using Instrumental Variables</a> - Angrist, J.D., Imbens, G.W., and Rubin, D.B. (1996), Journal of the American Statistical Association, 91(434), 444-455. The paper that formalizes the three conditions an instrument must satisfy.</li>
+
+<li><a href="https://doi.org/10.3386/t0284">Testing for Weak Instruments in Linear IV Regression</a> - Stock, J.H. and Yogo, M. (2005), in Identification and Inference for Econometric Models, Cambridge University Press, pp. 80-108. The source of the first-stage F greater than 10 rule of thumb.</li>
+
+<li><a href="https://econpapers.repec.org/RePEc:mtp:titles:0262232588">Econometric Analysis of Cross Section and Panel Data</a> - Wooldridge, J.M. (2010), MIT Press. Covers two-stage least squares and the weak-instrument problem in full.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What you can do now</h2>
+
+<p>You can now spot when a regression's coefficient is carrying someone else's effect instead of the one you asked for, the way Riverside Mart's naive regression carried demand's effect on price.</p>
+
+<p>You can build a two-stage least squares estimate out of two ordinary regressions: fit the treatment on an instrument, then fit the outcome on the first regression's fitted values.</p>
+
+<p>And you can read a first-stage F and judge whether the resulting estimate is one to trust, or one a weak instrument has left unstable.</p>
+
+<p>Two other designs build a comparison from structure instead of from an instrument. Regression discontinuity uses a threshold rule, and synthetic control builds a weighted stand-in for the unit that never received the treatment.</p>
+</section>
+
+{% endraw %}
