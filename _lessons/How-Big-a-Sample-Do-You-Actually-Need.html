@@ -1,0 +1,739 @@
+---
+title: "Experimental Design and A/B Testing Lesson 5: How big a sample do you actually need"
+description: "A sleep study sweeps candidate sample sizes until simulated power hits 80%, then the same sweep sizes a clustered trial that no closed formula solves."
+keywords: "sample size, power analysis, power.t.test, power.prop.test, effect size, pilot study bias, intraclass correlation, clustered design, simulation-based power, statistical power"
+mathjax: false
+webr: true
+curriculum_id: "4.120.5"
+post_type: "LESSON"
+course_id: "res-design"
+course_title: "Experimental Design and A/B Testing"
+course_lesson: "5"
+course_total: "8"
+course_landing: "Experimental-Design-and-A-B-Testing-Course.html"
+course_next: ""
+course_prev: "Power-Analysis-by-Simulation-Not-Formula"
+lesson_access: "pro"
+catalog_blurb: "How to simulate your way to the smallest sample size that reaches 80% power."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>How big a sample do you actually need</h2>
+
+<p>Today let's work out how many people a study actually needs, before it ever collects a single row of data.</p>
+
+<p>Here's the question we'll use throughout. A sleep lab wants to test whether a digital wind-down routine, a dimming screen plus a short breathing animation before bed, helps people fall asleep faster than no intervention at all. A wearable tracker records how many minutes each person takes to fall asleep.</p>
+
+<p>Checking whether a planned study has a fair shot at catching a real effect means simulating the study thousands of times and counting how often it comes back significant. That share is the study's power.</p>
+
+<p>Today we turn that around. Instead of fixing the sample size and asking what power it buys you, we fix the power we want, usually 0.80, and ask how big the sample needs to be to get there.</p>
+
+<p>Here's the shape of that answer, before we plug in this study's own numbers.</p>
+<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switch between small, medium and large effects and watch the curve shift, and the sample size marked for 80% power move with it.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Turning the power simulation around: fix power, solve for n</h2>
+
+<p>Here's the idea in one line. Instead of fixing a sample size and asking how much power it buys, fix the power you want and search for the smallest sample size that reaches it.</p>
+
+<p>The search itself reuses the simulate-and-count loop: pick a candidate sample size n, simulate the sleep study at that n many times, run the exact test the real study will use, and record the share of simulated repeats that came back significant. That share is the estimated power at that n. Repeat this for a whole grid of candidate n values, and read off the smallest one whose power clears the target.</p>
+
+<p>Let's try it on the sleep study itself. The clinician's own numbers are: a population standard deviation of 25 minutes in sleep-onset latency, and a smallest worthwhile improvement of 10 minutes, the gap the study actually cares about catching. Sweep candidate sample sizes per group from 10 up to 200, in steps of 10.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Turn the power simulation around: sweep a grid of sample sizes and estimate power at each one
+set.seed(1)
+mwd &lt;- 10      # smallest worthwhile difference in minutes
+sd_total &lt;- 25 # population standard deviation in minutes
+alpha &lt;- 0.05
+n_grid &lt;- seq(10, 200, by = 10)
+power_at_n &lt;- sapply(n_grid, function(n) {
+  rejected &lt;- replicate(2000, {
+    treatment &lt;- rnorm(n, mean = mwd, sd = sd_total)
+    control &lt;- rnorm(n, mean = 0, sd = sd_total)
+    t.test(treatment, control)$p.value &lt; alpha
+  })
+  mean(rejected)
+})
+data.frame(n = n_grid, power = round(power_at_n, 3))
+#&gt;      n power
+#&gt; 1   10 0.133
+#&gt; 2   20 0.222
+#&gt; 3   30 0.340
+#&gt; 4   40 0.430
+#&gt; 5   50 0.506
+#&gt; 6   60 0.582
+#&gt; 7   70 0.650
+#&gt; 8   80 0.717
+#&gt; 9   90 0.760
+#&gt; 10 100 0.796
+#&gt; 11 110 0.840
+#&gt; 12 120 0.869
+#&gt; 13 130 0.892
+#&gt; 14 140 0.919
+#&gt; 15 150 0.940
+#&gt; 16 160 0.941
+#&gt; 17 170 0.954
+#&gt; 18 180 0.964
+#&gt; 19 190 0.976
+#&gt; 20 200 0.980</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row of <code>treatment</code> and <code>control</code> is one simulated repeat of the sleep study at that n, built with the true 10-minute effect baked in by construction. <code>t.test()</code> runs the exact comparison the real study would run, and <code>replicate(2000, ...)</code> does that 2000 times per n, so <code>mean(rejected)</code> is the share of repeats that came back significant, the estimated power.</p>
+
+<p>Reading down the table, power is still at 0.796 at n = 100 per group, just short of 0.80, and crosses it at n = 110, where it reaches 0.840. So on this grid, 110 per group looks like the answer.</p>
+
+<p>But is 110 really the right number, or is that just this grid's resolution showing through, since it only checked every 10th value? A finer sweep next pins it down exactly, and checks it against a formula built for exactly this case.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<h2>Design 1: how many people the sleep study needs</h2>
+
+<p>Before zooming in, place the sleep study on the general picture the cover widget already showed. A standardized effect size, often written as Cohen's d, is just the effect divided by the standard deviation it's measured against. Here that's 10 divided by 25, d = 0.4, which sits between the widget's small (d = 0.2) and medium (d = 0.5) bands, a little closer to medium.</p>
+<div class="lesson-widget" data-widget-type="power-curve" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That widget uses its own fixed small, medium and large effects, so it never shows the sleep study's own numbers directly. Those come from the sweep below instead.</p>
+
+<p>Sweep a finer grid centred on where the answer should sit, and check the result against the exact formula R provides for a two-sample comparison of means, <code>power.t.test()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pin down the exact n per group the sleep study needs for 80% power, and check it against the formula
+set.seed(2)
+mwd &lt;- 10
+sd_total &lt;- 25
+alpha &lt;- 0.05
+n_grid &lt;- seq(80, 160, by = 5)
+power_at_n &lt;- sapply(n_grid, function(n) {
+  rejected &lt;- replicate(3000, {
+    treatment &lt;- rnorm(n, mean = mwd, sd = sd_total)
+    control &lt;- rnorm(n, mean = 0, sd = sd_total)
+    t.test(treatment, control)$p.value &lt; alpha
+  })
+  mean(rejected)
+})
+data.frame(n = n_grid, power = round(power_at_n, 3))
+#&gt;      n power
+#&gt; 1   80 0.714
+#&gt; 2   85 0.728
+#&gt; 3   90 0.757
+#&gt; 4   95 0.792
+#&gt; 5  100 0.805
+#&gt; 6  105 0.822
+#&gt; 7  110 0.826
+#&gt; 8  115 0.859
+#&gt; 9  120 0.864
+#&gt; 10 125 0.878
+#&gt; 11 130 0.900
+#&gt; 12 135 0.906
+#&gt; 13 140 0.911
+#&gt; 14 145 0.931
+#&gt; 15 150 0.936
+#&gt; 16 155 0.941
+#&gt; 17 160 0.946
+
+n_needed &lt;- n_grid[min(which(power_at_n &gt;= 0.80))]
+n_needed
+#&gt; [1] 100
+
+power.t.test(delta = mwd, sd = sd_total, sig.level = alpha, power = 0.80)
+#&gt; 
+#&gt;      Two-sample t test power calculation 
+#&gt; 
+#&gt;               n = 99.08057
+#&gt;           delta = 10
+#&gt;              sd = 25
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt; 
+#&gt; NOTE: n is number in *each* group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The finer sweep settles the question the coarse one left open: the smallest n per group whose simulated power clears 0.80 is 100, not 110. The formula agrees almost exactly. <code>power.t.test()</code> takes the same three inputs the simulation used, <code>delta</code> for the assumed effect, <code>sd</code> for the population spread, and <code>sig.level</code> for alpha, and solves directly for the n that gives the requested <code>power</code>. It returns 99.08057, which rounds up to 100 people per group, 200 in total.</p>
+
+<p>So the sleep study needs 200 people, 100 per arm, to have an 80% chance of catching a real 10-minute improvement. Simulation and formula land in the same place, which is why a design this simple can skip the sweep and go straight to the formula.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Reading the power curve's flat right-hand end</h2>
+
+<p>Now push that same sweep much further, out to 400 per group, and see what happens once the curve is already past the target.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Extend the sweep from step 3 out to n = 400 and watch what happens once power is already high
+set.seed(3)
+mwd &lt;- 10
+sd_total &lt;- 25
+alpha &lt;- 0.05
+n_grid &lt;- seq(20, 400, by = 20)
+power_at_n &lt;- sapply(n_grid, function(n) {
+  rejected &lt;- replicate(2000, {
+    treatment &lt;- rnorm(n, mean = mwd, sd = sd_total)
+    control &lt;- rnorm(n, mean = 0, sd = sd_total)
+    t.test(treatment, control)$p.value &lt; alpha
+  })
+  mean(rejected)
+})
+
+plot(n_grid, power_at_n, type = &quot;b&quot;, pch = 16,
+     xlab = &quot;sample size per group&quot;, ylab = &quot;estimated power&quot;,
+     main = &quot;Power climbs steeply, then flattens&quot;)
+abline(h = 0.80, lty = 2, col = &quot;firebrick&quot;)
+abline(v = 100, lty = 2, col = &quot;firebrick&quot;)
+
+data.frame(n = n_grid, power = round(power_at_n, 3))
+#&gt;      n power
+#&gt; 1   20 0.226
+#&gt; 2   40 0.440
+#&gt; 3   60 0.575
+#&gt; 4   80 0.708
+#&gt; 5  100 0.809
+#&gt; 6  120 0.856
+#&gt; 7  140 0.916
+#&gt; 8  160 0.946
+#&gt; 9  180 0.968
+#&gt; 10 200 0.975
+#&gt; 11 220 0.986
+#&gt; 12 240 0.996
+#&gt; 13 260 0.992
+#&gt; 14 280 0.999
+#&gt; 15 300 0.998
+#&gt; 16 320 1.000
+#&gt; 17 340 1.000
+#&gt; 18 360 1.000
+#&gt; 19 380 1.000
+#&gt; 20 400 1.000
+
+cat(&quot;gain from n=100 to n=200:&quot;, round(power_at_n[n_grid == 200] - power_at_n[n_grid == 100], 3), &quot;\n&quot;)
+cat(&quot;gain from n=200 to n=400:&quot;, round(power_at_n[n_grid == 400] - power_at_n[n_grid == 200], 3), &quot;\n&quot;)
+#&gt; gain from n=100 to n=200: 0.165 
+#&gt; gain from n=200 to n=400: 0.025 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at what the same amount of extra recruiting buys at different points on the curve. Going from n = 100 to n = 200 adds 100 more people per group and lifts power by 0.165. Going from n = 200 to n = 400 adds twice as many extra people, 200 per group, and lifts power by only 0.025, a sixth of the earlier gain.</p>
+
+<p>That is the curve's flat right-hand end, and it has a plain explanation. Once a study already has a strong chance of catching the effect, there is not much room left for more subjects to improve on, since power is bounded above by 1. Near the target n, by contrast, a handful of extra subjects can move power a lot, which is exactly the steep part the earlier sweep walked through on the way to 100.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Reading the flat tail honestly cuts both ways. It is not a sign the study was sized wrong, and it is not a reason to keep recruiting past the point the sweep already reached. It is a reason to stop once you are there, since every subject past it buys less than the one before.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Design 2: the same sweep on a yes or no outcome</h2>
+
+<p>So far the outcome has been a number, minutes to fall asleep. Real studies often care about a yes or no outcome instead. Here, call someone a responder if they fall asleep within 20 minutes of lights out. Without the routine, 35% of people respond. The clinician's smallest worthwhile lift is to 50%.</p>
+
+<p>That changes the outcome from a mean to a proportion, and the test from <code>t.test()</code> to <code>prop.test()</code>. But the sweep-for-n procedure is identical: simulate, test, count, repeat across a grid of n. Let's run it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the identical sweep on a two-proportion comparison: responders within 20 minutes of lights out
+set.seed(4)
+p1 &lt;- 0.35
+p2 &lt;- 0.50
+alpha &lt;- 0.05
+n_grid &lt;- seq(130, 220, by = 5)
+power_at_n &lt;- sapply(n_grid, function(n) {
+  rejected &lt;- replicate(3000, {
+    x1 &lt;- rbinom(1, n, p1)
+    x2 &lt;- rbinom(1, n, p2)
+    prop.test(c(x1, x2), c(n, n), correct = FALSE)$p.value &lt; alpha
+  })
+  mean(rejected)
+})
+data.frame(n = n_grid, power = round(power_at_n, 3))
+#&gt;      n power
+#&gt; 1  130 0.707
+#&gt; 2  135 0.711
+#&gt; 3  140 0.723
+#&gt; 4  145 0.729
+#&gt; 5  150 0.765
+#&gt; 6  155 0.742
+#&gt; 7  160 0.784
+#&gt; 8  165 0.798
+#&gt; 9  170 0.810
+#&gt; 10 175 0.803
+#&gt; 11 180 0.810
+#&gt; 12 185 0.829
+#&gt; 13 190 0.848
+#&gt; 14 195 0.851
+#&gt; 15 200 0.863
+#&gt; 16 205 0.866
+#&gt; 17 210 0.887
+#&gt; 18 215 0.880
+#&gt; 19 220 0.891
+
+n_needed &lt;- n_grid[min(which(power_at_n &gt;= 0.80))]
+n_needed
+#&gt; [1] 170
+
+power.prop.test(p1 = p1, p2 = p2, sig.level = alpha, power = 0.80)
+#&gt; 
+#&gt;      Two-sample comparison of proportions power calculation 
+#&gt; 
+#&gt;               n = 169.3114
+#&gt;              p1 = 0.35
+#&gt;              p2 = 0.5
+#&gt;       sig.level = 0.05
+#&gt;           power = 0.8
+#&gt;     alternative = two.sided
+#&gt; 
+#&gt; NOTE: n is number in *each* group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rbinom(1, n, p1)</code> draws how many of n simulated responders fall asleep within 20 minutes, under the assumed rate <code>p1</code>, and the same for <code>p2</code>. <code>prop.test()</code> then compares the two counts exactly the way the real study would.</p>
+
+<p>One detail matters here: <code>prop.test()</code> applies a small continuity correction by default, which <code>power.prop.test()</code>'s own formula does not assume. Setting <code>correct = FALSE</code> puts the simulation and the formula on the same footing.</p>
+
+<p>With that, the two methods agree closely again. The sweep finds the smallest n per group clearing 0.80 power at 170, and <code>power.prop.test()</code>'s formula returns 169.3114, rounding up to the same 170. The sleep study would need 170 people per group, 340 in total, to reliably catch a lift from 35% to 50%. The method works the same whether the outcome is a number or a yes or no: fix the power, sweep n, read off the answer.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>The effect size you power for is a judgment, not a guess</h2>
+
+<p>Every calculation so far leaned on one number: the 10-minute smallest worthwhile difference. Where does a number like that actually come from?</p>
+
+<p>It is not an estimate of the true, unknown effect. It is the clinician's judgment of the smallest improvement that would actually change practice, the line below which a real effect would still not be worth adopting the routine for. That choice matters enormously, because the required sample size is extremely sensitive to it. Sweep the same formula across a few candidate worthwhile differences and see.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># See how the required n changes as the target effect size shrinks or grows
+sd_total &lt;- 25
+alpha &lt;- 0.05
+deltas &lt;- c(5, 10, 15, 20)
+n_per_delta &lt;- sapply(deltas, function(d) ceiling(power.t.test(delta = d, sd = sd_total, sig.level = alpha, power = 0.80)$n))
+data.frame(delta = deltas, n_per_group = n_per_delta)
+#&gt;   delta n_per_group
+#&gt; 1     5         394
+#&gt; 2    10         100
+#&gt; 3    15          45
+#&gt; 4    20          26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Halving the target difference from 10 minutes to 5 minutes does not double the required sample. It very nearly quadruples it, from 100 to 394 per group. That follows from how power scales: it depends on the sample size times the effect squared, so a target half as big needs roughly four times as many people to stay equally detectable.</p>
+
+<p>This is why the effect size cannot be picked casually. Set it too small, chasing a difference so modest it would barely matter in practice, and the required sample balloons into something the study may never be able to recruit. Set it at the size that genuinely matters, as the clinician did at 10 minutes, and the sample size stays answerable.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Why a pilot study's effect size is too good to trust</h2>
+
+<p>After that, a tempting shortcut suggests itself. Choosing an effect size by judgment feels uncomfortable, so why not just run a small pilot study first and power the real study on whatever effect the pilot happens to observe?</p>
+
+<p>Here is why that shortcut is dangerous. Simulate 1000 pilot studies, each with just 15 patients per arm, drawn from the same population where the true effect really is 10 minutes with a standard deviation of 25.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 1000 pilot studies (n = 15 per arm) and compare all observed effects to the significant-only ones
+set.seed(7)
+sd_total &lt;- 25
+true_effect &lt;- 10
+alpha &lt;- 0.05
+n_pilot &lt;- 15
+pilots &lt;- replicate(1000, {
+  treatment &lt;- rnorm(n_pilot, mean = true_effect, sd = sd_total)
+  control &lt;- rnorm(n_pilot, mean = 0, sd = sd_total)
+  test &lt;- t.test(treatment, control)
+  c(effect = mean(treatment) - mean(control), p = test$p.value)
+})
+pilots &lt;- as.data.frame(t(pilots))
+significant &lt;- pilots[pilots$p &lt; alpha, ]
+
+cat(&quot;mean observed effect, all 1000 pilots:&quot;, round(mean(pilots$effect), 1), &quot;minutes\n&quot;)
+cat(&quot;pilots that reached significance:&quot;, nrow(significant), &quot;out of 1000\n&quot;)
+cat(&quot;mean observed effect, significant-only pilots:&quot;, round(mean(significant$effect), 1), &quot;minutes\n&quot;)
+#&gt; mean observed effect, all 1000 pilots: 9.9 minutes
+#&gt; pilots that reached significance: 179 out of 1000
+#&gt; mean observed effect, significant-only pilots: 22.3 minutes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across all 1000 simulated pilots, the average observed effect is 9.9 minutes, honestly close to the true 10. But with only 15 per arm, a 10-minute effect is hard to catch reliably, so only 179 of the 1000 pilots, about 18%, reached statistical significance at all.</p>
+
+<p>That 18% is where the trouble starts. Among only the pilots that happened to reach significance, the average observed effect is 22.3 minutes, more than double the truth. A researcher who ran one pilot, saw it come back non-significant, and quietly reran or shelved it, would systematically end up keeping one of these lucky, inflated ones.</p>
+
+<p>Feed each of those two numbers, the honest 10 and the pilot's inflated 22.3, into <code>power.t.test()</code> and see what each one recommends for the main study.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Feed the honest effect and the pilot's inflated effect into power.t.test and compare the n each one demands
+set.seed(7)
+sd_total &lt;- 25
+true_effect &lt;- 10
+alpha &lt;- 0.05
+n_pilot &lt;- 15
+pilots &lt;- replicate(1000, {
+  treatment &lt;- rnorm(n_pilot, mean = true_effect, sd = sd_total)
+  control &lt;- rnorm(n_pilot, mean = 0, sd = sd_total)
+  test &lt;- t.test(treatment, control)
+  c(effect = mean(treatment) - mean(control), p = test$p.value)
+})
+pilots &lt;- as.data.frame(t(pilots))
+significant &lt;- pilots[pilots$p &lt; alpha, ]
+inflated_effect &lt;- mean(significant$effect)
+
+n_honest &lt;- ceiling(power.t.test(delta = true_effect, sd = sd_total, sig.level = alpha, power = 0.80)$n)
+n_from_pilot &lt;- ceiling(power.t.test(delta = inflated_effect, sd = sd_total, sig.level = alpha, power = 0.80)$n)
+cat(&quot;n per arm, powered on the true 10-minute effect:&quot;, n_honest, &quot;\n&quot;)
+cat(&quot;n per arm, powered on the pilot's inflated effect of&quot;, round(inflated_effect, 1), &quot;minutes:&quot;, n_from_pilot, &quot;\n&quot;)
+#&gt; n per arm, powered on the true 10-minute effect: 100 
+#&gt; n per arm, powered on the pilot's inflated effect of 22.3 minutes: 21 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Powering on the honest 10-minute effect demands 100 per arm, the same answer this lesson already found. Powering on the pilot's own, lucky 22.3-minute effect demands only 21 per arm, about a fifth as many.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A study enrolled at 21 per arm against a true 10-minute effect would run at roughly the power this lesson's own early sweep showed near that sample size, nowhere close to 0.80. It would look correctly sized on paper and be badly underpowered in practice. A pilot's job is to check feasibility, not to supply the effect size the real study gets powered on.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<h2>Quick check: pilot studies and power</h2>
+
+<p>A pilot study of 15 patients per arm comes back significant, with an observed effect of 22 minutes. Why is it risky to power the main study on that 22-minute number?</p>
+<section class="exercise" data-exercise-id="How-Big-a-Sample-Do-You-Actually-Need-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Pilot studies are unbiased, since their data is just as real as any other study's data.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A 22-minute effect is impossible, since the clinician already set the smallest worthwhile difference at 10 minutes.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The 22-minute average was kept only because this pilot happened to reach significance; that selection step pulls the kept effect above the truth, whatever the pilot's size.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">The real problem is that 15 per arm is too small a pilot; a bigger pilot's own observed effect would be safe to power on.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A tiny pilot has low power against the true 10-minute effect, so it only clears the significance bar on the draws that got lucky. Selecting on significance keeps those lucky, inflated draws and discards the modest or negative ones, which is why powering on the pilot's 22.3 recommended 21 per arm instead of the honest 100.</div><div class="lesson-qfb lesson-qfb-no">A bigger pilot shrinks the noise in any one estimate, but it does not remove the bias from keeping only the pilots that happened to look significant. That selection step, not the pilot's raw size, is what inflates the kept average. The safe fix is to power on a judged effect size, never on a pilot's own observed number.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Design 3: a clustered design has no formula, so you simulate</h2>
+
+<p>The sleep study's own clinic network changes the picture again. Instead of one pool of patients, recruitment runs through 8 clinics of unequal size: 35, 20, 33, 17, 26, 30, 25 and 28 patients, 214 in total.</p>
+
+<p>Patients seen at the same clinic tend to resemble each other a little, through shared staff, scheduling and local population, beyond what you would expect from pure chance. The share of the total variance in sleep-onset latency that sits between clinics, rather than between patients within the same clinic, is called the intraclass correlation, or ICC. Here it works out to 0.10: 10% of the total variance in latency comes from which clinic a patient happens to be at.</p>
+
+<p>Because of that shared clinic effect, this study randomizes whole clinics, not individual patients: 4 clinics get the wind-down routine, 4 continue as usual. Every patient at a clinic inherits that clinic's own random shift, so the comparison carries far less independent information than the same headcount of individually randomized patients would. With clinics this unequal in size, there is no simple textbook formula for the power this buys, which is exactly when simulation earns its keep.</p>
+
+<p>Build it directly: simulate each clinic's own random shift, add patient-level noise on top, run the comparison on clinic averages, since clinics are what actually got randomized, and sweep the total number of patients.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate the clustered design: 8 unequal-sized clinics, cluster-randomized, then sweep total n
+set.seed(9)
+clinic_sizes &lt;- sample(15:35, 8)   # the study's 8 clinics, unequal sizes
+clinic_sizes
+#&gt; [1] 35 20 33 17 26 30 25 28
+shares &lt;- clinic_sizes / sum(clinic_sizes)
+arm &lt;- rep(c(&quot;control&quot;, &quot;intervention&quot;), 4)   # 4 clinics per arm
+
+mwd &lt;- 10
+alpha &lt;- 0.05
+patient_sd &lt;- sqrt(0.90 * 25^2)   # patient-level noise, holding 90% of the total variance
+icc &lt;- 0.10
+clinic_sd &lt;- sqrt(icc / (1 - icc)) * patient_sd   # between-clinic noise that gives this ICC
+
+power_clustered &lt;- function(total_n, reps = 3000) {
+  clinic_n &lt;- pmax(2, round(total_n * shares))
+  rejected &lt;- replicate(reps, {
+    clinic_mean &lt;- rnorm(8, mean = ifelse(arm == &quot;intervention&quot;, mwd, 0), sd = clinic_sd) +
+                   rnorm(8, mean = 0, sd = patient_sd / sqrt(clinic_n))
+    t.test(clinic_mean[arm == &quot;control&quot;], clinic_mean[arm == &quot;intervention&quot;])$p.value &lt; alpha
+  })
+  mean(rejected)
+}
+power_naive &lt;- function(total_n) power.t.test(n = total_n / 2, delta = mwd, sd = 25, sig.level = alpha)$power
+
+n_grid &lt;- seq(40, 400, by = 40)
+data.frame(
+  total_n = n_grid,
+  clustered = round(sapply(n_grid, power_clustered), 3),
+  naive = round(sapply(n_grid, power_naive), 3)
+)
+#&gt;    total_n clustered naive
+#&gt; 1       40     0.128 0.234
+#&gt; 2       80     0.154 0.423
+#&gt; 3      120     0.211 0.584
+#&gt; 4      160     0.211 0.710
+#&gt; 5      200     0.210 0.804
+#&gt; 6      240     0.221 0.870
+#&gt; 7      280     0.231 0.915
+#&gt; 8      320     0.237 0.946
+#&gt; 9      360     0.241 0.966
+#&gt; 10     400     0.239 0.979</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each simulated clinic mean is the clinic's own random shift plus the average noise of however many patients it holds, and the test runs on the 4 control clinic means against the 4 intervention clinic means, the actual randomized unit. Look at total_n = 200, exactly the number the naive, unclustered calculation from Design 1 said was enough for 80% power. The naive column confirms it, 0.804. But the clustered column, which actually accounts for the clinics, sits at only 0.210, barely a quarter of the way to the target. Pushing all the way to 400 total patients barely helps either, 0.239, still nowhere close.</p>
+
+<p>Here's both curves on the same picture.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":40,"y":0.128,"fill":"clustered"},{"x":80,"y":0.154,"fill":"clustered"},{"x":120,"y":0.211,"fill":"clustered"},{"x":160,"y":0.211,"fill":"clustered"},{"x":200,"y":0.21,"fill":"clustered"},{"x":240,"y":0.221,"fill":"clustered"},{"x":280,"y":0.231,"fill":"clustered"},{"x":320,"y":0.237,"fill":"clustered"},{"x":360,"y":0.241,"fill":"clustered"},{"x":400,"y":0.239,"fill":"clustered"},{"x":40,"y":0.234,"fill":"naive"},{"x":80,"y":0.423,"fill":"naive"},{"x":120,"y":0.584,"fill":"naive"},{"x":160,"y":0.71,"fill":"naive"},{"x":200,"y":0.804,"fill":"naive"},{"x":240,"y":0.87,"fill":"naive"},{"x":280,"y":0.915,"fill":"naive"},{"x":320,"y":0.946,"fill":"naive"},{"x":360,"y":0.966,"fill":"naive"},{"x":400,"y":0.979,"fill":"naive"}],"geoms":["line","point"],"x":"n","y":"power","code":{"line":"ggplot(df, aes(n, power, color = group)) +\n  geom_line(linewidth = 1) +\n  geom_point() +\n  geom_hline(yintercept = 0.80, linetype = 2)","point":"ggplot(df, aes(n, power, color = group)) +\n  geom_point(size = 2) +\n  geom_hline(yintercept = 0.80, linetype = 2)"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The naive curve climbs cleanly past 0.80 right on schedule. The clustered curve sits far below it across the whole range and is nearly flat past 120. Adding more patients to the same 8 clinics does not fix that gap, because the part of the noise that matters most here comes from having only 4 independent clinics per arm, not from how many patients sit inside them.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>Design changes that buy more power than a bigger n</h2>
+
+<p>That leaves an obvious question. If adding patients to the same 8 clinics barely moves the clustered curve, what would actually help?</p>
+
+<p>Compare two ways to spend the same recruiting budget. One keeps the 8 clinics fixed and adds more patients to each, the curve already built in the last step. Rebuild it here first.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Sweep power with the same 8 clinics fixed, adding more patients to each
+set.seed(9)
+clinic_sizes &lt;- sample(15:35, 8)
+shares &lt;- clinic_sizes / sum(clinic_sizes)
+arm &lt;- rep(c(&quot;control&quot;, &quot;intervention&quot;), 4)
+mwd &lt;- 10
+alpha &lt;- 0.05
+patient_sd &lt;- sqrt(0.90 * 25^2)
+icc &lt;- 0.10
+clinic_sd &lt;- sqrt(icc / (1 - icc)) * patient_sd
+
+power_more_patients &lt;- function(total_n, reps = 3000) {
+  clinic_n &lt;- pmax(2, round(total_n * shares))
+  rejected &lt;- replicate(reps, {
+    clinic_mean &lt;- rnorm(8, mean = ifelse(arm == &quot;intervention&quot;, mwd, 0), sd = clinic_sd) +
+                   rnorm(8, mean = 0, sd = patient_sd / sqrt(clinic_n))
+    t.test(clinic_mean[arm == &quot;control&quot;], clinic_mean[arm == &quot;intervention&quot;])$p.value &lt; alpha
+  })
+  mean(rejected)
+}
+
+n_grid &lt;- seq(40, 400, by = 40)
+more_patients &lt;- sapply(n_grid, power_more_patients)
+round(more_patients, 3)
+#&gt;  [1] 0.128 0.154 0.211 0.211 0.210 0.221 0.231 0.237 0.241 0.239</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now keep patients per clinic fixed near this study's own average of 27, and add more clinics instead, holding the total patient budget the same.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Now hold patients per clinic near this study's own average, and sweep the number of clinics instead
+patients_per_clinic_fixed &lt;- 27   # close to this study's own average clinic size
+power_more_clinics &lt;- function(total_n, reps = 3000) {
+  k &lt;- max(4, round(total_n / patients_per_clinic_fixed / 2) * 2)   # total clinics, kept even
+  arm_k &lt;- rep(c(&quot;control&quot;, &quot;intervention&quot;), k / 2)
+  rejected &lt;- replicate(reps, {
+    clinic_mean &lt;- rnorm(k, mean = ifelse(arm_k == &quot;intervention&quot;, mwd, 0), sd = clinic_sd) +
+                   rnorm(k, mean = 0, sd = patient_sd / sqrt(patients_per_clinic_fixed))
+    t.test(clinic_mean[arm_k == &quot;control&quot;], clinic_mean[arm_k == &quot;intervention&quot;])$p.value &lt; alpha
+  })
+  mean(rejected)
+}
+
+set.seed(10)
+more_clinics &lt;- sapply(n_grid, power_more_clinics)
+clinics_used &lt;- sapply(n_grid, function(n) max(4, round(n / patients_per_clinic_fixed / 2) * 2))
+
+data.frame(
+  total_n = n_grid,
+  clinics_if_more_clinics = clinics_used,
+  more_patients_8_clinics = round(more_patients, 3),
+  more_clinics_27_each = round(more_clinics, 3)
+)
+#&gt;    total_n clinics_if_more_clinics more_patients_8_clinics more_clinics_27_each
+#&gt; 1       40                       4                   0.128                0.052
+#&gt; 2       80                       4                   0.154                0.052
+#&gt; 3      120                       4                   0.211                0.045
+#&gt; 4      160                       6                   0.211                0.136
+#&gt; 5      200                       8                   0.210                0.221
+#&gt; 6      240                       8                   0.221                0.221
+#&gt; 7      280                      10                   0.231                0.314
+#&gt; 8      320                      12                   0.237                0.386
+#&gt; 9      360                      14                   0.241                0.462
+#&gt; 10     400                      14                   0.239                0.458</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 400 total patients, keeping the same 8 clinics and adding more patients to each leaves power at 0.239. Spreading that same 400 patients across 14 clinics instead, about 27 per clinic, reaches 0.458, nearly double.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">A new clinic contributes a fresh, independent draw of the between-clinic noise. Another patient at a clinic already in the study mostly re-samples noise that clinic has already contributed. Since the clustered design's bottleneck lives in that between-clinic noise, spending the recruiting budget on new clinics attacks it directly, while spending it on existing clinics does not. For a clustered study, the number of independent clusters is usually the lever that moves power the most, not the total headcount.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="quiz" data-gate="1">
+<h2>Closing quiz: putting the sample-size machinery together</h2>
+
+<p>Looking back across the two-mean sweep, the two-proportion sweep, the flat power curve, and the clustered design with no formula, which statement is correct?</p>
+<section class="exercise" data-exercise-id="How-Big-a-Sample-Do-You-Actually-Need-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Once a method agrees with a closed-form formula in the simple case, as the two-mean sweep did, it is safe to assume a similar formula exists for every harder case, including clustered designs.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A power curve that goes flat near 1, as this lesson's own curve did past n = 200, means the original effect size assumption must have been wrong.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The sweep-and-count method does not depend on which test statistic is used or whether a closed-form formula exists; the same loop found 100 per arm for means, 170 per arm for proportions, and the honest, low power of a design with too few clinics.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Powering a study on a small pilot's own observed effect is safe as long as the pilot's result was statistically significant.</span></button>
+<button type="button" class="lesson-opt" data-i="5"><span class="lesson-opt-mk">E</span><span class="lesson-opt-tx">Adding one more patient to an existing clinic buys roughly as much power as adding one whole new clinic, since both add one more observation to the total.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The method, simulate at a candidate n, test, count, repeat across a grid, worked unchanged across every design in this lesson, with or without a matching formula.</div><div class="lesson-qfb lesson-qfb-no">Each of these shortcuts failed somewhere in this lesson. A flat curve is not a sign of a wrong assumption, a formula does not always exist, a significant pilot's effect is still inflated by the very act of selecting on significance, and an extra clinic buys far more power than an extra patient at a clinic already in the study. What worked every time instead was simulating the actual design and reading the result plainly.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="tryit" data-gate="1">
+<h2>Your turn: size a study by simulation</h2>
+
+<p>Suppose the clinic network turns out noisier between clinics than first assumed: an intraclass correlation of 0.20 instead of 0.10, with the same 8 clinics and the same patient-level noise. Edit the <code>icc</code> value below from 0.10 to 0.20 and run it again to see what happens to the clustered power across the same total-patient grid.</p>
+<section class="exercise" data-exercise-id="How-Big-a-Sample-Do-You-Actually-Need-step12" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*icc\s*&lt;-\s*0\.2)(?=[\s\S]*total_n)"><textarea class="lesson-tryit-input" spellcheck="false"># Re-run the clustered sweep from before, but change the intraclass correlation to 0.20
+set.seed(9)
+clinic_sizes &lt;- sample(15:35, 8)               # same 8 clinics, same sizes as before
+shares &lt;- clinic_sizes / sum(clinic_sizes)
+arm &lt;- rep(c(&quot;control&quot;, &quot;intervention&quot;), 4)    # clinic count stays at 8, 4 per arm
+
+mwd &lt;- 10
+alpha &lt;- 0.05
+patient_sd &lt;- sqrt(0.90 * 25^2)                # patient-level noise, unchanged from before
+icc &lt;- 0.10                                    # &lt;-- change this to 0.20 and run again
+clinic_sd &lt;- sqrt(icc / (1 - icc)) * patient_sd
+
+power_clustered &lt;- function(total_n, reps = 3000) {
+  clinic_n &lt;- pmax(2, round(total_n * shares))
+  rejected &lt;- replicate(reps, {
+    clinic_mean &lt;- rnorm(8, mean = ifelse(arm == &quot;intervention&quot;, mwd, 0), sd = clinic_sd) +
+                   rnorm(8, mean = 0, sd = patient_sd / sqrt(clinic_n))
+    t.test(clinic_mean[arm == &quot;control&quot;], clinic_mean[arm == &quot;intervention&quot;])$p.value &lt; alpha
+  })
+  mean(rejected)
+}
+
+n_grid &lt;- seq(40, 400, by = 40)
+data.frame(total_n = n_grid, power = round(sapply(n_grid, power_clustered), 3))</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: raising the ICC to 0.20 pulls power down further at every total_n, from a range of 0.128 to 0.241 at ICC = 0.10 to a range of 0.096 to 0.142 here. With only 8 clinics, more between-clinic noise makes an already-insufficient design worse, and no number of added patients fixes it.</span><span class="lesson-tryit-fb lesson-tryit-no">Change the icc line from 0.10 to 0.20 and keep the rest of the code, including the final data.frame(total_n = ...) line, intact.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Same clustered sweep, with icc changed from 0.10 to 0.20
+set.seed(9)
+clinic_sizes &lt;- sample(15:35, 8)
+shares &lt;- clinic_sizes / sum(clinic_sizes)
+arm &lt;- rep(c(&quot;control&quot;, &quot;intervention&quot;), 4)
+
+mwd &lt;- 10
+alpha &lt;- 0.05
+patient_sd &lt;- sqrt(0.90 * 25^2)
+icc &lt;- 0.20
+clinic_sd &lt;- sqrt(icc / (1 - icc)) * patient_sd
+
+power_clustered &lt;- function(total_n, reps = 3000) {
+  clinic_n &lt;- pmax(2, round(total_n * shares))
+  rejected &lt;- replicate(reps, {
+    clinic_mean &lt;- rnorm(8, mean = ifelse(arm == &quot;intervention&quot;, mwd, 0), sd = clinic_sd) +
+                   rnorm(8, mean = 0, sd = patient_sd / sqrt(clinic_n))
+    t.test(clinic_mean[arm == &quot;control&quot;], clinic_mean[arm == &quot;intervention&quot;])$p.value &lt; alpha
+  })
+  mean(rejected)
+}
+
+n_grid &lt;- seq(40, 400, by = 40)
+data.frame(total_n = n_grid, power = round(sapply(n_grid, power_clustered), 3))
+#&gt;    total_n power
+#&gt; 1       40 0.096
+#&gt; 2       80 0.108
+#&gt; 3      120 0.135
+#&gt; 4      160 0.133
+#&gt; 5      200 0.127
+#&gt; 6      240 0.128
+#&gt; 7      280 0.133
+#&gt; 8      320 0.141
+#&gt; 9      360 0.142
+#&gt; 10     400 0.133</code></pre></details></div>
+</section>
+<p>Press Check when you have made the edit.</p>
+
+<p>A bigger ICC means more of the total noise sits between clinics, which is exactly the part that adding patients inside each clinic cannot shrink. With only 8 clinics, the honest answer at ICC = 0.20 is not a bigger required n. It is that the same single lever found in the last step, the number of independent clinics, is still the only one that would move this number.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Sample size is a design decision, not an afterthought</h2>
+
+<p>Three designs, one shared method. Pick an effect size that reflects a real, worthwhile difference, not a guess borrowed from a small pilot. Simulate the planned study at a candidate n many times, count how often it catches the effect, and sweep that across a grid of n until the target power is reached. Read the resulting curve honestly, including its flat right-hand end. And when no closed-form formula applies, as with unequal clinics, the exact same sweep still works, since nothing about it depended on having a formula in the first place.</p>
+
+<p>The sleep study's three answers carry the whole lesson. A plain comparison of means needs 100 people per arm. The same comparison on a yes or no outcome needs 170 per arm. And run through 8 clinics instead of one pool, no number of added patients reaches the target at all, only more clinics do.</p>
+</section>
+
+<section class="lesson-step" data-step="14" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://www.routledge.com/Statistical-Power-Analysisfor-the-Behavioral-Sciences/Cohen/p/book/9780805802832">Statistical Power Analysis for the Behavioral Sciences, 2nd edition</a> - Cohen, J. (1988), Lawrence Erlbaum Associates. The standard reference for effect sizes and the n-power-alpha relationship used throughout this lesson.</li>
+
+<li><a href="https://doi.org/10.1001/archpsyc.63.5.484">Caution regarding the use of pilot studies to guide power calculations for study proposals</a> - Kraemer, H. C., Mintz, J., Noda, A., Tinklenberg, J., & Yesavage, J. A. (2006), Archives of General Psychiatry, 63(5), 484-489. The source for the pilot-effect-size warning this lesson simulates directly.</li>
+
+<li><a href="https://doi.org/10.1038/nrn3475">Power failure: why small sample size undermines the reliability of neuroscience</a> - Button, K. S., Ioannidis, J. P. A., Mokrysz, C., Nosek, B. A., Flint, J., Robinson, E. S. J., & Munafo, M. R. (2013), Nature Reviews Neuroscience, 14(5), 365-376. A field-wide look at what underpowered studies cost.</li>
+
+<li><a href="https://doi.org/10.1111/2041-210X.12306">Power analysis for generalized linear mixed models in ecology and evolution</a> - Johnson, P. C. D., Barry, S. J. E., Ferguson, H. M., & Muller, P. (2015), Methods in Ecology and Evolution, 6(2), 133-142. Simulation-based power for designs, including clustered ones, where no closed-form formula exists.</li>
+
+<li><a href="https://doi.org/10.1111/2041-210X.12504">SIMR: an R package for power analysis of generalized linear mixed models by simulation</a> - Green, P., & MacLeod, C. J. (2016), Methods in Ecology and Evolution, 7(4), 493-498. An R package built around exactly the simulate-and-sweep approach this lesson works through by hand.</li>
+
+</ul>
+</section>
+
+{% endraw %}
