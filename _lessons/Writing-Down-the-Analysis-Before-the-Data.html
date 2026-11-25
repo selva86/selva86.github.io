@@ -1,0 +1,317 @@
+---
+title: "Experimental Design and A/B Testing Lesson 8: Writing down the analysis before the data"
+description: "A 200-person reminder trial shows how four honest outcome choices on one dataset push a 5% false-positive rate to 18%, and what a pre-registration plan fixes."
+keywords: "pre-registration, garden of forking paths, researcher degrees of freedom, p-hacking, multiple comparisons, false positive rate, primary outcome, exploratory analysis, family-wise error rate, OSF preregistration"
+mathjax: false
+webr: true
+curriculum_id: "4.120.8"
+post_type: "LESSON"
+course_id: "res-design"
+course_title: "Experimental Design and A/B Testing"
+course_lesson: "8"
+course_total: "8"
+course_landing: "Experimental-Design-and-A-B-Testing-Course.html"
+course_next: ""
+course_prev: "Finding-the-Best-Settings-with-Fewer-Runs"
+lesson_access: "pro"
+catalog_blurb: "Why testing several honest outcomes can turn a 5% test into an 18% one."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Writing down the analysis before the data</h2>
+
+<p>Today let's understand why writing down your analysis plan before you see the data is what keeps a result honest.</p>
+
+<p>Here's the trial we'll use throughout. A team wants to know whether a daily 5-minute breathing-exercise reminder lowers stress. They recruit 200 people and split them into two equal groups: 100 get the reminder every day, and 100 get nothing. Everyone in the trial is measured on four things:</p>
+
+<ul>
+
+<li>Stress at week 4, a score from 0 to 10 where a higher number means more stress.</li>
+
+<li>Stress averaged across the four weekly check-ins.</li>
+
+<li>Sleep quality at week 4, the same 0 to 10 scale, but here a higher number means better sleep.</li>
+
+<li>Whether a participant's stress dropped by at least 2 points.</li>
+
+</ul>
+
+<p>Here is the answer key for this lesson, something a real research team never gets to see. The reminder changes nothing. Every one of those four outcomes is drawn from the exact same distribution whether a person got the reminder or not. So any test in this lesson that comes back significant is, by construction, a false positive.</p>
+
+<p>One sentence before the numbers: this builds the 200-person dataset and prints the two group sizes and the four outcome names, before a single test has run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build the trial's data: 200 participants, four outcomes measured on everyone
+set.seed(13)
+grp &lt;- rep(c(&quot;treat&quot;, &quot;control&quot;), each = 100)
+
+stress_w4  &lt;- c(rnorm(100, 5.0, 1.8), rnorm(100, 5.0, 1.8))  # stress at week 4, 0 to 10
+stress_avg &lt;- c(rnorm(100, 5.0, 1.5), rnorm(100, 5.0, 1.5))  # stress averaged over the 4 weekly check-ins
+sleep_w4   &lt;- c(rnorm(100, 6.0, 1.6), rnorm(100, 6.0, 1.6))  # sleep quality at week 4, 0 to 10
+improved   &lt;- c(rbinom(100, 1, 0.30), rbinom(100, 1, 0.30))  # 1 if stress dropped by 2 points or more
+
+table(grp)
+#&gt; grp
+#&gt; control   treat 
+#&gt;     100     100 
+c(&quot;stress_w4&quot;, &quot;stress_avg&quot;, &quot;sleep_w4&quot;, &quot;improved&quot;)
+#&gt; [1] &quot;stress_w4&quot;  &quot;stress_avg&quot; &quot;sleep_w4&quot;   &quot;improved&quot;  </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In this data, the reminder group is labeled "treat" and the no-reminder group "control". The fourth outcome does not come from subtracting two separate stress readings. Since nothing here is real, it is simpler to draw the 1 for improved, or 0 for not, directly, at a 30% rate in both groups.</p>
+
+<p>Two groups of 100, four outcomes, and not one result computed yet. Here's the shape of the whole lesson from here.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Test several honest outcomes","sub":"all four, on the one 200-person dataset above"},{"title":"Keep whichever clears 0.05","sub":"the real false-positive rate climbs from 5% toward 18%"},{"title":"Name one outcome in advance","sub":"a pre-registration document keeps the test at its honest 5%"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>That is the whole arc. Everything from here works through those three steps on this one trial.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The same dataset, four honest questions</h2>
+
+<p>A pre-registration document eventually commits a researcher to one outcome before the data arrive. But to see why that matters, first watch what happens without one, on this exact 200-person dataset, when all four outcomes get tested.</p>
+
+<p>Let's run a t-test on each of the three continuous outcomes, and a two-proportion test on the binary one. <code>t.test()</code> in R runs Welch's t-test by default, which compares two group means without assuming the two groups vary by the same amount. <code>prop.test()</code> does the same job, but for two shares instead of two means.</p>
+
+<p>One sentence before the code: this runs all four honest tests on the same dataset and prints the four p-values side by side.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run the honest test for each of the four outcomes, on the one dataset above
+p_stress_w4  &lt;- t.test(stress_w4[grp == &quot;treat&quot;], stress_w4[grp == &quot;control&quot;])$p.value
+p_stress_avg &lt;- t.test(stress_avg[grp == &quot;treat&quot;], stress_avg[grp == &quot;control&quot;])$p.value
+p_sleep_w4   &lt;- t.test(sleep_w4[grp == &quot;treat&quot;], sleep_w4[grp == &quot;control&quot;])$p.value
+p_improved   &lt;- prop.test(c(sum(improved[grp == &quot;treat&quot;]), sum(improved[grp == &quot;control&quot;])),
+                           c(100, 100))$p.value
+
+round(c(stress_w4 = p_stress_w4, stress_avg = p_stress_avg,
+        sleep_w4 = p_sleep_w4, improved = p_improved), 3)
+#&gt;  stress_w4 stress_avg   sleep_w4   improved 
+#&gt;       0.520      0.014      0.675      0.546 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three of the four p-values come back with nothing to report: stress at week 4, sleep quality, and the share who improved all sit well above 0.05. But stress averaged over the four weeks clears the bar, at p = 0.014.</p>
+
+<p>Remember the answer key from the step before this one. The reminder changes nothing, in every one of these four outcomes alike. So that one significant result is not a real effect. It is a false positive, produced by a dataset where, by construction, nothing is going on.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">One dataset, tested four honest ways, turned up one significant result even though nothing in it is real. That is not a one-off quirk of this particular dataset, which is exactly what gets checked next.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Why four honest tests are not the same as one</h2>
+
+<p>Each of those four tests, taken alone, is an honest 5% test. That means if you only ever ran stress at week 4, say, and repeated this whole trial over and over, a false positive would turn up on about 5% of those repeats, no more.</p>
+
+<p>But testing four outcomes on the same trial and reporting whichever one clears 0.05 is a different question. How often does at least one of the four turn up a false positive? That chance is higher, because there are four separate chances for one of them to land below 0.05 by pure luck.</p>
+
+<p>The algebra for it is simple. If each of the four tests independently has a 5% chance of a false positive, the chance that none of them does is 0.95 multiplied by itself four times, 0.95 to the 4th power. So the chance that at least one does is 1 minus that number.</p>
+
+<p>One sentence before the code: this repeats the exact four-outcome draw 5000 times, counts how often at least one p-value clears 0.05, and checks that rate against the algebra above.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Repeat the same four-outcome draw 5000 times under the fixed answer key: nothing is real
+one_trial &lt;- function() {
+  g &lt;- rep(c(&quot;treat&quot;, &quot;control&quot;), each = 100)
+  s_w4  &lt;- c(rnorm(100, 5.0, 1.8), rnorm(100, 5.0, 1.8))
+  s_avg &lt;- c(rnorm(100, 5.0, 1.5), rnorm(100, 5.0, 1.5))
+  sl_w4 &lt;- c(rnorm(100, 6.0, 1.6), rnorm(100, 6.0, 1.6))
+  imp   &lt;- c(rbinom(100, 1, 0.30), rbinom(100, 1, 0.30))
+
+  c(stress_w4 = t.test(s_w4[g == &quot;treat&quot;], s_w4[g == &quot;control&quot;])$p.value,
+    stress_avg = t.test(s_avg[g == &quot;treat&quot;], s_avg[g == &quot;control&quot;])$p.value,
+    sleep_w4 = t.test(sl_w4[g == &quot;treat&quot;], sl_w4[g == &quot;control&quot;])$p.value,
+    improved = prop.test(c(sum(imp[g == &quot;treat&quot;]), sum(imp[g == &quot;control&quot;])), c(100, 100))$p.value)
+}
+
+set.seed(2024)
+p_matrix &lt;- replicate(5000, one_trial())   # 4 rows (outcomes), 5000 columns (trials)
+
+round(rowMeans(p_matrix &lt; 0.05), 3)             # each outcome's own long-run false-positive rate
+#&gt;  stress_w4 stress_avg   sleep_w4   improved 
+#&gt;       0.050      0.052      0.054      0.036 
+round(mean(colSums(p_matrix &lt; 0.05) &gt; 0), 3)    # trials with at least one false positive
+#&gt; [1] 0.178
+round(1 - 0.95^4, 3)                             # what the algebra predicts
+#&gt; [1] 0.185</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look at the first line of output. Each outcome's own long-run rate sits close to 5%: 5.0%, 5.2%, 5.4%, 3.6%. So no single test is misbehaving. Each one is still an honest 5% test, exactly as built.</p>
+
+<p>Now look at the second and third numbers. Across the 5000 repeats, 17.8% of trials turned up at least one false positive, and the algebra predicted 18.5%. Testing four honest outcomes and keeping the best one more than tripled the trial's real false-positive rate, from 5% to about 18%, without a single one of the four tests doing anything wrong.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A false-positive rate of 5% is a promise about one test, run once. The moment you test several honest outcomes on the same data and report whichever one clears 0.05, you are no longer running that one test. You are running a different procedure, test several and keep the best, and that procedure's own false-positive rate is what just climbed to 18%.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<h2>Letting the number of honest choices grow</h2>
+
+<p>Four honest outcomes already pushed the real false-positive rate from 5% up to about 18%. What happens if a researcher had even more defensible ways to measure the same question: a different time point, a different scale, a transformed version of the outcome, each one perfectly reasonable on its own?</p>
+
+<p>The widget below runs the same kind of simulation as the step before it, but lets the number of honest choices, called k, climb well past four. Dragging k maps onto this trial's own count of defensible outcome choices: start it at k = 4 and it reproduces the 18.5% from two steps back.</p>
+<div class="lesson-widget" data-widget-type="multiplicity-sim" data-widget-config='{"kMax":30,"kStart":4,"alpha":0.05,"nStudies":4000,"corrections":["none"],"seed":11}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Drag k up toward 30. The share of studies with at least one false positive keeps climbing well past 18%, and not one of those individual tests is doing anything differently than it did back at k = 1. The only thing that changed is how many honest chances the researcher gave themselves to find something.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: trying several honest tests</h2>
+
+<p>Put a number on what just happened. Each of the four tests, on its own, ran at an honest 5%. Yet across 5000 repeats of the same trial, 17.8% turned up at least one significant result.</p>
+<section class="exercise" data-exercise-id="Writing-Down-the-Analysis-Before-the-Data-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Trying several honest outcome choices on the same data and keeping whichever one clears 0.05.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Each of the four tests must be flawed, since a valid 5% test should never give more than 5% false positives.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">This only happens because the four outcomes are correlated with each other.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. None of the four tests misbehaved on its own, each still ran at close to its honest 5%. The climb to 17.8% comes entirely from testing several of them and reporting the one that happened to clear the bar.</div><div class="lesson-qfb lesson-qfb-no">Neither of those holds up. Each outcome's own long-run rate stayed close to its honest 5%, 5.0%, 5.2%, 5.4%, 3.6%, so no single test is broken, and correlation between the outcomes was never part of the mechanism. What drives the climb is trying several honest tests and keeping the one that clears 0.05.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>What pre-registering actually buys you</h2>
+
+<p>Go back to the formula from two steps back: the chance that at least one of k honest tests clears 0.05 is 1 minus 0.95 raised to the kth power. Set k to 1, a single outcome decided before the data arrive, and that formula gives 1 minus 0.95 to the 1st power, which is exactly 0.05.</p>
+
+<p>That is the whole case for pre-registering an outcome. A researcher who commits to one outcome in advance is running the k = 1 case, the one where the honest test stays exactly as honest as it was built to be. The four-outcome trial earlier in this lesson only inflated because nobody had committed to one of the four before the data came in. Every outcome was still fair game once the numbers were there to look at.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>The six things a pre-registration document fixes</h2>
+
+<p>A pre-registration document is written and locked before a single participant is measured. For this trial, it would name six things.</p>
+
+<ul>
+
+<li>The hypothesis: the daily reminder lowers self-reported stress.</li>
+
+<li>The primary outcome: exactly one of the four from earlier, here stress at week 4.</li>
+
+<li>The exact analysis: a two-sample Welch t-test, two-sided, at alpha = 0.05.</li>
+
+<li>The exclusion rules: who gets dropped from the analysis and why, decided before anyone sees the data.</li>
+
+<li>The stopping rule: when data collection ends, here at week 4 with no interim looks.</li>
+
+<li>The reporting plan: the primary result gets reported no matter what it shows, and the other three outcomes are labeled exploratory.</li>
+
+</ul>
+
+<p>Naming the primary outcome in advance is exactly what the step before this one showed keeps the false-positive rate at its honest 5%. One sentence before the code: this re-runs the test on stress at week 4 alone, the one the document commits to, to show the real number a pre-registered plan would have to report.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Re-run the single, pre-registered test: stress at week 4, nothing else
+round(t.test(stress_w4[grp == &quot;treat&quot;], stress_w4[grp == &quot;control&quot;])$p.value, 3)
+#&gt; [1] 0.52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is not an exciting result. p = 0.52 is nowhere near 0.05, and a pre-registered plan commits the researcher to report it anyway, instead of quietly reaching for stress averaged over the four weeks, the outcome that happened to clear the bar earlier in this lesson.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>The document, written down</h2>
+
+<p>Six names on a list are easy to forget under pressure. A real pre-registration document writes each one out, in full, before data collection starts.</p>
+<div class="lesson-widget" data-widget-type="doc-structure" data-widget-config='{"blocks":[{"type":"yaml","text":"title: Daily breathing reminder trial\nhypothesis: The daily 5-minute breathing reminder lowers self-reported stress\nprimary_outcome: Stress at week 4, 0 to 10 scale\nanalysis: Two-sample Welch t-test, two-sided, alpha = 0.05\nexclusions: None planned\nstopping_rule: Stop at week 4, no interim looks\nreporting: Report the primary result regardless of significance; the other three outcomes are exploratory"},{"type":"prose","text":"## What each field closes off\n\nThe primary outcome names stress at week 4 before any data arrive, so there is only one honest test to run, not four to choose from afterward. The analysis fixes the exact test and the significance level, so nobody can swap in a friendlier test once the data are in. The exclusions and stopping rule settle who counts and when the trial ends, before either choice could be made to favor a result. The reporting field commits to publishing the primary result either way, which is what keeps a disappointing outcome from quietly going unreported."}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>This is the same source-versus-rendered view you would use for an R Markdown report, reused here to show a pre-registration document's own anatomy: the plain fields on one side, and the write-up that follows from them on the other.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>What to do when you deviate from the plan</h2>
+
+<p>Plans meet reality. Suppose that after this document is locked, the team discovers that 6 of the 200 participants were using a different version of the reminder app, something the exclusion rules never anticipated.</p>
+
+<p>The tempting move is to quietly drop those 6 people and report only the cleaner result. That is not the honest move, because it reopens exactly the kind of after-the-fact choice this whole document exists to close off.</p>
+
+<p>The honest move has three parts. Report the deviation and why it happened. Run the originally pre-registered analysis on the full sample, exactly as planned. Then report the 6-participant exclusion as a separate, clearly labeled analysis alongside it, not in place of it.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quiz: which field stops the switch</h2>
+
+<p>Suppose a researcher pre-registers this trial, and after the data come in, stress averaged over the four weeks looks a lot better than stress at week 4. Which single field of the document stops them from quietly switching to the better-looking outcome?</p>
+<section class="exercise" data-exercise-id="Writing-Down-the-Analysis-Before-the-Data-step10" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The primary outcome field, because it names stress at week 4 as the one test to run before any data are seen.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The stopping rule, because it decides when to stop collecting data.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The exclusion rule, because it decides which participants get dropped.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Naming the primary outcome in advance is what fixes the number of honest choices at one, the case where the test stays exactly as honest as it was built to be, so there is nothing left to switch to once the data arrive.</div><div class="lesson-qfb lesson-qfb-no">Both of those are real fields in the document, just doing a different job. The stopping rule decides when data collection ends, and the exclusion rule decides who counts in the analysis. Neither one says which outcome gets tested, and that is the primary outcome field's job, the one a switch from stress at week 4 to the four-week average would have to get past.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: write the pre-registered test</h2>
+
+<p>Earlier in this lesson, stress averaged over the four weeks was the outcome that happened to clear 0.05. But the document two steps back named stress at week 4 as the primary outcome, the only one the pre-registered plan commits you to test.</p>
+
+<p>The code below runs the tempting version, on stress averaged over the four weeks. Edit both blanks so it runs the trial's actual pre-registered test instead, then run it again.</p>
+<section class="exercise" data-exercise-id="Writing-Down-the-Analysis-Before-the-Data-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="t\.test[(]\s*stress_w4\x5Bgrp\s*==\s*&quot;treat&quot;\x5D\s*,\s*stress_w4\x5Bgrp\s*==\s*&quot;control&quot;\x5D\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false"># This test runs on stress_avg, but that was never the pre-registered outcome
+t.test(stress_avg[grp == &quot;treat&quot;], stress_avg[grp == &quot;control&quot;])</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. That is the single, pre-registered test on stress at week 4, the outcome named as primary two steps back. It comes back at p = 0.52, the same honest, unflattering number from earlier in this lesson, and the plan commits you to report exactly that.</span><span class="lesson-tryit-fb lesson-tryit-no">Change stress_avg to stress_w4 in both places inside the t.test() call, since stress at week 4 is the outcome named as primary, then run it again.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># The single pre-registered test: stress at week 4, the outcome named as primary earlier
+t.test(stress_w4[grp == &quot;treat&quot;], stress_w4[grp == &quot;control&quot;])</code></pre></details></div>
+</section>
+<p>Press Check when you have made the edit.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>What this trial's plan actually bought it</h2>
+
+<p>Testing four honest outcomes on one dataset and reporting the one that cleared 0.05 pushed the real false-positive rate from 5% up to 17.8%, confirmed against the algebra's 18.5%, with every one of the four tests still individually honest. Nothing about any single test broke. What changed the number was trying several of them and keeping the best.</p>
+
+<p>A pre-registration document closes that gap by fixing six things before the data arrive: the hypothesis, the primary outcome, the exact analysis, the exclusion rules, the stopping rule, and what gets reported either way. Naming the primary outcome in advance is the one piece doing the most work, since it is what keeps the number of honest choices at one, where an honest test stays honest.</p>
+
+<p>A real deviation from that plan does not get hidden. It gets reported, alongside the original, pre-registered analysis run exactly as planned.</p>
+
+<p>That is a document worth writing before your very next analysis, not only this one.</p>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li>Gelman, A. and Loken, E. (2013), "The Garden of Forking Paths," Columbia University working paper. Names and formalizes the argument this lesson's simulation makes: that a flexible analysis can inflate a false-positive rate without a single calculation being wrong.</li>
+
+<li><a href="https://doi.org/10.1177/0956797611417632">False-Positive Psychology</a> - Simmons, J.P., Nelson, L.D. and Simonsohn, U. (2011), Psychological Science, 22(11), 1359-1366. Names researcher degrees of freedom, the choices a flexible analysis leaves open, which the running example in this lesson dramatizes with real numbers.</li>
+
+<li><a href="https://doi.org/10.3389/fpsyg.2016.01832">Degrees of Freedom in Planning, Running, Analyzing, and Reporting Psychological Studies</a> - Wicherts, J.M. et al. (2016), Frontiers in Psychology, 7, 1832. A catalogued list of the choices a pre-registration document closes off, well beyond the four outcomes used here.</li>
+
+<li><a href="https://doi.org/10.1073/pnas.1708274114">The Preregistration Revolution</a> - Nosek, B.A., Ebersole, C.R., DeHaven, A.C. and Mellor, D.T. (2018), PNAS, 115(11), 2600-2606. The case for treating pre-registration as a design decision made before data collection, not a compliance form filled in afterward.</li>
+
+<li>Center for Open Science, OSF Preregistration templates, osf.io/prereg. A real, practical template that matches the six fields this lesson writes out for the reminder trial.</li>
+
+</ul>
+</section>
+
+{% endraw %}
