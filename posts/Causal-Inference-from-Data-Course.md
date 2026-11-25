@@ -69,7 +69,7 @@ An instrument defined by the three conditions it has to satisfy, with each one m
 
 Two designs that manufacture a comparison out of structure. Regression discontinuity exploits a threshold rule, with the effect read as the jump at the cutoff, the bandwidth choice shown changing the answer, and the manipulation check run on the density of the assignment variable. Synthetic control builds a weighted combination of untreated units that tracks the treated one before the intervention, with the weights printed and the pre-period fit presented as the credential that earns the post-period counterfactual.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Regression discontinuity and synthetic control](Regression-Discontinuity-and-Synthetic-Control.html)
 
 ### Lesson 8: Mediation and how wrong you can afford to be
 
