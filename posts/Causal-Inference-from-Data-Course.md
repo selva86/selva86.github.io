@@ -53,11 +53,11 @@ A reminder sent to a product's less-engaged users, which makes a direct comparis
 
 [Start Lesson 4: Matching and what it throws away](Matching-and-What-It-Throws-Away.html)
 
-### Lesson 5: Difference-in-differences and its one assumption
+### Lesson 5: Difference-in-Differences and Its One Assumption
 
 Two groups and two time periods, with the estimator built by hand as a difference of two differences, which cancels anything fixed about each group and anything common to both periods. The assumption doing all the work is named precisely: absent the treatment, the two groups would have moved in parallel. Then the check and its limits, because parallel pre-treatment trends are evidence rather than proof, and a simulated case with perfectly parallel pre-trends and non-parallel counterfactuals is shown fooling the method completely.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Difference-in-Differences and Its One Assumption](Difference-in-Differences-and-Its-One-Assumption.html)
 
 ### Lesson 6: Instrumental variables when you cannot randomize
 
