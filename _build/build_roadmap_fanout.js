@@ -21,6 +21,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const root = process.cwd();
 global.window = {};
@@ -29,8 +30,38 @@ require(path.join(root, 'www', 'roadmap-curriculum.js'));
 const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
-const CSS_V = 25;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 14;    // /www/roadmap-fanout.js  likewise
+/* roadmap-fanout.css and .js are keyed by their CONTENT, not by a number
+   somebody has to remember to raise.
+
+   They used to be `const CSS_V` and `const JS_V`, and JS_V spent nearly two
+   weeks sitting at 13 while every committed page asked for 14, because the
+   commit that changed the asset (fd2933011f) hand-bumped the pages and left
+   the constant behind. The same drift is documented at the top of
+   build_roadmap_f2.js. A hand-maintained integer is an ASSERTION about a
+   file's content; a hash is a MEASUREMENT of it, and measurements cannot
+   drift from the thing they measure.
+
+   Only these two are safe to key this way, and that was checked rather than
+   assumed. Both are referenced by exactly the 14 pages this builder writes,
+   so it owns the format end to end:
+     roadmap-fanout.js   14 pages, all in roadmap/v2
+     roadmap-fanout.css  14 pages, all in roadmap/v2
+   roadmap-role.css is NOT included: 23 pages use it and only 14 are ours, so
+   re-keying it here would split it. roadmap-nav.js is not either: 2278 pages
+   use it and it sits on the short-cache frozen list in CLAUDE.md section 9,
+   where the key is deliberately never bumped.
+
+   Newlines are normalized before hashing for the same reason build.py's
+   file_content_hash() does it: .gitattributes keeps blobs at LF while
+   core.autocrlf gives a Windows checkout CRLF, so raw bytes would produce one
+   key here and another in CI for identical content. */
+function assetKey(name) {
+  const p = path.join(root, 'www', name);
+  const b = fs.readFileSync(p).toString('binary').replace(/\r\n/g, '\n');
+  return crypto.createHash('md5').update(Buffer.from(b, 'binary')).digest('hex').slice(0, 8);
+}
+const CSS_H = assetKey('roadmap-fanout.css');
+const JS_H = assetKey('roadmap-fanout.js');
 /* Was 13 while every committed page already asked for 14: commit fd2933011f
    (2026-11-13) changed www/roadmap-fanout.js and hand-bumped the 14 pages but
    left this constant behind. Running the builder would have rewritten ?v=14
@@ -403,7 +434,7 @@ function shell(o) {
        with every var() falling back to nothing. Loaded before this page's own
        sheet so the page's rules win where the two overlap. */
     '<link rel="stylesheet" href="/www/roadmap-role.css?v=25">\n' +
-    '<link rel="stylesheet" href="/www/roadmap-fanout.css?v=' + CSS_V + '">\n' +
+    '<link rel="stylesheet" href="/www/roadmap-fanout.css?h=' + CSS_H + '">\n' +
     chrome.navcss + chrome.ga + '\n' +
     '</head>\n<body data-page="rmx" data-role="' + o.trackKey + '">\n' +
     chrome.nav + '\n' +
@@ -416,7 +447,7 @@ function shell(o) {
     /* Only the track page carries the Pro panel, and only the panel needs a
        checkout. The overview page does not get this script. */
     (o.buy ? '<script defer src="/www/checkout.js?v=2"></script>\n' : '') +
-    '<script defer src="/www/roadmap-fanout.js?v=' + JS_V + '"></script>\n' +
+    '<script defer src="/www/roadmap-fanout.js?h=' + JS_H + '"></script>\n' +
     chrome.cf + '\n' +
     '</body>\n</html>\n';
 }
@@ -642,13 +673,13 @@ fs.mkdirSync(outDir, { recursive: true });
 
    All-or-nothing on purpose: generate and check every page, then write. A
    partial write would leave the roadmap half-regressed. */
-const KEY_RE = /([a-z0-9-]+\.(?:js|css))\?v=(\d+)/g;
+const KEY_RE = /([a-z0-9-]+\.(?:js|css))\?([vh])=([0-9a-f]+)/g;
 
 function keysOf(html) {
   const out = {};
   let m;
   KEY_RE.lastIndex = 0;
-  while ((m = KEY_RE.exec(html)) !== null) out[m[1]] = Number(m[2]);
+  while ((m = KEY_RE.exec(html)) !== null) out[m[1]] = { kind: m[2], val: m[3] };
   return out;
 }
 
@@ -659,11 +690,17 @@ function regressions(file, nextHtml) {
   const next = keysOf(nextHtml);
   const bad = [];
   Object.keys(have).forEach((asset) => {
-    if (next[asset] === undefined) {
-      bad.push(file + ': ' + asset + ' would be DROPPED (page asks v=' + have[asset] + ')');
-    } else if (next[asset] < have[asset]) {
-      bad.push(file + ': ' + asset + ' would be LOWERED v=' + have[asset] +
-               ' -> v=' + next[asset]);
+    const a = have[asset], b = next[asset];
+    if (b === undefined) {
+      bad.push(file + ': ' + asset + ' would be DROPPED (page asks ' + a.kind + '=' + a.val + ')');
+      return;
+    }
+    // Only a hand-numbered ?v= can go BACKWARDS. A content ?h= changes when the
+    // file changes, which is the whole point, and a ?v= upgrading to a ?h= is a
+    // deliberate move to content keying: a new key, so a cache miss, never a
+    // stale hit. Neither is a regression.
+    if (a.kind === 'v' && b.kind === 'v' && Number(b.val) < Number(a.val)) {
+      bad.push(file + ': ' + asset + ' would be LOWERED v=' + a.val + ' -> v=' + b.val);
     }
   });
   return bad;
