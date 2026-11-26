@@ -29,11 +29,11 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 ## What the course covers
 
-### Lesson 1: Metric taxonomy: input, output, leading and lagging
+### Lesson 1: Metric Taxonomy: Input, Output, Leading, Lagging
 
 The four kinds of metric and what each is for, with one product's numbers sorted into the taxonomy and the misclassification that causes a team to optimise the wrong one.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Metric Taxonomy: Input, Output, Leading, Lagging](Metric-Taxonomy-Input-Output-Leading-Lagging.html)
 
 ### Lesson 2: The Overall Evaluation Criterion
 
