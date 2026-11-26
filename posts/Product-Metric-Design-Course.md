@@ -59,11 +59,11 @@ Three guardrails at the usual threshold false-alarm about 14% of the time, ten a
 
 [Start Lesson 5: Multiple Testing Across Metrics](Multiple-Testing-Across-Metrics.html)
 
-### Lesson 6: Proxy metrics and surrogacy
+### Lesson 6: Proxy Metrics and Surrogacy
 
 When a short-term stand-in is valid for a long-term outcome, the surrogacy conditions stated plainly, then violated so the estimate visibly breaks.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Proxy Metrics and Surrogacy](Proxy-Metrics-and-Surrogacy.html)
 
 ### Lesson 7: Metric sensitivity
 
