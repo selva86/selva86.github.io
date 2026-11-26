@@ -29,9 +29,9 @@
   function postHref(slug){ return '/' + slugHtml(slug); }
 
   // ----- tracks -----
-  var LV = ['foundations','analyst','ds','ts','researcher','developer','mleng'];
-  var SLUG = { foundations:'new-to-r', analyst:'data-analyst', ds:'data-scientist', ts:'forecaster', researcher:'researcher', developer:'r-developer', mleng:'ml-engineer' };
-  var HUE = { foundations:'var(--found)', analyst:'var(--da)', ds:'var(--ml)', ts:'var(--ts)', researcher:'var(--st)', developer:'var(--dev)', mleng:'var(--mle)' };
+  var LV = ['foundations','analyst','ds','ts','researcher','product-ds','developer','mleng'];
+  var SLUG = { foundations:'new-to-r', analyst:'data-analyst', ds:'data-scientist', ts:'forecaster', researcher:'researcher', 'product-ds':'product-data-scientist', developer:'r-developer', mleng:'ml-engineer' };
+  var HUE = { foundations:'var(--found)', analyst:'var(--da)', ds:'var(--ml)', ts:'var(--ts)', researcher:'var(--st)', 'product-ds':'var(--pds)', developer:'var(--dev)', mleng:'var(--mle)' };
   var MONO = { foundations:'R', analyst:'DA', ds:'DS', ts:'F', researcher:'RS', developer:'RD', mleng:'ML' };
   function rolePage(k){ return '/roadmap/' + SLUG[k] + '.html'; }
 

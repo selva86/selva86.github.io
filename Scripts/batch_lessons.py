@@ -208,6 +208,17 @@ def curriculum_access(slug):
         return access, ('researcher track, roadmap section %d, lesson %d; the owner rule of '
                         '2026-11-17 makes section 1 lessons 1-2 free and every later '
                         "section's lesson 1 free, everything else pro" % (section, pos))
+    if track == 'product-ds':
+        # The standard site rule (CLAUDE.md section 6), not the researcher one:
+        # section 1 is free in full, sections 2 onward are Pro, no tasters. It
+        # matches S(1, true, ...) in www/roadmap-curriculum.js, and the two must
+        # agree or the roadmap advertises a free lesson the edge then strips.
+        access = 'free' if section == 1 else 'pro'
+        return access, ('product-ds track, roadmap section %d, lesson %d; section 1 is free '
+                        'in full and every later section is pro, with no tasters' % (section, pos))
+    # A track with no rule here returns nothing, which lets the WORKER choose
+    # lesson_access. That is exactly what the owner rule forbids, so every new
+    # track needs a branch above before its first batch runs.
     return '', ''
 
 

@@ -275,6 +275,45 @@
       S(20,false,"LLM and AI evaluation",'',["Why LLM eval is hard","Building eval sets and golden datasets for LLM tasks","LLM-as-judge","Reference-based and reference-free metrics","Human eval pipelines and inter-rater reliability","Online eval and regression suites in CI","Red-teaming and adversarial evaluation"],"MLOps exercises","pipeline lab",'ai'),
       S(21,false,"AI safety, guardrails and LLMOps",'',["Guardrails","Content safety, toxicity and PII redaction","Hallucination mitigation and grounding","Prompt management","Fine-tuning and adapter ops","Semantic caching and cost/latency control for LLM apps","Monitoring LLMs in prod"],"MLOps exercises","pipeline lab",'ai'),
       S(22,false,"ML and AI system design",'',["The system-design framework","Latency, scale and cost trade-offs","Case","Case","Case","Case","Case","The ML/AI system design interview"],"MLOps exercises","pipeline lab",'capstone')
+    ],
+    /* Product Data Scientist, added 2026-11-26. Section numbers here MUST equal
+       the `section` values in Scripts/build_lessons_tracker.py and the titles
+       must match its sectionLabel verbatim, or the lesson player's breadcrumb
+       and Back button point at the wrong section.
+       Section 1 is free IN FULL and the rest are Pro; the same rule is encoded
+       in Scripts/batch_lessons.py curriculum_access() and all three must agree.
+       Lesson arcs: Plans/lessons-curriculum.md, the pds-* courses. */
+    'product-ds': [
+      S(1, true, 'Product sense and metric diagnosis', 'Answer the open-ended questions a product interview and a product team both ask.',
+        ['Framing an ambiguous product question','Metric drop diagnosis','Funnel decomposition','Cohort analysis and mix shift','Opportunity sizing'],
+        'Product sense exercises', 'funnel decomposer'),
+      S(2, false, 'Metric design', 'Choose a metric that can carry the decision, and a guardrail that protects it.',
+        ['Metric taxonomy','The Overall Evaluation Criterion','Guardrail metrics','Goodhart law and metric gaming','Multiple testing across metrics','Proxy metrics and surrogacy','Metric sensitivity','Ratio metrics and the delta method'],
+        'Metric design exercises', 'metric sensitivity calculator'),
+      S(3, false, 'Experiment design', 'Size and specify a test that answers the question it was built for.',
+        ['An A/B test end to end','Randomisation units','Type I, type II and power','Power analysis by simulation','Minimum detectable effect','Ramping and staged rollout','Pre-registration and the analysis plan'],
+        'Experiment design exercises', 'power simulator'),
+      S(4, false, 'Experiment trustworthiness', 'Tell a real result from a broken one before you act on it.',
+        ['The A/A test','Sample ratio mismatch','Twyman law','Internal and external validity','Simpson paradox','Peeking and alpha inflation'],
+        'Trustworthiness exercises', 'A/A simulator'),
+      S(5, false, 'Experiment sensitivity', 'Get a trustworthy answer from less traffic, or sooner.',
+        ['Variance and statistical sensitivity','Triggering','Variance reduction with CUPED','CUPAC','Sequential testing and always-valid inference','A/B/n tests','Interleaving'],
+        'Sensitivity exercises', 'variance reducer'),
+      S(6, false, 'Interference and network effects', 'Run a valid test when one user affects another.',
+        ['SUTVA and no interference','Cluster randomisation','Switchback experiments','Geo experiments','Interference detection'],
+        'Interference exercises', 'switchback planner'),
+      S(7, false, 'Heterogeneous treatment effects', 'Find who an effect is for, and decide who to treat.',
+        ['Average and conditional treatment effects','Subgroup analysis and pre-specification','Uplift modelling','Causal forests and honest estimation','Multi-armed bandits','Thompson sampling'],
+        'Heterogeneity exercises', 'uplift explorer'),
+      S(8, false, 'Causal inference without randomisation', 'Estimate an effect you were never able to randomise.',
+        ['Potential outcomes','Causal diagrams, confounders and colliders','Propensity scores and IPW','Matching','Difference-in-differences','Staggered adoption','Regression discontinuity','Instrumental variables','Synthetic control','Doubly robust and double machine learning','Sensitivity analysis and placebo tests'],
+        'Causal inference exercises', 'DAG editor'),
+      S(9, false, 'Long-term effects', 'Measure what a launch does after the first week.',
+        ['Short-term and long-term effects','Novelty and primacy','Surrogate metrics and the surrogate index','Long-term holdouts','Retention curves and survival analysis','Cannibalisation'],
+        'Long-term effects exercises', 'holdout planner'),
+      S(10, false, 'Decision-making and communication', 'Turn a result into a decision, and make it believed.',
+        ['Statistical and practical significance','Decision theory and expected loss','Bayesian A/B testing','Equivalence testing','The experiment readout','Communicating to non-technical stakeholders','Experiment review and launch criteria','Institutional memory and meta-analysis','Research ethics'],
+        'Decision-making exercises', 'expected-loss calculator')
     ]
   };
 

@@ -12,8 +12,8 @@
   function fmtDate(sec){try{return new Date((sec>2e10?sec:sec*1000)).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});}catch(e){return '';}}
 
   // ---- role-page links (cert track id -> level key -> slug) ----
-  var SLUG={foundations:'new-to-r',analyst:'data-analyst',ds:'data-scientist',ts:'forecaster',researcher:'researcher',developer:'r-developer'};
-  var LV=['foundations','analyst','ds','ts','researcher','developer'];
+  var SLUG={foundations:'new-to-r',analyst:'data-analyst',ds:'data-scientist',ts:'forecaster',researcher:'researcher','product-ds':'product-data-scientist',developer:'r-developer'};
+  var LV=['foundations','analyst','ds','ts','researcher','product-ds','developer'];
   var TRACK2KEY={}; LV.forEach(function(k){var L=RM.byKey&&RM.byKey(k);if(L&&L.track)TRACK2KEY[L.track]=k;});
   function rolePageForTrack(tid){var k=TRACK2KEY[tid];return k?('/roadmap/'+SLUG[k]+'.html'):'/roadmap/';}
 
@@ -128,7 +128,7 @@
       el('ac-earned').innerHTML=items.map(function(c){
         var nm=c.track_name||c.track;
         // seal codes match _build/tracks-source.json
-        var code={'r-fundamentals':'RF','data-analyst':'DA','data-scientist':'DS','forecaster':'FC','researcher':'RS','r-developer':'RD'}[c.track]||String(nm).split(/\s+/).filter(function(w){return /^[A-Za-z]/.test(w);}).map(function(w){return w.charAt(0);}).join('').slice(0,2).toUpperCase();
+        var code={'r-fundamentals':'RF','data-analyst':'DA','data-scientist':'DS','forecaster':'FC','researcher':'RS','product-data-scientist':'PD','r-developer':'RD'}[c.track]||String(nm).split(/\s+/).filter(function(w){return /^[A-Za-z]/.test(w);}).map(function(w){return w.charAt(0);}).join('').slice(0,2).toUpperCase();
         var v=absUrl(c.verify_url||('/cert/'+c.public_id));
         var d=new Date((c.issued_at>2e10?c.issued_at:c.issued_at*1000));
         var li='https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name='+encodeURIComponent(nm)+'&organizationName='+encodeURIComponent('r-statistics.co')+'&certUrl='+encodeURIComponent(v)+'&certId='+encodeURIComponent(c.public_id||'')+(c.issued_at?('&issueYear='+d.getFullYear()+'&issueMonth='+(d.getMonth()+1)):'');

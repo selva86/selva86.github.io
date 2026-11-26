@@ -79,9 +79,12 @@ const SLUG = {
   analyst: 'data-analyst',
   ds: 'data-scientist',
   ts: 'forecaster',
+  // The KEY stays `researcher` though the track now displays as "Applied
+  // Statistician": it is in paying customers' KV scopes and in 105 URLs.
   researcher: 'researcher',
   developer: 'r-developer',
   mleng: 'ml-engineer',
+  'product-ds': 'product-data-scientist',
 };
 
 const esc = (s) => String(s == null ? '' : s)
@@ -180,8 +183,28 @@ function openingLesson(bySec) {
 /* The navbar and the script tags are lifted from the v1 page rather than
    retyped. One navbar sitewide is a project rule, and a second hand-written
    copy would drift the moment the real one changes. */
+/* The v1 page a track's chrome is lifted from. A NEW track has no v1 page
+   until somebody writes one, and build_roadmap_f2.js, which used to generate
+   them, is marked stale in CLAUDE.md section 9 and must never be run. Without
+   this guard an unguarded readFileSync throws ENOENT and takes the whole
+   roadmap build down, including the 14 pages that were fine.
+
+   Falling back is correct rather than merely convenient: the navbar, footer
+   and script set are sitewide and identical on every v1 page, which is the
+   entire reason chromeFrom lifts them instead of restating them. */
+const CHROME_FALLBACK = 'researcher';
+
 function chromeFrom(slug) {
-  const p = path.join(root, 'roadmap', slug + '.html');
+  let p = path.join(root, 'roadmap', slug + '.html');
+  if (!fs.existsSync(p)) {
+    const alt = path.join(root, 'roadmap', CHROME_FALLBACK + '.html');
+    if (!fs.existsSync(alt)) {
+      throw new Error('no v1 page for ' + slug + ' and no fallback at ' + alt);
+    }
+    console.log('  note: no roadmap/' + slug + '.html, lifting chrome from ' +
+                CHROME_FALLBACK + '.html (sitewide navbar, identical on every v1 page)');
+    p = alt;
+  }
   const h = fs.readFileSync(p, 'utf8');
   const i = h.indexOf('<nav class="nav">');
   const j = h.indexOf('</nav>', i);

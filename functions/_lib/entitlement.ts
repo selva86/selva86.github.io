@@ -96,8 +96,26 @@ export async function resolveScope(
 // specialization", so a Single Track scope ("ds", "ts", ...) covers these too.
 export const CORE_TRACKS = ["foundations", "analyst"];
 
+// A Single Track bought before a track was SPLIT still covers both halves of
+// whatever it has since become. The buyer paid for the catalog as it stood on
+// the day, and a split is our reorganisation, not their downgrade.
+//
+// 2026-11-26: the Product Data Scientist track is carved out of `ds`
+// (ds-experimentation, ds-causal, ds-causal-decisions). Without this, the
+// moment those lessons' track changes in pro-lessons.json every `ds` Single
+// Track customer silently loses them: scopeCovers("ds","product-ds") is false,
+// so the middleware strips every step after the second and the page just looks
+// like a paywall. No error, no log, no complaint until they email.
+//
+// Entries are permanent. Removing one revokes access somebody paid for.
+const SPLIT_ALIASES: Record<string, string[]> = {
+  ds: ["product-ds"],
+};
+
 // True when a scope string covers a lesson/hub's track ('any' = any Pro plan).
 export function scopeCovers(scope: string, track: string): boolean {
   if (scope === "0") return false;
-  return scope === "all" || track === "any" || scope === track || CORE_TRACKS.includes(track);
+  return scope === "all" || track === "any" || scope === track
+    || CORE_TRACKS.includes(track)
+    || (SPLIT_ALIASES[scope] || []).includes(track);
 }

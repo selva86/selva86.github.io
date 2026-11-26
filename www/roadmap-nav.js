@@ -32,9 +32,12 @@
     {id:'fc', track:'ts', name:'Forecaster', href:T+'forecaster.html', cert:'Certified R Forecaster',
      desc:'From ARIMA to deep learning, with reliable prediction intervals.', b:'pro', bl:'Pro', act:'Try Section 1 free', sf:1,
      icon:'M3 17l5-5 4 3 6-7M14 8h4v4'},
-    {id:'rs', track:'researcher', name:'Researcher', href:T+'researcher.html', cert:'Certified R Researcher',
-     desc:'Statistical tests to mixed models, Bayesian and causal inference.', b:'pro', bl:'Pro', act:'See the roadmap',
+    {id:'rs', track:'researcher', name:'Applied Statistician', href:T+'researcher.html', cert:'Certified R Statistician',
+     desc:'Statistical tests to mixed models, Bayesian inference and survival analysis.', b:'pro', bl:'Pro', act:'See the roadmap',
      icon:'M3 19h18M4 18c3 0 4-11 8-11s5 11 8 11'},
+    {id:'pd', track:'product-ds', name:'Product Data Scientist', href:T+'product-data-scientist.html', cert:'Certified R Product Data Scientist',
+     desc:'Metrics, A/B testing and causal measurement for product decisions.', b:'pro', bl:'Pro', act:'See the roadmap',
+     icon:'M4 19V9m5 10V5m5 14v-7m5 7V8'},
     {id:'rd', track:'developer', name:'R Developer', href:T+'r-developer.html', cert:'Certified R Developer',
      desc:'Packages, performance, Shiny.', b:'pro', bl:'Pro', act:'See the roadmap',
      icon:'M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM4 7.5l8 4.5 8-4.5M12 12v9'},
@@ -116,7 +119,7 @@
      the specialization with the most lessons done), resuming at the next
      unfinished lesson after the last finished one. Free accounts see free-track
      progress only (the rule the previous menu used); members see every track. */
-  var FREE = {foundations:1, analyst:1}, RANK = {foundations:0, analyst:1, ds:2, ts:2, researcher:2, developer:2};
+  var FREE = {foundations:1, analyst:1}, RANK = {foundations:0, analyst:1, ds:2, ts:2, researcher:2, 'product-ds':2, developer:2};
   var coursesP = null, state = null, signedIn = false, token = '', progRan = 0;
   function readDone(cid){ try { return (JSON.parse(localStorage.getItem('rsc-course-v1:'+cid) || 'null') || {}).completed || {}; } catch (e) { return {}; } }
   function computeProgress(isPro){

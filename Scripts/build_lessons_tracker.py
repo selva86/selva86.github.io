@@ -66,22 +66,22 @@ COURSE_ROADMAP = {
     # Researcher sections 2 and 3. `section` must equal the S(n, ...) number in
     # www/roadmap-curriculum.js and `sectionLabel` is copied from it verbatim,
     # or the player's breadcrumb and Back button point at the wrong section.
-    'res-estimation': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 2,
+    'res-estimation': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 2,
                        'sectionLabel': 'Estimation and the bootstrap'},
-    'res-inference': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 3,
+    'res-inference': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 3,
                       'sectionLabel': 'Confidence intervals and p-values'},
     # Researcher section 1. `section` must equal the S(n, ...) number in
     # www/roadmap-curriculum.js or the player's Back button deep-links to the
     # wrong section, and sectionLabel is what the breadcrumb shows, so it is
     # copied from the roadmap verbatim.
-    'res-probability': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 1,
+    'res-probability': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 1,
                         'sectionLabel': 'Probability, distributions and estimation'},
-    't-test': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
+    't-test': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 4,
                'sectionLabel': 'Hypothesis testing and test selection'},
     # Researcher section 4 holds eight roadmap items. `t-test` above covers three
     # of them and stays as it is; this course covers the other five, so both rows
     # carry the same section number and the same label.
-    'res-test-selection': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
+    'res-test-selection': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 4,
                            'sectionLabel': 'Hypothesis testing and test selection'},
     # Researcher sections 5 and 6. Absence from this dict is NOT harmless: a
     # course with no row gets `roadmap: {}`, and that has two consequences, one
@@ -101,9 +101,9 @@ COURSE_ROADMAP = {
     # www/roadmap-curriculum.js, which is NOT the course title: section 5 reads
     # 'ANOVA, contrasts and multiple comparisons', not 'ANOVA and Multiple
     # Comparisons'. Add the row BEFORE the course's first lesson publishes.
-    'res-anova': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 5,
+    'res-anova': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 5,
                   'sectionLabel': 'ANOVA, contrasts and multiple comparisons'},
-    'res-linear-models': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 6,
+    'res-linear-models': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 6,
                           'sectionLabel': 'Linear regression, properly'},
     # Researcher sections 7-16, added 2026-11-19 BEFORE any of their lessons
     # exist, so the 'any' leak described above cannot happen again on this
@@ -113,26 +113,51 @@ COURSE_ROADMAP = {
     # is copied verbatim from the researcher S(n, ...) rows in
     # www/roadmap-curriculum.js. Take them from the RESEARCHER array only: other
     # tracks have their own S(7) and S(8) with different labels.
-    'res-model-strategy': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 7,
+    'res-model-strategy': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 7,
                            'sectionLabel': 'Regression modeling strategies'},
-    'res-glm': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 8,
+    'res-glm': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 8,
                 'sectionLabel': 'Generalized linear models'},
-    'res-mixed': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 9,
+    'res-mixed': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 9,
                   'sectionLabel': 'Mixed-effects and longitudinal models'},
-    'res-additive': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 10,
+    'res-additive': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 10,
                      'sectionLabel': 'Additive and nonparametric models'},
-    'res-bayes': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 11,
+    'res-bayes': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 11,
                   'sectionLabel': 'Bayesian data analysis'},
-    'res-design': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 12,
+    'res-design': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 12,
                    'sectionLabel': 'Experimental design and A/B testing'},
-    'res-causal': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 13,
+    'res-causal': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 13,
                    'sectionLabel': 'Causal inference from data'},
-    'res-survival': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 14,
+    'res-survival': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 14,
                      'sectionLabel': 'Survival and event-history analysis'},
-    'res-multivariate': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 15,
+    'res-multivariate': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 15,
                          'sectionLabel': 'Multivariate, measurement and missing data'},
-    'res-reporting': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 16,
+    'res-reporting': {'track': 'researcher', 'trackLabel': 'Applied Statistician', 'section': 16,
                       'sectionLabel': 'Meta-analysis, reproducibility and defensible reporting'},
+
+    # ---- Product Data Scientist (split out of Researcher 2026-11-26) ----
+    # `section` MUST equal the S(n, ...) number in www/roadmap-curriculum.js
+    # and sectionLabel is copied from it VERBATIM, or the lesson player's
+    # breadcrumb and Back button point at the wrong section.
+    'pds-sense': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 1,
+                  'sectionLabel': 'Product sense and metric diagnosis'},
+    'pds-metrics': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 2,
+                    'sectionLabel': 'Metric design'},
+    'pds-design': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 3,
+                   'sectionLabel': 'Experiment design'},
+    'pds-trust': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 4,
+                  'sectionLabel': 'Experiment trustworthiness'},
+    'pds-sensitivity': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 5,
+                        'sectionLabel': 'Experiment sensitivity'},
+    'pds-interference': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 6,
+                         'sectionLabel': 'Interference and network effects'},
+    'pds-heterogeneity': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 7,
+                          'sectionLabel': 'Heterogeneous treatment effects'},
+    'pds-causal': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 8,
+                   'sectionLabel': 'Causal inference without randomisation'},
+    'pds-longterm': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 9,
+                     'sectionLabel': 'Long-term effects'},
+    'pds-decision': {'track': 'product-ds', 'trackLabel': 'Product Data Scientist', 'section': 10,
+                     'sectionLabel': 'Decision-making and communication'},
     'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
                    'sectionLabel': 'The frontier (2026): LLMs and modern ML'},
     # Data Scientist track sections 1-5 (the "core" tier; section 4 sits alongside random-forest).
