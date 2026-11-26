@@ -41,11 +41,11 @@ Combining several metrics into one criterion so a test has a single answer rathe
 
 [Start Lesson 2: The Overall Evaluation Criterion](The-Overall-Evaluation-Criterion.html)
 
-### Lesson 3: Guardrail metrics
+### Lesson 3: Guardrail Metrics
 
 The metrics that block a launch even when the OEC improves. How to choose them, where to set thresholds, and why they must be fixed before the test runs.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Guardrail Metrics](Guardrail-Metrics.html)
 
 ### Lesson 4: Goodhart's law and metric gaming
 
