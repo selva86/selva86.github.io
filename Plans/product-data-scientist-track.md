@@ -86,114 +86,82 @@ nothing anywhere currently covers:
    number, what a null result is worth, and how to write a readout. This is
    the section that makes the track read as a job rather than a methods list.
 
-## 4. The curriculum: 8 sections, 55 lessons
+## 4. The curriculum
 
-Section 1 is free; sections 2 onward are Pro, per the standing gating rule.
+**Ten sections, 80 lessons.** The arc lives in ONE place:
+`Plans/lessons-curriculum.md`, the ten `pds-*` course blocks, which is what the
+factory reads. It is deliberately not restated here. Two copies of a lesson
+list drift, and this repo has already paid for that three times over (three
+causal courses, two survival courses, five names for one track).
 
-### §1 Product Metrics and Measurement (7, free) - `pds-metrics`, 3.10
+```
+ 1  Product sense and metric diagnosis   pds-sense          6   FREE
+ 2  Metric design                        pds-metrics        9
+ 3  Experiment design                    pds-design         8
+ 4  Experiment trustworthiness           pds-trust          7
+ 5  Experiment sensitivity               pds-sensitivity    8
+ 6  Interference and network effects     pds-interference   6
+ 7  Heterogeneous treatment effects      pds-heterogeneity  7
+ 8  Causal inference without randomisation  pds-causal     12
+ 9  Long-term effects                    pds-longterm       7
+10  Decision-making and communication    pds-decision      10
+```
 
-1. `What-Makes-a-Metric-Worth-Optimising` - input versus output metrics, and the difference between a number that moves and a number worth moving.
-2. `Proxy-Metrics-and-the-Surrogacy-Trap` - when a short-term stand-in is valid for the thing you actually care about, and the conditions that make it lie.
-3. `Guardrails-and-What-They-Protect` - the metrics you promise not to break, how many is too many, and the multiplicity cost of watching them all.
-4. `Can-Your-Metric-Even-Detect-the-Change` - metric sensitivity: variance, traffic and effect size decide what is detectable before the test is designed.
-5. `Ratio-Metrics-and-the-Delta-Method` - why per-user rates break naive variance, and the delta method that fixes the standard error.
-6. `Segmenting-Without-Fooling-Yourself` - Simpson's paradox on real product data, and why a segment that reverses the result is usually a mix shift.
-7. `Product-Metrics-Quiz`
+The same ten section titles appear in `www/roadmap-curriculum.js` and in
+`Scripts/build_lessons_tracker.py`, where they MUST match verbatim or the
+lesson player's breadcrumb and Back button point at the wrong section. A
+cross-check over every course row in the repo is in the verification list.
 
-### §2 Experiment Design and Power (8) - `pds-design`, 3.20
+### Why this shape, and not a methods list
 
-1. `From-a-Product-Question-to-a-Testable-Hypothesis` - turning "does the new onboarding work" into a comparison with a unit, a metric and a decision rule.
-2. `Choosing-the-Randomisation-Unit` - user, session, device or cluster, and what each choice costs in variance and validity.
-3. `Power-for-an-Online-Test-by-Simulation` - simulate the design you will actually run, including the ratio metric and the variance reduction.
-4. `Setting-a-Minimum-Detectable-Effect` - the MDE is a product decision before it is a statistical one.
-5. `Sample-Ratio-Mismatch-and-Why-the-Result-Is-Unusable` - the cheapest check in experimentation, what a failed SRM means, and why the result is then unusable.
-6. `Writing-the-Analysis-Down-Before-the-Data` - pre-registration for product teams, and the degrees of freedom it closes.
-7. `Reading-an-Experiment-Readout` - what to look at, in what order, and the four things that should stop you.
-8. `Experiment-Design-Quiz`
+An earlier draft was organised by method, the way a statistics catalogue is.
+Research into the role said that was wrong in two specific ways.
 
-### §3 Sequential Testing, Variance Reduction and Interference (7) - `pds-pitfalls`, 3.30
+**Trust, not technique, is most of the job.** Of the 23 chapters in Kohavi,
+Tang and Xu, the majority concern why a result you already have is wrong. The
+methods-first draft was missing the A/A test, triggering, Twyman's law,
+ramping, the OEC and research ethics entirely. Sections 2, 3, 4 and 5 are now
+the trust and sensitivity spine.
 
-1. `Peeking-and-What-It-Does-to-Your-Error-Rate` - simulate the inflation, so the number is yours rather than a warning you half-remember.
-2. `Sequential-Testing-and-Always-Valid-Inference` - the fix for peeking rather than the prohibition: always-valid p-values and confidence sequences.
-3. `Variance-Reduction-with-CUPED` - use pre-period data to cut variance, and what it does and does not buy.
-4. `Novelty-and-Primacy-Effects` - when the first week lies in both directions, and how to tell which you have.
-5. `When-Treatment-Leaks-Between-Users` - marketplaces, social graphs and shared inventory break SUTVA, with the bias shown rather than asserted.
-6. `Cluster-and-Switchback-Designs` - the two standard answers to interference, and the variance price each one charges.
-7. `Experiment-Pitfalls-Quiz`
+**Product sense is the top rejection reason.** Interview guides for several
+large employers name failure to connect analysis to business impact, define
+relevant metrics, or approach a product problem strategically as the most
+common cause of a no-hire, and separately report that candidates over-prepare
+SQL at the expense of open-ended experiment and metric design. The
+methods-first draft had nothing on diagnosing a metric drop, funnels, cohorts
+or opportunity sizing. That is now section 1, and it is the free one.
 
-### §4 Heterogeneous Effects, Uplift and Bandits (7) - `pds-targeting`, 3.40
+### Build order
 
-1. `The-Average-Effect-Hides-Everyone` - a null average concealing a real win for one group and a real loss for another.
-2. `Pre-Specified-Subgroups-and-Fishing` - the difference between a hypothesis and a search, demonstrated by searching.
-3. `Uplift-Modelling-Who-to-Treat` - modelling the effect rather than the outcome, and why the two rank people differently.
-4. `Causal-Forests-and-Honest-Splitting` - honest sample splitting, and reading a heterogeneity estimate without over-reading it.
-5. `Multi-Armed-Bandits-Explore-Versus-Exploit` - when an adaptive test beats a fixed one, and when it quietly costs you inference.
-6. `Thompson-Sampling-and-Bayesian-Bandits` - the sampler built from scratch, then the regret curve compared against a fixed split.
-7. `Targeting-and-Heterogeneity-Quiz`
+**Sections 1, 2, 3, 4 and 10 first: 40 lessons.** They are the two interview
+rounds that eliminate candidates, they contain almost no reusable material,
+and together they stand alone as a product. Sections 5 to 9 follow as the
+depth upgrade and are roughly half relocations.
 
-### §5 Observational and Quasi-Experimental Methods (9) - `pds-causal`, 3.50
+### Reuse
 
-1. `What-a-Causal-Effect-Is-When-You-Cannot-Randomise` - potential outcomes and the one counterfactual you never observe.
-2. `Drawing-the-Causal-Graph-for-a-Product-Decision` - DAGs, confounders, colliders, and the collider bias that controlling creates.
-3. `Propensity-Scores-and-Inverse-Probability-Weighting` - building a pseudo-experiment, and checking overlap before trusting it.
-4. `Matching-Users-and-the-Sample-You-End-Up-With` - the sample you end up with is not the sample you started with.
-5. `Difference-in-Differences-and-Parallel-Trends` - the assumption doing all the work, and a case with perfect pre-trends that still misleads.
-6. `Staggered-Rollouts-and-the-Negative-Weights-Problem` - why the standard two-way fixed-effects estimator breaks when units switch on at different times.
-7. `Regression-Discontinuity-at-a-Threshold-Rule` - product rules that create natural experiments, bandwidth sensitivity, and the manipulation check.
-8. `Instrumental-Variables-and-Two-Stage-Least-Squares` - encouragement designs, the three conditions, and the weak-instrument failure.
-9. `Synthetic-Control-for-a-Single-Launch` - one treated market, a weighted combination of the rest, and the pre-period fit as the credential that earns the counterfactual.
+About 21 of the 80 relocate from `ds-experimentation`, `ds-causal` and
+`ds-causal-decisions`; the rest are new. Nothing moves out of Applied
+Statistician. Concentrated in sections 5 to 8, which is why the first release
+is almost entirely new writing.
 
-### §6 Doubly Robust Estimation and Sensitivity Analysis (5) - `pds-honest`, 3.60
+`ds-experimentation` 7 (Contextual Bandits and Off-Policy Evaluation) folds
+into section 7 lesson 6; `ds-causal-decisions` 11 (Mediation Analysis) folds
+into section 8 lesson 11. Neither should be stranded.
 
-1. `Doubly-Robust-Estimation` - two chances to be right, and what it does when both models are wrong.
-2. `Double-Machine-Learning` - flexible nuisance models with cross-fitting, and the regularisation bias it removes.
-3. `Mediation-and-How-Much-Goes-Through-the-Feature` - direct and indirect paths, and the assumption nobody states.
-4. `Sensitivity-Analysis-and-Placebo-Tests` - how strong an unmeasured confounder would have to be, which is the number that belongs in the doc.
-5. `Observational-Claims-Quiz`
+## 5. Scope, honestly
 
-### §7 Long-Term Effects and Holdouts (6) - `pds-longrun`, 3.70
+A product data science loop has four rounds: SQL/coding, statistics and
+experimentation, product sense, and behavioural. **This track owns the middle
+two and does not touch the other two.** SQL is near-universal in the postings
+and Python is the common second language; R appears mainly as an alternative,
+including in Meta's own posting, which lists "statistical/mathematical
+software (e.g. R)" as an example rather than a requirement.
 
-1. `The-Short-Term-Win-That-Loses-Money-Later` - a launch that raises clicks and lowers retention, measured both ways.
-2. `Surrogate-Metrics-and-When-They-Are-Valid` - the surrogacy conditions, and what happens to the estimate when they fail.
-3. `Long-Term-Holdouts-and-What-They-Cost` - holding users back to measure the cumulative effect, and the ethics and economics of doing it.
-4. `Retention-and-Churn-as-Time-to-Event` - retention curves are survival curves; censoring, hazard, and why a retention rate at day 30 hides the shape.
-5. `Cannibalisation-and-the-Zero-Sum-Launch` - a feature that moves volume rather than creating it, and how to detect the difference.
-6. `Long-Run-Effects-Quiz`
-
-### §8 Decision-Making and Reporting (6) - `pds-decision`, 3.80
-
-1. `Deciding-to-Ship-with-Expected-Loss` - the decision framed as a loss function, where significance is an input and not the answer.
-2. `Bayesian-A-B-Testing-and-the-Probability-of-Being-Better` - the quantity stakeholders already think a p-value gives them.
-3. `When-the-Answer-Is-No-Effect` - what a null result is worth, equivalence testing, and how to say "we learned something" honestly.
-4. `Writing-an-Experiment-Readout` - the structure, the one chart, the caveat that belongs and the three that do not.
-5. `What-an-Experiment-Review-Should-Check` - what a trustworthy experimentation culture checks, and in what order.
-6. `Decision-Making-Quiz`
-
-**Total: 55 lessons across 8 courses.**
-
-## 5. Build order and reuse
-
-Roughly half of this already exists in the `ds` track and can be relocated and
-reframed rather than written from scratch.
-
-| new section | relocate from | write new |
-|---|---|---|
-| §1 Metrics | - | 7 |
-| §2 Design | `ds-exp` 1, `ds-causal` 3, 4 | 5 |
-| §3 Pitfalls | `ds-exp` 2, 3, 4 | 4 |
-| §4 Targeting | `ds-exp` 5, 6; `ds-cd` 8 | 4 |
-| §5 Causal | `ds-causal` 1, 2; `ds-cd` 1, 3, 4, 5, 6 | 1 |
-| §6 Honest | `ds-cd` 2, 7, 9, 10, 11 | 1 |
-| §7 Long-run | - | 6 |
-| §8 Decision | - | 6 |
-
-About 20 relocated, about 34 new. `ds-causal`'s quiz, `ds-exp`'s quiz and
-`ds-cd`'s quiz retire into the new per-section quizzes.
-
-**Sequencing.** §1, §7 and §8 are the differentiators and contain no reusable
-material, so they are written first: they are what makes the track worth
-buying on its own. §5 and §6 are almost entirely relocation and can follow
-quickly. §2, §3 and §4 are mixed.
+The track must therefore NOT claim to make somebody hireable on its own. It
+should say what it is: the two rounds that eliminate the most candidates,
+assuming you can already write SQL. That is both true and a sharper pitch than
+a vague promise, because it names a gap the buyer already suspects.
 
 ## 6. Decisions taken, and why
 

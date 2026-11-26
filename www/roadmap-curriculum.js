@@ -280,32 +280,40 @@
        the `section` values in Scripts/build_lessons_tracker.py and the titles
        must match its sectionLabel verbatim, or the lesson player's breadcrumb
        and Back button point at the wrong section.
+       Section 1 is free IN FULL and the rest are Pro; the same rule is encoded
+       in Scripts/batch_lessons.py curriculum_access() and all three must agree.
        Lesson arcs: Plans/lessons-curriculum.md, the pds-* courses. */
     'product-ds': [
-      S(1, true, 'Product metrics and measurement', 'Pick a metric that can detect the change you care about.',
-        ['What makes a metric worth optimising','Proxy metrics and the surrogacy trap','Guardrails and what they protect','Metric sensitivity','Ratio metrics and the delta method','Segmenting without fooling yourself'],
-        'Product metrics exercises', 'metric sensitivity calculator'),
-      S(2, false, 'Experiment design and power', 'Size a test before it runs, and specify it before you read it.',
-        ['From a product question to a testable hypothesis','Choosing the randomisation unit','Power by simulation','The minimum detectable effect','Sample ratio mismatch','Pre-registration','Reading a readout'],
+      S(1, true, 'Product sense and metric diagnosis', 'Answer the open-ended questions a product interview and a product team both ask.',
+        ['Framing an ambiguous product question','Metric drop diagnosis','Funnel decomposition','Cohort analysis and mix shift','Opportunity sizing'],
+        'Product sense exercises', 'funnel decomposer'),
+      S(2, false, 'Metric design', 'Choose a metric that can carry the decision, and a guardrail that protects it.',
+        ['Metric taxonomy','The Overall Evaluation Criterion','Guardrail metrics','Goodhart law and metric gaming','Multiple testing across metrics','Proxy metrics and surrogacy','Metric sensitivity','Ratio metrics and the delta method'],
+        'Metric design exercises', 'metric sensitivity calculator'),
+      S(3, false, 'Experiment design', 'Size and specify a test that answers the question it was built for.',
+        ['An A/B test end to end','Randomisation units','Type I, type II and power','Power analysis by simulation','Minimum detectable effect','Ramping and staged rollout','Pre-registration and the analysis plan'],
         'Experiment design exercises', 'power simulator'),
-      S(3, false, 'Sequential testing, variance reduction and interference', 'Run a test that survives peeking, variance and spillover.',
-        ['Peeking and your error rate','Sequential testing','Variance reduction with CUPED','Novelty and primacy effects','Interference','Cluster and switchback designs'],
-        'Experiment pitfalls exercises', 'peeking simulator'),
-      S(4, false, 'Heterogeneous effects, uplift and bandits', 'Find who an effect is for, and allocate accordingly.',
-        ['The average effect hides everyone','Pre-specified subgroups and fishing','Uplift modelling','Causal forests and honest splitting','Multi-armed bandits','Thompson sampling'],
-        'Targeting exercises', 'uplift explorer'),
-      S(5, false, 'Observational and quasi-experimental methods', 'Estimate an effect when you could not randomise.',
-        ['What a causal effect is','Drawing the causal graph','Propensity scores and IPW','Matching','Difference-in-differences','Staggered rollouts','Regression discontinuity','Instrumental variables','Synthetic control'],
+      S(4, false, 'Experiment trustworthiness', 'Tell a real result from a broken one before you act on it.',
+        ['The A/A test','Sample ratio mismatch','Twyman law','Internal and external validity','Simpson paradox','Peeking and alpha inflation'],
+        'Trustworthiness exercises', 'A/A simulator'),
+      S(5, false, 'Experiment sensitivity', 'Get a trustworthy answer from less traffic, or sooner.',
+        ['Variance and statistical sensitivity','Triggering','Variance reduction with CUPED','CUPAC','Sequential testing and always-valid inference','A/B/n tests','Interleaving'],
+        'Sensitivity exercises', 'variance reducer'),
+      S(6, false, 'Interference and network effects', 'Run a valid test when one user affects another.',
+        ['SUTVA and no interference','Cluster randomisation','Switchback experiments','Geo experiments','Interference detection'],
+        'Interference exercises', 'switchback planner'),
+      S(7, false, 'Heterogeneous treatment effects', 'Find who an effect is for, and decide who to treat.',
+        ['Average and conditional treatment effects','Subgroup analysis and pre-specification','Uplift modelling','Causal forests and honest estimation','Multi-armed bandits','Thompson sampling'],
+        'Heterogeneity exercises', 'uplift explorer'),
+      S(8, false, 'Causal inference without randomisation', 'Estimate an effect you were never able to randomise.',
+        ['Potential outcomes','Causal diagrams, confounders and colliders','Propensity scores and IPW','Matching','Difference-in-differences','Staggered adoption','Regression discontinuity','Instrumental variables','Synthetic control','Doubly robust and double machine learning','Sensitivity analysis and placebo tests'],
         'Causal inference exercises', 'DAG editor'),
-      S(6, false, 'Doubly robust estimation and sensitivity analysis', 'Say how much an observational estimate can be trusted.',
-        ['Doubly robust estimation','Double machine learning','Mediation','Sensitivity analysis and placebo tests'],
-        'Observational claims exercises', 'sensitivity dial'),
-      S(7, false, 'Long-term effects and holdouts', 'Measure what a launch does after the first week.',
-        ['The short-term win that loses money later','Surrogate metrics','Long-term holdouts','Retention as time-to-event','Cannibalisation'],
-        'Long-run effects exercises', 'holdout planner'),
-      S(8, false, 'Decision-making and reporting', 'Turn a result into a decision, and write it up.',
-        ['Expected loss, not significance','Bayesian A/B testing','When the answer is no effect','Writing the readout','Building an experiment review'],
-        'Decision exercises', 'expected-loss calculator')
+      S(9, false, 'Long-term effects', 'Measure what a launch does after the first week.',
+        ['Short-term and long-term effects','Novelty and primacy','Surrogate metrics and the surrogate index','Long-term holdouts','Retention curves and survival analysis','Cannibalisation'],
+        'Long-term effects exercises', 'holdout planner'),
+      S(10, false, 'Decision-making and communication', 'Turn a result into a decision, and make it believed.',
+        ['Statistical and practical significance','Decision theory and expected loss','Bayesian A/B testing','Equivalence testing','The experiment readout','Communicating to non-technical stakeholders','Experiment review and launch criteria','Institutional memory and meta-analysis','Research ethics'],
+        'Decision-making exercises', 'expected-loss calculator')
     ]
   };
 
