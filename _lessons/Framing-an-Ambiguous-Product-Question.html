@@ -1,0 +1,354 @@
+---
+title: "Product Sense and Metric Diagnosis Lesson 1: Framing an Ambiguous Product Question"
+description: "Maria asks if the new ranked feed is working, and three numbers disagree. Learn to frame it as a population, a measure, a comparison, and a decision rule."
+keywords: "product sense, metric diagnosis, ambiguous product question, population definition, primary metric, guardrail metric, novelty effect, decision rule, OEC, before and after comparison, product data science"
+mathjax: false
+webr: true
+curriculum_id: "3.10.1"
+post_type: "LESSON"
+course_id: "pds-sense"
+course_title: "Product Sense and Metric Diagnosis"
+course_lesson: "1"
+course_total: "6"
+course_landing: "Product-Sense-and-Metric-Diagnosis-Course.html"
+course_next: "Metric-Drop-Diagnosis.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Turn a vague product question into a measure you can actually decide on."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Framing an Ambiguous Product Question</h2>
+
+<p>Today let's work out what to do when a question sounds simple, but the numbers meant to answer it keep disagreeing with each other.</p>
+
+<p>Loopline is a photo sharing app with 1,200,000 weekly active users. It just replaced its chronological Home feed, the one that showed friends' posts in the order they were posted, with a feed that ranks posts algorithmically, picking what each user is likely to engage with first. The change went out to 100% of users on both iOS and Android.</p>
+
+<p>Three weeks later, the Head of Product, Maria, asks a question that sounds simple: is the new feed working?</p>
+
+<p>That question cannot be answered yet. Not because the data is missing, but because the question itself is unfinished: four things need to be decided before any number can answer it.</p>
+
+<p>Here are those four decisions, one at a time.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"The question","sub":"Is the new feed working?"},{"title":"Population","sub":"exactly who counts, and over what window"},{"title":"Measure","sub":"the one number that stands for working"},{"title":"Comparison","sub":"working, compared to what"},{"title":"Decision rule","sub":"the number that would change what you do"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Each one of those four boxes gets its own answer next, in the order they are drawn above.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>Why one question gets three different answers</h2>
+
+<p>Maria did not come empty handed. She pulled three numbers, measured across all of Loopline's active users, comparing the three weeks before the ranked feed launched against the three weeks after.</p>
+
+<p>The first is weekly active users, WAU for short: how many distinct users opened the app at least once in a week. It fell from 1,200,000 to 1,170,000, down 2.5%.</p>
+
+<p>The second is average session time: how many minutes a user spends in the app per visit. It rose from 4.00 to 4.40 minutes, up 10.0%.</p>
+
+<p>The third is posts per user per week: how many photos the average user posts. It fell from 3.00 to 2.76, down 8.0%.</p>
+
+<p>Here are all three side by side, with each one's change computed directly in R.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare how three raw numbers moved after the ranked feed launched
+library(dplyr)
+
+naive_metrics &lt;- tribble(
+  ~metric,                   ~before,  ~after,
+  &quot;Weekly active users&quot;,     1200000,  1170000,
+  &quot;Avg. session time (min)&quot;, 4.00,     4.40,
+  &quot;Posts per user per week&quot;, 3.00,     2.76
+)
+
+naive_metrics &lt;- naive_metrics |&gt;
+  mutate(
+    pct_change = round((after - before) / before * 100, 1),
+    change = sprintf(&quot;%+.1f%%&quot;, pct_change)
+  )
+
+naive_metrics |&gt;
+  select(metric, change)
+#&gt; # A tibble: 3 × 2
+#&gt;   metric                  change
+#&gt;   &lt;chr&gt;                   &lt;chr&gt; 
+#&gt; 1 Weekly active users     -2.5% 
+#&gt; 2 Avg. session time (min) +10.0%
+#&gt; 3 Posts per user per week -8.0% </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>WAU fell, which looks bad. Session time rose, which looks good. Posts per user per week fell, which looks bad again. So the same launch produced one clear improvement and two declines, and "is it working" does not have one answer yet. It has three, and they disagree.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The four questions that turn a question into an analysis</h2>
+
+<p>Before going further with Loopline's numbers, it helps to name the four decisions plainly.</p>
+
+<ul>
+
+<li>Population: exactly who counts, and over what window of time.</li>
+
+<li>Measure: the one number that stands in for "working".</li>
+
+<li>Comparison: working, compared against what.</li>
+
+<li>Decision rule: the result that would actually change what the team does next.</li>
+
+</ul>
+
+<p>Loopline's three disagreeing numbers all come from skipping past these four decisions. Each one gets made for Loopline next, starting with population.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Population: deciding exactly who counts</h2>
+
+<p>WAU fell from 1,200,000 to 1,170,000 for a reason that has nothing to do with whether the new feed works. Of the 1,170,000 users active after launch, 150,000 signed up in the three weeks since the feed went out, so they have no "before" period to compare against at all.</p>
+
+<p>A clean before and after comparison needs the same people on both sides. So the population narrows to the 1,020,000 users who were active in both the three weeks before launch and the three weeks after, with staff and test accounts excluded.</p>
+
+<p>There is one more adjustment to make. Weekly active users cannot be computed meaningfully on a population that is fixed to exactly the people active in both windows, because every one of them is active in both weeks by definition, so WAU would just restate the population size, 1,020,000, twice. In its place, the table below uses sessions per user per week: how many separate times a user opens the app in a week, a number that can still rise or fall even inside a fixed population.</p>
+
+<p>Recomputing the three measures on just that 1,020,000 user population gives a different picture.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Recompute the same three measures on the 1,020,000-user defined population
+library(dplyr)
+
+defined_pop_metrics &lt;- tribble(
+  ~metric,                     ~before, ~after,
+  &quot;Sessions per user per week&quot;, 5.00,   4.90,
+  &quot;Avg. session time (min)&quot;,    4.00,   4.36,
+  &quot;Posts per user per week&quot;,    3.00,   2.67
+)
+
+defined_pop_metrics &lt;- defined_pop_metrics |&gt;
+  mutate(
+    pct_change = round((after - before) / before * 100, 1),
+    change = sprintf(&quot;%+.1f%%&quot;, pct_change)
+  )
+
+defined_pop_metrics |&gt;
+  select(metric, change)
+#&gt; # A tibble: 3 × 2
+#&gt;   metric                     change
+#&gt;   &lt;chr&gt;                      &lt;chr&gt; 
+#&gt; 1 Sessions per user per week -2.0% 
+#&gt; 2 Avg. session time (min)    +9.0% 
+#&gt; 3 Posts per user per week    -11.0%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Session count and session time both still move: sessions down 2.0%, session time up 9.0%. But look at posts per user per week. Computed over all 1,170,000 active users, it fell 8.0%. Computed over just the 1,020,000 users present in both windows, it falls 11.0%, a bigger drop than before.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="widget">
+<h2>Watching the verdict change with the population you pick</h2>
+
+<p>Try switching between the two populations below and watch what happens to posts per user per week.</p>
+<div class="lesson-widget" data-widget-type="dashboard-layout" data-widget-config='{"filterLabel":"Population","views":{"All 1,170,000 active users":{"boxes":[["WAU","-2.5%"],["Avg. session time","+10.0%"],["Posts per user per week","-8.0%"]]},"1,020,000 users active in both windows":{"boxes":[["Sessions per user per week","-2.0%"],["Avg. session time","+9.0%"],["Posts per user per week","-11.0%"]]}}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Switching to the full 1,170,000 user population lifts posts per user per week from -11.0% back up to -8.0%. The difference comes from the 150,000 new users counted only in that larger group. Freshly signed up users tend to post more in their first few weeks, a pattern called the novelty effect, so folding them in drags the average up and hides some of the decline.</p>
+
+<p>So the same three weeks read as an 8.0% drop or an 11.0% drop, depending only on which population the measure is computed over. Neither number is wrong. They are answers to two different questions.</p>
+
+<p>::quiz {"correct": 2, "gate": true, "difficulty": "beginner"}</p>
+
+<ul>
+
+<li>Sessions per user per week is simply easier to compute than WAU. ::no Not quite, the choice has nothing to do with ease of computation.</li>
+
+<li>Because every one of the 1,020,000 users is active in both windows by definition, their WAU cannot move, so the table swaps in sessions per user per week, a number that still can. ::ok Right. The population is now fixed to exactly the users present in both windows, so counting how many of them are active just restates the population size, 1,020,000 either way. Sessions per user per week can still rise or fall, so that is the number that goes in the table instead.</li>
+
+<li>WAU before launch does not exist for a population defined only after launch. ::no Not quite, the 1,020,000-user population is defined as active in both the three weeks before launch and the three weeks after, so a before-launch WAU for them does exist.</li>
+
+<li>WAU is still the clearest number to watch, so the table should have kept it. ::no Not quite. The population is now fixed to exactly the users present in both windows, so their WAU is just the population size restated, 1,020,000 either way, and it cannot register any change. Sessions per user per week still can, which is why the table uses that instead.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>Measure: picking the one number that stands for working</h2>
+
+<p>Population is settled: the 1,020,000 users active in both windows. Next comes measure, the one number the team agrees stands in for "the feed is working".</p>
+
+<p>Loopline's business depends on users posting as well as consuming: without new posts, there is nothing for the ranked feed to rank. So the team sets posts per user per week as the primary measure.</p>
+
+<p>Average session time becomes a guardrail instead, a number watched for damage rather than chased for its own sake. The reason is specific: if the ranked feed made content harder to scan, session time could rise because people are struggling to find what they want, not because they are enjoying it more. A rise in session time caused by that would be a false positive for "working".</p>
+
+<ul>
+
+<li>Primary measure: posts per user per week, because Loopline needs people posting, not only scrolling.</li>
+
+<li>Guardrail: average session time, because a rise caused by friction, not enjoyment, would be a false positive.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Comparison: working compared to what</h2>
+
+<p>Measure is settled: posts per user per week, with session time as a guardrail. Comparison asks what that after-launch number should be read against.</p>
+
+<ul>
+
+<li>Before versus after, for the same users: the three weeks before launch against the three weeks after, for the same 1,020,000 people. This is what the team uses.</li>
+
+<li>Year over year: the same three weeks compared against the same calendar weeks a year earlier. This would avoid the before and after mix-up, but drags in a whole year of unrelated product changes instead.</li>
+
+<li>A randomised holdout: part of the population kept on the old feed as a control group. This did not happen here, because the feed shipped to 100% of users at once.</li>
+
+</ul>
+
+<p>Because the comparison is before versus after on the same users, with no holdout group, anything else that changed inside those three weeks, a different season, a competitor's app update, a holiday, gets credited to the feed as well. The team accepts that limitation and moves on, because by the time Maria asked her question, the feed was already live for everyone.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<h2>Decision rule: the number that would change what you do</h2>
+
+<p>Comparison is settled: the same users, before versus after. The last decision is the one teams skip most often: agreeing, before the result comes in, what result would actually change what happens next.</p>
+
+<p>Before the three weeks ran, the team wrote down a decision rule for posts per user per week in the defined population: roll back if it falls more than 5%, iterate if it falls somewhere between 0% and 5%, and keep the feed if it holds flat or rises.</p>
+
+<p>The defined population's actual result was a fall of 11.0%. Here is that result checked against the rollback line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the measured change against the rollback line agreed before launch
+library(dplyr)
+
+rollback_threshold &lt;- -5.0
+
+measured_change &lt;- defined_pop_metrics |&gt;
+  filter(metric == &quot;Posts per user per week&quot;) |&gt;
+  pull(pct_change)
+
+measured_change
+#&gt; [1] -11
+
+action &lt;- if (measured_change &lt; rollback_threshold) &quot;roll back&quot; else &quot;keep&quot;
+action
+#&gt; [1] &quot;roll back&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Minus 11.0% is past minus 5%, so the rule says roll back. Not iterate, not keep watching: roll back, and go find out why posts fell.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<h2>Writing the framing as the first page of the analysis</h2>
+
+<p>All four decisions are made now: population, measure, comparison and decision rule. Before running any further analysis, the team writes them down as a one-page brief, the kind anyone could open later and understand without asking a single question.</p>
+
+<p>Here is what that brief looks like.</p>
+<div class="lesson-widget" data-widget-type="doc-structure" data-widget-config='{"blocks":[{"type":"yaml","text":"title: Ranked Home Feed, the framing\nformat: html"},{"type":"prose","text":"## Summary\n\nPopulation: 1,020,000 users active in both the three weeks before launch and the three weeks after, excluding staff. Measure: posts per user per week as primary, average session time as a guardrail. Comparison: the same users, their three weeks before versus their three weeks after. Decision rule: roll back if posts per user per week falls more than 5%."},{"type":"code","text":"defined_pop_metrics |>\n  ggplot(aes(metric, pct_change)) +\n  geom_col()","chart":[{"x":"Sessions per week","y":-2.0},{"x":"Session time","y":9.0},{"x":"Posts per user per week","y":-11.0}]}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Every number in that brief is already familiar: the population, the measure and its guardrail, the comparison, and the decision rule. Nothing in it is new. It is the four answers, collected in one place, before anyone reads another number.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: framing the whole thing</h2>
+
+<p>Maria's original question, is the new feed working, produced three disagreeing numbers before any of the four decisions were made. The brief above is what answers it instead.</p>
+<section class="exercise" data-exercise-id="Framing-an-Ambiguous-Product-Question-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A bigger sample of users, so the percentage changes would be more precise.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">An agreed population, measure, comparison and decision rule, so the same launch could not be read three different ways.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A measure that happened to move in the direction the team wanted.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">A significance test run on each of the three raw percentage changes.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The three numbers disagreed because no one had yet fixed who counts, which one number stands for working, what it is compared against, and what result would change the decision. Once those four things were written down, posts per user per week in the defined population, minus 11.0%, was the only number that mattered, and it was already past the agreed rollback line.</div><div class="lesson-qfb lesson-qfb-no">Not quite. The three numbers disagreed because no one had yet fixed who counts, which one number stands for working, what it is compared against, and what result would change the decision, not because any of the three numbers needed a significance test.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: apply the decision rule</h2>
+
+<p>The decision rule agreed for Loopline does not apply only to the 11.0% actually measured. It applies to any result that rule is checked against.</p>
+
+<p>Suppose a different three week window had shown posts per user per week falling by 3.0% instead of 11.0%, still in the defined population. The code below sets up that new result and checks it against the rollback line, the same comparison used for the 11.0% result. Complete the second comparison, against the 0% keep line, the same way.</p>
+<section class="exercise" data-exercise-id="Framing-an-Ambiguous-Product-Question-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="new_pct_change\s*&lt;\s*(keep_threshold|0(\.0+)?)"><textarea class="lesson-tryit-input" spellcheck="false"># Apply the agreed decision rule to a new measured result: -3.0% in the defined population
+rollback_threshold &lt;- -5.0
+keep_threshold &lt;- 0.0
+new_pct_change &lt;- -3.0
+
+below_rollback &lt;- new_pct_change &lt; rollback_threshold
+below_rollback
+#&gt; [1] FALSE
+
+below_keep &lt;- NA
+below_keep
+#&gt; [1] NA</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. Minus 3.0% is not below the minus 5% rollback line, so below_rollback is FALSE. But it is below the 0% keep line, so below_keep is TRUE. Falling between the two lines is exactly what iterate means: the metric moved the wrong way, but not far enough to roll back.</span><span class="lesson-tryit-fb lesson-tryit-no">Replace the NA with new_pct_change < keep_threshold, the same comparison the line above made against rollback_threshold.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Apply the agreed decision rule to a new measured result: -3.0% in the defined population
+rollback_threshold &lt;- -5.0
+keep_threshold &lt;- 0.0
+new_pct_change &lt;- -3.0
+
+below_rollback &lt;- new_pct_change &lt; rollback_threshold
+below_rollback
+#&gt; [1] FALSE
+
+below_keep &lt;- new_pct_change &lt; keep_threshold
+below_keep
+#&gt; [1] TRUE</code></pre></details></div>
+</section>
+<p>Replace the NA with the same kind of comparison used for below_rollback, against keep_threshold instead. Press Check when you have it.</p>
+
+<p>Minus 3.0% is not below the rollback line but is below the keep line, so it falls in between the two: iterate.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li>Kohavi, R., Tang, D., and Xu, Y. (2020). <a href="https://www.cambridge.org/core/books/trustworthy-online-controlled-experiments/D97B26382EB0EB2DC2019A7A7B518F59">Trustworthy Online Controlled Experiments</a>. Cambridge University Press. On choosing an OEC, the one measure a team commits to before a test runs, and the guardrail metrics that catch an unintended cost.</li>
+
+<li>Rodden, K., Hutchinson, H., and Fu, X. (2010). <a href="https://doi.org/10.1145/1753326.1753687">Measuring the User Experience on a Large Scale: User-Centered Metrics for Web Applications</a>. CHI 2010. The HEART framework for tying a measure to a real user goal rather than to whichever number moved.</li>
+
+<li>McClure, D. (2007). Startup Metrics for Pirates (the AARRR framework). On choosing which stage of a funnel, acquisition through referral, a measure actually represents.</li>
+
+<li>Doerr, J. (2018). <a href="https://www.whatmatters.com/book">Measure What Matters</a>. Portfolio. On setting one measurable goal and a decision rule for judging it, agreed before the result comes in.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>What you now have before you touch any data</h2>
+
+<p>Maria's question, is the new feed working, could not be answered directly. It needed four decisions first, and now Loopline has all four.</p>
+
+<ul>
+
+<li>Population: the 1,020,000 users active in both the three weeks before launch and the three weeks after, excluding staff.</li>
+
+<li>Measure: posts per user per week as the primary measure, average session time as a guardrail.</li>
+
+<li>Comparison: the same users, their three weeks before against their three weeks after.</li>
+
+<li>Decision rule: roll back if posts per user per week falls more than 5%, which it did, at 11.0%, so the feed rolled back.</li>
+
+</ul>
+
+<p>The next time a question like this lands on your desk, sounding simple but producing numbers that disagree, these are the four decisions to make before opening a single chart.</p>
+</section>
+
+{% endraw %}
