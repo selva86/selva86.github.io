@@ -27,7 +27,11 @@ import { sendFulfilmentEmail, formatMoney, type FulfilmentPlan } from "../../_li
 
 // Valid roadmap track keys for Single Track scoping (matches courses.json
 // roadmap.track values). Anything else in custom_data.track is ignored.
-const TRACK_KEYS = new Set(["ds", "ts", "researcher", "developer", "analyst", "foundations"]);
+// `product-ds` is accepted here before it reaches the pricing page, so the
+// order of deploys cannot produce a purchase that writes no scope. `researcher`
+// stays even though it now displays as "Applied Statistician": the KEY is what
+// paying customers have in KV `tracks:<uid>`, and renaming it would revoke it.
+const TRACK_KEYS = new Set(["ds", "ts", "researcher", "developer", "analyst", "foundations", "product-ds"]);
 function normalizeTrack(v: unknown): string {
   const t = typeof v === "string" ? v.trim().toLowerCase() : "";
   return TRACK_KEYS.has(t) ? t : "";
