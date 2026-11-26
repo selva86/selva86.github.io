@@ -53,11 +53,11 @@ What happens to a measure once it becomes a target, demonstrated by optimising a
 
 [Start Lesson 4: Goodhart's Law and Metric Gaming](Goodharts-Law-and-Metric-Gaming.html)
 
-### Lesson 5: Multiple testing across metrics
+### Lesson 5: Multiple Testing Across Metrics
 
 Three guardrails at the usual threshold false-alarm about 14% of the time, ten about 40%, twenty-five about 73%. Simulated, then corrected.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Multiple Testing Across Metrics](Multiple-Testing-Across-Metrics.html)
 
 ### Lesson 6: Proxy metrics and surrogacy
 
