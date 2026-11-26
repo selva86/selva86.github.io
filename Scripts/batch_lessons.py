@@ -569,6 +569,51 @@ def sync():
         print('  catalog sync commit FAILED: %s' % (r.stderr or r.stdout).strip()[-300:], flush=True)
 
 
+ROADMAP_GLOB = 'roadmap/v2'
+
+def refresh_roadmap():
+    """Rebuild the v2 roadmap pages from the catalog, then commit and push.
+
+    Runs ONCE at the end of a batch, not inside sync(): the roadmap is a
+    whole-site artifact, so regenerating it per lesson would add nine
+    redundant commits to a ten-lesson run.
+
+    Why this exists: nothing ran _build/build_roadmap_fanout.js. The pages are
+    generated from courses.json, which every publish updates, but the builder
+    was only ever run by hand. On 2026-11-26 /roadmap/v2/researcher-overview
+    was found serving 2 lesson entries out of 102, because it was last written
+    on 2026-11-13 when courses.json held one researcher course. Thirteen days,
+    about a hundred lessons invisible on their own roadmap.
+
+    A non-zero exit means the builder's own asset-key guard refused to write,
+    which is a repo problem a human must fix. Report it loudly and move on:
+    the lessons are already published and pushed, and failing the batch over a
+    roadmap page would be the worse trade.
+    """
+    r = subprocess.run(['node', os.path.join('_build', 'build_roadmap_fanout.js')],
+                       cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        print('  roadmap refresh REFUSED (exit %d), nothing written:' % r.returncode, flush=True)
+        for l in ((r.stderr or '') + (r.stdout or '')).strip().splitlines()[:12]:
+            print('    ' + l, flush=True)
+        return
+    for l in (r.stdout or '').splitlines():
+        if l.strip().startswith('wrote ') or l.strip().startswith('done:'):
+            print('  ' + l.strip(), flush=True)
+    if subprocess.run(['git', 'diff', '--quiet', '--', ROADMAP_GLOB], cwd=ROOT).returncode == 0:
+        print('  roadmap already current', flush=True)
+        return
+    subprocess.run(['git', 'add', '--', ROADMAP_GLOB], cwd=ROOT)
+    c = subprocess.run(['git', 'commit', '-m',
+                        'Roadmap sync: rebuild /roadmap/v2 from the lesson catalog',
+                        '--', ROADMAP_GLOB], cwd=ROOT, capture_output=True, text=True)
+    if c.returncode == 0:
+        subprocess.run(['git', 'push', 'origin', 'HEAD'], cwd=ROOT)
+        print('  roadmap sync committed and pushed', flush=True)
+    else:
+        print('  roadmap sync commit FAILED: %s' % (c.stderr or c.stdout).strip()[-300:], flush=True)
+
+
 # ---- Remediation: catch, fix, re-check, then advance ----
 #
 # A stage that fails is not the end of the lesson. The runner applies the
@@ -803,6 +848,8 @@ def main():
             if args.sync_every and done % args.sync_every == 0:
                 sync()
         sync()
+        # Whole-site artifact, so once per batch rather than once per lesson.
+        refresh_roadmap()
     except ProcessStartFailure as e:
         # Deliberately do not rewrite lessons-status.json here. Lessons never
         # attempted keep the status they had, and the one that was running
