@@ -1,0 +1,443 @@
+---
+title: "Survival and Event History Analysis Lesson 6: Parametric survival models and when to prefer them"
+description: "Pulse's 200 annual subscribers are tracked for just 15 months, but exponential, Weibull and log-normal fits, made with survreg(), predict survival at month 24."
+keywords: "parametric survival model, exponential distribution, Weibull distribution, log-normal distribution, survreg, hazard function, AIC, Kaplan-Meier, survival analysis, R"
+mathjax: true
+webr: true
+curriculum_id: "4.140.6"
+post_type: "LESSON"
+course_id: "res-survival"
+course_title: "Survival and Event History Analysis"
+course_lesson: "6"
+course_total: "7"
+course_landing: "Survival-and-Event-History-Analysis-Course.html"
+course_next: "Competing-Risks-and-Why-Kaplan-Meier-Overstates"
+course_prev: "Covariates-That-Change-During-Follow-Up"
+lesson_access: "pro"
+catalog_blurb: "How to fit exponential, Weibull and log-normal models and know which one to trust."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Parametric survival models and when to prefer them</h2>
+
+<p>Today let's understand three models that can do something a Cox model cannot: put an actual number on how many subscribers will still be around months after your own data runs out.</p>
+
+<p>Pulse, a subscription company, sells an annual plan. It has 200 subscribers on that plan, and it has followed every one of them for 15 months, one full renewal cycle. For each subscriber, Pulse knows exactly one of two things: the month they cancelled, or that they were still subscribed when the 15 months ended.</p>
+
+<p>Here are 10 of those 200 subscribers, taken straight from the data.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["subscriber","status","month"],"rows":[[1,"cancelled",6.5],[2,"subscribed",15.0],[3,"cancelled",7.2],[4,"subscribed",15.0],[5,"cancelled",7.3],[6,"cancelled",9.0],[7,"subscribed",15.0],[8,"cancelled",8.2],[9,"subscribed",15.0],[10,"cancelled",3.5]],"formats":{"month":"1dp"},"title":"Ten of the 200 Pulse annual subscribers","note":"status is cancelled if the plan ended before month 15 for that subscriber, subscribed if they were still on the plan when the 15-month window closed."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Subscriber 1 cancelled at month 6.5. Subscriber 2 was still subscribed when the 15 months closed, so their row just says 15.0, the month the window ended, not a cancellation month. That difference, knowing exactly when someone cancelled against only knowing they had not cancelled yet, matters throughout this lesson.</p>
+
+<p>Pulse wants one number nobody in this table can give directly: what fraction of all 200 subscribers will still be subscribed at month 24, nine months past the end of its own follow-up. Getting that number takes a model that commits to a full shape for cancellation risk, not just these raw cancellation months on their own.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>What the Cox model's unspecified baseline cannot give you</h2>
+
+<p>A Cox model is the tool you would reach for first to compare two groups of subscribers, say annual against monthly. But Pulse has not asked that yet. Before comparing any groups, it is worth seeing what a Cox model can and cannot say about this cohort on its own, with no groups at all.</p>
+
+<p>Here is a widget showing the Cox model's own trick: it writes every hazard as a baseline hazard times a ratio, and leaves the baseline's own shape completely unspecified.</p>
+<div class="lesson-widget" data-widget-type="hazard-ratio" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>This widget uses its own small, canned example, not Pulse's data: a baseline hazard for one group, and a toggle for a hazard ratio applied to a second group. Push the toggle and the second curve moves up or down, always by the same ratio, at every single month. That ratio is all a Cox model estimates. The shape of the baseline curve itself, rising, falling or flat, is never pinned down.</p>
+
+<p>For Pulse's 200 subscribers, with no groups to compare, fitting a Cox model and asking for its survival estimate shows exactly what that unspecified baseline costs.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Pulse's 200-subscriber annual cohort, then fit a Cox model with no covariates and check how far its survival estimate reaches
+library(survival)
+
+set.seed(614)
+event_time &lt;- rweibull(200, shape = 2.4, scale = 16)
+time &lt;- pmin(event_time, 15)
+status &lt;- as.integer(event_time &lt;= 15)
+pulse_annual &lt;- data.frame(time = time, status = status)
+
+cox_fit &lt;- coxph(Surv(time, status) ~ 1, data = pulse_annual)
+summary(survfit(cox_fit), times = c(10, 15, 20, 24))
+#&gt; Call: survfit(formula = cox_fit)
+#&gt;
+#&gt;  time n.risk n.event survival std.err lower 95% CI upper 95% CI
+#&gt;    10    148      52    0.741  0.0310        0.682        0.804
+#&gt;    15     96      52    0.481  0.0353        0.417        0.556</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>status is 1 when a subscriber cancelled and 0 when they were still subscribed at month 15, so time and status together are what Surv() needs. Out of the 200 subscribers, 104 cancelled during the 15 months, 52% of the cohort, and the other 96 were still on the plan when it closed.</p>
+
+<p>Look at what summary(survfit(...)) returned. It has rows for month 10 and for month 15, but nothing at all for month 20 or month 24, even though both were asked for. That is not a bug. The last subscriber in this cohort actually cancelled at month 14.98, just under the 15-month mark, and survfit() cannot report a survival estimate past the last month it actually observed a cancellation. Ask it for month 20 or month 24 and there is simply no row to give back, because the Cox model's baseline hazard was never given a shape to extend past that point.</p>
+
+<p>That is the gap this lesson closes. A model that commits to a full shape for the hazard, not just a ratio between two groups, can keep going past month 15 and put a real number on month 24.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>The exponential model: a hazard that never changes</h2>
+
+<p>A parametric model is one that commits to a full shape for the hazard function ahead of time, then fits a small number of parameters to make that shape match the data. The simplest possible shape is a flat line.</p>
+
+<p>The exponential model says the hazard is one constant number, lambda, the same at every single month.</p>
+
+<p>\[ h(t) = \lambda \]</p>
+
+<p>That one assumption has a very specific meaning for Pulse's subscribers. It says a subscriber who joined one month ago carries exactly the same cancellation risk right now as a subscriber who has already made it to month 14. Having already stuck around for a while changes nothing about the risk going forward.</p>
+
+<p>R's survreg() fits this model, and dist = "exponential" tells it which shape to assume.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit an exponential survreg() model to the Pulse cohort and read off its constant hazard
+exp_fit &lt;- survreg(Surv(time, status) ~ 1, data = pulse_annual, dist = &quot;exponential&quot;)
+lambda &lt;- 1 / exp(coef(exp_fit))
+round(unname(lambda), 4)
+#&gt; [1] 0.0424</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>survreg() reports its intercept on a log scale, which is why <code>1 / exp(coef(exp_fit))</code> is needed to get lambda itself, 0.0424. That one number is now the entire hazard function. Plotted across the whole 24 months, it is exactly what the assumption promised: a flat line.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the exponential's hazard, the same value at every month from 1 to 24
+library(ggplot2)
+hazard_exp &lt;- data.frame(month = 1:24, hazard = lambda)
+ggplot(hazard_exp, aes(month, hazard)) +
+  geom_line(colour = &quot;#2b6cb0&quot;, linewidth = 1) +
+  ylim(0, 0.25) +
+  labs(x = &quot;month&quot;, y = &quot;hazard&quot;, title = &quot;Exponential hazard: constant at 0.0424&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Whether this flat line is actually a reasonable description of how Pulse's subscribers cancel is a separate question, settled next by comparing it against the data directly, not by how reasonable it looks on its own.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>The Weibull model: a hazard that moves with time</h2>
+
+<p>The exponential's flat hazard is a strong assumption, and real risk rarely stays perfectly flat. The Weibull model relaxes it by adding one more parameter, a shape, usually called gamma.</p>
+
+<p>\[ h(t) = \frac{\gamma}{\sigma}\left(\frac{t}{\sigma}\right)^{\gamma - 1} \]</p>
+
+<p>sigma is a scale parameter, and gamma controls the hazard's direction. When gamma equals 1, that formula collapses straight back to the exponential's flat line. When gamma is above 1, the hazard climbs as t grows. When gamma is below 1, it falls.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a Weibull survreg() model and convert its output to the gamma/sigma parameterisation
+weib_fit &lt;- survreg(Surv(time, status) ~ 1, data = pulse_annual, dist = &quot;weibull&quot;)
+weib_gamma &lt;- 1 / weib_fit$scale
+weib_sigma &lt;- exp(coef(weib_fit))
+round(c(gamma = weib_gamma, sigma = unname(weib_sigma)), 3)
+#&gt;  gamma  sigma 
+#&gt;  2.453 16.844 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>survreg() stores the shape as its own scale parameter, the reciprocal of gamma, which is why gamma here is <code>1 / weib_fit$scale</code>. 2.453 is comfortably above 1, so this fitted hazard climbs rather than staying flat or falling.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the Weibull's hazard: it keeps climbing across the whole 24 months
+hazard_weib &lt;- data.frame(month = 1:24, hazard = (weib_gamma / weib_sigma) * ((1:24) / weib_sigma)^(weib_gamma - 1))
+ggplot(hazard_weib, aes(month, hazard)) +
+  geom_line(colour = &quot;#c0392b&quot;, linewidth = 1) +
+  ylim(0, 0.25) +
+  labs(x = &quot;month&quot;, y = &quot;hazard&quot;, title = &quot;Weibull hazard: climbing throughout follow-up&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice that this hazard never turns back down. For any gamma above 1, the Weibull's hazard keeps rising for as long as a subscriber has not yet cancelled, and it rises faster each month than the one before. For Pulse's subscribers, that says cancellation risk does not just exist, it builds the longer someone has been on the annual plan, which fits a renewal-driven pattern: the closer a subscriber gets to their 12-month renewal date, the more likely they are to let the plan lapse.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading the Weibull's shape parameter</h2>
+
+<p>A different subscription dataset gets fit with a Weibull model, and its shape parameter comes out well below 1. What does that say about how its hazard moves over time?</p>
+<section class="exercise" data-exercise-id="Parametric-Survival-Models-and-When-to-Prefer-Them-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The hazard rises faster the longer a subscriber stays on the plan.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The hazard falls as time passes: a subscriber who has already stayed a long time has a lower risk of cancelling right now than one who just joined.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A shape below 1 just means survreg() found a poor fit, and the model needs to be refit with a different distribution.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A shape below 1 means the hazard keeps dropping the longer someone has already survived, the opposite of the exponential's flat hazard and the opposite of a hazard that speeds up.</div><div class="lesson-qfb lesson-qfb-no">A Weibull shape parameter is not a fit diagnostic. A shape below 1 describes a real, fitted hazard that falls over time, and it says nothing about whether the model fits well or badly. That question gets answered separately, by AIC and by checking the fit against the Kaplan-Meier curve.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<h2>The log-normal model: a hazard that rises, then falls</h2>
+
+<p>The exponential's hazard never moves, and the Weibull's only ever moves in one direction. A log-normal model can do something neither of those can: describe a hazard that climbs for a while and then levels off.</p>
+
+<p>There is a cost to that extra flexibility. The log-normal's hazard has no closed-form formula, unlike the exponential's and the Weibull's. But it can still be computed exactly, as the ratio of the density to the survival function at each month.</p>
+
+<p>\[ h(t) = \frac{f(t)}{S(t)} \]</p>
+
+<p>f(t) is the log-normal density at month t, and S(t) is the log-normal survival probability at month t, the share who have not yet cancelled by then. R's dlnorm() and plnorm() compute each one directly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit a log-normal survreg() model, then compute its hazard as density over survival across a grid of months
+lnorm_fit &lt;- survreg(Surv(time, status) ~ 1, data = pulse_annual, dist = &quot;lognormal&quot;)
+lnorm_mu &lt;- unname(coef(lnorm_fit))
+lnorm_sigma &lt;- lnorm_fit$scale
+round(c(mu = lnorm_mu, sigma = lnorm_sigma), 3)
+#&gt;    mu sigma 
+#&gt; 2.675 0.596 
+
+months &lt;- 1:24
+haz_lnorm &lt;- dlnorm(months, lnorm_mu, lnorm_sigma) / (1 - plnorm(months, lnorm_mu, lnorm_sigma))
+round(haz_lnorm[c(6, 12, 18, 24)], 4)
+#&gt; [1] 0.0399 0.0848 0.0971 0.0980</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare those four numbers against each other. From month 6 to month 12 the hazard more than doubles, 0.0399 to 0.0848. From month 12 to month 18 it barely moves, 0.0848 to 0.0971. From month 18 to month 24 it is almost flat, 0.0971 to 0.0980. The climb that was steep early on has already nearly leveled off by month 24, a shape the Weibull's hazard cannot produce at all.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the log-normal's hazard: climbing hard early, then leveling off
+hazard_lnorm &lt;- data.frame(month = months, hazard = haz_lnorm)
+ggplot(hazard_lnorm, aes(month, hazard)) +
+  geom_line(colour = &quot;#27ae60&quot;, linewidth = 1) +
+  ylim(0, 0.25) +
+  labs(x = &quot;month&quot;, y = &quot;hazard&quot;, title = &quot;Log-normal hazard: climbs, then levels off&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three different shapes now sit on the table: flat, climbing without end, and climbing before leveling off. Which one actually belongs to Pulse's subscribers is what the next two steps check.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<h2>Which shape actually matches the data</h2>
+
+<p>Three fitted hazards, three different stories about cancellation risk. Plotting all three on one chart makes the difference between flat, rising and rising-then-leveling obvious at a glance.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot all three fitted hazards together: flat, rising, and rising then leveling off
+hazard_all &lt;- data.frame(
+  month = rep(months, 3),
+  hazard = c(rep(lambda, 24),
+             (weib_gamma / weib_sigma) * (months / weib_sigma)^(weib_gamma - 1),
+             haz_lnorm),
+  model = rep(c(&quot;Exponential&quot;, &quot;Weibull&quot;, &quot;Log-normal&quot;), each = 24)
+)
+
+ggplot(hazard_all, aes(month, hazard, colour = model)) +
+  geom_line(linewidth = 1) +
+  labs(x = &quot;month&quot;, y = &quot;hazard&quot;, colour = &quot;model&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>AIC turns that picture into a number: it rewards a model for fitting well and penalises it for every extra parameter it needed to get there, so a lower AIC is the better-supported model.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the three fits with AIC
+AIC(exp_fit, weib_fit, lnorm_fit)
+#&gt;           df      AIC
+#&gt; exp_fit    1 867.3210
+#&gt; weib_fit   2 796.2660
+#&gt; lnorm_fit  2 789.8426</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the three numbers. The exponential's AIC, 867.3, sits about 70 points above either of the other two, which rules out a flat hazard decisively. The Weibull and the log-normal are close to each other, 796.3 against 789.8, with the log-normal's coming out a shade lower in this particular sample.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A shade lower is not a landslide. An AIC gap of about 6 points between two models that both fit far better than a third is a real but modest edge, not proof that one family is right and the other wrong. Fitting well on paper and matching the data directly are two different checks, and the second one, against the Kaplan-Meier curve, comes next.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<h2>Checking the fits against the Kaplan-Meier curve</h2>
+
+<p>AIC compares the fits to each other. It says nothing about comparing them to the data directly. The Kaplan-Meier curve, a survival estimate built directly from the data with no distributional assumption at all, is exactly that direct comparison: a model whose predicted survival probabilities sit close to the Kaplan-Meier curve, at the same months, is a model that fits the data, not just one that beat its competitors on a score.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":2,"y":1.0,"fill":"Kaplan-Meier"},{"x":4,"y":0.985,"fill":"Kaplan-Meier"},{"x":6,"y":0.935,"fill":"Kaplan-Meier"},{"x":8,"y":0.825,"fill":"Kaplan-Meier"},{"x":10,"y":0.74,"fill":"Kaplan-Meier"},{"x":12,"y":0.62,"fill":"Kaplan-Meier"},{"x":14,"y":0.515,"fill":"Kaplan-Meier"},{"x":2,"y":0.9187,"fill":"Exponential"},{"x":4,"y":0.8439,"fill":"Exponential"},{"x":6,"y":0.7753,"fill":"Exponential"},{"x":8,"y":0.7122,"fill":"Exponential"},{"x":10,"y":0.6543,"fill":"Exponential"},{"x":12,"y":0.6011,"fill":"Exponential"},{"x":14,"y":0.5522,"fill":"Exponential"},{"x":2,"y":0.9946,"fill":"Weibull"},{"x":4,"y":0.971,"fill":"Weibull"},{"x":6,"y":0.9236,"fill":"Weibull"},{"x":8,"y":0.8513,"fill":"Weibull"},{"x":10,"y":0.757,"fill":"Weibull"},{"x":12,"y":0.647,"fill":"Weibull"},{"x":14,"y":0.5297,"fill":"Weibull"},{"x":2,"y":0.9996,"fill":"Log-normal"},{"x":4,"y":0.9847,"fill":"Log-normal"},{"x":6,"y":0.9309,"fill":"Log-normal"},{"x":8,"y":0.8413,"fill":"Log-normal"},{"x":10,"y":0.7341,"fill":"Log-normal"},{"x":12,"y":0.6252,"fill":"Log-normal"},{"x":14,"y":0.5241,"fill":"Log-normal"}],"geoms":["point","line"],"x":"month","y":"survival","code":{"point":"ggplot(fits, aes(month, survival, colour = group)) +\n  geom_point(size = 2)","line":"ggplot(fits, aes(month, survival, colour = group)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Read the exponential's points first. At month 2 it predicts 0.9187 still subscribed, against the Kaplan-Meier's 1.000, a visible gap this early. By month 8 that gap has widened to 0.7122 against 0.825, more than 10 points of survival probability off the real curve.</p>
+
+<p>Now read the Weibull's and the log-normal's points. Both track the Kaplan-Meier curve closely at every one of the 7 months shown, within a few hundredths of it the whole way, with the log-normal sitting fractionally closer at most of them, consistent with its slightly lower AIC above.</p>
+
+<p>That confirms the AIC comparison above. The exponential's flat hazard is visibly wrong, not just a weaker score on paper. The Weibull and the log-normal both pass this check, which means the real question is not which one is right and which one is wrong, but which one to trust for a prediction past month 15, once the data to check against runs out.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<h2>What the right shape buys, and the wrong one costs</h2>
+
+<p>Every check so far has stayed inside the 15 months Pulse actually followed its subscribers. Extrapolating past that, to month 24, is where a correctly shaped model's prediction and a wrongly shaped one's prediction come apart.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Extrapolate the exponential and Weibull fits to month 24, nine months past the 15-month follow-up window
+surv_exp_24 &lt;- exp(-lambda * 24)
+surv_weib_24 &lt;- exp(-(24 / weib_sigma)^weib_gamma)
+round(c(exponential = unname(surv_exp_24), weibull = unname(surv_weib_24)), 4)
+#&gt; exponential     weibull 
+#&gt;      0.3613      0.0923 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exponential says 36.1% of the 200 subscribers are still subscribed at month 24. The Weibull says 9.2%. Those are nowhere near each other. The exponential's flat hazard assumes month 20 is exactly as risky as month 2, so it understates how much cancellation risk has piled up by month 24. The Weibull's hazard kept climbing throughout the fitted data, and extending that same climb another nine months is what drags its prediction all the way down to 9.2%.</p>
+
+<p>There is no data past month 15 to check which of 36.1% or 9.2% actually turns out closer to the truth. What can be checked is which model's assumption already matched the data that does exist: a flat hazard did not, by AIC or against the Kaplan-Meier curve, while a climbing one did. That is the cost of getting the shape wrong, paid out here as a prediction that is off by a factor of four.</p>
+
+<p>A correctly shaped model also pays off a second way, in how precisely it can pin down a number the Kaplan-Meier curve can only estimate roughly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare the standard error on median survival time: the Weibull fit against the Kaplan-Meier estimate
+km_fit &lt;- survfit(Surv(time, status) ~ 1, data = pulse_annual)
+km_tab &lt;- summary(km_fit)$table
+km_median &lt;- unname(km_tab[&quot;median&quot;])
+km_lcl &lt;- unname(km_tab[&quot;0.95LCL&quot;])
+km_se &lt;- (km_median - km_lcl) / 1.96
+
+weib_median_pred &lt;- predict(weib_fit, newdata = data.frame(1), type = &quot;quantile&quot;, p = 0.5, se.fit = TRUE)
+weib_median &lt;- unname(weib_median_pred$fit)
+weib_se &lt;- unname(weib_median_pred$se.fit)
+
+round(c(km_median = km_median, km_se = km_se, weib_median = weib_median, weib_se = weib_se), 3)
+#&gt;   km_median       km_se weib_median     weib_se 
+#&gt;      14.636       0.673      14.506       0.584 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two median estimates agree closely, 14.636 months against 14.506. But their standard errors do not. The Kaplan-Meier's is 0.673, built step by step from the data with no assumption about the hazard's shape past each observed cancellation. The Weibull's is 0.584, tighter, because it borrows strength from every subscriber in the whole cohort through one assumed shape, rather than estimating one stair-step at a time.</p>
+
+<p>That narrower standard error is only trustworthy because the Weibull's shape already checked out against this cohort's own data, both by AIC and against the Kaplan-Meier curve. A tight standard error built around the wrong shape would be worse than an honest, wider one.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<h2>Quick check: choosing among the three fits</h2>
+
+<p>Given the AIC comparison, the Kaplan-Meier match, and each model's own hazard shape, which model would you trust for a month-24 prediction, and why?</p>
+<section class="exercise" data-exercise-id="Parametric-Survival-Models-and-When-to-Prefer-Them-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The exponential, because it is the simplest model to explain to the rest of the team.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The Weibull: its AIC beats the exponential's by about 70 points, its predicted probabilities tracked the Kaplan-Meier curve closely, and its hazard keeps climbing, matching a cancellation risk that never really eases off.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The log-normal, because it has the most flexible hazard shape of the three.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The exponential is ruled out decisively, about 70 AIC points behind either of the other two. The log-normal's AIC comes out only marginally ahead of the Weibull's here, but its hazard was already leveling off by month 24, while the Weibull's kept climbing, which fits a subscription whose cancellation risk never really lets up.</div><div class="lesson-qfb lesson-qfb-no">A flexible shape is not, by itself, a reason to prefer a model. The log-normal's AIC is close to the Weibull's here, but what should decide between two close fits is whether the shape matches what you know about the process, not how many parameters shape its curve.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="tryit" data-gate="1">
+<h2>Your turn: read the shape parameter and confirm the choice</h2>
+
+<p>weib_fit already exists from a few steps back. Pull its shape parameter as 1 divided by its scale, the same calculation used earlier, and check whether it sits above or below 1.</p>
+<section class="exercise" data-exercise-id="Parametric-Survival-Models-and-When-to-Prefer-Them-step11" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="(?=[\s\S]*weib_fit\$scale)(?=[\s\S]*&gt;\s*1)[\s\S]*"><textarea class="lesson-tryit-input" spellcheck="false"># gamma_check should pull the Weibull's shape parameter from weib_fit,
+# then test whether it is above 1.
+# Two lines: gamma_check &lt;- 1 / weib_fit$scale, then gamma_check &gt; 1.
+# Press Check when you have them.</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: gamma comes out at 2.453, above 1. That is the same rising hazard the AIC comparison and the Kaplan-Meier check both backed, and it is why the Weibull's month-24 prediction and its narrower standard error are the ones worth trusting, not the exponential's.</span><span class="lesson-tryit-fb lesson-tryit-no">Pull the shape parameter as 1 divided by weib_fit$scale, then compare the result to 1 with the > operator.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Pull the Weibull's shape parameter from weib_fit, then check whether it is above or below 1
+gamma_check &lt;- 1 / weib_fit$scale
+round(gamma_check, 3)
+#&gt; [1] 2.453
+gamma_check &gt; 1
+#&gt; [1] TRUE</code></pre></details></div>
+</section>
+<p>2.453, above 1. That single number is consistent with everything the earlier steps already showed: the AIC comparison that ruled out a flat hazard, the Kaplan-Meier check that the Weibull passed, and the month-24 prediction and tighter standard error that a correctly shaped model buys over a Cox fit's unspecified baseline.</p>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://doi.org/10.1002/9781118032985">The Statistical Analysis of Failure Time Data</a> - Kalbfleisch and Prentice (2002), 2nd edition, Wiley. The standard reference for parametric and semiparametric failure-time models, including the exponential, Weibull and log-normal families used in this lesson.</li>
+
+<li><a href="https://doi.org/10.1007/b97377">Survival Analysis: Techniques for Censored and Truncated Data</a> - Klein and Moeschberger (2003), 2nd edition, Springer. Its chapters on parametric methods cover fitting and comparing these same hazard families.</li>
+
+<li><a href="https://doi.org/10.1201/b18041">Modelling Survival Data in Medical Research</a> - Collett (2015), 3rd edition, CRC Press. A practical walkthrough of choosing between a parametric and a semiparametric model.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/survival/vignettes/survival.pdf">A Package for Survival Analysis in R</a> - Therneau, the survival package's own vignette, documenting survreg() and the distributions it supports.</li>
+
+<li><a href="https://doi.org/10.1002/9781118033005">Statistical Models and Methods for Lifetime Data</a> - Lawless (2003), 2nd edition, Wiley. Covers AIC-based comparison of competing parametric lifetime distributions, the method used to compare the three fits in this lesson.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="13" data-step-type="complete">
+<h2>Recap: parametric models, and what's next</h2>
+
+<p>Three parametric models, one shared idea: commit to a full shape for the hazard, and that commitment buys an answer a Cox model cannot give. The exponential assumes a flat hazard, lambda = 0.0424 for every month. The Weibull lets the hazard climb or fall through a shape parameter, gamma, which came out at 2.453 here, comfortably above 1, so Pulse's cancellation risk climbs the longer a subscriber stays. The log-normal lets it climb and then level off.</p>
+
+<p>AIC ruled the exponential out by about 70 points, and the Kaplan-Meier check confirmed it: a flat hazard simply does not match this cohort. Between the Weibull and the log-normal, AIC gave a narrow edge to the log-normal, but the Weibull's climbing hazard was the one that matched the renewal-driven story in the data, and it is the one this lesson carried forward.</p>
+
+<p>That choice paid off twice past the 15-month follow-up window. At month 24, the Weibull predicted 9.2% of subscribers still subscribed, against the exponential's 36.1%, a difference the flat hazard's wrong assumption created. And the Weibull's standard error on median survival time, 0.584, came out tighter than the Kaplan-Meier's own 0.673, because it borrowed strength from the whole cohort through one assumed shape instead of one stair-step at a time.</p>
+
+<p>The next lesson in this course takes on a different problem survival data can hide: a subject who dies of something else can never have the event you are actually studying, and treating that as ordinary censoring overstates how often the event you care about would have happened.</p>
+</section>
+
+{% endraw %}
