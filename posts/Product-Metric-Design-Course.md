@@ -39,7 +39,7 @@ The four kinds of metric and what each is for, with one product's numbers sorted
 
 Combining several metrics into one criterion so a test has a single answer rather than twelve. Weighting, normalisation, and what the OEC commits you to.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: The Overall Evaluation Criterion](The-Overall-Evaluation-Criterion.html)
 
 ### Lesson 3: Guardrail metrics
 
