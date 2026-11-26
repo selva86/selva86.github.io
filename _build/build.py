@@ -2235,6 +2235,31 @@ def build_post(
                             ('data-course-next', 'course_next'), ('data-course-prev', 'course_prev'),
                             ('data-lesson-kind', 'lesson_kind')):
             _v = str(meta.get(_key, '') or '').strip()
+            # Never emit a course landing that does not resolve.
+            #
+            # www/lesson-mode.js:98 renders data-course-landing unconditionally
+            # as the lm-exit back arrow, which is the primary way out of the
+            # player. Its fallback at line 57 is `ds.courseLanding || '/'`, so
+            # it only engages on an EMPTY value: a filename pointing at nothing
+            # sails straight through and every lesson in the course sends the
+            # reader to a 404. That shipped twice, on 2026-11-25 (four courses,
+            # da-eda live and 404ing for as long as its 9 lessons had been) and
+            # again on 2026-11-26 (res-survival, caught before the merge).
+            #
+            # The cause is upstream: publish-lesson writes a course landing only
+            # on a course's FIRST lesson, and no later lesson re-checks. Rather
+            # than add another thing to remember, make the broken state
+            # unrepresentable here, where the filesystem is actually visible.
+            # Omitting the attribute lets the existing '/' fallback do its job,
+            # so the worst case is a plain link instead of a dead one.
+            if _v and _key == 'course_landing':
+                if not os.path.exists(os.path.join(REPO_ROOT, _v.lstrip('/'))):
+                    print(f"  WARN: {slug} names course_landing '{_v}', which does "
+                          f"not exist. Omitting data-course-landing so the lesson's "
+                          f"exit button falls back to / rather than serving a 404. "
+                          f"Write posts/{_v[:-5] if _v.endswith('.html') else _v}.md "
+                          f"to give the course its front door.")
+                    _v = ''
             if _v:
                 _attrs.append(f'{_attr}="{_v.replace(chr(34), "&quot;")}"')
         # Pro lessons must never enter the Pagefind search index: the index is
