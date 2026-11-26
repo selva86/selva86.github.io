@@ -623,18 +623,87 @@ function overviewPage(trackKey) {
 const outDir = path.join(root, 'roadmap', 'v2');
 fs.mkdirSync(outDir, { recursive: true });
 
-let n = 0;
+/* ---------------------------------------------------------------- guard ----
+   Every /www/ asset is served immutable for a year, so a `?v=` LOWER than the
+   one a committed page already asks for hands readers a year-old cached file.
+   Raising a key is a cache miss and self-heals; lowering it cannot be undone
+   by a later deploy, only waited out.
+
+   On 2026-11-26 this builder had JS_V = 13 while all 14 committed pages asked
+   for roadmap-fanout.js?v=14, because the commit that changed the asset
+   (fd2933011f) hand-bumped the pages and left the constant behind. Running it
+   would have regressed every roadmap page. The same drift is documented at the
+   top of build_roadmap_f2.js, so this is a recurring failure of the workflow,
+   not a one-off slip.
+
+   This checks EVERY key the builder emits, not just CSS_V/JS_V: ten of the
+   fifteen are lifted out of the v1 page by chromeFrom(), and a v1 page that
+   fell behind a v2 page would regress them just as effectively.
+
+   All-or-nothing on purpose: generate and check every page, then write. A
+   partial write would leave the roadmap half-regressed. */
+const KEY_RE = /([a-z0-9-]+\.(?:js|css))\?v=(\d+)/g;
+
+function keysOf(html) {
+  const out = {};
+  let m;
+  KEY_RE.lastIndex = 0;
+  while ((m = KEY_RE.exec(html)) !== null) out[m[1]] = Number(m[2]);
+  return out;
+}
+
+function regressions(file, nextHtml) {
+  const p = path.join(outDir, file);
+  if (!fs.existsSync(p)) return [];          // first run: nothing to regress
+  const have = keysOf(fs.readFileSync(p, 'utf8'));
+  const next = keysOf(nextHtml);
+  const bad = [];
+  Object.keys(have).forEach((asset) => {
+    if (next[asset] === undefined) {
+      bad.push(file + ': ' + asset + ' would be DROPPED (page asks v=' + have[asset] + ')');
+    } else if (next[asset] < have[asset]) {
+      bad.push(file + ': ' + asset + ' would be LOWERED v=' + have[asset] +
+               ' -> v=' + next[asset]);
+    }
+  });
+  return bad;
+}
+
+const pending = [];
+const bad = [];
 Object.keys(SLUG).forEach((key) => {
   if (!((RM2.sections || {})[key] || []).length) {
     console.log('  skipped ' + key + ': no sections in the curriculum data');
     return;
   }
-  fs.writeFileSync(path.join(outDir, SLUG[key] + '.html'), page(key), 'utf8');
-  fs.writeFileSync(path.join(outDir, SLUG[key] + '-overview.html'), overviewPage(key), 'utf8');
+  [[SLUG[key] + '.html', page(key)],
+   [SLUG[key] + '-overview.html', overviewPage(key)]].forEach(([file, html]) => {
+    bad.push.apply(bad, regressions(file, html));
+    pending.push([key, file, html]);
+  });
+});
+
+if (bad.length) {
+  console.error('\nREFUSING TO WRITE: ' + bad.length + ' asset key regression(s).');
+  bad.forEach((b) => console.error('  ' + b));
+  console.error('\n/www/ is immutable for a year, so a lowered key serves a stale\n' +
+    'asset until it expires. Raise the constant to match the pages:\n' +
+    '  grep -oE "(CSS|JS)_V = [0-9]+" _build/build_roadmap_fanout.js\n' +
+    '  grep -ohoE "[a-z0-9-]+\\.(js|css)\\?v=[0-9]+" roadmap/v2/*.html | sort -u\n' +
+    'Nothing was written.');
+  process.exit(1);
+}
+
+let n = 0;
+const seen = {};
+pending.forEach(([key, file, html]) => {
+  fs.writeFileSync(path.join(outDir, file), html, 'utf8');
+  if (seen[key]) return;
+  seen[key] = 1;
   const bySec = lessonsBySection(key);
   const all = Object.keys(bySec).reduce((a, k) => a.concat(bySec[k]), []);
-  console.log('  wrote roadmap/v2/' + SLUG[key] + '.html  ' +
+  console.log('  wrote roadmap/v2/' + SLUG[key] + '.html + -overview.html  ' +
     all.length + ' lessons, ' + all.filter((l) => !l.pro).length + ' free');
   n++;
 });
-console.log('done: ' + n + ' page(s)');
+console.log('done: ' + n + ' track(s), ' + pending.length + ' page(s), 0 key regressions');
