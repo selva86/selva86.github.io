@@ -81,10 +81,34 @@ def build_lesson_widgets_bundle():
 
 
 def file_content_hash(filepath, length=8):
-    """First `length` hex chars of MD5 of file content."""
+    """First `length` hex chars of MD5 of file content, newline-normalized.
+
+    CRLF is collapsed to LF before hashing, so the key depends on the file's
+    CONTENT and not on which machine checked it out.
+
+    Without that, the hash was platform-dependent. `.gitattributes` says
+    `* text=auto eol=lf`, so every blob in the repo is LF, while
+    `core.autocrlf=true` gives a Windows working copy CRLF. Hashing raw bytes
+    therefore produced one key on this machine and a different one on
+    Cloudflare's Linux build for byte-identical content:
+    editor-bundle.min.js came out 9c31e0b3 locally (26569 bytes, 29 CRLF) and
+    d779de1e in CI (26540 bytes, 29 LF). highlight.css split the same way.
+
+    Nothing was being served wrong, because `?h=` is a cache-busting query and
+    the origin serves the same file whatever it says. The damage was quieter:
+    the CDN cache was split across two keys for one file, and any local build
+    rewrote the key on every page it touched, so a one-line content edit came
+    with ~2000 lines of spurious page churn that buried the real change. One
+    such stray key (Variable-Selection-in-R.html) was found committed.
+
+    Normalizing costs nothing to fix: LF input is unchanged, so CI keeps the
+    keys it already computes, and all 16 hashed assets were verified to come
+    out identical to their git blob hash. The only caller passes JS and CSS,
+    never a binary, where collapsing CRLF would be wrong.
+    """
     try:
         with open(filepath, 'rb') as f:
-            return hashlib.md5(f.read()).hexdigest()[:length]
+            return hashlib.md5(f.read().replace(b'\r\n', b'\n')).hexdigest()[:length]
     except OSError:
         return ''
 
@@ -2235,6 +2259,31 @@ def build_post(
                             ('data-course-next', 'course_next'), ('data-course-prev', 'course_prev'),
                             ('data-lesson-kind', 'lesson_kind')):
             _v = str(meta.get(_key, '') or '').strip()
+            # Never emit a course landing that does not resolve.
+            #
+            # www/lesson-mode.js:98 renders data-course-landing unconditionally
+            # as the lm-exit back arrow, which is the primary way out of the
+            # player. Its fallback at line 57 is `ds.courseLanding || '/'`, so
+            # it only engages on an EMPTY value: a filename pointing at nothing
+            # sails straight through and every lesson in the course sends the
+            # reader to a 404. That shipped twice, on 2026-11-25 (four courses,
+            # da-eda live and 404ing for as long as its 9 lessons had been) and
+            # again on 2026-11-26 (res-survival, caught before the merge).
+            #
+            # The cause is upstream: publish-lesson writes a course landing only
+            # on a course's FIRST lesson, and no later lesson re-checks. Rather
+            # than add another thing to remember, make the broken state
+            # unrepresentable here, where the filesystem is actually visible.
+            # Omitting the attribute lets the existing '/' fallback do its job,
+            # so the worst case is a plain link instead of a dead one.
+            if _v and _key == 'course_landing':
+                if not os.path.exists(os.path.join(REPO_ROOT, _v.lstrip('/'))):
+                    print(f"  WARN: {slug} names course_landing '{_v}', which does "
+                          f"not exist. Omitting data-course-landing so the lesson's "
+                          f"exit button falls back to / rather than serving a 404. "
+                          f"Write posts/{_v[:-5] if _v.endswith('.html') else _v}.md "
+                          f"to give the course its front door.")
+                    _v = ''
             if _v:
                 _attrs.append(f'{_attr}="{_v.replace(chr(34), "&quot;")}"')
         # Pro lessons must never enter the Pagefind search index: the index is

@@ -113,12 +113,70 @@ def _exercise_open(slug, n, diff):
     return (f'<section class="exercise" data-exercise-id="{slug}-step{n}" '
             f'data-grade-mode="self-check" data-difficulty="{diff}">')
 
+# ---------------------------------------------------------------------------
+# Widget name validation.
+#
+# Until 2026-11-26 nothing anywhere checked that a ::widget type existed. A
+# lesson naming a widget that was never written BUILT, passed the python hard
+# gate, passed the node verifier, published, and verified HTTP 200, because
+# www/lesson-widgets/index.js does `if (!fn) return;` on an unknown type and
+# leaves the <noscript> fallback. With JavaScript on, that is a blank gap in
+# the middle of the lesson. The reader is the only party that ever finds out.
+#
+# The curriculum had four such names queued (forest-plot, funnel-plot,
+# spec-curve, missingness-pattern) across nine unwritten lessons.
+#
+# The registry is the set of register('<type>') calls in the widget sources,
+# not the filenames: that is the actual runtime contract. They happen to agree
+# for all 104 files today, and keying on the call means they need not.
+# ---------------------------------------------------------------------------
+_WIDGET_TYPES = None
+
+def _widget_registry():
+    """Every widget type registered under www/lesson-widgets/. Cached."""
+    global _WIDGET_TYPES
+    if _WIDGET_TYPES is None:
+        repo = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+        found = set()
+        wdir = os.path.join(repo, 'www', 'lesson-widgets')
+        if os.path.isdir(wdir):
+            for name in os.listdir(wdir):
+                if not name.endswith('.js'):
+                    continue
+                try:
+                    with open(os.path.join(wdir, name), encoding='utf-8', errors='replace') as f:
+                        src = f.read()
+                except OSError:
+                    continue
+                found.update(re.findall(r"register\(\s*['\"]([^'\"]+)['\"]", src))
+        _WIDGET_TYPES = found
+    return _WIDGET_TYPES
+
+
 def build_widget(line):
     rest = line.strip()[len('::widget'):].strip()
     parts = rest.split(None, 1)
     if not parts:
         raise ValueError("::widget needs a type")
     wtype = parts[0]
+    known = _widget_registry()
+    # An EMPTY registry means the widget sources could not be read at all,
+    # which is a broken checkout rather than a bad lesson. Warn, do not block:
+    # failing every lesson over a harness problem is the worse outcome.
+    if not known:
+        sys.stderr.write('WARN: no widgets found under www/lesson-widgets/; '
+                         'cannot validate ::widget %s\n' % wtype)
+    elif wtype not in known:
+        near = sorted(w for w in known if w.split('-')[-1] == wtype.split('-')[-1]
+                      or w.split('-')[0] == wtype.split('-')[0])
+        raise ValueError(
+            "::widget %s is not a registered widget. Nothing downstream catches "
+            "this: the page would build, pass both gates, publish, verify 200, "
+            "and show the reader a blank gap. Write "
+            "www/lesson-widgets/%s.js (it must call "
+            "LessonWidgets.register('%s', mount)) or pick an existing widget.%s"
+            % (wtype, wtype, wtype,
+               (' Closest existing: ' + ', '.join(near[:6])) if near else ''))
     cfg_raw = parts[1].strip() if len(parts) > 1 else '{}'
     try:
         cfg = json.loads(cfg_raw)

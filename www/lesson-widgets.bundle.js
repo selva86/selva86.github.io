@@ -5423,6 +5423,344 @@
 })();
 
 ;
+/* forest-plot.js */
+/* forest-plot.js - the meta-analysis forest plot: one row per study, a marker
+ * sized by its weight, its confidence interval as a horizontal line, and the
+ * pooled estimate as a diamond under a vertical null line.
+ *
+ * The whole point of the shape is that it shows precision and effect at once:
+ * a big square on a short line is a study that moves the pooled answer, a tiny
+ * square on a line spanning the null is one that barely does. cfg:
+ *   { studies:[{name, est, lo, hi}], pooled:{est, lo, hi, label}, nullAt:0,
+ *     xlab:"Standardised mean difference", effect:"SMD", model:"fixed" }
+ * `pooled` is optional: left out, it is computed by inverse-variance weighting,
+ * which is also what the runnable R block does by hand, so the picture and the
+ * code cannot disagree.
+ *
+ * Deliberately NO metafor/meta dependency. Those are not proven runnable in
+ * the sandbox, and a reader who sees rma() do it in one line learns less than
+ * one who watches 1/se^2 do the weighting.
+ */
+(function () {
+  'use strict';
+
+  function se_of(lo, hi) {
+    // 95% CI half-width is 1.96 se each side, so the full width is 3.92 se.
+    var w = (hi - lo) / 3.9199;
+    return w > 0 ? w : 1e-6;
+  }
+
+  function pool(studies) {
+    var sw = 0, swy = 0;
+    studies.forEach(function (s) {
+      var w = 1 / Math.pow(se_of(s.lo, s.hi), 2);
+      sw += w; swy += w * s.est;
+    });
+    var est = swy / sw, se = Math.sqrt(1 / sw);
+    return { est: est, lo: est - 1.96 * se, hi: est + 1.96 * se };
+  }
+
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var P = u.P;
+    var studies = (cfg.studies && cfg.studies.length) ? cfg.studies : [
+      { name: 'Alvarez 2019', est: 0.42, lo: 0.04, hi: 0.80 },
+      { name: 'Boateng 2020', est: 0.31, lo: 0.11, hi: 0.51 },
+      { name: 'Chaudhary 2021', est: 0.58, lo: -0.06, hi: 1.22 },
+      { name: 'Doyle 2021', est: 0.12, lo: -0.04, hi: 0.28 },
+      { name: 'Eriksen 2022', est: 0.37, lo: 0.19, hi: 0.55 },
+      { name: 'Fujita 2023', est: 0.66, lo: 0.10, hi: 1.22 }
+    ];
+    var nullAt = cfg.nullAt == null ? 0 : +cfg.nullAt;
+    var xlab = cfg.xlab || 'Standardised mean difference';
+    var effect = cfg.effect || 'SMD';
+    var pooled = cfg.pooled || pool(studies);
+    var pooledLabel = (cfg.pooled && cfg.pooled.label) || 'Pooled (fixed effect)';
+
+    // Weights as a share of the total, which is what the square area encodes.
+    var ws = studies.map(function (s) { return 1 / Math.pow(se_of(s.lo, s.hi), 2); });
+    var wsum = ws.reduce(function (a, b) { return a + b; }, 0);
+    var wpct = ws.map(function (w) { return 100 * w / wsum; });
+
+    // ---- geometry ----------------------------------------------------------
+    var rowH = 26, padT = 34, padB = 52, nameW = 132, numW = 118;
+    var W = 620, plotL = nameW + 10, plotR = W - numW - 10, plotW = plotR - plotL;
+    var H = padT + rowH * (studies.length + 1.6) + padB;
+
+    var allLo = Math.min(nullAt, pooled.lo, Math.min.apply(null, studies.map(function (s) { return s.lo; })));
+    var allHi = Math.max(nullAt, pooled.hi, Math.max.apply(null, studies.map(function (s) { return s.hi; })));
+    var span = (allHi - allLo) || 1, pad = span * 0.08;
+    var d0 = allLo - pad, d1 = allHi + pad;
+    function sx(v) { return plotL + (v - d0) / (d1 - d0) * plotW; }
+
+    function fmt(v) { return (Math.round(v * 100) / 100).toFixed(2); }
+
+    var svg = '';
+    // x axis ticks: null, and the two ends. Drop any tick that would land on
+    // top of one already placed: with a null near an endpoint the two labels
+    // overlap into an unreadable smudge, and the null is the one that matters.
+    var ticks = [nullAt, d0 + pad, d1 - pad].reduce(function (keep, t) {
+      var clash = keep.some(function (k) { return Math.abs(sx(k) - sx(t)) < 34; });
+      if (!clash) keep.push(t);
+      return keep;
+    }, []).sort(function (a, b) { return a - b; });
+    var axisY = padT + rowH * (studies.length + 1.5);
+    svg += '<line x1="' + sx(d0) + '" y1="' + axisY + '" x2="' + sx(d1) + '" y2="' + axisY +
+           '" stroke="' + P.line + '" stroke-width="1.5"/>';
+    ticks.forEach(function (t) {
+      svg += '<line x1="' + sx(t).toFixed(1) + '" y1="' + axisY + '" x2="' + sx(t).toFixed(1) + '" y2="' + (axisY + 5) +
+             '" stroke="' + P.line + '"/>' +
+             '<text x="' + sx(t).toFixed(1) + '" y="' + (axisY + 17) + '" text-anchor="middle" ' +
+             'font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' + P.mut + '">' + fmt(t) + '</text>';
+    });
+    svg += '<text x="' + ((plotL + plotR) / 2).toFixed(1) + '" y="' + (H - 16) + '" text-anchor="middle" ' +
+           'font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.mut + '">' + u.esc(xlab) + '</text>';
+
+    // the null line, drawn behind everything
+    svg += '<line x1="' + sx(nullAt).toFixed(1) + '" y1="' + (padT - 14) + '" x2="' + sx(nullAt).toFixed(1) +
+           '" y2="' + axisY + '" stroke="' + P.faint + '" stroke-width="1" stroke-dasharray="4 3"/>';
+
+    // header row
+    svg += '<text x="8" y="' + (padT - 16) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" ' +
+           'font-weight="700" fill="' + P.mut + '" letter-spacing="0.04em">STUDY</text>' +
+           '<text x="' + (W - 8) + '" y="' + (padT - 16) + '" text-anchor="end" ' +
+           'font-family="IBM Plex Sans,sans-serif" font-size="10" font-weight="700" fill="' + P.mut +
+           '" letter-spacing="0.04em">' + u.esc(effect) + ' [95% CI]   WT</text>';
+
+    // study rows
+    studies.forEach(function (s, i) {
+      var y = padT + rowH * i + rowH / 2;
+      // marker side scales with sqrt(weight) so AREA tracks weight, not height
+      var side = 5 + 13 * Math.sqrt(wpct[i] / 100);
+      svg += '<text x="8" y="' + (y + 4).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" ' +
+             'font-size="11.5" fill="' + P.ink + '">' + u.esc(s.name) + '</text>';
+      svg += '<line x1="' + sx(s.lo).toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + sx(s.hi).toFixed(1) +
+             '" y2="' + y.toFixed(1) + '" stroke="' + P.body + '" stroke-width="1.4"/>';
+      // end caps
+      [s.lo, s.hi].forEach(function (v) {
+        svg += '<line x1="' + sx(v).toFixed(1) + '" y1="' + (y - 4).toFixed(1) + '" x2="' + sx(v).toFixed(1) +
+               '" y2="' + (y + 4).toFixed(1) + '" stroke="' + P.body + '" stroke-width="1.4"/>';
+      });
+      svg += '<rect x="' + (sx(s.est) - side / 2).toFixed(1) + '" y="' + (y - side / 2).toFixed(1) +
+             '" width="' + side.toFixed(1) + '" height="' + side.toFixed(1) + '" fill="' + P.c0 + '" fill-opacity="0.85"/>';
+      svg += '<text x="' + (W - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" ' +
+             'font-family="IBM Plex Mono,monospace" font-size="10.5" fill="' + P.body + '">' +
+             fmt(s.est) + ' [' + fmt(s.lo) + ', ' + fmt(s.hi) + ']  ' + wpct[i].toFixed(0) + '%</text>';
+    });
+
+    // pooled diamond
+    var py = padT + rowH * studies.length + rowH * 0.75;
+    var dl = sx(pooled.lo), dr = sx(pooled.hi), dc = sx(pooled.est), dh = 8;
+    svg += '<polygon points="' + dl.toFixed(1) + ',' + py.toFixed(1) + ' ' + dc.toFixed(1) + ',' + (py - dh).toFixed(1) +
+           ' ' + dr.toFixed(1) + ',' + py.toFixed(1) + ' ' + dc.toFixed(1) + ',' + (py + dh).toFixed(1) +
+           '" fill="' + P.acc + '"/>';
+    svg += '<text x="8" y="' + (py + 4).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" font-size="11.5" ' +
+           'font-weight="700" fill="' + P.ink + '">' + u.esc(pooledLabel) + '</text>';
+    svg += '<text x="' + (W - 8) + '" y="' + (py + 4).toFixed(1) + '" text-anchor="end" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="10.5" font-weight="700" fill="' + P.ink + '">' +
+           fmt(pooled.est) + ' [' + fmt(pooled.lo) + ', ' + fmt(pooled.hi) + ']</text>';
+
+    var chart = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+      'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Forest plot of ' +
+      studies.length + ' studies with a pooled estimate">' + svg + '</svg>';
+
+    // ---- the runnable R: same arithmetic, by hand -------------------------
+    var rcode =
+      '# One row per study. se is recovered from the interval, because that is\n' +
+      '# what published papers actually give you.\n' +
+      'm <- data.frame(\n' +
+      '  study = c(' + studies.map(function (s) { return '"' + String(s.name).replace(/"/g, '') + '"'; }).join(', ') + '),\n' +
+      '  est   = c(' + studies.map(function (s) { return +s.est; }).join(', ') + '),\n' +
+      '  lo    = c(' + studies.map(function (s) { return +s.lo; }).join(', ') + '),\n' +
+      '  hi    = c(' + studies.map(function (s) { return +s.hi; }).join(', ') + '),\n' +
+      '  stringsAsFactors = FALSE\n' +
+      ')\n\n' +
+      'm$se <- (m$hi - m$lo) / (2 * qnorm(0.975))   # 3.92 se across a 95% CI\n' +
+      'm$w  <- 1 / m$se^2                            # inverse variance\n' +
+      'm$wt <- round(100 * m$w / sum(m$w))           # weight, as a percentage\n\n' +
+      '# Fixed-effect pooling IS the weighted mean. No package needed.\n' +
+      'est <- sum(m$w * m$est) / sum(m$w)\n' +
+      'se  <- sqrt(1 / sum(m$w))\n' +
+      'ci  <- est + c(-1, 1) * qnorm(0.975) * se\n\n' +
+      'print(m[, c("study", "est", "lo", "hi", "wt")], row.names = FALSE)\n' +
+      'cat(sprintf("\\npooled %.2f  95%% CI [%.2f, %.2f]\\n", est, ci[1], ci[2]))\n\n' +
+      '# The widest interval carries the least weight. Check which study that is:\n' +
+      'cat("widest CI:", m$study[which.max(m$hi - m$lo)],\n' +
+      '    "with weight", m$wt[which.max(m$hi - m$lo)], "%\\n")';
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="overflow-x:auto">' + chart + '</div>' +
+      '<p style="margin:12px 0 10px;font-size:12.5px;color:' + P.mut + ';line-height:1.55">' +
+        'Square <b>area</b> is the study\'s weight, so a small square on a long line is a study the ' +
+        'pooled estimate largely ignores. The dashed line is no effect; the diamond spans the ' +
+        'pooled interval.</p>' +
+      u.runnable(rcode, { label: 'Pool these studies yourself' });
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+
+  if (window.LessonWidgets) window.LessonWidgets.register('forest-plot', mount);
+})();
+
+;
+/* funnel-plot.js */
+/* funnel-plot.js - effect on x, standard error down the y axis, so the precise
+ * studies sit at the narrow top and the imprecise ones scatter along the wide
+ * bottom. The dashed funnel is the region where 95% of studies should fall if
+ * the only thing spreading them out is sampling error.
+ *
+ * The plot is a publication-bias instrument: with no bias the cloud is
+ * symmetric about the pooled line, and a hole in one bottom corner is the
+ * shape of small unflattering studies never being written up. cfg:
+ *   { studies:[{name, est, se}], pooled:<number>, xlab:"Effect",
+ *     missing:[{est, se}], showFunnel:true }
+ * `pooled` defaults to the inverse-variance weighted mean. `missing` draws
+ * hollow markers, for a lesson that shows what absence would have looked like.
+ *
+ * Egger's test is computed in the runnable R by regression, not by a package:
+ * it is just the intercept of the standard normal deviate on precision.
+ */
+(function () {
+  'use strict';
+
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var P = u.P;
+    var studies = (cfg.studies && cfg.studies.length) ? cfg.studies : [
+      { name: 'A', est: 0.30, se: 0.055 }, { name: 'B', est: 0.26, se: 0.075 },
+      { name: 'C', est: 0.36, se: 0.090 }, { name: 'D', est: 0.21, se: 0.105 },
+      { name: 'E', est: 0.44, se: 0.130 }, { name: 'F', est: 0.48, se: 0.165 },
+      { name: 'G', est: 0.58, se: 0.200 }, { name: 'H', est: 0.33, se: 0.145 },
+      { name: 'I', est: 0.62, se: 0.235 }, { name: 'J', est: 0.41, se: 0.185 }
+    ];
+    var missing = cfg.missing || [];
+    var xlab = cfg.xlab || 'Effect estimate';
+    var showFunnel = cfg.showFunnel !== false;
+
+    var sw = 0, swy = 0;
+    studies.forEach(function (s) { var w = 1 / (s.se * s.se); sw += w; swy += w * s.est; });
+    var pooled = cfg.pooled == null ? swy / sw : +cfg.pooled;
+
+    // ---- geometry: se increases DOWNWARD ----------------------------------
+    var W = 520, H = 360, m = { t: 22, r: 20, b: 46, l: 58 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var seMax = Math.max.apply(null, studies.concat(missing).map(function (s) { return s.se; })) * 1.12;
+    var xs = studies.concat(missing).map(function (s) { return s.est; });
+    // the funnel at its widest decides the x range, else points fall outside it
+    var xLo = Math.min(Math.min.apply(null, xs), pooled - 1.96 * seMax);
+    var xHi = Math.max(Math.max.apply(null, xs), pooled + 1.96 * seMax);
+    var xpad = (xHi - xLo) * 0.06 || 0.1;
+    xLo -= xpad; xHi += xpad;
+
+    function sx(v) { return m.l + (v - xLo) / (xHi - xLo) * iw; }
+    function sy(se) { return m.t + (se / seMax) * ih; }   // se 0 at the top
+    function f2(v) { return (Math.round(v * 100) / 100).toFixed(2); }
+    function f3(v) { return (Math.round(v * 1000) / 1000).toFixed(3); }
+
+    var g = '';
+    // frame
+    g += '<line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) +
+         '" stroke="' + P.line + '" stroke-width="1.5"/>' +
+         '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) +
+         '" stroke="' + P.line + '" stroke-width="1.5"/>';
+
+    // y ticks: se, increasing downward
+    [0, seMax / 2, seMax].forEach(function (t) {
+      g += '<line x1="' + (m.l - 5) + '" y1="' + sy(t).toFixed(1) + '" x2="' + m.l + '" y2="' + sy(t).toFixed(1) +
+           '" stroke="' + P.line + '"/>' +
+           '<text x="' + (m.l - 9) + '" y="' + (sy(t) + 3).toFixed(1) + '" text-anchor="end" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' + P.mut + '">' + f3(t) + '</text>';
+    });
+    // x ticks
+    [xLo + xpad, pooled, xHi - xpad].forEach(function (t) {
+      g += '<text x="' + sx(t).toFixed(1) + '" y="' + (m.t + ih + 16) + '" text-anchor="middle" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' + P.mut + '">' + f2(t) + '</text>';
+    });
+
+    // the funnel: pooled +/- 1.96 se, so straight lines from the apex
+    if (showFunnel) {
+      g += '<path d="M ' + sx(pooled).toFixed(1) + ' ' + sy(0).toFixed(1) +
+           ' L ' + sx(pooled - 1.96 * seMax).toFixed(1) + ' ' + sy(seMax).toFixed(1) +
+           ' L ' + sx(pooled + 1.96 * seMax).toFixed(1) + ' ' + sy(seMax).toFixed(1) + ' Z" ' +
+           'fill="' + P.bg + '" fill-opacity="0.65" stroke="' + P.faint +
+           '" stroke-width="1" stroke-dasharray="4 3"/>';
+    }
+    // pooled vertical
+    g += '<line x1="' + sx(pooled).toFixed(1) + '" y1="' + m.t + '" x2="' + sx(pooled).toFixed(1) +
+         '" y2="' + (m.t + ih) + '" stroke="' + P.acc + '" stroke-width="1.5"/>';
+
+    // observed studies
+    studies.forEach(function (s) {
+      g += '<circle cx="' + sx(s.est).toFixed(1) + '" cy="' + sy(s.se).toFixed(1) + '" r="5" fill="' + P.c0 +
+           '" fill-opacity="0.8"/>';
+    });
+    // the studies that were never published, if the lesson supplies them
+    missing.forEach(function (s) {
+      g += '<circle cx="' + sx(s.est).toFixed(1) + '" cy="' + sy(s.se).toFixed(1) + '" r="5" fill="none" ' +
+           'stroke="' + P.bad + '" stroke-width="1.6" stroke-dasharray="3 2"/>';
+    });
+
+    // axis titles
+    g += '<text x="' + (m.l + iw / 2).toFixed(1) + '" y="' + (H - 10) + '" text-anchor="middle" ' +
+         'font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.mut + '">' + u.esc(xlab) + '</text>' +
+         '<text transform="translate(14,' + (m.t + ih / 2).toFixed(1) + ') rotate(-90)" text-anchor="middle" ' +
+         'font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.mut + '">standard error</text>' +
+         '<text x="' + (m.l + 6) + '" y="' + (m.t + 11) + '" font-family="IBM Plex Sans,sans-serif" ' +
+         'font-size="9.5" fill="' + P.faint + '">more precise</text>' +
+         '<text x="' + (m.l + 6) + '" y="' + (m.t + ih - 5) + '" font-family="IBM Plex Sans,sans-serif" ' +
+         'font-size="9.5" fill="' + P.faint + '">less precise</text>';
+
+    var chart = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+      'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" ' +
+      'aria-label="Funnel plot of ' + studies.length + ' studies, standard error on the vertical axis">' +
+      g + '</svg>';
+
+    var rcode =
+      '# est and se as published. Precision is 1/se: the funnel narrows as it grows.\n' +
+      'f <- data.frame(\n' +
+      '  study = c(' + studies.map(function (s) { return '"' + String(s.name).replace(/"/g, '') + '"'; }).join(', ') + '),\n' +
+      '  est   = c(' + studies.map(function (s) { return +s.est; }).join(', ') + '),\n' +
+      '  se    = c(' + studies.map(function (s) { return +s.se; }).join(', ') + '),\n' +
+      '  stringsAsFactors = FALSE\n' +
+      ')\n\n' +
+      'w      <- 1 / f$se^2\n' +
+      'pooled <- sum(w * f$est) / sum(w)\n' +
+      'cat(sprintf("pooled %.3f\\n", pooled))\n\n' +
+      '# Egger\'s test is a regression, not a package. Regress the standard normal\n' +
+      '# deviate on precision: a non-zero INTERCEPT is funnel asymmetry, because a\n' +
+      '# symmetric funnel has small studies scattered evenly about the pooled line.\n' +
+      'snd  <- f$est / f$se\n' +
+      'prec <- 1 / f$se\n' +
+      'eg   <- lm(snd ~ prec)\n' +
+      'print(summary(eg)$coefficients)\n\n' +
+      'cat(sprintf("\\nEgger intercept %.2f (p = %.3f)\\n",\n' +
+      '            coef(eg)[1], summary(eg)$coefficients[1, 4]))\n\n' +
+      '# Asymmetry is EVIDENCE, not proof. Small-study effects, real differences in\n' +
+      '# how small trials are run, and plain chance all bend a funnel. With this few\n' +
+      '# studies the test has little power, so read it alongside the picture.\n' +
+      'cat("studies:", nrow(f), "- Egger is underpowered below about 10\\n")';
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="overflow-x:auto">' + chart + '</div>' +
+      '<p style="margin:12px 0 10px;font-size:12.5px;color:' + P.mut + ';line-height:1.55">' +
+        'Each dot is a study, placed by its effect and its standard error. Inside the dashed ' +
+        'funnel is where 95% of them belong if sampling error is the only thing spreading them ' +
+        'out. A gap in one bottom corner is the signature of small studies that found the wrong ' +
+        'answer and were never written up' +
+        (missing.length ? ', drawn here as hollow markers.' : '.') + '</p>' +
+      u.runnable(rcode, { label: 'Run Egger\'s test on these studies' });
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+
+  if (window.LessonWidgets) window.LessonWidgets.register('funnel-plot', mount);
+})();
+
+;
 /* gini-split.js */
 /* gini-split.js - one decision-tree split shown as a purity (Gini) drop.
  * A mixed parent node splits into two purer children; every Gini value is
@@ -7673,6 +8011,167 @@
   }
 
   window.LessonWidgets.register('mcmc-walk', mount);
+})();
+
+;
+/* missingness-pattern.js */
+/* missingness-pattern.js - the pattern matrix for missing data: one row per
+ * distinct pattern of which variables are present, sized by how many cases
+ * share it, over a per-variable missing rate.
+ *
+ * Reading the matrix is how you tell the three mechanisms apart in practice.
+ * One dominant complete row with scattered singletons looks like MCAR; a
+ * staircase, where missing one variable almost always means missing another,
+ * is structure that MAR can model; and a pattern that lines up with the values
+ * themselves is the MNAR case no pattern plot can rule out. cfg:
+ *   { vars:["age","bmi"], patterns:[{mask:[1,0], n:42}], mechanism:"MAR",
+ *     note:"..." }
+ * mask entries: 1 observed, 0 missing. Rows are sorted by n, so the complete
+ * cases come first.
+ */
+(function () {
+  'use strict';
+
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var P = u.P;
+
+    var vars = (cfg.vars && cfg.vars.length) ? cfg.vars.slice()
+      : ['age', 'bmi', 'sbp', 'cholesterol'];
+    var patterns = (cfg.patterns && cfg.patterns.length) ? cfg.patterns.slice() : [
+      { mask: [1, 1, 1, 1], n: 612 },
+      { mask: [1, 1, 1, 0], n: 118 },
+      { mask: [1, 1, 0, 0], n: 141 },
+      { mask: [1, 0, 1, 1], n: 46 },
+      { mask: [1, 0, 0, 0], n: 83 }
+    ];
+    var mechanism = cfg.mechanism || '';
+
+    patterns.sort(function (a, b) { return b.n - a.n; });
+    var total = patterns.reduce(function (a, p) { return a + p.n; }, 0);
+
+    // per-variable missing count
+    var miss = vars.map(function (_, ci) {
+      return patterns.reduce(function (a, p) { return a + (p.mask[ci] ? 0 : p.n); }, 0);
+    });
+    var complete = patterns.filter(function (p) {
+      return p.mask.every(function (m) { return m === 1; });
+    }).reduce(function (a, p) { return a + p.n; }, 0);
+
+    // ---- geometry ----------------------------------------------------------
+    var cellW = 86, cellH = 30, headH = 46, nW = 92, barH = 44;
+    var W = nW + cellW * vars.length + 16;
+    var H = headH + cellH * patterns.length + barH + 30;
+
+    var g = '';
+    // column headers
+    vars.forEach(function (v, ci) {
+      var x = nW + cellW * ci + cellW / 2;
+      g += '<text x="' + x.toFixed(1) + '" y="' + (headH - 22) + '" text-anchor="middle" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="11" fill="' + P.ink + '">' + u.esc(v) + '</text>';
+      g += '<text x="' + x.toFixed(1) + '" y="' + (headH - 8) + '" text-anchor="middle" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' +
+           (miss[ci] ? P.bad : P.mut) + '">' + (100 * miss[ci] / total).toFixed(0) + '% NA</text>';
+    });
+    g += '<text x="8" y="' + (headH - 15) + '" font-family="IBM Plex Sans,sans-serif" font-size="10" ' +
+         'font-weight="700" fill="' + P.mut + '" letter-spacing="0.03em">CASES</text>';
+
+    // the matrix
+    patterns.forEach(function (p, ri) {
+      var y = headH + cellH * ri;
+      var isComplete = p.mask.every(function (m) { return m === 1; });
+      g += '<text x="' + (nW - 10) + '" y="' + (y + cellH / 2 + 4).toFixed(1) + '" text-anchor="end" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="11.5" fill="' + P.ink +
+           '"' + (isComplete ? ' font-weight="700"' : '') + '>' + p.n + '</text>';
+      p.mask.forEach(function (m, ci) {
+        var x = nW + cellW * ci;
+        g += '<rect x="' + (x + 2) + '" y="' + (y + 3) + '" width="' + (cellW - 4) + '" height="' + (cellH - 6) +
+             '" rx="3" fill="' + (m ? P.add : P.del) + '" stroke="' + (m ? P.acc : P.bad) +
+             '" stroke-opacity="0.45" stroke-width="1"/>';
+        if (!m) {
+          g += '<text x="' + (x + cellW / 2).toFixed(1) + '" y="' + (y + cellH / 2 + 4).toFixed(1) +
+               '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10.5" ' +
+               'font-weight="700" fill="' + P.bad + '">NA</text>';
+        }
+      });
+    });
+
+    // per-variable missing bars
+    var by = headH + cellH * patterns.length + 14;
+    var maxMiss = Math.max.apply(null, miss) || 1;
+    vars.forEach(function (v, ci) {
+      var x = nW + cellW * ci, h = (miss[ci] / maxMiss) * (barH - 18);
+      g += '<rect x="' + (x + cellW / 2 - 13) + '" y="' + (by + (barH - 18) - h).toFixed(1) +
+           '" width="26" height="' + h.toFixed(1) + '" rx="2" fill="' + P.bad + '" fill-opacity="0.55"/>';
+      g += '<text x="' + (x + cellW / 2).toFixed(1) + '" y="' + (by + barH - 2) + '" text-anchor="middle" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' + P.mut + '">' + miss[ci] + '</text>';
+    });
+    g += '<text x="' + (nW - 10) + '" y="' + (by + barH - 2) + '" text-anchor="end" ' +
+         'font-family="IBM Plex Sans,sans-serif" font-size="9.5" fill="' + P.mut + '">missing</text>';
+
+    var chart = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+      'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Missing data pattern matrix for ' +
+      vars.length + ' variables across ' + patterns.length + ' patterns">' + g + '</svg>';
+
+    // ---- runnable R: rebuild the same patterns, then ask the MCAR question --
+    var rcode =
+      '# Rebuild exactly the patterns in the plot, so the counts match.\n' +
+      'vars <- c(' + vars.map(function (v) { return '"' + String(v).replace(/"/g, '') + '"'; }).join(', ') + ')\n' +
+      'mask <- rbind(\n' +
+      patterns.map(function (p) { return '  c(' + p.mask.map(function (m) { return m ? 1 : 0; }).join(', ') + ')'; }).join(',\n') + '\n)\n' +
+      'n    <- c(' + patterns.map(function (p) { return p.n; }).join(', ') + ')\n\n' +
+      '# One row per case: observed values are filled in, missing ones are NA.\n' +
+      '# The first variable is drawn so that cases missing MORE shift upward on it.\n' +
+      '# That is deliberate: it makes the data genuinely MAR, so the test below has\n' +
+      '# something true to find. Draw it independently and the test comes back null\n' +
+      '# while the pattern matrix still looks structured, which teaches the wrong\n' +
+      '# lesson about what a pattern plot can tell you.\n' +
+      'set.seed(42)\n' +
+      'rows <- do.call(rbind, lapply(seq_len(nrow(mask)), function (i) {\n' +
+      '  nmiss <- sum(mask[i, ] == 0)\n' +
+      '  m <- matrix(rnorm(n[i] * length(vars)), nrow = n[i])\n' +
+      '  m[, 1] <- m[, 1] + 0.75 * nmiss          # missingness depends on var 1\n' +
+      '  m[, mask[i, ] == 0] <- NA\n' +
+      '  m\n' +
+      '}))\n' +
+      'd <- as.data.frame(rows)\n' +
+      'names(d) <- vars\n\n' +
+      '# Missing rate per variable. Always the first thing to print.\n' +
+      'print(round(colMeans(is.na(d)), 3))\n\n' +
+      '# The pattern table. This is the plot, as numbers.\n' +
+      'pat <- apply(ifelse(is.na(d), 0, 1), 1, paste, collapse = "")\n' +
+      'print(sort(table(pat), decreasing = TRUE))\n\n' +
+      'cat(sprintf("\\ncomplete cases: %d of %d (%.0f%%)\\n",\n' +
+      '            sum(complete.cases(d)), nrow(d), 100 * mean(complete.cases(d))))\n\n' +
+      '# The question the picture cannot answer. MCAR says missingness is\n' +
+      '# unrelated to anything; MAR says it depends on what you DID observe.\n' +
+      '# Testable: does being missing on one variable depend on another?\n' +
+      'd$miss_' + String(vars[vars.length - 1]).replace(/[^A-Za-z0-9_]/g, '_') +
+      ' <- as.integer(is.na(d$`' + String(vars[vars.length - 1]).replace(/`/g, '') + '`))\n' +
+      'print(summary(glm(miss_' + String(vars[vars.length - 1]).replace(/[^A-Za-z0-9_]/g, '_') +
+      ' ~ `' + String(vars[0]).replace(/`/g, '') + '`,\n' +
+      '                  data = d, family = binomial))$coefficients)\n\n' +
+      '# A significant slope rules MCAR out. Nothing here can rule MNAR out,\n' +
+      '# because that would need the values you do not have.';
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="overflow-x:auto">' + chart + '</div>' +
+      '<p style="margin:12px 0 10px;font-size:12.5px;color:' + P.mut + ';line-height:1.55">' +
+        '<b>' + complete + ' of ' + total + '</b> cases are complete (' +
+        (100 * complete / total).toFixed(0) + '%), so a complete-case analysis throws away ' +
+        (100 - 100 * complete / total).toFixed(0) + '% of the data' +
+        (patterns.length > 2 ? ' and the discarded rows are not a random sample of the rest' : '') + '. ' +
+        (mechanism ? 'This dataset is ' + u.esc(mechanism) + '. ' : '') +
+        'The matrix shows which variables go missing together; it cannot show whether they go ' +
+        'missing <i>because of their own values</i>.</p>' +
+      u.runnable(rcode, { label: 'Rebuild and test these patterns' });
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+
+  if (window.LessonWidgets) window.LessonWidgets.register('missingness-pattern', mount);
 })();
 
 ;
@@ -10735,6 +11234,190 @@
   }
 
   window.LessonWidgets.register('shrinkage-pool', mount);
+})();
+
+;
+/* spec-curve.js */
+/* spec-curve.js - a specification curve: every defensible version of one
+ * analysis, sorted by the estimate it produces, over a matrix showing which
+ * analytic choices each version made.
+ *
+ * The top panel answers "how much does the answer depend on choices nobody
+ * reports?" and the bottom panel answers "which choice is doing it?" A curve
+ * that crosses the null somewhere in the middle means the headline result was
+ * a choice, not a finding. cfg:
+ *   { specs:[{est, lo, hi, choices:{dim:"level"}}], nullAt:0,
+ *     ylab:"Estimated effect", dims:[{key,label}] }
+ * `dims` is optional; the dimensions and their levels are read off the specs
+ * in first-seen order when it is left out.
+ *
+ * Every spec here is pre-computed by the lesson, because the point is to
+ * compare them, not to refit 48 models in the browser. The runnable R block
+ * builds the same table and asks the questions a reader should ask of it.
+ */
+(function () {
+  'use strict';
+
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var P = u.P;
+
+    var specs = (cfg.specs && cfg.specs.length) ? cfg.specs.slice() : (function () {
+      // A small but honest default: 2 x 2 x 3 = 12 defensible analyses.
+      var out = [], outc = ['raw', 'log'], samp = ['full', 'trimmed'],
+          covs = ['none', 'age + sex', 'age + sex + site'];
+      var k = 0;
+      outc.forEach(function (o) {
+        samp.forEach(function (s) {
+          covs.forEach(function (c) {
+            // deterministic spread, not random: the shape is the teaching point
+            var base = 0.26 + (o === 'log' ? -0.10 : 0.05) + (s === 'trimmed' ? -0.07 : 0.03) +
+                       (c === 'none' ? 0.09 : c === 'age + sex' ? 0.0 : -0.06);
+            var se = 0.07 + 0.012 * (k % 4);
+            out.push({ est: base, lo: base - 1.96 * se, hi: base + 1.96 * se,
+                       choices: { outcome: o, sample: s, covariates: c } });
+            k++;
+          });
+        });
+      });
+      return out;
+    })();
+
+    var nullAt = cfg.nullAt == null ? 0 : +cfg.nullAt;
+    var ylab = cfg.ylab || 'Estimated effect';
+
+    specs.sort(function (a, b) { return a.est - b.est; });
+
+    // dimensions and levels, in first-seen order
+    var dimKeys = [], levels = {};
+    (cfg.dims || []).forEach(function (d) { dimKeys.push(d.key); levels[d.key] = []; });
+    var dimLabel = {};
+    (cfg.dims || []).forEach(function (d) { dimLabel[d.key] = d.label || d.key; });
+    specs.forEach(function (s) {
+      Object.keys(s.choices || {}).forEach(function (k) {
+        if (dimKeys.indexOf(k) < 0) { dimKeys.push(k); levels[k] = []; }
+        if (!levels[k]) levels[k] = [];
+        if (levels[k].indexOf(s.choices[k]) < 0) levels[k].push(s.choices[k]);
+      });
+    });
+    // A dimension name gets its OWN row above its levels. Sharing a row put
+    // "COVARIATES" straight through "age + sex + site", because both are long
+    // and both want the same 150px gutter.
+    var rows = [];
+    dimKeys.forEach(function (k) {
+      rows.push({ head: true, dim: k });
+      (levels[k] || []).forEach(function (lv) { rows.push({ dim: k, level: lv }); });
+    });
+
+    // ---- geometry ----------------------------------------------------------
+    var labW = 150, colW = Math.max(12, Math.min(26, 520 / specs.length));
+    var topH = 190, rowH = 15, gap = 26;
+    var W = labW + colW * specs.length + 24;
+    var H = topH + gap + rowH * rows.length + 34;
+
+    var lo = Math.min(nullAt, Math.min.apply(null, specs.map(function (s) { return s.lo; })));
+    var hi = Math.max(nullAt, Math.max.apply(null, specs.map(function (s) { return s.hi; })));
+    var pad = ((hi - lo) || 1) * 0.08;
+    function sy(v) { return topH - 18 - (v - (lo - pad)) / ((hi + pad) - (lo - pad)) * (topH - 36); }
+    function cx(i) { return labW + colW * i + colW / 2; }
+    function f2(v) { return (Math.round(v * 100) / 100).toFixed(2); }
+
+    var g = '';
+    // y axis + null line
+    g += '<line x1="' + labW + '" y1="' + sy(hi + pad) + '" x2="' + labW + '" y2="' + sy(lo - pad) +
+         '" stroke="' + P.line + '" stroke-width="1.5"/>';
+    [lo, nullAt, hi].forEach(function (t) {
+      g += '<text x="' + (labW - 8) + '" y="' + (sy(t) + 3).toFixed(1) + '" text-anchor="end" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' + P.mut + '">' + f2(t) + '</text>';
+    });
+    g += '<line x1="' + labW + '" y1="' + sy(nullAt).toFixed(1) + '" x2="' + (W - 12) + '" y2="' + sy(nullAt).toFixed(1) +
+         '" stroke="' + P.faint + '" stroke-width="1" stroke-dasharray="4 3"/>';
+    g += '<text transform="translate(16,' + (topH / 2).toFixed(1) + ') rotate(-90)" text-anchor="middle" ' +
+         'font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.mut + '">' + u.esc(ylab) + '</text>';
+
+    // the curve
+    var nSig = 0, nSigSame = 0;
+    specs.forEach(function (s, i) {
+      var crosses = (s.lo <= nullAt && s.hi >= nullAt);
+      if (!crosses) { nSig++; if (s.est > nullAt) nSigSame++; }
+      var col = crosses ? P.faint : P.acc;
+      g += '<line x1="' + cx(i).toFixed(1) + '" y1="' + sy(s.lo).toFixed(1) + '" x2="' + cx(i).toFixed(1) +
+           '" y2="' + sy(s.hi).toFixed(1) + '" stroke="' + col + '" stroke-width="1.3" stroke-opacity="0.75"/>';
+      g += '<circle cx="' + cx(i).toFixed(1) + '" cy="' + sy(s.est).toFixed(1) + '" r="3" fill="' + col + '"/>';
+    });
+
+    // the choice matrix
+    var y0 = topH + gap;
+    rows.forEach(function (r, ri) {
+      var y = y0 + rowH * ri + rowH / 2;
+      if (r.head) {
+        g += '<text x="8" y="' + (y + 3.5).toFixed(1) + '" font-family="IBM Plex Sans,sans-serif" ' +
+             'font-size="9.5" font-weight="700" fill="' + P.mut + '" letter-spacing="0.05em">' +
+             u.esc((dimLabel[r.dim] || r.dim).toUpperCase()) + '</text>';
+        return;                       // header rows carry no dots
+      }
+      g += '<text x="' + (labW - 8) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end" ' +
+           'font-family="IBM Plex Mono,monospace" font-size="10" fill="' + P.body + '">' + u.esc(r.level) + '</text>';
+      specs.forEach(function (s, i) {
+        var on = (s.choices || {})[r.dim] === r.level;
+        var crosses = (s.lo <= nullAt && s.hi >= nullAt);
+        g += '<circle cx="' + cx(i).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (on ? 3 : 1.2) +
+             '" fill="' + (on ? (crosses ? P.faint : P.acc) : P.line) + '"/>';
+      });
+    });
+    // The caption lives in HTML below, not in the SVG. As SVG text it ran 45px
+    // past the viewBox and was clipped, because prose length has nothing to do
+    // with the chart's width.
+    var chart = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W +
+      'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Specification curve of ' +
+      specs.length + ' analyses over a matrix of analytic choices">' + g + '</svg>';
+
+    var rcode =
+      '# Every defensible version of the same analysis, one row each.\n' +
+      's <- data.frame(\n' +
+      '  est = c(' + specs.map(function (x) { return +(Math.round(x.est * 1000) / 1000); }).join(', ') + '),\n' +
+      '  lo  = c(' + specs.map(function (x) { return +(Math.round(x.lo * 1000) / 1000); }).join(', ') + '),\n' +
+      '  hi  = c(' + specs.map(function (x) { return +(Math.round(x.hi * 1000) / 1000); }).join(', ') + ')' +
+      (dimKeys.length ? ',\n' + dimKeys.map(function (k) {
+        return '  ' + k.replace(/[^A-Za-z0-9_]/g, '_') + ' = c(' +
+          specs.map(function (x) { return '"' + String((x.choices || {})[k] == null ? '' : (x.choices || {})[k]).replace(/"/g, '') + '"'; }).join(', ') + ')';
+      }).join(',\n') : '') + ',\n' +
+      '  stringsAsFactors = FALSE\n' +
+      ')\n\n' +
+      's <- s[order(s$est), ]\n' +
+      's$sig <- !(s$lo <= ' + nullAt + ' & s$hi >= ' + nullAt + ')\n\n' +
+      '# The three numbers that belong in the paper, instead of one estimate.\n' +
+      'cat(sprintf("specifications      : %d\\n", nrow(s)))\n' +
+      'cat(sprintf("median estimate     : %.3f\\n", median(s$est)))\n' +
+      'cat(sprintf("range               : %.3f to %.3f\\n", min(s$est), max(s$est)))\n' +
+      'cat(sprintf("exclude the null    : %d of %d (%.0f%%)\\n",\n' +
+      '            sum(s$sig), nrow(s), 100 * mean(s$sig)))\n\n' +
+      '# Which CHOICE moves the answer? Average the estimate within each level.\n' +
+      'for (d in setdiff(names(s), c("est", "lo", "hi", "sig"))) {\n' +
+      '  cat("\\n", d, ":\\n", sep = "")\n' +
+      '  print(round(tapply(s$est, s[[d]], mean), 3))\n' +
+      '}\n\n' +
+      '# A curve that crosses the null partway along means the headline result was\n' +
+      '# a choice. Reporting the single most favourable specification is the thing\n' +
+      '# this plot exists to make visible.';
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="overflow-x:auto">' + chart + '</div>' +
+      '<p style="margin:12px 0 10px;font-size:12.5px;color:' + P.mut + ';line-height:1.55">' +
+        specs.length + ' specifications, sorted by the estimate each one produces. ' +
+        '<b>' + nSig + ' of ' + specs.length + '</b> exclude the null' +
+        (nSig ? ', and ' + nSigSame + ' of those point the same way' : '') +
+        '. Faded columns are the ones whose interval spans no effect. Solid dots in the matrix ' +
+        'mark the choices a specification made, so reading down a column tells you exactly ' +
+        'which ones produced it.</p>' +
+      u.runnable(rcode, { label: 'Interrogate the specification curve' });
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+
+  if (window.LessonWidgets) window.LessonWidgets.register('spec-curve', mount);
 })();
 
 ;
