@@ -41,11 +41,11 @@ The diagnosis order that keeps you out of trouble: is the drop real, is it instr
 
 [Start Lesson 2: Metric Drop Diagnosis](Metric-Drop-Diagnosis.html)
 
-### Lesson 3: Funnel decomposition
+### Lesson 3: Funnel Decomposition
 
 Breaking a rate into the steps that produce it, so a drop has a location before it has a theory. Step conversion computed and the leaking step identified.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Funnel Decomposition](Funnel-Decomposition.html)
 
 ### Lesson 4: Cohort analysis and mix shift
 
