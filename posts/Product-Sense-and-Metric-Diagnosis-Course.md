@@ -53,11 +53,11 @@ Reading a cohort table, then the composition change that moves a headline nobody
 
 [Start Lesson 4: Cohort Analysis and Mix Shift](Cohort-Analysis-and-Mix-Shift.html)
 
-### Lesson 5: Opportunity sizing
+### Lesson 5: Opportunity Sizing
 
 Estimating the ceiling on a feature's impact before it is built: reachable population times conversion times effect, with the uncertainty carried through so the answer is a range.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Opportunity Sizing](Opportunity-Sizing.html)
 
 ### Lesson 6: Product sense quiz
 
