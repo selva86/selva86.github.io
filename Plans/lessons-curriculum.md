@@ -807,8 +807,8 @@ worth buying on its own.
 1. From-a-Product-Question-to-a-Testable-Hypothesis - Turning "does the new onboarding work" into a unit, a metric, an effect size and a decision rule written before anyone looks. widgets: doc-structure, process-flow
 2. Choosing-the-Randomisation-Unit - User, session, device or cluster. Each choice trades variance against validity, shown by analysing one dataset at two units and getting two answers. widgets: cluster-icc-sim, styled-table
 3. Power-for-an-Online-Test-by-Simulation - Simulate the design you will actually run, with the real metric and the real variance, rather than a formula for a design nobody runs. widgets: power-curve, null-distribution
-4. The-Minimum-Detectable-Effect-as-a-Business-Number - The MDE is a product decision before it is a statistical one: what change would be worth shipping, and what sample that implies. widgets: power-curve, chart-plotter
-5. Sample-Ratio-Mismatch-the-Test-That-Saves-You - The cheapest check in experimentation. What a failed SRM means mechanically, and why the result is then unusable rather than merely suspicious. widgets: null-distribution, styled-table
+4. Setting-a-Minimum-Detectable-Effect - The MDE is a product decision before it is a statistical one: what change would be worth shipping, and what sample that implies. widgets: power-curve, chart-plotter
+5. Sample-Ratio-Mismatch-and-Why-the-Result-Is-Unusable - The cheapest check in experimentation. What a failed SRM means mechanically, and why the result is then unusable rather than merely suspicious. widgets: null-distribution, styled-table
 6. Writing-the-Analysis-Down-Before-the-Data - Pre-registration for product teams, and the degrees of freedom it closes, counted. widgets: doc-structure, multiplicity-sim
 7. Reading-an-Experiment-Readout - What to look at and in what order, and the four things that should stop you before you read the headline number. widgets: report-four-ways, styled-table
 8. Experiment-Design-Quiz - Section quiz.
@@ -819,7 +819,7 @@ worth buying on its own.
 2. Sequential-Testing-and-Always-Valid-Inference - The fix rather than the prohibition: always-valid p-values and confidence sequences, and the power you pay for the right to look. widgets: ci-coverage, chart-plotter
 3. Variance-Reduction-with-CUPED - Pre-period data used to cut variance, what it buys in sample size, and the conditions under which it buys nothing. widgets: cuped-variance, chart-plotter
 4. Novelty-and-Primacy-Effects - The first week lies in both directions. Simulated novelty and primacy curves, and the test that tells you which one you have. widgets: chart-plotter, km-curve
-5. Interference-When-One-Users-Treatment-Leaks - Marketplaces, social graphs and shared inventory break the no-interference assumption. The bias is produced, measured and signed. widgets: cluster-icc-sim, chart-plotter
+5. When-Treatment-Leaks-Between-Users - Marketplaces, social graphs and shared inventory break the no-interference assumption. The bias is produced, measured and signed. widgets: cluster-icc-sim, chart-plotter
 6. Cluster-and-Switchback-Designs - The two standard answers to interference, and the variance price each charges, compared on the same simulated marketplace. widgets: cluster-icc-sim, styled-table
 7. Experiment-Pitfalls-Quiz - Section quiz.
 
@@ -843,15 +843,15 @@ worth buying on its own.
 6. Staggered-Rollouts-and-the-Negative-Weights-Problem - Why the standard two-way fixed-effects estimator breaks when units switch on at different times, shown by recovering a negative weight. widgets: did-parallel, styled-table
 7. Regression-Discontinuity-at-a-Threshold-Rule - Product rules that create natural experiments, the bandwidth choice that changes the answer, and the manipulation check on the running variable. widgets: rdd-cutoff, chart-plotter
 8. Instrumental-Variables-and-Two-Stage-Least-Squares - Encouragement designs, the three conditions marked testable or not, and the weak-instrument failure produced on purpose. widgets: iv-2stage, chart-plotter
+9. Synthetic-Control-for-a-Single-Launch - One treated market, a weighted combination of the others, and the pre-period fit presented as the credential that earns the counterfactual. widgets: synth-control, chart-plotter
 
 ## pds-honest  (track: product-ds; curriculum_id 3.60; landing Honest-Observational-Claims-Course.html; access: pro)  [roadmap §6]
 
-1. Synthetic-Control-for-a-Single-Launch - One treated market, a weighted combination of the others, and the pre-period fit presented as the credential that earns the counterfactual. widgets: synth-control, chart-plotter
-2. Doubly-Robust-Estimation - Two chances to be right, what happens when one model is wrong, and what happens when both are. widgets: matching-overlap, styled-table
-3. Double-Machine-Learning - Flexible nuisance models with cross-fitting, and the regularisation bias that cross-fitting removes. widgets: cv-folds, coef-path
-4. Mediation-How-Much-Goes-Through-the-Feature - Direct and indirect paths estimated, then stress-tested against the assumption almost nobody states. widgets: causal-dag, chart-plotter
-5. Sensitivity-Analysis-and-Placebo-Tests - How strong an unmeasured confounder would have to be to explain the result away, which is the number that belongs in the doc. widgets: assumption-dial, chart-plotter
-6. Observational-Claims-Quiz - Section quiz.
+1. Doubly-Robust-Estimation - Two chances to be right, what happens when one model is wrong, and what happens when both are. widgets: matching-overlap, styled-table
+2. Double-Machine-Learning - Flexible nuisance models with cross-fitting, and the regularisation bias that cross-fitting removes. widgets: cv-folds, coef-path
+3. Mediation-and-How-Much-Goes-Through-the-Feature - Direct and indirect paths estimated, then stress-tested against the assumption almost nobody states. widgets: causal-dag, chart-plotter
+4. Sensitivity-Analysis-and-Placebo-Tests - How strong an unmeasured confounder would have to be to explain the result away, which is the number that belongs in the doc. widgets: assumption-dial, chart-plotter
+5. Observational-Claims-Quiz - Section quiz.
 
 ## pds-longrun  (track: product-ds; curriculum_id 3.70; landing Long-Run-Product-Effects-Course.html; access: pro)  [roadmap §7]
 
@@ -864,9 +864,9 @@ worth buying on its own.
 
 ## pds-decision  (track: product-ds; curriculum_id 3.80; landing From-Evidence-to-Decision-Course.html; access: pro)  [roadmap §8]
 
-1. Ship-or-Not-Expected-Loss-Not-Significance - The decision written as a loss function, where the p-value is one input and the cost of being wrong in each direction is the rest. widgets: bayes-update, chart-plotter
+1. Deciding-to-Ship-with-Expected-Loss - The decision written as a loss function, where the p-value is one input and the cost of being wrong in each direction is the rest. widgets: bayes-update, chart-plotter
 2. Bayesian-A-B-Testing-and-the-Probability-of-Being-Better - The quantity stakeholders already believe a p-value gives them, computed properly, with the prior made explicit. widgets: bayes-update, ppc-overlay
 3. When-the-Answer-Is-No-Effect - What a null result is worth, equivalence testing against a margin you chose in advance, and how to report it as a finding rather than a failure. widgets: ci-coverage, null-distribution
-4. Writing-the-Readout-a-PM-Will-Act-On - The structure, the one chart that earns its place, the caveat that belongs and the three that do not. widgets: report-four-ways, doc-structure
-5. Building-an-Experiment-Review-Others-Trust - What a trustworthy experimentation review checks, in what order, and which failures should block a launch. widgets: review-triage, process-flow
+4. Writing-an-Experiment-Readout - The structure, the one chart that earns its place, the caveat that belongs and the three that do not. widgets: report-four-ways, doc-structure
+5. What-an-Experiment-Review-Should-Check - What a trustworthy experimentation review checks, in what order, and which failures should block a launch. widgets: review-triage, process-flow
 6. Decision-Making-Quiz - Section quiz.

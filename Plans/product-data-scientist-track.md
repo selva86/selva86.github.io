@@ -90,7 +90,7 @@ nothing anywhere currently covers:
 
 Section 1 is free; sections 2 onward are Pro, per the standing gating rule.
 
-### §1 Metrics That Can Carry a Decision (7, free) - `pds-metrics`, 3.10
+### §1 Product Metrics and Measurement (7, free) - `pds-metrics`, 3.10
 
 1. `What-Makes-a-Metric-Worth-Optimising` - input versus output metrics, and the difference between a number that moves and a number worth moving.
 2. `Proxy-Metrics-and-the-Surrogacy-Trap` - when a short-term stand-in is valid for the thing you actually care about, and the conditions that make it lie.
@@ -100,28 +100,28 @@ Section 1 is free; sections 2 onward are Pro, per the standing gating rule.
 6. `Segmenting-Without-Fooling-Yourself` - Simpson's paradox on real product data, and why a segment that reverses the result is usually a mix shift.
 7. `Product-Metrics-Quiz`
 
-### §2 Designing an Experiment You Can Defend (8) - `pds-design`, 3.20
+### §2 Experiment Design and Power (8) - `pds-design`, 3.20
 
 1. `From-a-Product-Question-to-a-Testable-Hypothesis` - turning "does the new onboarding work" into a comparison with a unit, a metric and a decision rule.
 2. `Choosing-the-Randomisation-Unit` - user, session, device or cluster, and what each choice costs in variance and validity.
 3. `Power-for-an-Online-Test-by-Simulation` - simulate the design you will actually run, including the ratio metric and the variance reduction.
-4. `The-Minimum-Detectable-Effect-as-a-Business-Number` - the MDE is a product decision before it is a statistical one.
-5. `Sample-Ratio-Mismatch-the-Test-That-Saves-You` - the cheapest check in experimentation, what a failed SRM means, and why the result is then unusable.
+4. `Setting-a-Minimum-Detectable-Effect` - the MDE is a product decision before it is a statistical one.
+5. `Sample-Ratio-Mismatch-and-Why-the-Result-Is-Unusable` - the cheapest check in experimentation, what a failed SRM means, and why the result is then unusable.
 6. `Writing-the-Analysis-Down-Before-the-Data` - pre-registration for product teams, and the degrees of freedom it closes.
 7. `Reading-an-Experiment-Readout` - what to look at, in what order, and the four things that should stop you.
 8. `Experiment-Design-Quiz`
 
-### §3 When the Experiment Misbehaves (7) - `pds-pitfalls`, 3.30
+### §3 Sequential Testing, Variance Reduction and Interference (7) - `pds-pitfalls`, 3.30
 
 1. `Peeking-and-What-It-Does-to-Your-Error-Rate` - simulate the inflation, so the number is yours rather than a warning you half-remember.
 2. `Sequential-Testing-and-Always-Valid-Inference` - the fix for peeking rather than the prohibition: always-valid p-values and confidence sequences.
 3. `Variance-Reduction-with-CUPED` - use pre-period data to cut variance, and what it does and does not buy.
 4. `Novelty-and-Primacy-Effects` - when the first week lies in both directions, and how to tell which you have.
-5. `Interference-When-One-Users-Treatment-Leaks` - marketplaces, social graphs and shared inventory break SUTVA, with the bias shown rather than asserted.
+5. `When-Treatment-Leaks-Between-Users` - marketplaces, social graphs and shared inventory break SUTVA, with the bias shown rather than asserted.
 6. `Cluster-and-Switchback-Designs` - the two standard answers to interference, and the variance price each one charges.
 7. `Experiment-Pitfalls-Quiz`
 
-### §4 Adaptive Tests, Heterogeneity and Targeting (7) - `pds-targeting`, 3.40
+### §4 Heterogeneous Effects, Uplift and Bandits (7) - `pds-targeting`, 3.40
 
 1. `The-Average-Effect-Hides-Everyone` - a null average concealing a real win for one group and a real loss for another.
 2. `Pre-Specified-Subgroups-and-Fishing` - the difference between a hypothesis and a search, demonstrated by searching.
@@ -131,27 +131,27 @@ Section 1 is free; sections 2 onward are Pro, per the standing gating rule.
 6. `Thompson-Sampling-and-Bayesian-Bandits` - the sampler built from scratch, then the regret curve compared against a fixed split.
 7. `Targeting-and-Heterogeneity-Quiz`
 
-### §5 Causal Inference Without a Randomiser (8) - `pds-causal`, 3.50
+### §5 Observational and Quasi-Experimental Methods (9) - `pds-causal`, 3.50
 
 1. `What-a-Causal-Effect-Is-When-You-Cannot-Randomise` - potential outcomes and the one counterfactual you never observe.
-2. `Drawing-the-Assumptions-You-Cannot-Test` - DAGs, confounders, colliders, and the collider bias that controlling creates.
+2. `Drawing-the-Causal-Graph-for-a-Product-Decision` - DAGs, confounders, colliders, and the collider bias that controlling creates.
 3. `Propensity-Scores-and-Inverse-Probability-Weighting` - building a pseudo-experiment, and checking overlap before trusting it.
-4. `Matching-and-What-It-Throws-Away` - the sample you end up with is not the sample you started with.
+4. `Matching-Users-and-the-Sample-You-End-Up-With` - the sample you end up with is not the sample you started with.
 5. `Difference-in-Differences-and-Parallel-Trends` - the assumption doing all the work, and a case with perfect pre-trends that still misleads.
 6. `Staggered-Rollouts-and-the-Negative-Weights-Problem` - why the standard two-way fixed-effects estimator breaks when units switch on at different times.
 7. `Regression-Discontinuity-at-a-Threshold-Rule` - product rules that create natural experiments, bandwidth sensitivity, and the manipulation check.
 8. `Instrumental-Variables-and-Two-Stage-Least-Squares` - encouragement designs, the three conditions, and the weak-instrument failure.
+9. `Synthetic-Control-for-a-Single-Launch` - one treated market, a weighted combination of the rest, and the pre-period fit as the credential that earns the counterfactual.
 
-### §6 Making an Observational Claim Honest (6) - `pds-honest`, 3.60
+### §6 Doubly Robust Estimation and Sensitivity Analysis (5) - `pds-honest`, 3.60
 
-1. `Synthetic-Control-for-a-Single-Launch` - one treated unit, a weighted combination of the rest, and the pre-period fit as the credential.
-2. `Doubly-Robust-Estimation` - two chances to be right, and what it does when both models are wrong.
-3. `Double-Machine-Learning` - flexible nuisance models with cross-fitting, and the regularisation bias it removes.
-4. `Mediation-How-Much-Goes-Through-the-Feature` - direct and indirect paths, and the assumption nobody states.
-5. `Sensitivity-Analysis-and-Placebo-Tests` - how strong an unmeasured confounder would have to be, which is the number that belongs in the doc.
-6. `Observational-Claims-Quiz`
+1. `Doubly-Robust-Estimation` - two chances to be right, and what it does when both models are wrong.
+2. `Double-Machine-Learning` - flexible nuisance models with cross-fitting, and the regularisation bias it removes.
+3. `Mediation-and-How-Much-Goes-Through-the-Feature` - direct and indirect paths, and the assumption nobody states.
+4. `Sensitivity-Analysis-and-Placebo-Tests` - how strong an unmeasured confounder would have to be, which is the number that belongs in the doc.
+5. `Observational-Claims-Quiz`
 
-### §7 Long-Run Effects and Second-Order Damage (6) - `pds-longrun`, 3.70
+### §7 Long-Term Effects and Holdouts (6) - `pds-longrun`, 3.70
 
 1. `The-Short-Term-Win-That-Loses-Money-Later` - a launch that raises clicks and lowers retention, measured both ways.
 2. `Surrogate-Metrics-and-When-They-Are-Valid` - the surrogacy conditions, and what happens to the estimate when they fail.
@@ -160,13 +160,13 @@ Section 1 is free; sections 2 onward are Pro, per the standing gating rule.
 5. `Cannibalisation-and-the-Zero-Sum-Launch` - a feature that moves volume rather than creating it, and how to detect the difference.
 6. `Long-Run-Effects-Quiz`
 
-### §8 From Evidence to Decision (6) - `pds-decision`, 3.80
+### §8 Decision-Making and Reporting (6) - `pds-decision`, 3.80
 
-1. `Ship-or-Not-Expected-Loss-Not-Significance` - the decision framed as a loss function, where significance is an input and not the answer.
+1. `Deciding-to-Ship-with-Expected-Loss` - the decision framed as a loss function, where significance is an input and not the answer.
 2. `Bayesian-A-B-Testing-and-the-Probability-of-Being-Better` - the quantity stakeholders already think a p-value gives them.
 3. `When-the-Answer-Is-No-Effect` - what a null result is worth, equivalence testing, and how to say "we learned something" honestly.
-4. `Writing-the-Readout-a-PM-Will-Act-On` - the structure, the one chart, the caveat that belongs and the three that do not.
-5. `Building-an-Experiment-Review-Others-Trust` - what a trustworthy experimentation culture checks, and in what order.
+4. `Writing-an-Experiment-Readout` - the structure, the one chart, the caveat that belongs and the three that do not.
+5. `What-an-Experiment-Review-Should-Check` - what a trustworthy experimentation culture checks, and in what order.
 6. `Decision-Making-Quiz`
 
 **Total: 55 lessons across 8 courses.**
