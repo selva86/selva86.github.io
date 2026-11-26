@@ -47,11 +47,11 @@ Breaking a rate into the steps that produce it, so a drop has a location before 
 
 [Start Lesson 3: Funnel Decomposition](Funnel-Decomposition.html)
 
-### Lesson 4: Cohort analysis and mix shift
+### Lesson 4: Cohort Analysis and Mix Shift
 
 Reading a cohort table, then the composition change that moves a headline nobody touched, with every cohort flat and the average falling.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Cohort Analysis and Mix Shift](Cohort-Analysis-and-Mix-Shift.html)
 
 ### Lesson 5: Opportunity sizing
 
