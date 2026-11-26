@@ -59,11 +59,11 @@ Estimating the ceiling on a feature's impact before it is built: reachable popul
 
 [Start Lesson 5: Opportunity Sizing](Opportunity-Sizing.html)
 
-### Lesson 6: Product sense quiz
+### Lesson 6: Quiz
 
 Section quiz.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Quiz](Product-Sense-Quiz.html)
 
 ## Who this is for
 
