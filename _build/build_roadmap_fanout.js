@@ -30,7 +30,16 @@ const RM = global.window.RM;
 const RM2 = global.window.RM2;
 
 const CSS_V = 25;   // /www/roadmap-fanout.css is immutable: bump on every change
-const JS_V = 13;    // /www/roadmap-fanout.js  likewise
+const JS_V = 14;    // /www/roadmap-fanout.js  likewise
+/* Was 13 while every committed page already asked for 14: commit fd2933011f
+   (2026-11-13) changed www/roadmap-fanout.js and hand-bumped the 14 pages but
+   left this constant behind. Running the builder would have rewritten ?v=14
+   down to ?v=13, and /www/ is served immutable for a year, so every roadmap
+   reader would have been handed the old script until 2027. Lowering a stamp is
+   always the bug; raising it is a cache miss. Same drift as the warning at the
+   top of build_roadmap_f2.js, in a second builder. Check both before running:
+     grep -oE "(CSS|JS)_V = [0-9]+"        _build/build_roadmap_fanout.js
+     grep -ohoE "roadmap-fanout\.(js|css)\?v=[0-9]+" roadmap/v2/*.html | sort -u */
 
 /* Track key to page slug. The same pairing /roadmap/ already publishes, so the
    v2 page sits beside its twin and can canonical to it. */

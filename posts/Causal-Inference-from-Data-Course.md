@@ -53,29 +53,29 @@ A reminder sent to a product's less-engaged users, which makes a direct comparis
 
 [Start Lesson 4: Matching and what it throws away](Matching-and-What-It-Throws-Away.html)
 
-### Lesson 5: Difference-in-differences and its one assumption
+### Lesson 5: Difference-in-Differences and Its One Assumption
 
 Two groups and two time periods, with the estimator built by hand as a difference of two differences, which cancels anything fixed about each group and anything common to both periods. The assumption doing all the work is named precisely: absent the treatment, the two groups would have moved in parallel. Then the check and its limits, because parallel pre-treatment trends are evidence rather than proof, and a simulated case with perfectly parallel pre-trends and non-parallel counterfactuals is shown fooling the method completely.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Difference-in-Differences and Its One Assumption](Difference-in-Differences-and-Its-One-Assumption.html)
 
 ### Lesson 6: Instrumental variables when you cannot randomize
 
 An instrument defined by the three conditions it has to satisfy, with each one marked as testable or untestable so it is clear where the risk actually sits. Two-stage least squares is computed by hand with both stages printed, which turns it into a sequence of two regressions you already know rather than a black box. The weak-instrument problem is then produced deliberately by weakening the first stage until the second-stage estimate becomes wildly unstable, together with the first-stage diagnostic that catches it before publication.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Instrumental variables when you cannot randomize](Instrumental-Variables-When-You-Cannot-Randomize.html)
 
 ### Lesson 7: Regression discontinuity and synthetic control
 
 Two designs that manufacture a comparison out of structure. Regression discontinuity exploits a threshold rule, with the effect read as the jump at the cutoff, the bandwidth choice shown changing the answer, and the manipulation check run on the density of the assignment variable. Synthetic control builds a weighted combination of untreated units that tracks the treated one before the intervention, with the weights printed and the pre-period fit presented as the credential that earns the post-period counterfactual.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Regression discontinuity and synthetic control](Regression-Discontinuity-and-Synthetic-Control.html)
 
-### Lesson 8: Mediation and how wrong you can afford to be
+### Lesson 8: Mediation, and how wrong you can afford to be
 
 Mediation decomposed into direct and indirect paths, estimated, and then immediately stress-tested, because it rests on a stronger assumption than most users realise: no unmeasured confounding between the mediator and the outcome. A sensitivity analysis introduces a confounder of known strength and reports how strong it would have to be to explain the finding away, which is the number that belongs in the paper. The same logic is then turned back on the observational estimates from lessons 3 to 7, which is how this course ends honestly.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: Mediation, and how wrong you can afford to be](Mediation-and-How-Wrong-You-Can-Afford-to-Be.html)
 
 ## Who this is for
 
