@@ -47,11 +47,11 @@ The metrics that block a launch even when the OEC improves. How to choose them, 
 
 [Start Lesson 3: Guardrail Metrics](Guardrail-Metrics.html)
 
-### Lesson 4: Goodhart's law and metric gaming
+### Lesson 4: Goodhart's Law and Metric Gaming
 
 What happens to a measure once it becomes a target, demonstrated by optimising a proxy until the real outcome falls.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Goodhart's Law and Metric Gaming](Goodharts-Law-and-Metric-Gaming.html)
 
 ### Lesson 5: Multiple testing across metrics
 
