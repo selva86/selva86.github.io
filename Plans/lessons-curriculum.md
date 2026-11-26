@@ -846,7 +846,7 @@ Relocations come from `ds-experimentation`, `ds-causal` and
 
 1. Variance-and-Statistical-Sensitivity - Why variance rather than effect size usually decides whether a test can answer anything, and the three levers that reduce it. widgets: chart-plotter, bootstrap-sample
 2. Triggering - Restricting analysis to the users a change could possibly have affected, often the single largest sensitivity win available, with the dilution it removes quantified. widgets: chart-plotter, styled-table
-3. Variance-Reduction-with-CUPED - Pre-period data used as a covariate, what it buys in sample size, and the conditions under which it buys nothing. widgets: cuped-variance, chart-plotter
+3. CUPED-Pre-Period-Data-as-a-Covariate - Pre-period data used as a covariate, what it buys in sample size, and the conditions under which it buys nothing. widgets: cuped-variance, chart-plotter
 4. CUPAC-Predictions-as-Covariates - A model's prediction in place of the pre-period mean, for units with no history, and the extra variance reduction it recovers. widgets: cuped-variance, cv-folds
 5. Sequential-Testing-and-Always-Valid-Inference - Confidence sequences that stay valid under continuous monitoring: the fix for peeking rather than the prohibition, and the power it costs. widgets: ci-coverage, chart-plotter
 6. A-B-n-Tests-and-Multiple-Comparisons - More than two variants, what the control is for, and the correction the extra arms require. widgets: multiplicity-sim, null-distribution
