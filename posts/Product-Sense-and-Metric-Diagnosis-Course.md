@@ -35,11 +35,11 @@ Turning "is the new feed working?" into a population, a measure, a comparison an
 
 [Start Lesson 1: Framing an Ambiguous Product Question](Framing-an-Ambiguous-Product-Question.html)
 
-### Lesson 2: Metric drop diagnosis
+### Lesson 2: Metric Drop Diagnosis
 
 The diagnosis order that keeps you out of trouble: is the drop real, is it instrumentation, is it seasonality, is it one segment. Run on a dataset where the answer is instrumentation, which is the most common and least guessed.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Metric Drop Diagnosis](Metric-Drop-Diagnosis.html)
 
 ### Lesson 3: Funnel decomposition
 
