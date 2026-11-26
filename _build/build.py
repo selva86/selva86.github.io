@@ -81,10 +81,34 @@ def build_lesson_widgets_bundle():
 
 
 def file_content_hash(filepath, length=8):
-    """First `length` hex chars of MD5 of file content."""
+    """First `length` hex chars of MD5 of file content, newline-normalized.
+
+    CRLF is collapsed to LF before hashing, so the key depends on the file's
+    CONTENT and not on which machine checked it out.
+
+    Without that, the hash was platform-dependent. `.gitattributes` says
+    `* text=auto eol=lf`, so every blob in the repo is LF, while
+    `core.autocrlf=true` gives a Windows working copy CRLF. Hashing raw bytes
+    therefore produced one key on this machine and a different one on
+    Cloudflare's Linux build for byte-identical content:
+    editor-bundle.min.js came out 9c31e0b3 locally (26569 bytes, 29 CRLF) and
+    d779de1e in CI (26540 bytes, 29 LF). highlight.css split the same way.
+
+    Nothing was being served wrong, because `?h=` is a cache-busting query and
+    the origin serves the same file whatever it says. The damage was quieter:
+    the CDN cache was split across two keys for one file, and any local build
+    rewrote the key on every page it touched, so a one-line content edit came
+    with ~2000 lines of spurious page churn that buried the real change. One
+    such stray key (Variable-Selection-in-R.html) was found committed.
+
+    Normalizing costs nothing to fix: LF input is unchanged, so CI keeps the
+    keys it already computes, and all 16 hashed assets were verified to come
+    out identical to their git blob hash. The only caller passes JS and CSS,
+    never a binary, where collapsing CRLF would be wrong.
+    """
     try:
         with open(filepath, 'rb') as f:
-            return hashlib.md5(f.read()).hexdigest()[:length]
+            return hashlib.md5(f.read().replace(b'\r\n', b'\n')).hexdigest()[:length]
     except OSError:
         return ''
 
