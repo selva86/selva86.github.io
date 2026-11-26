@@ -69,7 +69,7 @@ The Cox model's unspecified baseline is a cost as well as a feature, because it 
 
 A subject who dies of something else can never have the event you are studying, and treating that as ordinary censoring assumes they could have, which inflates the estimated event probability. Kaplan-Meier and the cumulative incidence function are computed on the same data and the gap between them widens as the competing event gets more common. The cause-specific hazard and the subdistribution hazard are then separated by the question each one answers, since one is about the mechanism and the other about what fraction of people will actually experience the event. Frailty models are named as the related idea for unobserved heterogeneity.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Competing risks and why Kaplan-Meier overstates](Competing-Risks-and-Why-Kaplan-Meier-Overstates.html)
 
 ## Who this is for
 
