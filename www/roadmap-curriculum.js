@@ -275,6 +275,37 @@
       S(20,false,"LLM and AI evaluation",'',["Why LLM eval is hard","Building eval sets and golden datasets for LLM tasks","LLM-as-judge","Reference-based and reference-free metrics","Human eval pipelines and inter-rater reliability","Online eval and regression suites in CI","Red-teaming and adversarial evaluation"],"MLOps exercises","pipeline lab",'ai'),
       S(21,false,"AI safety, guardrails and LLMOps",'',["Guardrails","Content safety, toxicity and PII redaction","Hallucination mitigation and grounding","Prompt management","Fine-tuning and adapter ops","Semantic caching and cost/latency control for LLM apps","Monitoring LLMs in prod"],"MLOps exercises","pipeline lab",'ai'),
       S(22,false,"ML and AI system design",'',["The system-design framework","Latency, scale and cost trade-offs","Case","Case","Case","Case","Case","The ML/AI system design interview"],"MLOps exercises","pipeline lab",'capstone')
+    ],
+    /* Product Data Scientist, added 2026-11-26. Section numbers here MUST equal
+       the `section` values in Scripts/build_lessons_tracker.py and the titles
+       must match its sectionLabel verbatim, or the lesson player's breadcrumb
+       and Back button point at the wrong section.
+       Lesson arcs: Plans/lessons-curriculum.md, the pds-* courses. */
+    'product-ds': [
+      S(1, true, 'Metrics that can carry a decision', 'Choose a metric that can actually carry the decision you need to make.',
+        ['What makes a metric worth optimising','Proxy metrics and the surrogacy trap','Guardrails and what they protect','Metric sensitivity','Ratio metrics and the delta method','Segmenting without fooling yourself'],
+        'Product metrics exercises', 'metric sensitivity calculator'),
+      S(2, false, 'Designing an experiment you can defend', 'Size and specify a test that answers the question it was built for.',
+        ['From a product question to a testable hypothesis','Choosing the randomisation unit','Power by simulation','The minimum detectable effect','Sample ratio mismatch','Pre-registration','Reading a readout'],
+        'Experiment design exercises', 'power simulator'),
+      S(3, false, 'When the experiment misbehaves', 'Recognise a broken test, and know the fix rather than only the warning.',
+        ['Peeking and your error rate','Sequential testing','Variance reduction with CUPED','Novelty and primacy effects','Interference','Cluster and switchback designs'],
+        'Experiment pitfalls exercises', 'peeking simulator'),
+      S(4, false, 'Adaptive tests, heterogeneity and targeting', 'Find who an effect is for, and decide who to treat.',
+        ['The average effect hides everyone','Pre-specified subgroups and fishing','Uplift modelling','Causal forests and honest splitting','Multi-armed bandits','Thompson sampling'],
+        'Targeting exercises', 'uplift explorer'),
+      S(5, false, 'Causal inference without a randomiser', 'Estimate an effect from observational data and say how much to trust it.',
+        ['What a causal effect is','Drawing the causal graph','Propensity scores and IPW','Matching','Difference-in-differences','Staggered rollouts','Regression discontinuity','Instrumental variables'],
+        'Causal inference exercises', 'DAG editor'),
+      S(6, false, 'Making an observational claim honest', 'Stress-test a causal claim before anyone else does.',
+        ['Synthetic control','Doubly robust estimation','Double machine learning','Mediation','Sensitivity analysis and placebo tests'],
+        'Observational claims exercises', 'sensitivity dial'),
+      S(7, false, 'Long-run effects and second-order damage', 'Know what a short-term win costs later.',
+        ['The short-term win that loses money later','Surrogate metrics','Long-term holdouts','Retention as time-to-event','Cannibalisation'],
+        'Long-run effects exercises', 'holdout planner'),
+      S(8, false, 'From evidence to decision', 'Make a ship-or-not call and defend it.',
+        ['Expected loss, not significance','Bayesian A/B testing','When the answer is no effect','Writing the readout','Building an experiment review'],
+        'Decision exercises', 'expected-loss calculator')
     ]
   };
 

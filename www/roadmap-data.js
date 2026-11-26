@@ -197,10 +197,21 @@
           hub: 'Time Series Exercises in R', tool: 'forecast horizon tool', time: 'about two weeks' }
       ] },
 
-    { n: 5, key: 'researcher', persona: 'Researcher', color: '#9c5732',
-      head: 'Statistical <em>inference</em> and reporting',
-      become: 'Run and defend the right statistical test, model effects rigorously, and report results reproducibly.',
-      weeks: '~6 weeks', cert: 'Certified R Researcher', track: 'researcher',
+    /* Renamed 2026-11-26 from "Researcher". The KEY stays `researcher`: it is
+       what paying Single Track customers hold in KV tracks:<uid>, what 101
+       lesson curriculum_ids encode, and what 105 URLs contain. SLUG decouples
+       key from URL, so the display name moves and nothing else has to.
+       Product experimentation and causal work split out into `product-ds`;
+       see Plans/product-data-scientist-track.md.
+       STILL STALE: `stages` below describes a 4-stage, 19-stop track that has
+       not existed since 2026-06. The real arc is the 16 sections in
+       roadmap-curriculum.js, which is what the v2 pages render. These stages
+       only drive the legacy v1 page, which canonicals to v2. Rewriting them
+       is a content pass, not part of the split. */
+    { n: 5, key: 'researcher', persona: 'Applied Statistician', color: '#9c5732',
+      head: 'Statistical <em>inference</em> and modelling',
+      become: 'Choose and defend the right analysis, model effects properly, and report them so they survive review.',
+      weeks: '~16 sections', cert: 'Certified R Statistician', track: 'researcher',
       arrive: 'Your analysis can withstand methodological review.',
       stages: [
         { title: 'Probability and sampling distributions',
@@ -251,6 +262,44 @@
           stops: ['Conditions System', 'Debugging R Code', 'Parallel Computing', 'Speedup R Code'],
           payoff: 'diagnose a failure quickly and make slow R substantially faster',
           hub: 'Debugging exercises', tool: 'profiling guide', time: 'about two weeks' }
+      ] },
+
+    /* Added 2026-11-26. Split out of the Researcher track, which had grown a
+       full product-experimentation arm that academic framing was repelling.
+       Plan of record: Plans/product-data-scientist-track.md.
+       The curriculum is the 8 sections in roadmap-curriculum.js; the `stages`
+       here are the v1 page's shorter summary of the same arc. */
+    { n: 8, key: 'product-ds', persona: 'Product Data Scientist', color: '#2f6f8f',
+      head: 'Experimentation and <em>causal measurement</em>',
+      become: 'Design an experiment that survives scrutiny, measure a cause when you cannot randomise, and turn the result into a decision somebody can act on.',
+      weeks: '~8 sections', cert: 'Certified R Product Data Scientist', track: 'product-ds',
+      arrive: 'You can tell a product team what to ship, and defend it.',
+      stages: [
+        { title: 'Metrics that can carry a decision',
+          why: 'Every product analysis starts with a metric, and most of the damage is done before any test is run: the wrong target, a proxy that lies, a guardrail nobody set, or a ratio metric whose standard error is quietly wrong.',
+          stops: ['Input versus output metrics', 'Proxy metrics and surrogacy', 'Guardrails', 'Metric sensitivity', 'Ratio metrics and the delta method', 'Simpson paradox in segments'],
+          payoff: 'choose a metric that can actually carry the decision you need to make',
+          hub: 'Product metrics exercises', tool: 'metric sensitivity calculator', time: 'about a week' },
+        { title: 'Designing an experiment you can defend',
+          why: 'The craft of online testing: the randomisation unit, power simulated for the design you will really run, the minimum detectable effect as a business number, and the checks that catch a broken test before you read it.',
+          stops: ['Randomisation units', 'Power by simulation', 'Minimum detectable effect', 'Sample ratio mismatch', 'Pre-registration', 'Reading a readout'],
+          payoff: 'size and specify a test that answers the question it was built for',
+          hub: 'Experiment design exercises', tool: 'power simulator', time: 'about two weeks' },
+        { title: 'When the experiment misbehaves',
+          why: 'Peeking, novelty, interference and the rest of what actually goes wrong, each produced and measured rather than listed as a caution.',
+          stops: ['Peeking', 'Sequential testing', 'CUPED', 'Novelty and primacy', 'Interference', 'Cluster and switchback'],
+          payoff: 'recognise a broken test, and know the fix rather than only the warning',
+          hub: 'Experiment pitfalls exercises', tool: 'peeking simulator', time: 'about two weeks' },
+        { title: 'Causal measurement without a randomiser',
+          why: 'Half of what a product team wants to know cannot be randomised. Potential outcomes, DAGs, weighting, matching, difference-in-differences, discontinuities and instruments, with the assumption each one rests on made explicit.',
+          stops: ['Potential outcomes', 'DAGs', 'Propensity and IPW', 'Difference-in-differences', 'Staggered rollouts', 'Regression discontinuity', 'Instrumental variables', 'Synthetic control'],
+          payoff: 'estimate an effect from observational data and say honestly how much to trust it',
+          hub: 'Causal inference exercises', tool: 'DAG editor', time: 'about three weeks' },
+        { title: 'Long-run effects and the decision',
+          why: 'The two things that separate a competent analyst from a trusted one: knowing what a short-term win costs later, and turning evidence into a recommendation framed as expected loss rather than significance.',
+          stops: ['Surrogate metrics', 'Long-term holdouts', 'Retention as time-to-event', 'Cannibalisation', 'Expected loss', 'Writing the readout'],
+          payoff: 'make a ship-or-not call and defend it in a room with a PM in it',
+          hub: 'Decision exercises', tool: 'expected-loss calculator', time: 'about two weeks' }
       ] }
   ];
 
@@ -268,7 +317,8 @@
   var TRACK_META = {
     ds:         { role: 'Data Scientist', short: 'Machine Learning', build: 'A validated model you can defend', salary: '$84k-$150k', salaryNote: 'entry level, US' },
     ts:         { role: 'Forecaster',     short: 'Time Series',      build: 'A forecast with honest intervals', salary: '$86k-$135k', salaryNote: 'US typical' },
-    researcher: { role: 'Researcher',     short: 'Applied Statistics', build: 'A reproducible, review-proof report', salary: '$80k-$130k', salaryNote: 'analyst/scientist, US' },
+    researcher: { role: 'Applied Statistician', short: 'Applied Statistics', build: 'A reproducible, review-proof report', salary: '$80k-$130k', salaryNote: 'analyst/scientist, US' },
+    'product-ds': { role: 'Product Data Scientist', short: 'Experimentation and Causal Inference', build: 'An experiment readout a product team acts on', salary: '$120k-$190k', salaryNote: 'product data scientist, US' },
     developer:  { role: 'R Engineer',     short: 'Advanced R',       build: 'A tested package, shipped to GitHub', salary: '$67k-$112k', salaryNote: 'R programmer, US' }
   };
 

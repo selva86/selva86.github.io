@@ -50,7 +50,8 @@ export interface BrainEnv {
 
 const TRACK_NAMES: Record<string, string> = {
   foundations: "New to R", analyst: "Data Analyst", ds: "Data Scientist", ts: "Forecaster",
-  researcher: "Researcher", developer: "R Developer", mleng: "ML Engineer",
+  researcher: "Applied Statistician", "product-ds": "Product Data Scientist",
+  developer: "R Developer", mleng: "ML Engineer",
 };
 const PRO_LESSON_TRACK = proLessonsJson as Record<string, string>;
 

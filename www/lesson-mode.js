@@ -1496,7 +1496,10 @@
        (/roadmap/<page>.html#rm-s<n>); roadmap-role.js opens + scrolls to it.
        Falls back to the course landing when there is no roadmap data. */
     var BACK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
-    var ROADMAP_PAGES = { foundations: 'new-to-r', analyst: 'data-analyst', ds: 'data-scientist', ts: 'forecaster', researcher: 'researcher', developer: 'r-developer' };
+    /* A track missing from this map sends the lesson's Back button to
+       /roadmap/ instead of its own page: degraded rather than broken, and
+       silent, so every new track has to be added here. */
+    var ROADMAP_PAGES = { foundations: 'new-to-r', analyst: 'data-analyst', ds: 'data-scientist', ts: 'forecaster', researcher: 'researcher', developer: 'r-developer', 'product-ds': 'product-data-scientist' };
     function roadmapTrackUrl(rm) { var p = rm && ROADMAP_PAGES[rm.track]; return p ? '/roadmap/' + p + '.html' : '/roadmap/'; }
     function roadmapSectionUrl(rm) { var b = roadmapTrackUrl(rm); return (rm && rm.section && b !== '/roadmap/') ? b + '#rm-s' + rm.section : b; }
     function exitTarget() {

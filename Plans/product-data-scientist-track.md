@@ -347,7 +347,7 @@ Run after implementation, before merge where possible.
 
 **Content and copy**
 - [ ] No em-dashes in anything added
-- [ ] The word WebR appears in no public copy
+- [ ] The in-browser R runtime is never named in public copy (CLAUDE.md rule 5: it is the moat)
 - [ ] The researcher roadmap no longer claims 4 stages or ~6 weeks
 - [ ] The new track is absent from the Single Track pricing picker
 

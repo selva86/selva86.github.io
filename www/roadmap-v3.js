@@ -16,8 +16,10 @@
      blurb:'Build, tune, explain and ship machine learning models with tidymodels, XGBoost and torch.',sig:'A deployed, monitored model'},
     {key:'ts',name:'Forecaster',goal:'forecast what happens next',slug:'forecaster',code:'FC',mastery:'time-series forecasting in R',color:'#D9822B',
      blurb:'Model time series with fable, state-space and deep learning, and forecast with honest intervals.',sig:'A backtested forecast with calibrated intervals'},
-    {key:'researcher',name:'Researcher',goal:'report statistical results',slug:'researcher',code:'RS',mastery:'statistical research methods in R',color:'#9A6BE0',
-     blurb:'Design analyses, estimate effects and defend every inference, from mixed models to causal methods.',sig:'A complete study, from DAG to write-up'},
+    {key:'researcher',name:'Applied Statistician',goal:'defend a statistical result',slug:'researcher',code:'RS',mastery:'applied statistics in R',color:'#9A6BE0',
+     blurb:'Design analyses, estimate effects and defend every inference, from mixed models to survival analysis.',sig:'A complete study, from design to write-up'},
+    {key:'product-ds',name:'Product Data Scientist',goal:'decide what to ship',slug:'product-data-scientist',code:'PD',mastery:'experimentation and causal measurement in R',color:'#2F6F8F',
+     blurb:'Metrics, A/B testing and causal measurement, turned into decisions a product team can act on.',sig:'An experiment readout a product team acts on'},
     {key:'developer',name:'R Developer',goal:'build packages and apps',slug:'r-developer',code:'RD',mastery:'R software development',color:'#D4467E',
      blurb:'Write fast, tested, documented R and ship it as packages, APIs and production Shiny apps.',sig:'A released package or app'}
   ];
