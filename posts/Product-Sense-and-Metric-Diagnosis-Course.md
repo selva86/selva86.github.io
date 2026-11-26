@@ -29,11 +29,11 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 ## What the course covers
 
-### Lesson 1: Framing an ambiguous product question
+### Lesson 1: Framing an Ambiguous Product Question
 
 Turning "is the new feed working?" into a population, a measure, a comparison and a decision rule, so the analysis has somewhere to land before it starts.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Framing an Ambiguous Product Question](Framing-an-Ambiguous-Product-Question.html)
 
 ### Lesson 2: Metric drop diagnosis
 
