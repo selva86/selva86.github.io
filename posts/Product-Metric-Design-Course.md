@@ -71,11 +71,11 @@ Variance, traffic and effect size together decide what is detectable, so a metri
 
 [Start Lesson 7: Metric Sensitivity](Metric-Sensitivity.html)
 
-### Lesson 8: Ratio metrics and the delta method
+### Lesson 8: Ratio Metrics and the Delta Method
 
 Why a per-user rate breaks the naive standard error, shown by simulating the coverage of the wrong interval, then the delta method that fixes it.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: Ratio Metrics and the Delta Method](Ratio-Metrics-and-the-Delta-Method.html)
 
 ### Lesson 9: Metric design quiz
 
