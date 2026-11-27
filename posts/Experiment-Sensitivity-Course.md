@@ -41,7 +41,7 @@ Restricting analysis to the users a change could possibly have affected, often t
 
 Lesson 2 is coming soon.
 
-### Lesson 3: Variance reduction with CUPED
+### Lesson 3: CUPED: pre-period data as a covariate
 
 Pre-period data used as a covariate, what it buys in sample size, and the conditions under which it buys nothing.
 

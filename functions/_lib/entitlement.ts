@@ -96,26 +96,32 @@ export async function resolveScope(
 // specialization", so a Single Track scope ("ds", "ts", ...) covers these too.
 export const CORE_TRACKS = ["foundations", "analyst"];
 
-// A Single Track bought before a track was SPLIT still covers both halves of
-// whatever it has since become. The buyer paid for the catalog as it stood on
-// the day, and a split is our reorganisation, not their downgrade.
+// There is deliberately no split-alias table here.
 //
-// 2026-11-26: the Product Data Scientist track is carved out of `ds`
-// (ds-experimentation, ds-causal, ds-causal-decisions). Without this, the
-// moment those lessons' track changes in pro-lessons.json every `ds` Single
-// Track customer silently loses them: scopeCovers("ds","product-ds") is false,
-// so the middleware strips every step after the second and the page just looks
-// like a paywall. No error, no log, no complaint until they email.
+// One existed from 2026-11-26 to 2026-11-27, mapping ds -> product-ds, for a
+// plan that would have MOVED 26 published lessons out of the `ds` track and
+// into Product Data Scientist. Under that plan the alias was essential: a
+// lesson changing track in pro-lessons.json would have silently stripped it
+// from every `ds` Single Track customer, with no error and no log.
 //
-// Entries are permanent. Removing one revokes access somebody paid for.
-const SPLIT_ALIASES: Record<string, string[]> = {
-  ds: ["product-ds"],
-};
+// The owner chose duplication over relocation instead (2026-11-27). A Product
+// DS lesson that overlaps a `ds` one is written fresh under its own slug, so
+// nothing a customer paid for ever changes track, and there is nobody to
+// grandfather. The alias then does the opposite of protecting a buyer: it
+// hands every `ds` Single Track customer the whole Product DS catalogue, a
+// separately sold product, for nothing. It also let them mint the Certified R
+// Product Data Scientist certificate off a track they never bought.
+//
+// Removed while Product DS had no content on production and no certificate
+// had ever been issued, so it revoked nothing anybody held.
+//
+// If a track is ever genuinely split again, reintroduce the table here rather
+// than widening a scope string: a scope carries no purchase date, so it
+// cannot by itself tell an old buyer from a new one.
 
 // True when a scope string covers a lesson/hub's track ('any' = any Pro plan).
 export function scopeCovers(scope: string, track: string): boolean {
   if (scope === "0") return false;
   return scope === "all" || track === "any" || scope === track
-    || CORE_TRACKS.includes(track)
-    || (SPLIT_ALIASES[scope] || []).includes(track);
+    || CORE_TRACKS.includes(track);
 }

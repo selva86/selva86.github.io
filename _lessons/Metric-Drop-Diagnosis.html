@@ -1,0 +1,389 @@
+---
+title: "Product Sense and Metric Diagnosis Lesson 2: Metric Drop Diagnosis"
+description: "Driftwell's signups fall 26% after an iOS release. Learn the four checks, real, instrumentation, calendar, segment, that find the renamed tracking event."
+keywords: "metric drop diagnosis, instrumentation bug, tracking break, event renaming, seasonality check, segment analysis, control limits, product analytics, standard deviation, product data science"
+mathjax: false
+webr: true
+curriculum_id: "3.10.2"
+post_type: "LESSON"
+course_id: "pds-sense"
+course_title: "Product Sense and Metric Diagnosis"
+course_lesson: "2"
+course_total: "6"
+course_landing: "Product-Sense-and-Metric-Diagnosis-Course.html"
+course_next: "Funnel-Decomposition.html"
+course_prev: "Framing-an-Ambiguous-Product-Question.html"
+lesson_access: "free"
+catalog_blurb: "The four-check order that tells a tracking break from a real metric drop."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<h2>Metric Drop Diagnosis</h2>
+
+<p>Today let's work out what to do the moment a number you track drops, before you decide what caused it.</p>
+
+<p>Driftwell is a meditation and sleep app. Its growth lead, Priya, watches one number every morning: how many people complete a free trial signup that day. For three weeks it held close to 1,000 a day. Then Driftwell shipped a new iOS build, and the daily count fell and has stayed lower since.</p>
+
+<p>A drop like that invites a story right away. Maybe the app got worse. Maybe a competitor launched something. Maybe interest is fading.</p>
+
+<p>But reaching for a story before checking the number itself is how teams end up fixing the wrong thing.</p>
+
+<p>So before any cause gets accepted, run four checks, always in this order.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Is it real?","sub":"rule out an ordinary day-to-day wobble before anything else"},{"title":"Is it instrumentation?","sub":"check whether something shipped broke the tracking itself"},{"title":"Is it the calendar?","sub":"compare the date against the same weekday in earlier weeks"},{"title":"Is it one segment?","sub":"split the number apart and see exactly where it moved"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Those are the four checks this lesson walks through, one at a time. Each one rules out something ordinary first, so a real cause only gets the blame once the ordinary explanations are gone.</p>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<h2>The numbers behind the drop</h2>
+
+<p>Here is Driftwell's daily free trial signups for 35 days, split by platform, with the before and after averages computed directly from it.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build Driftwell's 35-day signups by platform and compare the before vs after averages
+library(dplyr)
+
+set.seed(82)
+ios_pre  &lt;- round(rnorm(21, mean = 520, sd = 21))
+ios_post &lt;- round(rnorm(14, mean = 260, sd = 21))
+and_pre  &lt;- round(rnorm(21, mean = 480, sd = 21))
+and_post &lt;- round(rnorm(14, mean = 480, sd = 21))
+
+signups &lt;- data.frame(
+  day = c(1:21, 1:21, 22:35, 22:35),
+  platform = c(rep(&quot;iOS&quot;, 21), rep(&quot;Android&quot;, 21), rep(&quot;iOS&quot;, 14), rep(&quot;Android&quot;, 14)),
+  signups = c(ios_pre, and_pre, ios_post, and_post)
+)
+
+daily_total &lt;- signups |&gt;
+  group_by(day) |&gt;
+  summarise(signups = sum(signups))
+
+pre_mean  &lt;- mean(daily_total$signups[daily_total$day &lt;= 21])
+post_mean &lt;- mean(daily_total$signups[daily_total$day &gt;= 22])
+pct_drop  &lt;- round((pre_mean - post_mean) / pre_mean * 100, 1)
+
+round(pre_mean, 1)
+#&gt; [1] 1000.4
+round(post_mean, 1)
+#&gt; [1] 740.6
+pct_drop
+#&gt; [1] 26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>signups</code> holds one row per day per platform: the day number, iOS or Android, and that platform's signup count for that day. <code>daily_total</code> adds iOS and Android together to get the one number Priya actually watches each morning.</p>
+
+<p>The first 21 days average 1,000.4 signups a day. The 14 days after the release average 740.6. That is a 26% drop.</p>
+
+<p>Plotted across all 35 days, the drop looks less like a slow slide and more like a step.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Plot the daily total across all 35 days to see where the drop begins
+library(ggplot2)
+
+ggplot(daily_total, aes(day, signups)) +
+  geom_line() +
+  geom_vline(xintercept = 21.5, linetype = &quot;dashed&quot;) +
+  labs(x = &quot;Day&quot;, y = &quot;Daily signups (iOS + Android)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line marks day 21.5, the boundary between the pre-release and the post-release days. The daily total sits close to 1,000 for three weeks, drops sharply right at that boundary, and stays down after it. A drop this sudden, lined up exactly with a release, is the first clue that something tied to the release itself is responsible, not something that built up gradually.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<h2>Check 1: is the drop bigger than normal day-to-day noise?</h2>
+
+<p>Before anything else, rule out the most boring explanation: maybe 740.6 is just an unusually low day, well within how much the number normally wobbles. The standard deviation of the pre-release days measures exactly that wobble.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Measure how much the daily total normally wobbles, then compare the drop against it
+pre_sd &lt;- sd(daily_total$signups[daily_total$day &lt;= 21])
+z_score &lt;- round((pre_mean - post_mean) / pre_sd, 1)
+
+round(pre_sd, 1)
+#&gt; [1] 30.1
+z_score
+#&gt; [1] 8.6
+round(pre_mean - 2 * pre_sd, 1)
+#&gt; [1] 940.2
+round(pre_mean + 2 * pre_sd, 1)
+#&gt; [1] 1060.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pre-release days wobble by about 30.1 signups a day around their mean of 1,000.4. That puts an ordinary day somewhere between 940.2 and 1,060.6, two standard deviations either side of the mean.</p>
+
+<p>740.6 is nowhere near that range. It sits 8.6 standard deviations below the pre-release mean, far past the two or three standard deviations an ordinary day ever reaches. So the drop is real: it is not the kind of number day-to-day noise alone produces.</p>
+
+<p>This check only tells you the drop is not noise. It says nothing yet about why it happened, which is exactly what the next check starts to answer.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<h2>Check 2: did something ship that could break tracking?</h2>
+
+<p>Once a drop is confirmed real, the next question is not "why did behavior change" but "did anything ship that could break how the behavior gets counted". This check runs second, right after confirming the drop is real, for a specific reason: a broken tracking event is the most common cause of a sudden metric drop, and it is the easiest one to skip past, because a behavioral story is always more interesting to tell than a tracking bug.</p>
+
+<p>Driftwell's drop starts exactly on day 22, the same day the iOS build ships. That build upgrades the app's analytics SDK, and the upgrade renames the event the app sends when someone finishes signing up.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>When</th>
+<th>Event name the app sends</th>
+<th>Does the backend count it?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Before day 22 (old build)</td>
+<td>signup_complete</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>From day 22 onward (new build)</td>
+<td>signup_completed</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>The backend pipeline that counts free trial signups was only ever told to count <code>signup_complete</code>. After the new build ships, the app itself keeps working fine, and every signup on the new build still fires an event. But that event is now named <code>signup_completed</code>, and the backend has no rule for that name, so it never gets counted.</p>
+
+<p>That is why this check matters so much. The product did not get worse on day 22. The counting broke on day 22.</p>
+
+<p>The two look identical on a dashboard, a lower number, but they call for completely different responses: one calls for an engineering fix to the event name, the other calls for changes to the product. Running this check before reacting to the drop is what tells the two apart.</p>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<h2>Check 3: could this just be the calendar?</h2>
+
+<p>Day 22 is a Monday. If Mondays always run a little low, the drop might just be an ordinary calendar pattern, not anything new. Averaging the pre-release signups by day of the week settles the question.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Average signups per weekday across the 21 pre-release days to check for a calendar pattern
+weekday_labels &lt;- c(&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;, &quot;Sat&quot;, &quot;Sun&quot;)
+
+pre_only &lt;- daily_total |&gt;
+  filter(day &lt;= 21) |&gt;
+  mutate(weekday = weekday_labels[((day - 1) %% 7) + 1])
+
+wd_avg &lt;- pre_only |&gt;
+  group_by(weekday) |&gt;
+  summarise(avg_signups = round(mean(signups), 1)) |&gt;
+  arrange(match(weekday, weekday_labels))
+
+cat(sprintf(&quot;%s: %.1f\n&quot;, wd_avg$weekday, wd_avg$avg_signups), sep = &quot;&quot;)
+#&gt; Mon: 972.0
+#&gt; Tue: 995.7
+#&gt; Wed: 1017.3
+#&gt; Thu: 1021.7
+#&gt; Fri: 980.0
+#&gt; Sat: 1001.7
+#&gt; Sun: 1014.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>21 pre-release days give exactly three of each weekday. Monday's own average is 972.0, close to the overall pre-release mean of 1,000.4, and nowhere near the 740.6 Driftwell saw after the release. Every other weekday sits in that same 972.0 to 1,021.7 range, with no day standing out as unusually low.</p>
+
+<p>So days 1, 8 and 15, the three Mondays before the release, behaved like every other day of the week. If Mondays were genuinely slow, day 22 would be low for a reason that has nothing to do with the release, and that same weekly dip would have shown up on those three earlier Mondays too. It did not. That rules out the calendar as the explanation.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<h2>Check 4: is the drop everywhere, or in one slice?</h2>
+
+<p>A drop caused by a broken event name should sit entirely inside whatever shipped the broken code. A drop caused by a real change in behavior usually spreads across the whole product. Splitting the 35 days by platform shows which one this is.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compare each platform's own before vs after average
+ios_pre_avg      &lt;- round(mean(signups$signups[signups$platform == &quot;iOS&quot; &amp; signups$day &lt;= 21]), 1)
+ios_post_avg     &lt;- round(mean(signups$signups[signups$platform == &quot;iOS&quot; &amp; signups$day &gt;= 22]), 1)
+android_pre_avg  &lt;- round(mean(signups$signups[signups$platform == &quot;Android&quot; &amp; signups$day &lt;= 21]), 1)
+android_post_avg &lt;- round(mean(signups$signups[signups$platform == &quot;Android&quot; &amp; signups$day &gt;= 22]), 1)
+
+ios_pre_avg
+#&gt; [1] 518.3
+ios_post_avg
+#&gt; [1] 259.8
+android_pre_avg
+#&gt; [1] 482.1
+android_post_avg
+#&gt; [1] 480.9
+
+ios_pct_drop &lt;- round((ios_pre_avg - ios_post_avg) / ios_pre_avg * 100, 1)
+ios_pct_drop
+#&gt; [1] 49.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>iOS falls from 518.3 to 259.8 signups a day, a 49.9% drop on its own. Android barely moves, from 482.1 to 480.9. The entire 26% drop in the combined total comes from iOS; Android is carrying exactly as many signups as it always did.</p>
+
+<p>Here is that same split drawn out across all 35 days, by platform.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":1,"y":500,"fill":"Android"},{"x":1,"y":494,"fill":"iOS"},{"x":2,"y":462,"fill":"Android"},{"x":2,"y":526,"fill":"iOS"},{"x":3,"y":464,"fill":"Android"},{"x":3,"y":513,"fill":"iOS"},{"x":4,"y":509,"fill":"Android"},{"x":4,"y":491,"fill":"iOS"},{"x":5,"y":444,"fill":"Android"},{"x":5,"y":525,"fill":"iOS"},{"x":6,"y":475,"fill":"Android"},{"x":6,"y":511,"fill":"iOS"},{"x":7,"y":525,"fill":"Android"},{"x":7,"y":519,"fill":"iOS"},{"x":8,"y":466,"fill":"Android"},{"x":8,"y":500,"fill":"iOS"},{"x":9,"y":453,"fill":"Android"},{"x":9,"y":506,"fill":"iOS"},{"x":10,"y":476,"fill":"Android"},{"x":10,"y":576,"fill":"iOS"},{"x":11,"y":528,"fill":"Android"},{"x":11,"y":510,"fill":"iOS"},{"x":12,"y":455,"fill":"Android"},{"x":12,"y":513,"fill":"iOS"},{"x":13,"y":516,"fill":"Android"},{"x":13,"y":519,"fill":"iOS"},{"x":14,"y":489,"fill":"Android"},{"x":14,"y":513,"fill":"iOS"},{"x":15,"y":455,"fill":"Android"},{"x":15,"y":501,"fill":"iOS"},{"x":16,"y":511,"fill":"Android"},{"x":16,"y":529,"fill":"iOS"},{"x":17,"y":511,"fill":"Android"},{"x":17,"y":512,"fill":"iOS"},{"x":18,"y":494,"fill":"Android"},{"x":18,"y":533,"fill":"iOS"},{"x":19,"y":458,"fill":"Android"},{"x":19,"y":545,"fill":"iOS"},{"x":20,"y":450,"fill":"Android"},{"x":20,"y":534,"fill":"iOS"},{"x":21,"y":483,"fill":"Android"},{"x":21,"y":514,"fill":"iOS"},{"x":22,"y":482,"fill":"Android"},{"x":22,"y":292,"fill":"iOS"},{"x":23,"y":488,"fill":"Android"},{"x":23,"y":259,"fill":"iOS"},{"x":24,"y":478,"fill":"Android"},{"x":24,"y":230,"fill":"iOS"},{"x":25,"y":477,"fill":"Android"},{"x":25,"y":270,"fill":"iOS"},{"x":26,"y":472,"fill":"Android"},{"x":26,"y":251,"fill":"iOS"},{"x":27,"y":472,"fill":"Android"},{"x":27,"y":235,"fill":"iOS"},{"x":28,"y":480,"fill":"Android"},{"x":28,"y":262,"fill":"iOS"},{"x":29,"y":480,"fill":"Android"},{"x":29,"y":264,"fill":"iOS"},{"x":30,"y":461,"fill":"Android"},{"x":30,"y":281,"fill":"iOS"},{"x":31,"y":497,"fill":"Android"},{"x":31,"y":280,"fill":"iOS"},{"x":32,"y":483,"fill":"Android"},{"x":32,"y":231,"fill":"iOS"},{"x":33,"y":505,"fill":"Android"},{"x":33,"y":260,"fill":"iOS"},{"x":34,"y":463,"fill":"Android"},{"x":34,"y":249,"fill":"iOS"},{"x":35,"y":494,"fill":"Android"},{"x":35,"y":273,"fill":"iOS"}],"geoms":["line","point"],"x":"day","y":"signups"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>The iOS line drops to roughly half its height right at day 22 and stays there for the rest of the 35 days. The Android line runs flat the whole way across. That is exactly the shape a tracking break on one platform's release produces, and not the shape you would expect if people everywhere had simply lost interest in Driftwell.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<h2>Putting the four checks into one answer</h2>
+
+<p>Four checks, four answers. Here they are together.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["Check","Verdict","Evidence"],"rows":[["Is it real?","Yes","740.6 sits 8.6 standard deviations below the 1,000.4 pre-release mean"],["Is it instrumentation?","Yes","the iOS build on day 22 renamed the signup event; the backend only counts the old name"],["Is it the calendar?","No","pre-release Mondays average 972.0, close to the 1,000.4 overall mean"],["Is it one segment?","Yes","iOS falls 49.9% from 518.3 to 259.8; Android moves only from 482.1 to 480.9"]],"title":"The completed diagnosis","note":"All four checks run, in order, before any cause is accepted."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Every row points to the same explanation. The drop is real, not noise. Something shipped on the exact day it started, and that something renamed the event the backend was counting.</p>
+
+<p>The calendar has nothing to do with it, and the drop sits entirely inside the platform that shipped the release. The only cause consistent with all four rows is the renamed tracking event, not an actual fall in how many people want to sign up.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<h2>Quick check: reading the order right</h2>
+
+<p>The table above is where the four checks resolve into one answer. Once a drop clears check 1 and is confirmed real, which check runs next, before any explanation gets accepted?</p>
+<section class="exercise" data-exercise-id="Metric-Drop-Diagnosis-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">React to the drop as a sign the product got worse, and start investigating the product experience itself.</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Check whether anything shipped that could break how the signup event is tracked.</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Compare the drop's date against the same weekday in earlier weeks.</span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx">Split the metric by platform or segment to see where the drop sits.</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Once a drop clears check 1 and is confirmed real, the very next thing to check is whether anything shipped that could break how the event is tracked. A broken tracking event is the most common cause of a sudden metric drop, and the easiest one to skip past in favor of a product story.</div><div class="lesson-qfb lesson-qfb-no">Not quite. Once a drop is confirmed real, the instrumentation check runs next, before any behavioral story, any calendar check, or any segment breakdown, because a broken tracking event is the most common cause of a sudden drop and is easy to miss once a more interesting explanation is on the table.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<h2>Your turn: check a second slice of the same drop</h2>
+
+<p>Check 1 asked whether the combined total's drop was bigger than its normal wobble. Android's own numbers can be checked the exact same way.</p>
+<section class="exercise" data-exercise-id="Metric-Drop-Diagnosis-step9" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="android_post_mean\s*[&lt;&gt;]=?\s*lower_band\s*&amp;{1,2}\s*android_post_mean\s*[&lt;&gt;]=?\s*upper_band"><textarea class="lesson-tryit-input" spellcheck="false"># Apply check 1's noise rule to Android's own numbers
+android_pre  &lt;- signups$signups[signups$platform == &quot;Android&quot; &amp; signups$day &lt;= 21]
+android_post &lt;- signups$signups[signups$platform == &quot;Android&quot; &amp; signups$day &gt;= 22]
+
+android_pre_mean &lt;- mean(android_pre)
+android_pre_sd   &lt;- sd(android_pre)
+android_post_mean &lt;- mean(android_post)
+
+round(android_pre_mean, 1)
+#&gt; [1] 482.1
+round(android_pre_sd, 1)
+#&gt; [1] 26.9
+round(android_post_mean, 1)
+#&gt; [1] 480.9
+
+lower_band &lt;- android_pre_mean - 2 * android_pre_sd
+upper_band &lt;- android_pre_mean + 2 * android_pre_sd
+round(lower_band, 1)
+#&gt; [1] 428.3
+round(upper_band, 1)
+#&gt; [1] 535.9
+
+inside_normal_range &lt;- NA
+inside_normal_range
+#&gt; [1] NA</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. 480.9 sits inside 428.3 to 535.9, so inside_normal_range is TRUE. Android's post-release average never left its own normal range, the same test iOS failed in check 1.</span><span class="lesson-tryit-fb lesson-tryit-no">Replace the NA with android_post_mean > lower_band & android_post_mean < upper_band, the same kind of comparison check 1 made for the combined total.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r"># Apply check 1's noise rule to Android's own numbers
+android_pre  &lt;- signups$signups[signups$platform == &quot;Android&quot; &amp; signups$day &lt;= 21]
+android_post &lt;- signups$signups[signups$platform == &quot;Android&quot; &amp; signups$day &gt;= 22]
+
+android_pre_mean &lt;- mean(android_pre)
+android_pre_sd   &lt;- sd(android_pre)
+android_post_mean &lt;- mean(android_post)
+
+round(android_pre_mean, 1)
+#&gt; [1] 482.1
+round(android_pre_sd, 1)
+#&gt; [1] 26.9
+round(android_post_mean, 1)
+#&gt; [1] 480.9
+
+lower_band &lt;- android_pre_mean - 2 * android_pre_sd
+upper_band &lt;- android_pre_mean + 2 * android_pre_sd
+round(lower_band, 1)
+#&gt; [1] 428.3
+round(upper_band, 1)
+#&gt; [1] 535.9
+
+inside_normal_range &lt;- android_post_mean &gt; lower_band &amp; android_post_mean &lt; upper_band
+inside_normal_range
+#&gt; [1] TRUE</code></pre></details></div>
+</section>
+<p>Replace the <code>NA</code> with a comparison that checks whether <code>android_post_mean</code> falls between <code>lower_band</code> and <code>upper_band</code>. Press Check when you have it.</p>
+
+<p>480.9 sits comfortably inside 428.3 to 535.9. Android passes check 1's own test: its post-release average never left its normal range, exactly what you would expect from a platform that was never touched by the renamed event.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<h2>References</h2>
+
+<ul>
+
+<li>Kohavi, R., Tang, D., and Xu, Y. (2020). <a href="https://www.cambridge.org/core/books/trustworthy-online-controlled-experiments/D97B26382EB0EB2DC2019A7A7B518F59">Trustworthy Online Controlled Experiments</a>. Cambridge University Press. On validating that a metric's instrumentation is correct before trusting what it reports.</li>
+
+<li>Vallis, O., Hochenbaum, J., and Kejariwal, A. (2014). <a href="https://www.usenix.org/conference/hotcloud14/workshop-program/presentation/vallis">A Novel Technique for Long-Term Anomaly Detection in the Cloud</a>. USENIX HotCloud. On telling a real shift in a metric apart from normal day-to-day and seasonal variation.</li>
+
+<li>Montgomery, D.C. (2024). Introduction to Statistical Quality Control, 8th ed. Wiley. On control limits, the idea behind checking whether a new value sits outside a process's normal range.</li>
+
+<li>Rodden, K., Hutchinson, H., and Fu, X. (2010). <a href="https://doi.org/10.1145/1753326.1753687">Measuring the User Experience on a Large Scale</a>. CHI 2010. On tying a product metric to the user action it is meant to represent, the first thing a tracking break breaks.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>What you now know before you trust a number</h2>
+
+<p>Driftwell's signups did not actually fall. The iOS release renamed the event the backend was counting, so real signups stopped being counted on one platform, and the dashboard showed a 26% drop that was never really there.</p>
+
+<p>That answer did not come from a hunch. It came from running four checks, in order:</p>
+
+<ul>
+
+<li>Is it real? 740.6 sat 8.6 standard deviations below the pre-release mean, far past normal noise.</li>
+
+<li>Is it instrumentation? The iOS build on day 22 renamed the signup event, and the backend never learned the new name.</li>
+
+<li>Is it the calendar? Every weekday in the pre-release data behaved alike, so day 22 being a Monday explained nothing.</li>
+
+<li>Is it one segment? iOS fell 49.9% while Android stayed flat, so the drop sat entirely inside the platform that shipped the release.</li>
+
+</ul>
+
+<p>The next time a number you track drops, run those same four checks, in that order, before deciding what caused it. The next lesson looks at what to do when the number that drops is a rate rather than a raw count, broken into the funnel steps that produce it.</p>
+</section>
+
+{% endraw %}

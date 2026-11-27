@@ -29,53 +29,53 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 ## What the course covers
 
-### Lesson 1: Metric taxonomy: input, output, leading and lagging
+### Lesson 1: Metric Taxonomy: Input, Output, Leading, Lagging
 
 The four kinds of metric and what each is for, with one product's numbers sorted into the taxonomy and the misclassification that causes a team to optimise the wrong one.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Metric Taxonomy: Input, Output, Leading, Lagging](Metric-Taxonomy-Input-Output-Leading-Lagging.html)
 
 ### Lesson 2: The Overall Evaluation Criterion
 
 Combining several metrics into one criterion so a test has a single answer rather than twelve. Weighting, normalisation, and what the OEC commits you to.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: The Overall Evaluation Criterion](The-Overall-Evaluation-Criterion.html)
 
-### Lesson 3: Guardrail metrics
+### Lesson 3: Guardrail Metrics
 
 The metrics that block a launch even when the OEC improves. How to choose them, where to set thresholds, and why they must be fixed before the test runs.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Guardrail Metrics](Guardrail-Metrics.html)
 
-### Lesson 4: Goodhart's law and metric gaming
+### Lesson 4: Goodhart's Law and Metric Gaming
 
 What happens to a measure once it becomes a target, demonstrated by optimising a proxy until the real outcome falls.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Goodhart's Law and Metric Gaming](Goodharts-Law-and-Metric-Gaming.html)
 
-### Lesson 5: Multiple testing across metrics
+### Lesson 5: Multiple Testing Across Metrics
 
 Three guardrails at the usual threshold false-alarm about 14% of the time, ten about 40%, twenty-five about 73%. Simulated, then corrected.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Multiple Testing Across Metrics](Multiple-Testing-Across-Metrics.html)
 
-### Lesson 6: Proxy metrics and surrogacy
+### Lesson 6: Proxy Metrics and Surrogacy
 
 When a short-term stand-in is valid for a long-term outcome, the surrogacy conditions stated plainly, then violated so the estimate visibly breaks.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Proxy Metrics and Surrogacy](Proxy-Metrics-and-Surrogacy.html)
 
-### Lesson 7: Metric sensitivity
+### Lesson 7: Metric Sensitivity
 
 Variance, traffic and effect size together decide what is detectable, so a metric can be the wrong instrument however long you run.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Metric Sensitivity](Metric-Sensitivity.html)
 
-### Lesson 8: Ratio metrics and the delta method
+### Lesson 8: Ratio Metrics and the Delta Method
 
 Why a per-user rate breaks the naive standard error, shown by simulating the coverage of the wrong interval, then the delta method that fixes it.
 
-Lesson 8 is coming soon.
+[Start Lesson 8: Ratio Metrics and the Delta Method](Ratio-Metrics-and-the-Delta-Method.html)
 
 ### Lesson 9: Metric design quiz
 

@@ -29,41 +29,41 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 ## What the course covers
 
-### Lesson 1: Framing an ambiguous product question
+### Lesson 1: Framing an Ambiguous Product Question
 
 Turning "is the new feed working?" into a population, a measure, a comparison and a decision rule, so the analysis has somewhere to land before it starts.
 
-Lesson 1 is coming soon.
+[Start Lesson 1: Framing an Ambiguous Product Question](Framing-an-Ambiguous-Product-Question.html)
 
-### Lesson 2: Metric drop diagnosis
+### Lesson 2: Metric Drop Diagnosis
 
 The diagnosis order that keeps you out of trouble: is the drop real, is it instrumentation, is it seasonality, is it one segment. Run on a dataset where the answer is instrumentation, which is the most common and least guessed.
 
-Lesson 2 is coming soon.
+[Start Lesson 2: Metric Drop Diagnosis](Metric-Drop-Diagnosis.html)
 
-### Lesson 3: Funnel decomposition
+### Lesson 3: Funnel Decomposition
 
 Breaking a rate into the steps that produce it, so a drop has a location before it has a theory. Step conversion computed and the leaking step identified.
 
-Lesson 3 is coming soon.
+[Start Lesson 3: Funnel Decomposition](Funnel-Decomposition.html)
 
-### Lesson 4: Cohort analysis and mix shift
+### Lesson 4: Cohort Analysis and Mix Shift
 
 Reading a cohort table, then the composition change that moves a headline nobody touched, with every cohort flat and the average falling.
 
-Lesson 4 is coming soon.
+[Start Lesson 4: Cohort Analysis and Mix Shift](Cohort-Analysis-and-Mix-Shift.html)
 
-### Lesson 5: Opportunity sizing
+### Lesson 5: Opportunity Sizing
 
 Estimating the ceiling on a feature's impact before it is built: reachable population times conversion times effect, with the uncertainty carried through so the answer is a range.
 
-Lesson 5 is coming soon.
+[Start Lesson 5: Opportunity Sizing](Opportunity-Sizing.html)
 
-### Lesson 6: Product sense quiz
+### Lesson 6: Quiz
 
 Section quiz.
 
-Lesson 6 is coming soon.
+[Start Lesson 6: Quiz](Product-Sense-Quiz.html)
 
 ## Who this is for
 
