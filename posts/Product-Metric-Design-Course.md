@@ -77,11 +77,11 @@ Why a per-user rate breaks the naive standard error, shown by simulating the cov
 
 [Start Lesson 8: Ratio Metrics and the Delta Method](Ratio-Metrics-and-the-Delta-Method.html)
 
-### Lesson 9: Metric design quiz
+### Lesson 9: Quiz
 
 Section quiz.
 
-Lesson 9 is coming soon.
+[Start Lesson 9: Quiz](Metric-Design-Quiz.html)
 
 ## Who this is for
 
