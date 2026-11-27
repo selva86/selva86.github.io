@@ -65,11 +65,11 @@ When a short-term stand-in is valid for a long-term outcome, the surrogacy condi
 
 [Start Lesson 6: Proxy Metrics and Surrogacy](Proxy-Metrics-and-Surrogacy.html)
 
-### Lesson 7: Metric sensitivity
+### Lesson 7: Metric Sensitivity
 
 Variance, traffic and effect size together decide what is detectable, so a metric can be the wrong instrument however long you run.
 
-Lesson 7 is coming soon.
+[Start Lesson 7: Metric Sensitivity](Metric-Sensitivity.html)
 
 ### Lesson 8: Ratio metrics and the delta method
 
