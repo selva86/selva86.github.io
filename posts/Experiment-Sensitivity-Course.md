@@ -41,41 +41,47 @@ Restricting analysis to the users a change could possibly have affected, often t
 
 Lesson 2 is coming soon.
 
-### Lesson 3: CUPED: pre-period data as a covariate
+### Lesson 3: Heavy-tailed metrics: capping and trimming
 
-Pre-period data used as a covariate, what it buys in sample size, and the conditions under which it buys nothing.
+Revenue per user is skewed enough to break a naive interval, so the sampling distribution of its mean is simulated until it is normal enough to trust, then capping and trimming are applied and the bias they buy is priced.
 
 Lesson 3 is coming soon.
 
-### Lesson 4: CUPAC: predictions as covariates
+### Lesson 4: CUPED: pre-period data as a covariate
 
-A model's prediction in place of the pre-period mean, for units with no history, and the extra variance reduction it recovers.
+Pre-period data used as a covariate, what it buys in sample size, and the conditions under which it buys nothing.
 
 Lesson 4 is coming soon.
 
-### Lesson 5: Sequential testing and always-valid inference
+### Lesson 5: CUPAC: predictions as covariates
 
-Confidence sequences that stay valid under continuous monitoring: the fix for peeking rather than the prohibition, and the power it costs.
+A model's prediction in place of the pre-period mean, for units with no history, and the extra variance reduction it recovers.
 
 Lesson 5 is coming soon.
 
-### Lesson 6: A/B/n tests and multiple comparisons
+### Lesson 6: Sequential testing and always-valid inference
 
-More than two variants, what the control is for, and the correction the extra arms require.
+Confidence sequences that stay valid under continuous monitoring: the fix for peeking rather than the prohibition, and the power it costs.
 
 Lesson 6 is coming soon.
 
-### Lesson 7: Interleaving
+### Lesson 7: A/B/n tests and multiple comparisons
 
-Showing two rankings to the same user instead of splitting users, and why it reaches an answer far faster for ranking changes.
+More than two variants, what the control is for, and the correction the extra arms require.
 
 Lesson 7 is coming soon.
 
-### Lesson 8: Sensitivity quiz
+### Lesson 8: Interleaving
+
+Showing two rankings to the same user instead of splitting users, and why it reaches an answer far faster for ranking changes.
+
+Lesson 8 is coming soon.
+
+### Lesson 9: Sensitivity quiz
 
 Section quiz.
 
-Lesson 8 is coming soon.
+Lesson 9 is coming soon.
 
 ## Who this is for
 
@@ -85,6 +91,7 @@ Anyone whose experiments take too long or end inconclusive: product data scienti
 
 - Name the three levers that reduce variance and pick the right one
 - Apply triggering and quantify the dilution it removes
+- Decide whether to cap a heavy-tailed metric, and price the bias that buys
 - Run a CUPED adjustment and say when it will not help
 - Use model predictions as covariates for units with no pre-period history
 - Monitor a test continuously using always-valid confidence sequences

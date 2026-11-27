@@ -41,41 +41,59 @@ User, session, device or cluster. The same dataset analysed at two units gives t
 
 Lesson 2 is coming soon.
 
-### Lesson 3: Type I error, type II error and power
+### Lesson 3: Choosing the test for an experiment metric
 
-The three quantities every design trades against each other, built by simulation rather than asserted, so the reader can see power rise as the sample grows.
+Which test the metric itself dictates: a difference in means, a difference in proportions, or a rate per user, with Welch rather than Student as the default and a permutation test as the fallback when nothing holds.
 
 Lesson 3 is coming soon.
 
-### Lesson 4: Power analysis by simulation
+### Lesson 4: Type I error, type II error and power
 
-Simulating the design you will actually run, with the real metric and its real variance, instead of a formula for a design nobody runs.
+The three quantities every design trades against each other, built by simulation rather than asserted, so the reader can see power rise as the sample grows.
 
 Lesson 4 is coming soon.
 
-### Lesson 5: Minimum detectable effect
+### Lesson 5: Power analysis by simulation
 
-The smallest effect worth shipping, chosen as a product decision first and then converted into a sample size.
+Simulating the design you will actually run, with the real metric and its real variance, instead of a formula for a design nobody runs.
 
 Lesson 5 is coming soon.
 
-### Lesson 6: Ramping and staged rollout
+### Lesson 6: Minimum detectable effect
 
-Exposure raised in phases, trading speed against quality and risk, and what each phase is actually for.
+The smallest effect worth shipping, chosen as a product decision first and then converted into a sample size.
 
 Lesson 6 is coming soon.
 
-### Lesson 7: Pre-registration and the analysis plan
+### Lesson 7: Sample size and test duration
 
-Writing the analysis down before the data, and counting the degrees of freedom that closes.
+The closed-form number you can produce in a meeting, then the reasons the calendar overrides it: weekly cycles, a one-business-cycle floor, and why hitting the count in three days is not permission to stop.
 
 Lesson 7 is coming soon.
 
-### Lesson 8: Experiment design quiz
+### Lesson 8: Ramping and staged rollout
+
+Exposure raised in phases, trading speed against quality and risk, and what each phase is actually for.
+
+Lesson 8 is coming soon.
+
+### Lesson 9: Overlapping experiments, layers and collisions
+
+Running hundreds of tests at once without them contaminating each other: hashing users into independent layers, what a collision looks like in the data, and the holdback that measures the whole portfolio.
+
+Lesson 9 is coming soon.
+
+### Lesson 10: Pre-registration and the analysis plan
+
+Writing the analysis down before the data, and counting the degrees of freedom that closes.
+
+Lesson 10 is coming soon.
+
+### Lesson 11: Experiment design quiz
 
 Section quiz.
 
-Lesson 8 is coming soon.
+Lesson 11 is coming soon.
 
 ## Who this is for
 
@@ -85,10 +103,13 @@ Anyone who runs or reviews online experiments: product data scientists, growth e
 
 - Run an experiment end to end, from a question to a shipped decision
 - Choose a randomisation unit and say what it costs you
+- Pick the right test for a mean, a proportion or a rate, and name the assumption you lean on
 - Explain type I error, type II error and power in terms of a design you simulated
 - Compute power by simulating the test you will actually run
 - Set a minimum detectable effect as a business decision and convert it to a sample size
+- Size a test by hand in a meeting, then defend a duration the arithmetic alone will not give you
 - Ramp exposure in phases that trade speed against risk deliberately
+- Place a test in its own layer so the other hundred running cannot contaminate it
 - Write an analysis plan that closes the degrees of freedom you would otherwise spend
 
 Ready? [Begin with Lesson 1: An A/B test end to end](An-A-B-Test-End-to-End.html).

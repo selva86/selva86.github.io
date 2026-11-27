@@ -291,13 +291,13 @@
         ['Metric taxonomy','The Overall Evaluation Criterion','Guardrail metrics','Goodhart law and metric gaming','Multiple testing across metrics','Proxy metrics and surrogacy','Metric sensitivity','Ratio metrics and the delta method'],
         'Metric design exercises', 'metric sensitivity calculator'),
       S(3, false, 'Experiment design', 'Size and specify a test that answers the question it was built for.',
-        ['An A/B test end to end','Randomisation units','Type I, type II and power','Power analysis by simulation','Minimum detectable effect','Ramping and staged rollout','Pre-registration and the analysis plan'],
+        ['An A/B test end to end','Randomisation units','Choosing the test for an experiment metric','Type I, type II and power','Power analysis by simulation','Minimum detectable effect','Sample size and test duration','Ramping and staged rollout','Overlapping experiments, layers and collisions','Pre-registration and the analysis plan'],
         'Experiment design exercises', 'power simulator'),
       S(4, false, 'Experiment trustworthiness', 'Tell a real result from a broken one before you act on it.',
         ['The A/A test','Sample ratio mismatch','Twyman law','Internal and external validity','Simpson paradox','Peeking and alpha inflation'],
         'Trustworthiness exercises', 'A/A simulator'),
       S(5, false, 'Experiment sensitivity', 'Get a trustworthy answer from less traffic, or sooner.',
-        ['Variance and statistical sensitivity','Triggering','Variance reduction with CUPED','CUPAC','Sequential testing and always-valid inference','A/B/n tests','Interleaving'],
+        ['Variance and statistical sensitivity','Triggering','Heavy-tailed metrics: capping and trimming','CUPED: pre-period data as a covariate','CUPAC','Sequential testing and always-valid inference','A/B/n tests','Interleaving'],
         'Sensitivity exercises', 'variance reducer'),
       S(6, false, 'Interference and network effects', 'Run a valid test when one user affects another.',
         ['SUTVA and no interference','Cluster randomisation','Switchback experiments','Geo experiments','Interference detection'],
@@ -312,7 +312,7 @@
         ['Short-term and long-term effects','Novelty and primacy','Surrogate metrics and the surrogate index','Long-term holdouts','Retention curves and survival analysis','Cannibalisation'],
         'Long-term effects exercises', 'holdout planner'),
       S(10, false, 'Decision-making and communication', 'Turn a result into a decision, and make it believed.',
-        ['Statistical and practical significance','Decision theory and expected loss','Bayesian A/B testing','Equivalence testing','The experiment readout','Communicating to non-technical stakeholders','Experiment review and launch criteria','Institutional memory and meta-analysis','Research ethics'],
+        ['Reading and reporting an effect size','Statistical and practical significance','Decision theory and expected loss','Bayesian A/B testing','Equivalence testing','The experiment readout','Communicating to non-technical stakeholders','Experiment review and launch criteria','Institutional memory and meta-analysis','Research ethics'],
         'Decision-making exercises', 'expected-loss calculator')
     ]
   };

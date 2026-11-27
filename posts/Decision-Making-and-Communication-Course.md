@@ -29,65 +29,71 @@ Each lesson is a guided, interactive experience: you run real R in the page, dri
 
 ## What the course covers
 
-### Lesson 1: Statistical and practical significance
+### Lesson 1: Reading and reporting an effect size
 
-A significant result not worth shipping and a non-significant one that is, with the effect size and the cost side by side.
+Absolute against relative lift, why the relative interval is not symmetric, and the standardised effect sizes that travel between metrics but mislead a product decision.
 
 Lesson 1 is coming soon.
 
-### Lesson 2: Decision theory and expected loss
+### Lesson 2: Statistical and practical significance
 
-The decision written as a loss function, where the p-value is one input and the cost of being wrong in each direction is the rest.
+A significant result not worth shipping and a non-significant one that is, with the effect size and the cost side by side.
 
 Lesson 2 is coming soon.
 
-### Lesson 3: Bayesian A/B testing
+### Lesson 3: Decision theory and expected loss
 
-The probability that B beats A, which is the quantity stakeholders already believe a p-value gives them, computed properly with the prior made explicit.
+The decision written as a loss function, where the p-value is one input and the cost of being wrong in each direction is the rest.
 
 Lesson 3 is coming soon.
 
-### Lesson 4: Equivalence testing and reporting a null
+### Lesson 4: Bayesian A/B testing
 
-Testing against a margin chosen in advance, so "no effect" becomes a finding you can report rather than a failure you bury.
+The probability that B beats A, which is the quantity stakeholders already believe a p-value gives them, computed properly with the prior made explicit.
 
 Lesson 4 is coming soon.
 
-### Lesson 5: The experiment readout
+### Lesson 5: Equivalence testing and reporting a null
 
-Its structure, the one chart that earns its place, the caveat that belongs and the three that do not.
+Testing against a margin chosen in advance, so "no effect" becomes a finding you can report rather than a failure you bury.
 
 Lesson 5 is coming soon.
 
-### Lesson 6: Communicating to non-technical stakeholders
+### Lesson 6: The experiment readout
 
-The same result told three ways, to an engineer, a product manager and an executive, without any of the three being misled.
+Its structure, the one chart that earns its place, the caveat that belongs and the three that do not.
 
 Lesson 6 is coming soon.
 
-### Lesson 7: Experiment review and launch criteria
+### Lesson 7: Communicating to non-technical stakeholders
 
-What a trustworthy review checks, in what order, and which failures should block a launch outright.
+The same result told three ways, to an engineer, a product manager and an executive, without any of the three being misled.
 
 Lesson 7 is coming soon.
 
-### Lesson 8: Institutional memory and meta-analysis
+### Lesson 8: Experiment review and launch criteria
 
-What a hundred past experiments tell you that one cannot: pooled effects, the win rate, and the prior it gives you.
+What a trustworthy review checks, in what order, and which failures should block a launch outright.
 
 Lesson 8 is coming soon.
 
-### Lesson 9: Research ethics in product experimentation
+### Lesson 9: Institutional memory and meta-analysis
 
-Consent, risk and reversibility, and the tests you should not run even though you can.
+What a hundred past experiments tell you that one cannot: pooled effects, the win rate, and the prior it gives you.
 
 Lesson 9 is coming soon.
 
-### Lesson 10: Decision-making quiz
+### Lesson 10: Research ethics in product experimentation
+
+Consent, risk and reversibility, and the tests you should not run even though you can.
+
+Lesson 10 is coming soon.
+
+### Lesson 11: Decision-making quiz
 
 Section quiz.
 
-Lesson 10 is coming soon.
+Lesson 11 is coming soon.
 
 ## Who this is for
 
@@ -95,6 +101,7 @@ Anyone who has to convert evidence into a recommendation and then defend it: pro
 
 ## What you will be able to do
 
+- Report a lift as both an absolute and a relative effect, with an interval that is not symmetric
 - Tell statistical significance from practical significance, with numbers
 - Frame a ship decision as expected loss rather than a p-value threshold
 - Compute the probability that the treatment beats control, and state your prior
@@ -105,4 +112,4 @@ Anyone who has to convert evidence into a recommendation and then defend it: pro
 - Pool evidence across many past experiments into a prior worth holding
 - Recognise an experiment that should not be run at all
 
-Ready? [Begin with Lesson 1: Statistical and practical significance](Statistical-and-Practical-Significance.html).
+Ready? [Begin with Lesson 1: Reading and reporting an effect size](Reading-and-Reporting-an-Effect-Size.html).

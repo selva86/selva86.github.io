@@ -825,12 +825,15 @@ Relocations come from `ds-experimentation`, `ds-causal` and
 
 1. An-A-B-Test-End-to-End - One experiment walked from question to decision in a single lesson, so the whole loop is visible before any part of it is examined closely. widgets: process-flow, chart-plotter
 2. Randomisation-Units - User, session, device or cluster. The same dataset analysed at two units gives two answers, which is the lesson. widgets: cluster-icc-sim, styled-table
-3. Type-I-Error-Type-II-Error-and-Power - The three quantities every design trades against each other, built by simulation rather than asserted, so the reader can see power rise as the sample grows. widgets: null-distribution, power-curve
-4. Power-Analysis-by-Simulation - Simulating the design you will actually run, with the real metric and its real variance, instead of a formula for a design nobody runs. widgets: power-curve, chart-plotter
-5. Minimum-Detectable-Effect - The smallest effect worth shipping, chosen as a product decision first and then converted into a sample size. widgets: power-curve, chart-plotter
-6. Ramping-and-Staged-Rollout - Exposure raised in phases, trading speed against quality and risk, and what each phase is actually for. widgets: process-flow, chart-plotter
-7. Pre-Registration-and-the-Analysis-Plan - Writing the analysis down before the data, and counting the degrees of freedom that closes. widgets: doc-structure, multiplicity-sim
-8. Experiment-Design-Quiz - Section quiz.
+3. Choosing-the-Test-for-an-Experiment-Metric - Which test the metric itself dictates: a difference in means, a difference in proportions, or a rate per user, with Welch rather than Student as the default and a permutation test as the fallback when nothing holds. widgets: assumption-dial, styled-table
+4. Type-I-Error-Type-II-Error-and-Power - The three quantities every design trades against each other, built by simulation rather than asserted, so the reader can see power rise as the sample grows. widgets: null-distribution, power-curve
+5. Power-Analysis-by-Simulation - Simulating the design you will actually run, with the real metric and its real variance, instead of a formula for a design nobody runs. widgets: power-curve, chart-plotter
+6. Minimum-Detectable-Effect - The smallest effect worth shipping, chosen as a product decision first and then converted into a sample size. widgets: power-curve, chart-plotter
+7. Sample-Size-and-Test-Duration - The closed-form number you can produce in a meeting, then the reasons the calendar overrides it: weekly cycles, a one-business-cycle floor, and why hitting the count in three days is not permission to stop. widgets: power-curve, chart-plotter
+8. Ramping-and-Staged-Rollout - Exposure raised in phases, trading speed against quality and risk, and what each phase is actually for. widgets: process-flow, chart-plotter
+9. Overlapping-Experiments-Layers-and-Collisions - Running hundreds of tests at once without them contaminating each other: hashing users into independent layers, what a collision looks like in the data, and the holdback that measures the whole portfolio. widgets: process-flow, styled-table
+10. Pre-Registration-and-the-Analysis-Plan - Writing the analysis down before the data, and counting the degrees of freedom that closes. widgets: doc-structure, multiplicity-sim
+11. Experiment-Design-Quiz - Section quiz.
 
 ## pds-trust  (track: product-ds; curriculum_id 3.40; landing Experiment-Trustworthiness-Course.html; access: pro)  [roadmap §4]
 
@@ -846,12 +849,13 @@ Relocations come from `ds-experimentation`, `ds-causal` and
 
 1. Variance-and-Statistical-Sensitivity - Why variance rather than effect size usually decides whether a test can answer anything, and the three levers that reduce it. widgets: chart-plotter, bootstrap-sample
 2. Triggering - Restricting analysis to the users a change could possibly have affected, often the single largest sensitivity win available, with the dilution it removes quantified. widgets: chart-plotter, styled-table
-3. CUPED-Pre-Period-Data-as-a-Covariate - Pre-period data used as a covariate, what it buys in sample size, and the conditions under which it buys nothing. widgets: cuped-variance, chart-plotter
-4. CUPAC-Predictions-as-Covariates - A model's prediction in place of the pre-period mean, for units with no history, and the extra variance reduction it recovers. widgets: cuped-variance, cv-folds
-5. Sequential-Testing-and-Always-Valid-Inference - Confidence sequences that stay valid under continuous monitoring: the fix for peeking rather than the prohibition, and the power it costs. widgets: ci-coverage, chart-plotter
-6. A-B-n-Tests-and-Multiple-Comparisons - More than two variants, what the control is for, and the correction the extra arms require. widgets: multiplicity-sim, null-distribution
-7. Interleaving - Showing two rankings to the same user instead of splitting users, and why it reaches an answer far faster for ranking changes. widgets: styled-table, chart-plotter
-8. Sensitivity-Quiz - Section quiz.
+3. Heavy-Tailed-Metrics-Capping-and-Trimming - Revenue per user is skewed enough to break a naive interval, so the sampling distribution of its mean is simulated until it is normal enough to trust, then capping and trimming are applied and the bias they buy is priced. widgets: clt-sampler, chart-plotter
+4. CUPED-Pre-Period-Data-as-a-Covariate - Pre-period data used as a covariate, what it buys in sample size, and the conditions under which it buys nothing. widgets: cuped-variance, chart-plotter
+5. CUPAC-Predictions-as-Covariates - A model's prediction in place of the pre-period mean, for units with no history, and the extra variance reduction it recovers. widgets: cuped-variance, cv-folds
+6. Sequential-Testing-and-Always-Valid-Inference - Confidence sequences that stay valid under continuous monitoring: the fix for peeking rather than the prohibition, and the power it costs. widgets: ci-coverage, chart-plotter
+7. A-B-n-Tests-and-Multiple-Comparisons - More than two variants, what the control is for, and the correction the extra arms require. widgets: multiplicity-sim, null-distribution
+8. Interleaving - Showing two rankings to the same user instead of splitting users, and why it reaches an answer far faster for ranking changes. widgets: styled-table, chart-plotter
+9. Sensitivity-Quiz - Section quiz.
 
 ## pds-interference  (track: product-ds; curriculum_id 3.60; landing Interference-and-Network-Effects-Course.html; access: pro)  [roadmap §6]
 
@@ -899,13 +903,14 @@ Relocations come from `ds-experimentation`, `ds-causal` and
 
 ## pds-decision  (track: product-ds; curriculum_id 3.100; landing Decision-Making-and-Communication-Course.html; access: pro)  [roadmap §10]
 
-1. Statistical-and-Practical-Significance - A significant result not worth shipping and a non-significant one that is, with the effect size and the cost side by side. widgets: ci-coverage, chart-plotter
-2. Decision-Theory-and-Expected-Loss - The decision written as a loss function, where the p-value is one input and the cost of being wrong in each direction is the rest. widgets: bayes-update, chart-plotter
-3. Bayesian-A-B-Testing - The probability that B beats A, which is the quantity stakeholders already believe a p-value gives them, computed properly with the prior made explicit. widgets: bayes-update, ppc-overlay
-4. Equivalence-Testing-and-Reporting-a-Null - Testing against a margin chosen in advance, so "no effect" becomes a finding you can report rather than a failure you bury. widgets: ci-coverage, null-distribution
-5. The-Experiment-Readout - Its structure, the one chart that earns its place, the caveat that belongs and the three that do not. widgets: report-four-ways, doc-structure
-6. Communicating-to-Non-Technical-Stakeholders - The same result told three ways, to an engineer, a product manager and an executive, without any of the three being misled. widgets: report-four-ways, styled-table
-7. Experiment-Review-and-Launch-Criteria - What a trustworthy review checks, in what order, and which failures should block a launch outright. widgets: review-triage, process-flow
-8. Institutional-Memory-and-Meta-Analysis - What a hundred past experiments tell you that one cannot: pooled effects, the win rate, and the prior it gives you. widgets: forest-plot, funnel-plot
-9. Research-Ethics-in-Product-Experimentation - Consent, risk and reversibility, and the tests you should not run even though you can. widgets: doc-structure, review-triage
-10. Decision-Making-Quiz - Section quiz.
+1. Reading-and-Reporting-an-Effect-Size - Absolute against relative lift, why the relative interval is not symmetric, and the standardised effect sizes that travel between metrics but mislead a product decision. widgets: forest-plot, chart-plotter
+2. Statistical-and-Practical-Significance - A significant result not worth shipping and a non-significant one that is, with the effect size and the cost side by side. widgets: ci-coverage, chart-plotter
+3. Decision-Theory-and-Expected-Loss - The decision written as a loss function, where the p-value is one input and the cost of being wrong in each direction is the rest. widgets: bayes-update, chart-plotter
+4. Bayesian-A-B-Testing - The probability that B beats A, which is the quantity stakeholders already believe a p-value gives them, computed properly with the prior made explicit. widgets: bayes-update, ppc-overlay
+5. Equivalence-Testing-and-Reporting-a-Null - Testing against a margin chosen in advance, so "no effect" becomes a finding you can report rather than a failure you bury. widgets: ci-coverage, null-distribution
+6. The-Experiment-Readout - Its structure, the one chart that earns its place, the caveat that belongs and the three that do not. widgets: report-four-ways, doc-structure
+7. Communicating-to-Non-Technical-Stakeholders - The same result told three ways, to an engineer, a product manager and an executive, without any of the three being misled. widgets: report-four-ways, styled-table
+8. Experiment-Review-and-Launch-Criteria - What a trustworthy review checks, in what order, and which failures should block a launch outright. widgets: review-triage, process-flow
+9. Institutional-Memory-and-Meta-Analysis - What a hundred past experiments tell you that one cannot: pooled effects, the win rate, and the prior it gives you. widgets: forest-plot, funnel-plot
+10. Research-Ethics-in-Product-Experimentation - Consent, risk and reversibility, and the tests you should not run even though you can. widgets: doc-structure, review-triage
+11. Decision-Making-Quiz - Section quiz.
